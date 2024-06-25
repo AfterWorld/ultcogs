@@ -818,7 +818,7 @@ class OnePieceAdventure(commands.Cog):
         await ctx.send(f"🎉 Congratulations! You've learned the {next_skill} skill!")
 
     @commands.command()
-    async def skill(self, ctx, *, skill_name: str):
+    async def useskill(self, ctx, *, skill_name: str):
         """
         🔧 Use one of your learned skills.
 
@@ -829,7 +829,7 @@ class OnePieceAdventure(commands.Cog):
         skill_name (str): The name of the skill you want to use.
 
         Example:
-        .skill "One-Sword Style"
+        .useskill "One-Sword Style"
         """
         user_data = await self.config.member(ctx.author).all()
         if skill_name not in user_data['skills']:
