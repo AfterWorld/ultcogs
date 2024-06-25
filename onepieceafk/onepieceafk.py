@@ -282,7 +282,7 @@ class OnePieceAFK(commands.Cog):
         island_name (str): The name of the island you want to explore.
 
         Example:
-        !explore_island dawn
+        .explore dawn
         """
         island = self.islands.get(island_name.lower())
         if not island:
@@ -341,7 +341,7 @@ class OnePieceAFK(commands.Cog):
         opponent_crew (str): The name of the crew you want to challenge.
 
         Example:
-        !crew_battle "Straw Hat Pirates"
+        .crew_battle "Straw Hat Pirates"
         """
         player_crew = await self.config.member(ctx.author).crew()
         if not player_crew:
@@ -380,7 +380,7 @@ class OnePieceAFK(commands.Cog):
         item (str): The name of the item you want to trade.
 
         Example:
-        !trade @username "Log Pose"
+        .trade @username "Log Pose"
         """
         if partner.bot:
             return await ctx.send("You can't trade with bots!")
@@ -418,7 +418,7 @@ class OnePieceAFK(commands.Cog):
         Skills are learned in a specific order and require previous skills to be mastered.
 
         Example:
-        !learn_skill
+        .learn_skill
         """
         user_class = await self.config.member(ctx.author).character_class()
         if not user_class:
@@ -448,7 +448,7 @@ class OnePieceAFK(commands.Cog):
         Available classes: Swordsman, Navigator, Cook
 
         Example:
-        !choose_class Swordsman
+        .choose_class Swordsman
         """
         if class_name not in self.skill_tree.skills:
             return await ctx.send(f"Invalid class. Choose from: {', '.join(self.skill_tree.skills.keys())}")
@@ -490,7 +490,7 @@ class OnePieceAFK(commands.Cog):
         opponent (discord.Member): The user you want to challenge.
 
         Example:
-        !davy_back_fight @username
+        .davy_back_fight @username
         """
         if opponent.bot:
             return await ctx.send("You can't challenge bots to a Davy Back Fight!")
@@ -553,7 +553,7 @@ class OnePieceAFK(commands.Cog):
         ally_crew (str): The name of the crew you want to ally with.
 
         Example:
-        !form_alliance "Heart Pirates"
+        .form_alliance "Heart Pirates"
         """
         user_crew = await self.config.member(ctx.author).crew()
         if not user_crew:
@@ -677,7 +677,7 @@ class OnePieceAFK(commands.Cog):
         fruit_name (str): The name of the Devil Fruit you want to use.
 
         Example:
-        !use_devil_fruit "Gomu Gomu no Mi"
+        .use_devil_fruit "Gomu Gomu no Mi"
         """
         user_data = await self.config.member(ctx.author).all()
         inventory = user_data['inventory']
@@ -773,7 +773,7 @@ class OnePieceAFK(commands.Cog):
         This command shows all the items you currently possess.
 
         Example:
-        !inventory
+        .inventory
         """
         user_data = await self.config.member(ctx.author).all()
         inventory = user_data['inventory']
@@ -798,8 +798,8 @@ class OnePieceAFK(commands.Cog):
         member (discord.Member): The user whose profile you want to see. If not specified, shows your own profile.
 
         Example:
-        !profile
-        !profile @username
+        .profile
+        .profile @username
         """
         if member is None:
             member = ctx.author
@@ -821,7 +821,7 @@ class OnePieceAFK(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="onepieceh")
+    @commands.command(name="ophelp")
     async def custom_help(self, ctx):
         """
         Display help information for the One Piece AFK game.
@@ -834,24 +834,24 @@ class OnePieceAFK(commands.Cog):
         embed = discord.Embed(title="One Piece AFK Game Help", color=discord.Color.blue())
         
         embed.add_field(name="Core Commands", value="""
-        `!explore_island <island>` - Explore an island for adventures
-        `!crew_battle <opponent_crew>` - Initiate a battle between crews
-        `!train_haki` - Train your Haki to increase its level
-        `!learn_skill` - Learn a new skill based on your character class
-        `!use_devil_fruit <fruit_name>` - Use a Devil Fruit from your inventory
+        `.explore_island <island>` - Explore an island for adventures
+        `.crew_battle <opponent_crew>` - Initiate a battle between crews
+        `.train_haki` - Train your Haki to increase its level
+        `.learn_skill` - Learn a new skill based on your character class
+        `.use_devil_fruit <fruit_name>` - Use a Devil Fruit from your inventory
         """, inline=False)
         
         embed.add_field(name="Information Commands", value="""
-        `!profile [member]` - View your or another user's profile
-        `!inventory` - View your inventory
-        `!leaderboard [category]` - View the leaderboard for a specific category
+        `.profile [member]` - View your or another user's profile
+        `.inventory` - View your inventory
+        `.leaderboard [category]` - View the leaderboard for a specific category
         """, inline=False)
         
         embed.add_field(name="Other Commands", value="""
-        `!trade <partner> <item>` - Trade an item with another user
-        `!form_alliance <ally_crew>` - Form an alliance with another crew
-        `!davy_back_fight <opponent>` - Challenge another user to a Davy Back Fight
-        `!choose_class <class_name>` - Choose your character class
+        `.trade <partner> <item>` - Trade an item with another user
+        `.form_alliance <ally_crew>` - Form an alliance with another crew
+        `.davy_back_fight <opponent>` - Challenge another user to a Davy Back Fight
+        `.choose_class <class_name>` - Choose your character class
         """, inline=False)
         
         embed.add_field(name="Game Mechanics", value="""
