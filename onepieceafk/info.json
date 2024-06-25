@@ -14,17 +14,6 @@
         "pirate",
         "anime",
         "rpg"
-    ],
-    "custom_info": {
-        "cog_creator": "Your Name",
-        "version": "1.0.0",
-        "last_updated": "2023-05-15",
-        "support_server": "https://discord.gg/onepiececommunity",
-        "red's server": "https://discord.gg/red",
-        "changelog": [
-            "1.0.0 - Initial release with core features",
-            "1.0.1 - Added more islands and world events",
-            "1.1.0 - Introduced seasonal events and Davy Back Fights"
-        ]
+    ]
     }
 }
