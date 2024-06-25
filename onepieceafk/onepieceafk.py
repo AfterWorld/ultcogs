@@ -4,6 +4,7 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS # type: ignore
 from redbot.core.utils.chat_formatting import box, pagify # type: ignore
 from redbot.core.utils.predicates import MessagePredicate # type: ignore
 from discord.ext import tasks # type: ignore
+from discord.ext import commands # type: ignore
 from datetime import datetime, timedelta
 import asyncio
 import random
@@ -803,22 +804,22 @@ class OnePieceAFK(commands.Cog):
         """
         if member is None:
             member = ctx.author
-        
+    
         user_data = await self.config.member(member).all()
-        
+    
         embed = discord.Embed(title=f"{member.name}'s Pirate Profile", color=member.color)
-        embed.set_thumbnail(url=member.avatar_url)
-        
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    
         embed.add_field(name="Bounty", value=f"{user_data['bounty']:,} Belly", inline=False)
         embed.add_field(name="Crew", value=user_data['crew'] or "No Crew", inline=True)
         embed.add_field(name="Character Class", value=user_data['character_class'] or "Not Chosen", inline=True)
         embed.add_field(name="Devil Fruit", value=user_data['devil_fruit'] or "None", inline=True)
         embed.add_field(name="Haki Level", value=user_data['haki_level'], inline=True)
         embed.add_field(name="Exploration Count", value=user_data['exploration_count'], inline=True)
-        
+    
         skills = ", ".join(user_data['skills']) if user_data['skills'] else "None"
         embed.add_field(name="Skills", value=skills, inline=False)
-        
+    
         await ctx.send(embed=embed)
 
     @commands.command(name="ophelp")
@@ -829,7 +830,7 @@ class OnePieceAFK(commands.Cog):
         This command provides an overview of all available commands and game mechanics.
 
         Example:
-        !help_onepiece
+        .ophelp
         """
         embed = discord.Embed(title="One Piece AFK Game Help", color=discord.Color.blue())
         
@@ -875,6 +876,19 @@ class OnePieceAFK(commands.Cog):
             await ctx.send(f"Invalid argument provided: {error}")
         else:
             await ctx.send(f"An error occurred: {error}")
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandInvokeError):
+            original = error.original
+            if isinstance(original, discord.HTTPException):
+                await ctx.send(f"There was an error communicating with Discord. Please try again later.")
+            else:
+                await ctx.send(f"An unexpected error occurred: {original.__class__.__name__}")
+            print(f"Error in {ctx.command.name}:", type(original).__name__, str(original))
+        elif isinstance(error, commands.CommandNotFound):
+            pass  # Ignore command not found errors
+        else:
+            await ctx.send(f"An error occurred: {error}")
+            print(f"Error in {ctx.command.name}:", type(error).__name__, str(error))
 
     # Utility methods
     async def add_item_to_inventory(self, user, item):
