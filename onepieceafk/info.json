@@ -15,18 +15,6 @@
         "anime",
         "rpg"
     ],
-    "requirements": ["discord.py>=1.5.0"],
-    "min_bot_version": "3.5.0",
-    "min_python_version": [3, 8, 0],
-    "type": "COG",
-    "end_user_data_statement": "This cog stores user data essential for gameplay, including but not limited to:\n• Adventure status and progress\n• Bounty and currency amounts\n• Crew affiliations and alliances\n• Character skills, Haki levels, and Devil Fruit powers\n• Inventory items\n• Exploration history and achievements\n\nAll stored data is used to provide a persistent and engaging user experience. Users can request complete data deletion at any time, which will reset their in-game progress.",
-    "permissions": [
-        "embed_links",
-        "add_reactions",
-        "manage_messages"
-    ],
-    "required_cogs": {},
-    "suggest_cogs": {},
     "custom_info": {
         "cog_creator": "Your Name",
         "version": "1.0.0",
