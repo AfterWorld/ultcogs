@@ -128,4 +128,4 @@ class OnePieceAFK(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(OnePieceAFK(bot))
+    await bot.add_cog(OPAFK(bot))
