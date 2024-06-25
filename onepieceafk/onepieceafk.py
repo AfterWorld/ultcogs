@@ -4,7 +4,6 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS # type: ignore
 from redbot.core.utils.chat_formatting import box, pagify # type: ignore
 from redbot.core.utils.predicates import MessagePredicate # type: ignore
 from discord.ext import tasks # type: ignore
-from discord.ext import commands # type: ignore
 from datetime import datetime, timedelta
 import asyncio
 import random
