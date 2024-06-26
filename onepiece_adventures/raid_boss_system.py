@@ -7,6 +7,7 @@ class RaidBossSystem:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
+        self.active_raid = None  # Add this line
 
     async def spawn_raid_boss(self, ctx):
         if self.active_raid:
