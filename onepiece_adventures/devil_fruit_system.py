@@ -1,5 +1,5 @@
-import discord
-from redbot.core import commands, Config
+import discord # type: ignore
+from redbot.core import commands, Config # type: ignore
 import random
 
 class DevilFruitSystem:
@@ -28,6 +28,8 @@ class DevilFruitSystem:
             return
 
         user_data['devil_fruit'] = fruit_name
+        user_data['devil_fruit_level'] = 1
+        user_data['devil_fruit_exp'] = 0
         await self.config.member(ctx.author).set(user_data)
 
         fruit_info = self.devil_fruits[fruit_name]
@@ -77,7 +79,6 @@ class DevilFruitSystem:
         await self.config.member(ctx.author).set(user_data)
         await ctx.send("Your stats have increased due to Devil Fruit awakening!")
 
-    @commands.command()
     async def devil_fruit_info(self, ctx, fruit_name: str = None):
         if fruit_name:
             if fruit_name in self.devil_fruits:
@@ -88,3 +89,40 @@ class DevilFruitSystem:
         else:
             fruits_list = "\n".join([f"{name} ({info['type']})" for name, info in self.devil_fruits.items()])
             await ctx.send(f"Available Devil Fruits:\n{fruits_list}")
+
+    async def devil_fruit_attack(self, ctx, target: discord.Member):
+        user_data = await self.config.member(ctx.author).all()
+        if not user_data['devil_fruit']:
+            return await ctx.send("You haven't eaten a Devil Fruit yet!")
+        
+        fruit = self.devil_fruits[user_data['devil_fruit']]
+        damage = random.randint(50, 200) * (1 + user_data['haki_level'] * 0.1)
+        
+        target_data = await self.config.member(target).all()
+        if target_data['devil_fruit'] and self.devil_fruits[target_data['devil_fruit']]['type'] == 'Logia':
+            if user_data['haki_level'] > target_data['haki_level']:
+                target_data['hp'] = max(0, target_data['hp'] - damage)
+                await ctx.send(f"Your Haki-infused {fruit['ability']} attack hit {target.name} for {damage} damage!")
+            else:
+                await ctx.send(f"Your {fruit['ability']} attack passed through {target.name}'s Logia body!")
+        else:
+            target_data['hp'] = max(0, target_data['hp'] - damage)
+            await ctx.send(f"Your {fruit['ability']} attack hit {target.name} for {damage} damage!")
+        
+        await self.config.member(target).set(target_data)
+
+    async def train_devil_fruit(self, ctx):
+        user_data = await self.config.member(ctx.author).all()
+        if not user_data['devil_fruit']:
+            return await ctx.send("You haven't eaten a Devil Fruit yet!")
+        
+        if user_data['devil_fruit_exp'] >= user_data['devil_fruit_level'] * 100:
+            user_data['devil_fruit_level'] += 1
+            user_data['devil_fruit_exp'] = 0
+            await ctx.send(f"Your mastery over the {user_data['devil_fruit']} has increased to level {user_data['devil_fruit_level']}!")
+        else:
+            exp_gain = random.randint(10, 30)
+            user_data['devil_fruit_exp'] += exp_gain
+            await ctx.send(f"You trained with your {user_data['devil_fruit']} powers and gained {exp_gain} experience!")
+        
+        await self.config.member(ctx.author).set(user_data)

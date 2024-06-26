@@ -1,5 +1,5 @@
-import discord
-from redbot.core import commands, Config
+import discord # type: ignore
+from redbot.core import commands, Config # type: ignore
 import random
 import asyncio
 
@@ -91,3 +91,51 @@ class CrewBattleSystem:
         total_strength += ship_bonus
 
         return total_strength
+
+    async def recruit_crew_member(self, ctx, member: discord.Member):
+        user_data = await self.config.member(ctx.author).all()
+        if not user_data['crew']:
+            return await ctx.send("You need to be in a crew to recruit members.")
+        
+        crews = await self.config.guild(ctx.guild).crews()
+        if len(crews[user_data['crew']]['members']) >= 10:
+            return await ctx.send("Your crew is already at maximum capacity (10 members).")
+        
+        await ctx.send(f"{member.mention}, {ctx.author.name} is inviting you to join their crew. Do you accept? (yes/no)")
+        
+        def check(m):
+            return m.author == member and m.channel == ctx.channel and m.content.lower() in ['yes', 'no']
+        
+        try:
+            msg = await self.bot.wait_for('message', check=check, timeout=30.0)
+        except asyncio.TimeoutError:
+            return await ctx.send("The invitation has timed out.")
+        
+        if msg.content.lower() == 'yes':
+            crews[user_data['crew']]['members'].append(member.id)
+            await self.config.guild(ctx.guild).crews.set(crews)
+            await self.config.member(member).crew.set(user_data['crew'])
+            await ctx.send(f"{member.name} has joined {user_data['crew']}!")
+        else:
+            await ctx.send("The invitation was declined.")
+
+    async def crew_info(self, ctx, crew_name: str = None):
+        if crew_name is None:
+            user_data = await self.config.member(ctx.author).all()
+            crew_name = user_data['crew']
+            if not crew_name:
+                return await ctx.send("You're not in a crew. Specify a crew name or join one first.")
+        
+        crews = await self.config.guild(ctx.guild).crews()
+        if crew_name not in crews:
+            return await ctx.send("That crew doesn't exist.")
+        
+        crew = crews[crew_name]
+        embed = discord.Embed(title=f"Crew Info: {crew_name}", color=discord.Color.gold())
+        captain = self.bot.get_user(crew['captain'])
+        embed.add_field(name="Captain", value=captain.name if captain else "Unknown")
+        embed.add_field(name="Members", value=len(crew['members']))
+        embed.add_field(name="Ships", value=len(crew['ships']))
+        embed.add_field(name="Reputation", value=crew['reputation'])
+        
+        await ctx.send(embed=embed)
