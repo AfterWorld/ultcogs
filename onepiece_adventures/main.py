@@ -83,11 +83,11 @@ class OnePieceAdventures(commands.Cog):
         """View your or another user's profile."""
         if member is None:
             member = ctx.author
-        
+    
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
-        embed.set_thumbnail(url=member.avatar_url)
-        
+        embed.set_thumbnail(url=member.display_avatar.url)
+    
         embed.add_field(name="Level", value=user_data['level'])
         embed.add_field(name="Exp", value=user_data['exp'])
         embed.add_field(name="Berries", value=user_data['berries'])
@@ -98,7 +98,7 @@ class OnePieceAdventures(commands.Cog):
         embed.add_field(name="Devil Fruit", value=user_data['devil_fruit'] or "None")
         embed.add_field(name="Crew", value=user_data['crew'] or "None")
         embed.add_field(name="Current Island", value=user_data['current_island'])
-        
+    
         await ctx.send(embed=embed)
 
     @commands.command()
