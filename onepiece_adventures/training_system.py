@@ -1,8 +1,8 @@
-import discord # type: ignore
-from redbot.core import commands, Config # type: ignore
+import discord 
+from redbot.core import commands, Config 
 import asyncio
 from datetime import datetime, timedelta
-import random  # Add this import
+import random  
 
 class TrainingSystem:
     def __init__(self, bot, config):

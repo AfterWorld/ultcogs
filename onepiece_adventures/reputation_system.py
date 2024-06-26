@@ -1,5 +1,5 @@
-import discord # type: ignore
-from redbot.core import commands, Config # type: ignore
+import discord 
+from redbot.core import commands, Config 
 
 class ReputationSystem:
     def __init__(self, bot, config):

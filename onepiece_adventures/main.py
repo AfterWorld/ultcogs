@@ -1,7 +1,7 @@
-import discord # type: ignore
-from redbot.core import commands, Config # type: ignore
-from redbot.core.bot import Red # type: ignore
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS # type: ignore
+import discord 
+from redbot.core import commands, Config 
+from redbot.core.bot import Red 
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS 
 import asyncio
 import random
 from typing import Dict, List, Any

@@ -1,5 +1,5 @@
 import discord # type: ignore
-from redbot.core import commands, Config # type: ignore
+from redbot.core import commands, Config 
 import random
 import asyncio
 
