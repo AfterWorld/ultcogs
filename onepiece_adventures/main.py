@@ -244,6 +244,26 @@ class OnePieceAdventures(commands.Cog):
         await self.raid_boss_system.raid_status(ctx)
 
     @commands.command()
+    async def create_crew(self, ctx, *, name: str):
+        """Create a new crew (requires a specific role)."""
+        await self.crew_battle_system.create_crew(ctx, name)
+
+    @commands.command()
+    async def join_crew(self, ctx, *, crew_name: str):
+        """Join an existing crew (requires a specific role)."""
+        await self.crew_battle_system.join_crew(ctx, crew_name)
+
+    @commands.command()
+    async def crew_info(self, ctx, *, crew_name: str = None):
+        """View information about a crew."""
+        await self.crew_battle_system.crew_info(ctx, crew_name)
+
+    @commands.command()
+    async def list_crews(self, ctx):
+        """List all crews in the server."""
+        await self.crew_battle_system.list_crews(ctx)
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
