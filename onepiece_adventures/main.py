@@ -14,7 +14,7 @@ from .marine_career import MarineCareerSystem
 from .sea_travel_system import SeaTravelSystem
 from .training_system import TrainingSystem
 from .treasure_maps import TreasureMapSystem
-from .raid_boss_system import RaidBossSystem
+from onepiece_adventures.raid_boss_system import RaidBossSystem
 from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents

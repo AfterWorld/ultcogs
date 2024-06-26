@@ -81,3 +81,5 @@ class RaidBossSystem:
 
         self.active_raid = None
         await ctx.send("The raid has ended! Congratulations to all participants!")
+        
+        __all__ = ['RaidBossSystem']
