@@ -264,6 +264,16 @@ class OnePieceAdventures(commands.Cog):
         await self.crew_battle_system.list_crews(ctx)
 
     @commands.command()
+    async def df_ultimate(self, ctx):
+        """Use your awakened Devil Fruit's ultimate ability."""
+        await self.devil_fruit_system.devil_fruit_ultimate(ctx)
+
+    @commands.command()
+    async def df_mastery(self, ctx):
+        """View your Devil Fruit mastery progress."""
+        await self.devil_fruit_system.devil_fruit_mastery(ctx)
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
