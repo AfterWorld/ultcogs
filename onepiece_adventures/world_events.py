@@ -1,7 +1,8 @@
-import discord # type: ignore
-from redbot.core import commands, Config # type: ignore
+import discord
+from redbot.core import commands, Config
 import random
 import asyncio
+import logging
 
 class WorldEvents:
     def __init__(self, bot, config):
@@ -10,6 +11,9 @@ class WorldEvents:
         self.event_channel_id = 425068612542398476  # Your specified channel ID
         self.active_event = None
         self.participants = set()
+        self.last_event_time = 0
+        self.event_cooldown = 3600  # 1 hour cooldown
+        self.logger = logging.getLogger("red.onepiece_adventures.world_events")
 
         # Event-specific attributes
         self.defenders = 0
@@ -21,8 +25,6 @@ class WorldEvents:
         self.top_damager = None
         self.explored_locations = []
         self.remaining_explorations = 5
-
-        # New event attributes
         self.bowing = 0
         self.defying = 0
         self.legendary_pirate = None
@@ -31,27 +33,44 @@ class WorldEvents:
         self.research_progress = 0
 
     async def spawn_random_event(self):
-        channel = self.bot.get_channel(self.event_channel_id)
-        if not channel or self.active_event:
-            return
+        try:
+            channel = self.bot.get_channel(self.event_channel_id)
+            if not channel or self.active_event:
+                return
 
-        if random.random() < 0.1:  # 10% chance for a special event
-            events = [
-                self.celestial_dragon_visit,
-                self.legendary_pirate_showdown,
-                self.ancient_weapon_discovery
-            ]
-        else:
+            current_time = asyncio.get_event_loop().time()
+            if current_time - self.last_event_time < self.event_cooldown:
+                return
+
             events = [
                 self.pirate_invasion,
                 self.treasure_hunt,
                 self.sea_monster_appearance,
-                self.mysterious_island
+                self.mysterious_island,
+                self.celestial_dragon_visit,
+                self.legendary_pirate_showdown,
+                self.ancient_weapon_discovery
             ]
-        
-        event = random.choice(events)
-        self.active_event = event.__name__
-        await event(channel)
+            
+            event = random.choice(events)
+            self.active_event = event.__name__
+            self.last_event_time = current_time
+            await event(channel)
+        except Exception as e:
+            self.logger.error(f"Error in spawn_random_event: {e}")
+
+    async def start_event_loop(self):
+        while True:
+            try:
+                await asyncio.sleep(300)  # Check every 5 minutes
+                if random.random() < 0.1:  # 10% chance to spawn an event
+                    await self.spawn_random_event()
+            except Exception as e:
+                self.logger.error(f"Error in event loop: {e}")
+
+    async def trigger_event_by_message(self, message):
+        if random.random() < 0.001:  # 0.1% chance per message
+            await self.spawn_random_event()
 
     async def pirate_invasion(self, channel):
         await channel.send("🏴‍☠️ A pirate fleet has been spotted! Defend the island or join their ranks! React with 🛡️ to defend or ⚔️ to join.")
@@ -333,12 +352,6 @@ class WorldEvents:
         else:
             await ctx.send("That location doesn't exist on this island.")
 
-    async def start_event_loop(self):
-        while True:
-            await asyncio.sleep(3600)  # Wait for 1 hour
-            if random.random() < 0.5:  # 50% chance to spawn an event
-                await self.spawn_random_event()
-
     async def event_status(self, ctx):
         if not self.active_event:
             await ctx.send("There's no active world event right now.")
@@ -370,3 +383,8 @@ class WorldEvents:
                 status_message += f"Research Progress: {self.research_progress}%"
             
             await ctx.send(status_message)
+
+    async def manual_trigger_event(self, ctx):
+        """Manually trigger a random world event (for testing)."""
+        await self.spawn_random_event()
+        await ctx.send("A world event has been manually triggered.")
