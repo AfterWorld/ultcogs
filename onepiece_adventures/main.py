@@ -18,10 +18,7 @@ from .treasure_maps import TreasureMapSystem
 from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
-
-# Explicit import for RaidBossSystem
-raid_boss_module = importlib.import_module('.raid_boss_system', package=__package__)
-RaidBossSystem = getattr(raid_boss_module, 'RaidBossSystem')
+from .raid_boss_system import RaidBossSystem
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):

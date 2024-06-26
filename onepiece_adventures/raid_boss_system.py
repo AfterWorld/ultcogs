@@ -3,6 +3,8 @@ from redbot.core import commands, Config
 import random
 import asyncio
 
+__all__ = ['RaidBossSystem']
+
 class RaidBossSystem:
     def __init__(self, bot, config):
         self.bot = bot
@@ -82,4 +84,3 @@ class RaidBossSystem:
         self.active_raid = None
         await ctx.send("The raid has ended! Congratulations to all participants!")
         
-        __all__ = ['RaidBossSystem']
