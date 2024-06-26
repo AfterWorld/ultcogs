@@ -114,12 +114,140 @@ class SeaTravelSystem:
 
         if random.random() < 0.3:  # 30% chance
             await ctx.send("As you explore the secret location, you encounter a challenge!")
-            # Implement a mini-game or challenge here
+            await self.secret_location_challenge(ctx)
+
+    async def secret_location_challenge(self, ctx):
+        await ctx.send("You've found a mysterious treasure chest with three locks. Guess the correct combination to open it!")
+        combination = [random.randint(1, 3) for _ in range(3)]
+        attempts = 3
+
+        while attempts > 0:
+            await ctx.send(f"Enter your guess (three numbers from 1-3, separated by spaces). Attempts left: {attempts}")
+            try:
+                guess = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=30.0)
+                player_combination = [int(n) for n in guess.content.split()]
+                
+                if player_combination == combination:
+                    reward = random.randint(5000, 20000)
+                    await ctx.send(f"You've cracked the code! The chest opens, revealing {reward} berries!")
+                    user_data = await self.config.member(ctx.author).all()
+                    user_data['berries'] += reward
+                    await self.config.member(ctx.author).set(user_data)
+                    return
+                else:
+                    correct_positions = sum(p == g for p, g in zip(combination, player_combination))
+                    await ctx.send(f"Incorrect. You got {correct_positions} number(s) in the right position.")
+                    attempts -= 1
+            except asyncio.TimeoutError:
+                await ctx.send("You took too long to respond. The chest remains locked.")
+                return
+            except ValueError:
+                await ctx.send("Invalid input. Please enter three numbers from 1-3, separated by spaces.")
+                attempts -= 1
+
+        await ctx.send(f"You've run out of attempts. The chest remains locked. The correct combination was {' '.join(map(str, combination))}.")
 
     async def meet_npc(self, ctx, island):
-        npcs = ["Mysterious Old Man", "Friendly Shopkeeper", "Shady Pirate", "Marine Scout"]
+        npcs = [
+            {"name": "Mysterious Old Man", "action": self.old_man_encounter},
+            {"name": "Friendly Shopkeeper", "action": self.shopkeeper_encounter},
+            {"name": "Shady Pirate", "action": self.pirate_encounter},
+            {"name": "Marine Scout", "action": self.marine_scout_encounter}
+        ]
         npc = random.choice(npcs)
-        await ctx.send(f"You met a {npc}. They shared some interesting information with you about the island.")
+        await ctx.send(f"You met a {npc['name']}.")
+        await npc['action'](ctx)
+
+    async def old_man_encounter(self, ctx):
+        await ctx.send("The Mysterious Old Man offers to tell you a secret about the island. Do you want to hear it? (yes/no)")
+        try:
+            response = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.content.lower() in ['yes', 'no'], timeout=30.0)
+            if response.content.lower() == 'yes':
+                secret = random.choice([
+                    "a hidden treasure location",
+                    "a shortcut to a rare resource",
+                    "the weakness of a local monster"
+                ])
+                await ctx.send(f"The old man whispers about {secret}. This information might be useful in the future!")
+                user_data = await self.config.member(ctx.author).all()
+                user_data['exp'] += 50
+                await self.config.member(ctx.author).set(user_data)
+            else:
+                await ctx.send("You decline the old man's offer. He nods and walks away.")
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to respond. The old man has left.")
+
+    async def shopkeeper_encounter(self, ctx):
+        discount = random.randint(10, 30)
+        await ctx.send(f"The Friendly Shopkeeper offers you a {discount}% discount on your next purchase. Do you want to buy something? (yes/no)")
+        try:
+            response = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.content.lower() in ['yes', 'no'], timeout=30.0)
+            if response.content.lower() == 'yes':
+                items = ["Health Potion", "Strength Boost", "Lucky Charm"]
+                item = random.choice(items)
+                price = int(random.randint(100, 500) * (1 - discount/100))
+                await ctx.send(f"You bought a {item} for {price} berries!")
+                user_data = await self.config.member(ctx.author).all()
+                user_data['berries'] -= price
+                if 'inventory' not in user_data:
+                    user_data['inventory'] = {}
+                user_data['inventory'][item] = user_data['inventory'].get(item, 0) + 1
+                await self.config.member(ctx.author).set(user_data)
+            else:
+                await ctx.send("You decline the shopkeeper's offer. Maybe next time!")
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to respond. The shopkeeper has moved on to other customers.")
+
+    async def pirate_encounter(self, ctx):
+        await ctx.send("The Shady Pirate challenges you to a game of chance. Do you accept? (yes/no)")
+        try:
+            response = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.content.lower() in ['yes', 'no'], timeout=30.0)
+            if response.content.lower() == 'yes':
+                player_roll = random.randint(1, 6)
+                pirate_roll = random.randint(1, 6)
+                await ctx.send(f"You rolled a {player_roll}. The pirate rolled a {pirate_roll}.")
+                if player_roll > pirate_roll:
+                    reward = random.randint(1000, 5000)
+                    await ctx.send(f"You win! The pirate grudgingly hands over {reward} berries.")
+                    user_data = await self.config.member(ctx.author).all()
+                    user_data['berries'] += reward
+                    await self.config.member(ctx.author).set(user_data)
+                elif player_roll < pirate_roll:
+                    loss = random.randint(500, 2000)
+                    await ctx.send(f"You lose! The pirate cackles as you hand over {loss} berries.")
+                    user_data = await self.config.member(ctx.author).all()
+                    user_data['berries'] = max(0, user_data['berries'] - loss)
+                    await self.config.member(ctx.author).set(user_data)
+                else:
+                    await ctx.send("It's a tie! The pirate nods respectfully and leaves.")
+            else:
+                await ctx.send("You decline the pirate's challenge. He scowls and walks away.")
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to respond. The pirate has lost interest and left.")
+
+    async def marine_scout_encounter(self, ctx):
+        await ctx.send("The Marine Scout offers to share some classified information in exchange for a small bribe. Do you accept? (yes/no)")
+        try:
+            response = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.content.lower() in ['yes', 'no'], timeout=30.0)
+            if response.content.lower() == 'yes':
+                bribe = random.randint(500, 2000)
+                user_data = await self.config.member(ctx.author).all()
+                if user_data['berries'] >= bribe:
+                    user_data['berries'] -= bribe
+                    info = random.choice([
+                        "the location of a secret Marine base",
+                        "the schedule of a valuable cargo ship",
+                        "the weakness of a powerful Marine officer"
+                    ])
+                    await ctx.send(f"You pay {bribe} berries. The scout whispers about {info}. This could be very useful!")
+                    user_data['exp'] += 100
+                    await self.config.member(ctx.author).set(user_data)
+                else:
+                    await ctx.send("You don't have enough berries to pay the bribe. The scout walks away, disappointed.")
+            else:
+                await ctx.send("You decline the scout's offer. He shrugs and continues on his patrol.")
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to respond. The scout has moved on.")
 
     async def sea_encounter(self, ctx):
         encounters = ["Sea King", "Rival Pirate Ship", "Marine Patrol", "Calm Belt"]
