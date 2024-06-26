@@ -1,5 +1,5 @@
-import discord
-from redbot.core import commands, Config
+import discord # type: ignore
+from redbot.core import commands, Config # type: ignore
 from datetime import datetime
 import asyncio
 import random
@@ -342,4 +342,4 @@ class OnePieceAFK(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(OneAFK(bot))
+    await bot.add_cog(OnePieceAFK(bot))
