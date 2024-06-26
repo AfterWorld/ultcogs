@@ -63,14 +63,25 @@ class DavyBackFight:
             loser = ctx.author
 
         await ctx.send(f"{winner.mention} has won the Davy Back Fight!")
-        await self.transfer_crew_member(ctx, winner, loser)
+        await self.award_prize(ctx, winner, loser)
 
     async def donut_race(self, ctx, player1, player2):
         await ctx.send("The Donut Race is a test of speed and navigation!")
         p1_speed = (await self.config.member(player1).speed()) * random.uniform(0.8, 1.2)
         p2_speed = (await self.config.member(player2).speed()) * random.uniform(0.8, 1.2)
         
-        winner = player1 if p1_speed > p2_speed else player2
+        progress1 = 0
+        progress2 = 0
+        
+        while progress1 < 100 and progress2 < 100:
+            progress1 += p1_speed * random.uniform(0.5, 1.5)
+            progress2 += p2_speed * random.uniform(0.5, 1.5)
+            
+            await ctx.send(f"{player1.name}: {'🛥' * int(progress1/10)}{'  ' * (10-int(progress1/10))} {progress1:.1f}%\n"
+                           f"{player2.name}: {'🛥' * int(progress2/10)}{'  ' * (10-int(progress2/10))} {progress2:.1f}%")
+            await asyncio.sleep(1)
+        
+        winner = player1 if progress1 >= 100 else player2
         await ctx.send(f"{winner.mention} wins the Donut Race!")
         return winner == player1
 
@@ -79,39 +90,95 @@ class DavyBackFight:
         p1_strength = (await self.config.member(player1).strength()) * random.uniform(0.8, 1.2)
         p2_strength = (await self.config.member(player2).strength()) * random.uniform(0.8, 1.2)
         
-        winner = player1 if p1_strength > p2_strength else player2
+        p1_score = 0
+        p2_score = 0
+        
+        for round in range(1, 4):
+            await ctx.send(f"Round {round}!")
+            p1_roll = random.randint(1, 6)
+            p2_roll = random.randint(1, 6)
+            
+            p1_total = p1_strength * p1_roll
+            p2_total = p2_strength * p2_roll
+            
+            if p1_total > p2_total:
+                p1_score += 1
+                await ctx.send(f"{player1.name} wins round {round}!")
+            elif p2_total > p1_total:
+                p2_score += 1
+                await ctx.send(f"{player2.name} wins round {round}!")
+            else:
+                await ctx.send("It's a tie!")
+            
+            await ctx.send(f"Current score: {player1.name} {p1_score} - {p2_score} {player2.name}")
+            await asyncio.sleep(2)
+        
+        winner = player1 if p1_score > p2_score else player2
         await ctx.send(f"{winner.mention} wins the Groggy Ring!")
         return winner == player1
 
     async def combat(self, ctx, player1, player2):
         await ctx.send("The Combat round is a direct battle between the two players!")
-        p1_combat = (await self.config.member(player1).strength() + await self.config.member(player1).defense()) * random.uniform(0.8, 1.2)
-        p2_combat = (await self.config.member(player2).strength() + await self.config.member(player2).defense()) * random.uniform(0.8, 1.2)
+        p1_hp = 100
+        p2_hp = 100
         
-        winner = player1 if p1_combat > p2_combat else player2
+        p1_attack = (await self.config.member(player1).strength()) * random.uniform(0.8, 1.2)
+        p2_attack = (await self.config.member(player2).strength()) * random.uniform(0.8, 1.2)
+        p1_defense = (await self.config.member(player1).defense()) * random.uniform(0.8, 1.2)
+        p2_defense = (await self.config.member(player2).defense()) * random.uniform(0.8, 1.2)
+        
+        while p1_hp > 0 and p2_hp > 0:
+            p1_damage = max(0, p1_attack - p2_defense/2) * random.uniform(0.8, 1.2)
+            p2_damage = max(0, p2_attack - p1_defense/2) * random.uniform(0.8, 1.2)
+            
+            p2_hp -= p1_damage
+            p1_hp -= p2_damage
+            
+            p1_hp_bar = '█' * int(p1_hp/10) + '░' * (10 - int(p1_hp/10))
+            p2_hp_bar = '█' * int(p2_hp/10) + '░' * (10 - int(p2_hp/10))
+            
+            await ctx.send(f"{player1.name}: {p1_hp_bar} {max(0, p1_hp):.1f} HP\n"
+                           f"{player2.name}: {p2_hp_bar} {max(0, p2_hp):.1f} HP")
+            await asyncio.sleep(2)
+        
+        winner = player1 if p1_hp > p2_hp else player2
         await ctx.send(f"{winner.mention} wins the Combat round!")
         return winner == player1
 
-    async def transfer_crew_member(self, ctx, winner, loser):
-        winner_crew = await self.config.member(winner).crew()
-        loser_crew = await self.config.member(loser).crew()
-
-        if not winner_crew or not loser_crew:
-            await ctx.send("Both participants must be in a crew for a member transfer.")
-            return
-
-        crews = await self.config.guild(ctx.guild).crews()
-        if len(crews[loser_crew]["members"]) <= 1:
-            await ctx.send(f"{loser.mention}'s crew doesn't have enough members to transfer.")
-            return
-
-        transferring_member_id = random.choice([m for m in crews[loser_crew]["members"] if m != loser.id])
-        transferring_member = ctx.guild.get_member(transferring_member_id)
-
-        crews[loser_crew]["members"].remove(transferring_member_id)
-        crews[winner_crew]["members"].append(transferring_member_id)
-
-        await self.config.guild(ctx.guild).crews.set(crews)
-        await self.config.member(transferring_member).crew.set(winner_crew)
-
-        await ctx.send(f"{transferring_member.mention} has been transferred from {loser_crew} to {winner_crew}!")
+    async def award_prize(self, ctx, winner, loser):
+        prize_options = [
+            {"name": "Rare Treasure Map", "type": "item"},
+            {"name": "Mysterious Devil Fruit", "type": "item"},
+            {"name": "Ancient Weapon Blueprint", "type": "item"},
+            {"name": "Substantial Berries", "type": "currency", "amount": random.randint(10000, 100000)},
+            {"name": "Powerful Ally", "type": "temp_buff", "duration": 24}  # Duration in hours
+        ]
+    
+        prize = random.choice(prize_options)
+        await ctx.send(f"{winner.mention} has won {prize['name']} from {loser.mention}!")
+    
+        winner_data = await self.config.member(winner).all()
+    
+        if prize['type'] == "item":
+            if 'inventory' not in winner_data:
+                winner_data['inventory'] = {}
+            winner_data['inventory'][prize['name']] = winner_data['inventory'].get(prize['name'], 0) + 1
+            await ctx.send(f"{winner.mention} has added {prize['name']} to their inventory!")
+    
+        elif prize['type'] == "currency":
+            winner_data['berries'] = winner_data.get('berries', 0) + prize['amount']
+            await ctx.send(f"{winner.mention} has gained {prize['amount']} Berries!")
+    
+        elif prize['type'] == "temp_buff":
+            if 'temp_buffs' not in winner_data:
+                winner_data['temp_buffs'] = {}
+            expiry_time = ctx.message.created_at.timestamp() + (prize['duration'] * 3600)
+            winner_data['temp_buffs'][prize['name']] = expiry_time
+            await ctx.send(f"{winner.mention} has gained the {prize['name']} buff for {prize['duration']} hours!")
+    
+        winner_data['davy_back_wins'] = winner_data.get('davy_back_wins', 0) + 1
+        await self.config.member(winner).set(winner_data)
+    
+        loser_data = await self.config.member(loser).all()
+        loser_data['davy_back_losses'] = loser_data.get('davy_back_losses', 0) + 1
+        await self.config.member(loser).set(loser_data)
