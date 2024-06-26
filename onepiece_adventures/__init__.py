@@ -1,4 +1,4 @@
 from .main import OnePieceAdventures
 
-def setup(bot):
-    bot.add_cog(OnePieceAdventures(bot))
+async def setup(bot):
+    await bot.add_cog(OnePieceAdventures(bot))
