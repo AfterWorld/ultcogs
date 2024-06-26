@@ -1,5 +1,5 @@
 import discord 
-from redbot.core import commands, Config 
+from redbot.core import commands, Config
 import random
 import asyncio
 
@@ -78,7 +78,43 @@ class SeaTravelSystem:
             await ctx.send(f"You were defeated by an enemy and lost {loss} berries.")
 
     async def discover_secret_location(self, ctx, island):
-        await ctx.send("You discovered a secret location on the island! You can now access new quests and resources here.")
+        user_data = await self.config.member(ctx.author).all()
+        
+        secret_locations = ["Hidden Cave", "Ancient Ruins", "Mysterious Grove", "Abandoned Pirate Hideout"]
+        discovered_location = random.choice(secret_locations)
+        
+        if "discovered_locations" not in user_data:
+            user_data["discovered_locations"] = {}
+        if island not in user_data["discovered_locations"]:
+            user_data["discovered_locations"][island] = []
+        user_data["discovered_locations"][island].append(discovered_location)
+        
+        reward_type = random.choice(["berries", "exp", "item"])
+        if reward_type == "berries":
+            reward_amount = random.randint(1000, 5000)
+            user_data["berries"] = user_data.get("berries", 0) + reward_amount
+            reward_message = f"{reward_amount} berries"
+        elif reward_type == "exp":
+            reward_amount = random.randint(50, 200)
+            user_data["exp"] = user_data.get("exp", 0) + reward_amount
+            reward_message = f"{reward_amount} experience points"
+        else:
+            rare_items = ["Ancient Map", "Mysterious Fruit", "Pirate's Treasure"]
+            reward_item = random.choice(rare_items)
+            if "inventory" not in user_data:
+                user_data["inventory"] = {}
+            user_data["inventory"][reward_item] = user_data["inventory"].get(reward_item, 0) + 1
+            reward_message = f"a {reward_item}"
+
+        await self.config.member(ctx.author).set(user_data)
+
+        await ctx.send(f"You discovered a {discovered_location} on {island}! "
+                       f"You found {reward_message} in this secret location. "
+                       f"You can now access new quests and resources here.")
+
+        if random.random() < 0.3:  # 30% chance
+            await ctx.send("As you explore the secret location, you encounter a challenge!")
+            # Implement a mini-game or challenge here
 
     async def meet_npc(self, ctx, island):
         npcs = ["Mysterious Old Man", "Friendly Shopkeeper", "Shady Pirate", "Marine Scout"]
@@ -276,8 +312,9 @@ class SeaTravelSystem:
         caught_fish = random.choice(fish_types)
         value = random.randint(100, 1000)
         
-        user_data['inventory'] = user_data.get('inventory', {})
-        user_data['inventory'][caught_fish] = user_data['inventory'].get(caught_fish, 0) + 1
+        if "inventory" not in user_data:
+            user_data["inventory"] = {}
+        user_data["inventory"][caught_fish] = user_data["inventory"].get(caught_fish, 0) + 1
         await self.config.member(ctx.author).set(user_data)
         
         await ctx.send(f"You caught a {caught_fish}! It's worth approximately {value} berries.")
@@ -293,7 +330,8 @@ class SeaTravelSystem:
             return await ctx.send(f"You don't have enough berries. The upgrade costs {cost}.")
         
         user_data['berries'] = user_data.get('berries', 0) - cost
-        user_data['ship_upgrades'] = user_data.get('ship_upgrades', [])
+        if 'ship_upgrades' not in user_data:
+            user_data['ship_upgrades'] = []
         if upgrade not in user_data['ship_upgrades']:
             user_data['ship_upgrades'].append(upgrade)
         await self.config.member(ctx.author).set(user_data)
@@ -347,8 +385,9 @@ class SeaTravelSystem:
         if island_name not in islands:
             return await ctx.send("This island doesn't exist.")
         
-        if development not in self.development_options:
-            return await ctx.send(f"Invalid development. Choose from: {', '.join(self.development_options.keys())}")
+        valid_developments = ["Port", "Farm", "Mine", "Shipyard", "Market"]
+        if development not in valid_developments:
+            return await ctx.send(f"Invalid development. Choose from: {', '.join(valid_developments)}")
         
         if development not in islands[island_name]['developments']:
             islands[island_name]['developments'].append(development)
@@ -356,43 +395,3 @@ class SeaTravelSystem:
             await ctx.send(f"{development} has been added to {island_name}.")
         else:
             await ctx.send(f"{island_name} already has {development}.")
-            
-    async def check_weather(self, ctx):
-        weather_conditions = ["Clear", "Stormy", "Foggy", "Calm"]
-        current_weather = random.choice(weather_conditions)
-        await ctx.send(f"The current weather is: {current_weather}")
-
-    async def train_navigation(self, ctx):
-        user_data = await self.config.member(ctx.author).all()
-        navigation_skill = user_data.get('navigation_skill', 0)
-        if navigation_skill < 100:
-            user_data['navigation_skill'] = navigation_skill + 1
-            await self.config.member(ctx.author).set(user_data)
-            await ctx.send(f"You've improved your navigation skill! Current level: {navigation_skill + 1}")
-        else:
-            await ctx.send("Your navigation skill is already at maximum level!")
-
-    async def repair_ship(self, ctx):
-        user_data = await self.config.member(ctx.author).all()
-        repair_cost = 1000
-        if user_data.get('berries', 0) < repair_cost:
-            return await ctx.send(f"You don't have enough berries to repair your ship. Cost: {repair_cost} berries")
-        user_data['berries'] -= repair_cost
-        user_data['ship_health'] = 100
-        await self.config.member(ctx.author).set(user_data)
-        await ctx.send("Your ship has been fully repaired!")
-
-    async def create_sea_chart(self, ctx):
-        user_data = await self.config.member(ctx.author).all()
-        if 'sea_chart' in user_data.get('inventory', {}):
-            return await ctx.send("You already have a sea chart.")
-        cost = 5000
-        if user_data.get('berries', 0) < cost:
-            return await ctx.send(f"You don't have enough berries to create a sea chart. Cost: {cost} berries")
-        user_data['berries'] -= cost
-        user_data['inventory'] = user_data.get('inventory', {})
-        user_data['inventory']['sea_chart'] = 1
-        await self.config.member(ctx.author).set(user_data)
-        await ctx.send("You've created a sea chart! This will help you navigate more efficiently.")
-
-    # You might want to add more methods here for other sea travel related functionalities
