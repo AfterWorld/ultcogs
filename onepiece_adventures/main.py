@@ -1,11 +1,10 @@
-import discord 
-from redbot.core import commands, Config 
-from redbot.core.bot import Red 
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS 
+import discord
+from redbot.core import commands, Config
+from redbot.core.bot import Red
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 import asyncio
 import random
 from typing import Dict, List, Any
-import importlib
 
 from .crew_battles import CrewBattleSystem
 from .davy_back_fight import DavyBackFight
@@ -15,10 +14,10 @@ from .marine_career import MarineCareerSystem
 from .sea_travel_system import SeaTravelSystem
 from .training_system import TrainingSystem
 from .treasure_maps import TreasureMapSystem
+from .raid_boss_system import RaidBossSystem
 from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
-from .raid_boss_system import RaidBossSystem
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
@@ -79,15 +78,55 @@ class OnePieceAdventures(commands.Cog):
         self.bg_task.cancel()
 
     @commands.command()
+    async def ophelp(self, ctx):
+        """Display help for One Piece Adventures commands."""
+        embed = discord.Embed(title="One Piece AFK Game Help", color=discord.Color.blue())
+        
+        core_commands = (
+            "`.explore_island <island>` - Explore an island for adventures\n"
+            "`.crew_battle <opponent_crew>` - Initiate a battle between crews\n"
+            "`.train_haki` - Train your Haki to increase its level\n"
+            "`.learn_skill` - Learn a new skill based on your character class\n"
+            "`.use_devil_fruit <fruit_name>` - Use a Devil Fruit from your inventory"
+        )
+        embed.add_field(name="Core Commands", value=core_commands, inline=False)
+        
+        info_commands = (
+            "`.profile [member]` - View your or another user's profile\n"
+            "`.inventory` - View your inventory\n"
+            "`.leaderboard [category]` - View the leaderboard for a specific category"
+        )
+        embed.add_field(name="Information Commands", value=info_commands, inline=False)
+        
+        other_commands = (
+            "`.trade <partner> <item>` - Trade an item with another user\n"
+            "`.form_alliance <ally_crew>` - Form an alliance with another crew\n"
+            "`.davy_back_fight <opponent>` - Challenge another user to a Davy Back Fight\n"
+            "`.choose_class <class_name>` - Choose your character class"
+        )
+        embed.add_field(name="Other Commands", value=other_commands, inline=False)
+        
+        game_mechanics = (
+            "• Explore islands to gain experience, bounty, and items\n"
+            "• Train your Haki and learn skills to become stronger\n"
+            "• Form or join a crew to participate in crew battles\n"
+            "• Find and use Devil Fruits for unique powers\n"
+            "• Watch out for World Government interventions and seasonal events!"
+        )
+        embed.add_field(name="Game Mechanics", value=game_mechanics, inline=False)
+        
+        await ctx.send(embed=embed)
+
+    @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
         """View your or another user's profile."""
         if member is None:
             member = ctx.author
-    
+        
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
         embed.set_thumbnail(url=member.display_avatar.url)
-    
+        
         embed.add_field(name="Level", value=user_data['level'])
         embed.add_field(name="Exp", value=user_data['exp'])
         embed.add_field(name="Berries", value=user_data['berries'])
@@ -98,18 +137,65 @@ class OnePieceAdventures(commands.Cog):
         embed.add_field(name="Devil Fruit", value=user_data['devil_fruit'] or "None")
         embed.add_field(name="Crew", value=user_data['crew'] or "None")
         embed.add_field(name="Current Island", value=user_data['current_island'])
-    
+        
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def explore_island(self, ctx, island: str):
+        """Explore an island for adventures."""
+        await self.sea_travel_system.explore_current_island(ctx)
+
+    @commands.command()
+    async def train_haki(self, ctx):
+        """Train your Haki to increase its level."""
+        # Implement haki training logic here
+        await ctx.send("You've trained your Haki. It's becoming stronger!")
+
+    @commands.command()
+    async def learn_skill(self, ctx):
+        """Learn a new skill based on your character class."""
+        # Implement skill learning logic here
+        await ctx.send("You've learned a new skill!")
+
+    @commands.command()
+    async def use_devil_fruit(self, ctx, fruit_name: str):
+        """Use a Devil Fruit from your inventory."""
+        await self.devil_fruit_system.eat_devil_fruit(ctx, fruit_name)
+
+    @commands.command()
+    async def inventory(self, ctx):
+        """View your inventory."""
+        # Implement inventory viewing logic here
+        await ctx.send("Here's your inventory: [Placeholder for inventory items]")
+
+    @commands.command()
+    async def leaderboard(self, ctx, category: str = "bounty"):
+        """View the leaderboard for a specific category."""
+        # Implement leaderboard logic here
+        await ctx.send(f"Here's the leaderboard for {category}: [Placeholder for leaderboard]")
+
+    @commands.command()
+    async def trade(self, ctx, partner: discord.Member, item: str):
+        """Trade an item with another user."""
+        # Implement trading logic here
+        await ctx.send(f"You've initiated a trade with {partner.name} for {item}.")
+
+    @commands.command()
+    async def form_alliance(self, ctx, ally_crew: str):
+        """Form an alliance with another crew."""
+        # Implement alliance formation logic here
+        await ctx.send(f"You've formed an alliance with {ally_crew}!")
+
+    @commands.command()
+    async def choose_class(self, ctx, class_name: str):
+        """Choose your character class."""
+        # Implement class selection logic here
+        await ctx.send(f"You've chosen the {class_name} class!")
 
     @commands.command()
     async def train(self, ctx, attribute: str):
         """Train a specific attribute (strength, defense, speed)."""
         await self.training_system.train_attribute(ctx, attribute)
-
-    @commands.command()
-    async def explore(self, ctx):
-        """Explore the current island for adventures and treasures."""
-        await self.sea_travel_system.explore_current_island(ctx)
 
     @commands.command()
     async def travel(self, ctx, destination: str):
@@ -167,7 +253,7 @@ class OnePieceAdventures(commands.Cog):
         await self.treasure_map_system.use_treasure_map(ctx)
 
     @commands.command()
-    async def spawn_raid_boss(self, ctx):
+    async def spawn_raid(self, ctx):
         """Spawns the raid boss"""
         await self.raid_boss_system.spawn_raid_boss(ctx)
 
@@ -228,42 +314,46 @@ class OnePieceAdventures(commands.Cog):
             await ctx.send("There's no ongoing research expedition right now.")
 
     @commands.command()
-    async def help_onepiece(self, ctx):
-        """Display help for One Piece Adventures commands."""
-        embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
-        
-        commands_list = [
-            ("profile", "View your or another user's profile"),
-            ("train <attribute>", "Train a specific attribute"),
-            ("explore", "Explore the current island"),
-            ("travel <island>", "Travel to a different island"),
-            ("create_crew <name>", "Create a new pirate crew"),
-            ("join_crew <name>", "Join an existing pirate crew"),
-            ("crew_battle <opponent_crew>", "Initiate a crew battle"),
-            ("davy_back_fight <opponent>", "Start a Davy Back Fight"),
-            ("eat_devil_fruit <fruit_name>", "Eat a Devil Fruit"),
-            ("join_marines", "Join the Marines faction"),
-            ("marine_mission", "Undertake a Marine mission"),
-            ("invest_island <island> <development>", "Invest in island development"),
-            ("find_treasure_map", "Search for a treasure map"),
-            ("use_treasure_map", "Use a treasure map to find treasure"),
-            ("spawn_raid_boss", "Spawn a raid boss for the server"),
-            ("join_raid", "Join the active raid boss battle"),
-            ("attack_raid_boss", "Attack the active raid boss"),
-            ("create_listing <item> <price> <quantity>", "Create a market listing"),
-            ("buy_listing <listing_id>", "Buy an item from the market"),
-            ("view_market", "View current market listings"),
-            ("view_reputation", "View your faction reputations"),
-            ("reputation_rewards", "View reputation rewards"),
-            ("event_status", "Check the status of the current world event"),
-            ("challenge", "Challenge a legendary pirate (during event)"),
-            ("research", "Contribute to ancient weapon research (during event)")
-        ]
+    async def dock(self, ctx, island_name: str):
+        """Dock your ship at an island with a port."""
+        await self.sea_travel_system.dock_at_port(ctx, island_name)
 
-        for command, description in commands_list:
-            embed.add_field(name=f"!{command}", value=description, inline=False)
-        
-        await ctx.send(embed=embed)
+    @commands.command()
+    async def fish(self, ctx):
+        """Go fishing while docked at an island."""
+        await self.sea_travel_system.start_fishing(ctx)
+
+    @commands.command()
+    async def upgrade_ship(self, ctx, upgrade: str):
+        """Upgrade a part of your ship."""
+        await self.sea_travel_system.upgrade_ship(ctx, upgrade)
+
+    @commands.command()
+    async def view_ship(self, ctx):
+        """View your ship's current upgrades."""
+        await self.sea_travel_system.view_ship(ctx)
+
+    @commands.command()
+    async def check_island(self, ctx):
+        """Check information about your current island."""
+        await self.sea_travel_system.check_island(ctx)
+
+    @commands.command()
+    async def list_islands(self, ctx):
+        """List all known islands."""
+        await self.sea_travel_system.list_islands(ctx)
+
+    @commands.command()
+    @commands.is_owner()
+    async def create_island(self, ctx, island_name: str):
+        """Create a new island (Bot owner only)."""
+        await self.sea_travel_system.create_island(ctx, island_name)
+
+    @commands.command()
+    @commands.is_owner()
+    async def add_island_development(self, ctx, island_name: str, development: str):
+        """Add a development to an island (Bot owner only)."""
+        await self.sea_travel_system.add_island_development(ctx, island_name, development)
 
 def setup(bot):
     bot.add_cog(OnePieceAdventures(bot))
