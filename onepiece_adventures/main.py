@@ -228,6 +228,17 @@ class OnePieceAdventures(commands.Cog):
             await ctx.send("There's no ongoing research expedition right now.")
 
     @commands.command()
+    @commands.is_owner()
+    async def create_island(self, ctx, *, island_name: str):
+        """Create a new island (Bot owner only)."""
+        await self.sea_travel_system.create_island(ctx, island_name)
+
+    @commands.command()
+    async def islands(self, ctx):
+        """List all known islands."""
+        await self.sea_travel_system.list_islands(ctx)
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
