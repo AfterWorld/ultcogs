@@ -3,8 +3,6 @@ from redbot.core import commands, Config
 import random
 import asyncio
 
-__all__ = ['RaidBossSystem']
-
 class RaidBossSystem:
     def __init__(self, bot, config):
         self.bot = bot
