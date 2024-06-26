@@ -33,7 +33,7 @@ class OnePieceAdventures(commands.Cog):
             "crews": {},
             "marine_bases": {},
             "pvp_arenas": {},
-            "market_listings": {}
+            "market_listings": {},
             "islands": {}
         }
         default_member = {
