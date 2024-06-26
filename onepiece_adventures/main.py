@@ -239,6 +239,11 @@ class OnePieceAdventures(commands.Cog):
         await self.sea_travel_system.list_islands(ctx)
 
     @commands.command()
+    async def raid_status(self, ctx):
+        """Check the status of the current raid."""
+        await self.raid_boss_system.raid_status(ctx)
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
