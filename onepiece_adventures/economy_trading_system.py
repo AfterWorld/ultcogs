@@ -1,6 +1,7 @@
 import discord # type: ignore
 from redbot.core import commands, Config # type: ignore
 import random
+
 class EconomyTradingSystem:
     def __init__(self, bot, config):
         self.bot = bot
