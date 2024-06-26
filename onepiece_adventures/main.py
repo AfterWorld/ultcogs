@@ -274,6 +274,46 @@ class OnePieceAdventures(commands.Cog):
         await self.devil_fruit_system.devil_fruit_mastery(ctx)
 
     @commands.command()
+    async def davy_back_stats(self, ctx, member: discord.Member = None):
+        """View Davy Back Fight stats for yourself or another member."""
+        member = member or ctx.author
+        user_data = await self.config.member(member).all()
+        wins = user_data.get('davy_back_wins', 0)
+        losses = user_data.get('davy_back_losses', 0)
+        await ctx.send(f"{member.name}'s Davy Back Fight Record: {wins} wins, {losses} losses")
+
+    @commands.command()
+    async def inventory(self, ctx):
+        """View your inventory."""
+        user_data = await self.config.member(ctx.author).all()
+        inventory = user_data.get('inventory', {})
+        if not inventory:
+            await ctx.send("Your inventory is empty.")
+        else:
+            inv_list = "\n".join([f"{item}: {quantity}" for item, quantity in inventory.items()])
+            await ctx.send(f"Your inventory:\n{inv_list}")
+
+    @commands.command()
+    async def buffs(self, ctx):
+        """View your active buffs."""
+        user_data = await self.config.member(ctx.author).all()
+        temp_buffs = user_data.get('temp_buffs', {})
+        current_time = ctx.message.created_at.timestamp()
+        active_buffs = {buff: (expiry - current_time) / 3600 for buff, expiry in temp_buffs.items() if expiry > current_time}
+        if not active_buffs:
+            await ctx.send("You have no active buffs.")
+        else:
+            buff_list = "\n".join([f"{buff}: {hours:.1f} hours remaining" for buff, hours in active_buffs.items()])
+            await ctx.send(f"Your active buffs:\n{buff_list}")
+
+    @commands.command()
+    async def balance(self, ctx):
+        """Check your Berry balance."""
+        user_data = await self.config.member(ctx.author).all()
+        berries = user_data.get('berries', 0)
+        await ctx.send(f"You have {berries} Berries.")
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
