@@ -5,6 +5,7 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 import asyncio
 import random
 from typing import Dict, List, Any
+import importlib
 
 from .crew_battles import CrewBattleSystem
 from .davy_back_fight import DavyBackFight
@@ -14,10 +15,13 @@ from .marine_career import MarineCareerSystem
 from .sea_travel_system import SeaTravelSystem
 from .training_system import TrainingSystem
 from .treasure_maps import TreasureMapSystem
-from onepiece_adventures.raid_boss_system import RaidBossSystem
 from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
+
+# Explicit import for RaidBossSystem
+raid_boss_module = importlib.import_module('.raid_boss_system', package=__package__)
+RaidBossSystem = getattr(raid_boss_module, 'RaidBossSystem')
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):

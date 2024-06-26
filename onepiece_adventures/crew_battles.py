@@ -1,4 +1,4 @@
-import discord # type: ignore
+import discord 
 from redbot.core import commands, Config 
 import random
 import asyncio
