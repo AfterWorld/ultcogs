@@ -1,4 +1,4 @@
-from .customafk import CustomAFK
+from .CustomAFK import CustomAFK
 
 __red_end_user_data_statement__ = "This cog stores user data including adventure status, bounties, crews, abilities, inventory, and game progress. All data can be removed upon user request."
 
