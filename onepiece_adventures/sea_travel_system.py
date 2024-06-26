@@ -496,14 +496,22 @@ class SeaTravelSystem:
     async def create_island(self, ctx, island_name: str):
         if not await self.bot.is_owner(ctx.author):
             return await ctx.send("Only the bot owner can create new islands.")
-        
+    
         islands = await self.config.guild(ctx.guild).islands()
         if island_name in islands:
             return await ctx.send("This island already exists.")
-        
+    
         islands[island_name] = {"developments": []}
         await self.config.guild(ctx.guild).islands.set(islands)
         await ctx.send(f"Island {island_name} has been created.")
+
+    async def list_islands(self, ctx):
+        islands = await self.config.guild(ctx.guild).islands()
+        if not islands:
+            await ctx.send("There are no islands created yet.")
+        else:
+            island_list = "\n".join(islands.keys())
+            await ctx.send(f"Known islands:\n{island_list}")
 
     async def add_island_development(self, ctx, island_name: str, development: str):
         if not await self.bot.is_owner(ctx.author):
