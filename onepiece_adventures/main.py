@@ -166,8 +166,8 @@ class OnePieceAdventures(commands.Cog):
         await self.treasure_map_system.use_treasure_map(ctx)
 
     @commands.command()
-    async def spawn_raid_boss(self, ctx):
-        """Spawn a raid boss for the server."""
+    async def spawn_raid(self, ctx):
+        """Spawns the raid boss"""
         await self.raid_boss_system.spawn_raid_boss(ctx)
 
     @commands.command()
