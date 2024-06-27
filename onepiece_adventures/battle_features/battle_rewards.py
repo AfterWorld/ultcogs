@@ -1,5 +1,7 @@
 import random
 import discord
+from redbot.core import commands
+
 
 async def end_battle(self, ctx, winner, loser, battle_msg):
     winner_data = self.battles[winner.id]
