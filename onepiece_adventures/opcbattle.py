@@ -120,10 +120,16 @@ class OPCBattle:
             return "attack"
 
     def apply_damage(self, defender_id, damage):
+        if isinstance(damage, tuple):
+            damage_value, is_crit = damage
+        else:
+            damage_value, is_crit = damage, False
+        
         current_hp = self.battles[defender_id]["hp"]
-        new_hp = max(0, current_hp - damage)
+        new_hp = max(0, current_hp - damage_value)
         self.battles[defender_id]["hp"] = new_hp
-        logger.debug(f"Player {defender_id} HP: {current_hp} -> {new_hp} (Damage: {damage})")
+        logger.debug(f"Player {defender_id} HP: {current_hp} -> {new_hp} (Damage: {damage_value}, Critical: {is_crit})")
+        return is_crit
 
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         logger.info(f"Executing action for {attacker.name}: {action}")
@@ -143,9 +149,10 @@ class OPCBattle:
         result = ""
 
         if action == "attack":
-            damage = self.calculate_attack(attacker.id, defender_id, environment)
-            self.apply_damage(defender_id, damage)
-            result = f"{attacker.name} attacks for {damage} damage!"
+            damage, is_crit = self.calculate_attack(attacker.id, defender_id, environment)
+            self.apply_damage(defender_id, (damage, is_crit))
+            crit_text = " (Critical Hit!)" if is_crit else ""
+            result = f"{attacker.name} attacks for {damage} damage{crit_text}!"
         elif action == "defend":
             self.battles[attacker.id]["status"].append(("defend", 1))
             result = f"{attacker.name} takes a defensive stance!"
@@ -199,12 +206,12 @@ class OPCBattle:
             if random.random() < 0.1:
                 damage *= 1.5
     
-        final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
-        
+       final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
+    
         if is_crit:
-            return f"{final_damage} (Critical Hit!)"
+            return (final_damage, True)  # Return a tuple (damage, is_critical)
         else:
-            return final_damage
+            return (final_damage, False)
 
     async def use_special_move(self, attacker, defender, environment):
         attacker_data = self.battles[attacker.id]
