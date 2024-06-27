@@ -408,13 +408,8 @@ class OPCBattle:
         await self.end_battle(ctx, opponent, ctx.author, await ctx.send("Battle ended due to surrender."))
         await ctx.send(f"{ctx.author.mention} has surrendered the battle to {opponent.mention}!")
 
-    @commands.command()
     async def clearbattles(self, ctx):
-        """Clear all ongoing battles. Use this if battles are stuck."""
-        if not await self.bot.is_owner(ctx.author):
-            return await ctx.send("Only the bot owner can use this command.")
-    
-        self.opcbattle.battles.clear()
+        self.battles.clear()
         await ctx.send("All battles have been cleared.")
         
     async def cog_command_error(self, ctx, error):
