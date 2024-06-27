@@ -389,6 +389,17 @@ class OnePieceAdventures(commands.Cog):
         await self.character_customization.use_item(ctx, item)
 
     @commands.command()
+    async def surrender(self, ctx):
+        """Surrender from your current battle."""
+        await self.opcbattle.surrender(ctx)
+
+    @commands.command()
+    @commands.is_owner()
+    async def clearbattles(self, ctx):
+        """Clear all ongoing battles. Use this if battles are stuck."""
+        await self.opcbattle.clearbattles(ctx)
+
+    @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
         """View your or another user's profile."""
         if member is None:
