@@ -18,6 +18,7 @@ from .raid_boss_system import RaidBossSystem
 from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
+from .gettingstarted import GettingStarted
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
