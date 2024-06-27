@@ -21,6 +21,7 @@ from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
 from .gettingstarted import GettingStarted
 from .opcbattle import OPCBattle
+from .character_customization import CharacterCustomization
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
@@ -80,6 +81,7 @@ class OnePieceAdventures(commands.Cog):
         self.reputation_system = ReputationSystem(self.bot, self.config)
         self.world_events = WorldEvents(self.bot, self.config)
         self.opcbattle = OPCBattle(self.bot, self.config)
+        self.character_customization = CharacterCustomization(self.bot, self.config)
         
         self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
 
@@ -352,18 +354,29 @@ class OnePieceAdventures(commands.Cog):
 
     @commands.command()
     async def battlestatus(self, ctx):
-        if ctx.author.id not in self.battles:
-            return await ctx.send("You're not in a battle!")
+        """Check the status of your current battle."""
+        await self.opcbattle.battlestatus(ctx)
 
-        opponent_id = self.battles[ctx.author.id]["opponent"]
-        opponent = ctx.guild.get_member(opponent_id)
+    @commands.command()
+    async def choose_class(self, ctx, class_name: str):
+        """Choose your character class."""
+        await self.character_customization.choose_class(ctx, class_name)
 
-        embed = discord.Embed(title="Battle Status", color=discord.Color.blue())
-        embed.add_field(name=ctx.author.name, value=f"{self.battle_emojis['health']} {self.battles[ctx.author.id]['hp']} HP", inline=True)
-        embed.add_field(name=opponent.name, value=f"{self.battle_emojis['health']} {self.battles[opponent_id]['hp']} HP", inline=True)
+    @commands.command()
+    async def choose_fighting_style(self, ctx, *, style: str):
+        """Choose your fighting style."""
+        await self.character_customization.choose_fighting_style(ctx, style)
 
-        await ctx.send(embed=embed)
+    @commands.command()
+    async def customize_appearance(self, ctx, *, description: str):
+        """Customize your character's appearance."""
+        await self.character_customization.customize_appearance(ctx, description=description)
 
+    @commands.command()
+    async def character_info(self, ctx):
+        """View your character information."""
+        await self.character_customization.character_info(ctx)
+        
     @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
