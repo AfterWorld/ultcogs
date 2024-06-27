@@ -79,6 +79,7 @@ class OnePieceAdventures(commands.Cog):
         self.economy_trading_system = EconomyTradingSystem(self.bot, self.config)
         self.reputation_system = ReputationSystem(self.bot, self.config)
         self.world_events = WorldEvents(self.bot, self.config)
+        self.opcbattle = OnePieceCog(self.bot, self.config)
         
         self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
 
