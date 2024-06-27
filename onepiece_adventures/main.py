@@ -6,6 +6,7 @@ import asyncio
 import random
 from typing import Dict, List, Any
 
+
 from .crew_battles import CrewBattleSystem
 from .davy_back_fight import DavyBackFight
 from .devil_fruit_system import DevilFruitSystem
@@ -345,40 +346,124 @@ class OnePieceAdventures(commands.Cog):
     @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
-        embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
-        
-        commands_list = [
-            ("profile", "View your or another user's profile"),
-            ("train <attribute>", "Train a specific attribute"),
-            ("explore", "Explore the current island"),
-            ("travel <island>", "Travel to a different island"),
+        pages = self.create_help_pages()
+        await menu(ctx, pages, DEFAULT_CONTROLS, timeout=60)
+
+    def create_help_pages(self):
+        pages = []
+
+        # Basic Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Basic Commands", color=discord.Color.blue())
+        commands = [
+            ("profile [member]", "View your or another user's profile"),
+            ("train <attribute>", "Train a specific attribute (strength, defense, speed)"),
+            ("explore", "Explore the current island for adventures and treasures"),
+            ("travel <destination>", "Travel to a different island"),
+            ("guide", "Display the One Piece Adventures guide"),
+            ("balance", "Check your Berry balance"),
+            ("inventory", "View your inventory"),
+            ("buffs", "View your active buffs")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Crew Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Crew Commands", color=discord.Color.gold())
+        commands = [
             ("create_crew <name>", "Create a new pirate crew"),
-            ("join_crew <name>", "Join an existing pirate crew"),
-            ("crew_battle <opponent_crew>", "Initiate a crew battle"),
-            ("davy_back_fight <opponent>", "Start a Davy Back Fight"),
-            ("eat_devil_fruit <fruit_name>", "Eat a Devil Fruit"),
+            ("join_crew <crew_name>", "Join an existing pirate crew"),
+            ("crew_battle <opponent_crew>", "Initiate a battle between crews"),
+            ("crew_info [crew_name]", "View information about a crew"),
+            ("list_crews", "List all crews in the server")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Devil Fruit Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Devil Fruit Commands", color=discord.Color.purple())
+        commands = [
+            ("eat_devil_fruit <fruit_name>", "Eat a Devil Fruit to gain its powers"),
+            ("devil_fruit_info [fruit_name]", "Get information about Devil Fruits"),
+            ("df_ultimate", "Use your awakened Devil Fruit's ultimate ability"),
+            ("df_mastery", "View your Devil Fruit mastery progress")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Marine Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Marine Commands", color=discord.Color.blue())
+        commands = [
             ("join_marines", "Join the Marines faction"),
-            ("marine_mission", "Undertake a Marine mission"),
-            ("invest_island <island> <development>", "Invest in island development"),
+            ("marine_mission", "Undertake a Marine mission")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Island and Treasure Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Island and Treasure Commands", color=discord.Color.green())
+        commands = [
+            ("invest_island <island_name> <development>", "Invest in island development"),
             ("find_treasure_map", "Search for a treasure map"),
             ("use_treasure_map", "Use a treasure map to find treasure"),
-            ("spawn_raid_boss", "Spawn a raid boss for the server"),
+            ("islands", "List all known islands"),
+            ("create_island <island_name>", "Create a new island (Bot owner only)")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Raid Boss Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Raid Boss Commands", color=discord.Color.red())
+        commands = [
+            ("spawn_raid", "Spawns the raid boss"),
             ("join_raid", "Join the active raid boss battle"),
             ("attack_raid_boss", "Attack the active raid boss"),
-            ("create_listing <item> <price> <quantity>", "Create a market listing"),
-            ("buy_listing <listing_id>", "Buy an item from the market"),
-            ("view_market", "View current market listings"),
-            ("view_reputation", "View your faction reputations"),
-            ("reputation_rewards", "View reputation rewards"),
-            ("event_status", "Check the status of the current world event"),
-            ("challenge", "Challenge a legendary pirate (during event)"),
-            ("research", "Contribute to ancient weapon research (during event)")
+            ("raid_status", "Check the status of the current raid")
         ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
 
-        for command, description in commands_list:
-            embed.add_field(name=f"!{command}", value=description, inline=False)
-        
-        await ctx.send(embed=embed)
+        # Economy and Trading Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Economy and Trading Commands", color=discord.Color.green())
+        commands = [
+            ("create_listing <item> <price> <quantity>", "Create a market listing to sell an item"),
+            ("buy_listing <listing_id>", "Buy an item from the market"),
+            ("view_market", "View current market listings")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Reputation and Event Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Reputation and Event Commands", color=discord.Color.teal())
+        commands = [
+            ("view_reputation", "View your reputation with different factions"),
+            ("reputation_rewards", "View rewards for your current reputation levels"),
+            ("event_status", "Check the status of the current world event"),
+            ("challenge", "Challenge the legendary pirate in a showdown"),
+            ("research", "Contribute to the research of an ancient weapon"),
+            ("trigger_world_event", "Manually trigger a world event (Owner only)")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        # Davy Back Fight Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Davy Back Fight Commands", color=discord.Color.orange())
+        commands = [
+            ("davy_back_fight <opponent>", "Challenge another user to a Davy Back Fight"),
+            ("davy_back_stats [member]", "View Davy Back Fight stats for yourself or another member")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
+
+        return pages
 
 def setup(bot):
     bot.add_cog(OnePieceAdventures(bot))
