@@ -47,7 +47,7 @@ class OnePieceAdventures(commands.Cog):
             "marine_bases": {},
             "pvp_arenas": {},
             "market_listings": {},
-            "islands": {}
+            "islands": {},
             "enabled": False,
             "welcome_channel": None,
             "welcome_enabled": False
