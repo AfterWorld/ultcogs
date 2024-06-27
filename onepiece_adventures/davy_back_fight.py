@@ -16,7 +16,7 @@ class DavyBackFight:
         embed = discord.Embed(title="Davy Back Fight Challenge", color=discord.Color.blue())
         embed.add_field(name="Challenger", value=ctx.author.mention, inline=True)
         embed.add_field(name="Opponent", value=opponent.mention, inline=True)
-        embed.add_field(name="Status", value="Waiting for opponent's response...", inline=False)
+        embed.add_field(name="Status", value="Type yes or no to fight back...", inline=False)
         challenge_msg = await ctx.send(embed=embed)
 
         def check(m):
