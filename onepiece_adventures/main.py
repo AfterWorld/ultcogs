@@ -416,11 +416,6 @@ class OnePieceAdventures(commands.Cog):
         await start_tournament(self, ctx, *participants)
     
     @commands.command()
-    async def team_battle(self, ctx, *members: discord.Member):
-        """Start a team battle."""
-        await team_battle(self, ctx, *members)
-    
-    @commands.command()
     async def battle_replay(self, ctx, battle_id: int):
         """Watch a replay of a past battle."""
         await battle_replay(self, ctx, battle_id)
@@ -464,7 +459,7 @@ class OnePieceAdventures(commands.Cog):
     @commands.command()
     async def teambattle(self, ctx, *members: discord.Member):
         """Start a team battle."""
-        await self.team_battles.team_battle(ctx, *members)
+        await team_battle(self.bot, self.config, ctx, *members)
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
