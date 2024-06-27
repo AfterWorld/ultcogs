@@ -1,4 +1,6 @@
 import discord
+from redbot.core import commands
+
 
 class BattleQuest:
     def __init__(self, description, required_wins, reward):
