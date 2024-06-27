@@ -81,7 +81,7 @@ class OPCBattle:
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-    
+
         while True:
             if player1.id not in self.battles:
                 await ctx.send(f"The battle has ended unexpectedly. {player1.name} is no longer in the battle.")
@@ -89,7 +89,7 @@ class OPCBattle:
             if player2.id not in self.battles:
                 await ctx.send(f"The battle has ended unexpectedly. {player2.name} is no longer in the battle.")
                 break
-    
+
             action = await self.get_action(ctx, turn, battle_msg)
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
@@ -107,7 +107,7 @@ class OPCBattle:
             
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
-    
+
         if player1.id in self.battles and player2.id in self.battles:
             winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
             loser = player2 if winner == player1 else player1
@@ -118,7 +118,7 @@ class OPCBattle:
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
             return
-    
+
         await self.end_battle(ctx, winner, loser, battle_msg)
 
     async def get_action(self, ctx, player, battle_msg):
@@ -137,18 +137,18 @@ class OPCBattle:
             await battle_msg.clear_reactions()
             return "attack"
 
-   async def execute_action(self, ctx, attacker, action, battle_msg, environment):
+    async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         if attacker.id not in self.battles:
             await ctx.send(f"{attacker.name} is no longer in the battle.")
             return
-    
+
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
-    
+
         if defender_id not in self.battles:
             await ctx.send(f"{defender.name} is no longer in the battle.")
             return
-    
+
         # Handle status effects
         for status in list(self.battles[attacker.id]["status"]):
             if status[0] == "confused":
@@ -166,9 +166,9 @@ class OPCBattle:
             self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
             if status[1] - 1 <= 0:
                 self.battles[attacker.id]["status"].remove((status[0], 0))
-    
+
         result = ""
-    
+
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
             self.battles[defender_id]["hp"] -= damage
@@ -186,12 +186,11 @@ class OPCBattle:
             result = await self.use_special_move(attacker, defender, environment)
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
-    
-        # Check if both players are still in the battle after the action
+
         if attacker.id not in self.battles or defender_id not in self.battles:
             await ctx.send("An unexpected error occurred during the action execution.")
             return
-    
+
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
@@ -237,7 +236,7 @@ class OPCBattle:
             return f"{final_damage} (Critical Hit!)"
         else:
             return final_damage
-        
+
     async def use_special_move(self, attacker, defender, environment):
         attacker_data = self.battles[attacker.id]
         defender_data = self.battles[defender.id]
@@ -291,7 +290,7 @@ class OPCBattle:
     
         else:
             return f"{attacker.name} doesn't have any special moves!"
-        
+
     async def use_battle_item(self, user, opponent):
         user_data = self.battles[user.id]
         inventory = user_data.get("inventory", {})
@@ -313,8 +312,7 @@ class OPCBattle:
                 if inventory[item] > 0:
                     inventory[item] -= 1
                     user_data["inventory"] = inventory
-                    return await self.battle_items[item](user, opponent)
-                else:
+                    return await self.battle_items[item](user, opponent)else:
                     return f"{user.name} doesn't have any {item} left!"
             else:
                 return f"{user.name} chose an invalid item number."
@@ -366,25 +364,25 @@ class OPCBattle:
     async def end_battle(self, ctx, winner, loser, battle_msg):
         winner_data = self.battles.get(winner.id, {})
         loser_data = self.battles.get(loser.id, {})
-    
+
         exp_gain = random.randint(10, 20)
         berry_gain = random.randint(100, 200)
-    
+
         winner_data["exp"] = winner_data.get("exp", 0) + exp_gain
         winner_data["berries"] = winner_data.get("berries", 0) + berry_gain
-    
+
         embed = discord.Embed(title="Battle Over!", color=discord.Color.green())
         embed.add_field(name="Winner", value=f"{winner.mention} ({winner_data.get('character_class', 'Unknown')})", inline=False)
         embed.add_field(name="Rewards", value=f"EXP: {exp_gain}\nBerries: {berry_gain}", inline=False)
         embed.set_footer(text=f"{loser.name} has been defeated!")
-    
+
         await battle_msg.edit(embed=embed)
-    
+
         # Update the database with the new values
         await self.config.member(winner).set(winner_data)
         if loser_data:
             await self.config.member(loser).set(loser_data)
-    
+
         self.battles.pop(winner.id, None)
         self.battles.pop(loser.id, None)
 
@@ -407,7 +405,6 @@ class OPCBattle:
         embed.add_field(name="Environment", value=environment, inline=False)
         return embed
 
-
     def calculate_max_hp(self, player_data):
         return 160 + (player_data['defense'] * 10)
 
@@ -421,9 +418,7 @@ class OPCBattle:
         embed = self.create_battle_embed(ctx.author, opponent, "Current Battle")
         await ctx.send(embed=embed)
         
-    @commands.command()
     async def surrender(self, ctx):
-        """Surrender from your current battle."""
         if ctx.author.id not in self.battles:
             return await ctx.send("You're not in a battle!")
 
@@ -436,7 +431,7 @@ class OPCBattle:
     async def clearbattles(self, ctx):
         self.battles.clear()
         await ctx.send("All battles have been cleared.")
-        
+
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandInvokeError):
             await ctx.send(f"An error occurred: {error.original}")
