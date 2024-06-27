@@ -196,7 +196,6 @@ class OPCBattle:
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
 
-    await battle_msg.edit(embed=embed)
     def calculate_attack(self, attacker_id, defender_id, environment):
         attacker_data = self.battles[attacker_id]
         defender_data = self.battles[defender_id]
