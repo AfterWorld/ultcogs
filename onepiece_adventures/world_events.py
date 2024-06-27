@@ -389,7 +389,7 @@ async def event_status(self, ctx):
             status_embed.add_field(name="Research Progress", value=f"{self.research_progress}%")
         
         await ctx.send(embed=status_embed)
-
+        
 async def manual_trigger_event(self, ctx):
     """Manually trigger a random world event (for testing)."""
     await self.spawn_random_event()
