@@ -70,9 +70,9 @@ LOG_CHANNEL_ID = 748451591958429809  # Replace with the actual log channel ID
 class OnePieceCog(commands.Cog):
     """A comprehensive One Piece themed cog for Red's Discord bot, including battles."""
 
-    def __init__(self, bot: Red):
+    def __init__(self, bot, config):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.config = config
         default_member = {
             "faction": None,
             "stats": {
