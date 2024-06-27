@@ -515,6 +515,12 @@ class OnePieceAdventures(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
+    async def reset_stats(self, ctx):
+        """Reset your character's stats to default values."""
+        await self.opcbattle.reset_player_stats(ctx.author)
+        await ctx.send(f"{ctx.author.mention}, your stats have been reset to default values.")
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         pages = self.create_help_pages()
