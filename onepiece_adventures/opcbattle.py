@@ -2,6 +2,11 @@ import discord
 from redbot.core import commands, Config
 import random
 import asyncio
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class OPCBattle:
     def __init__(self, bot, config):
@@ -72,6 +77,8 @@ class OPCBattle:
             **defender_data
         }
 
+        logger.info(f"Battle started between {ctx.author.name} and {opponent.name}")
+
         environment = random.choice(self.environmental_effects)
         embed = self.create_battle_embed(ctx.author, opponent, environment)
         battle_msg = await ctx.send(embed=embed)
@@ -84,20 +91,19 @@ class OPCBattle:
 
         while True:
             if player1.id not in self.battles:
-                await ctx.send(f"The battle has ended unexpectedly. {player1.name} is no longer in the battle.")
+                await ctx.send(f"{player1.name} was not found in the battle. This may be an error.")
+                logger.error(f"Player {player1.name} not found in battles dict during battle loop")
                 break
             if player2.id not in self.battles:
-                await ctx.send(f"The battle has ended unexpectedly. {player2.name} is no longer in the battle.")
+                await ctx.send(f"{player2.name} was not found in the battle. This may be an error.")
+                logger.error(f"Player {player2.name} not found in battles dict during battle loop")
                 break
 
             action = await self.get_action(ctx, turn, battle_msg)
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
-            if player1.id not in self.battles:
-                await ctx.send(f"The battle has ended unexpectedly. {player1.name} was removed from the battle after their action.")
-                break
-            if player2.id not in self.battles:
-                await ctx.send(f"The battle has ended unexpectedly. {player2.name} was removed from the battle after their action.")
+            if player1.id not in self.battles or player2.id not in self.battles:
+                logger.error(f"A player was removed from the battle after action execution")
                 break
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
@@ -117,78 +123,23 @@ class OPCBattle:
             winner, loser = player2, player1
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
+            logger.error("Both players were removed from the battle")
             return
 
         await self.end_battle(ctx, winner, loser, battle_msg)
 
-    async def get_action(self, ctx, player, battle_msg):
-        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
-        for emoji in action_emojis:
-            await battle_msg.add_reaction(emoji)
-
-        def check(reaction, user):
-            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
-
-        try:
-            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
-            await battle_msg.clear_reactions()
-            return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
-        except asyncio.TimeoutError:
-            await battle_msg.clear_reactions()
-            return "attack"
-
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         if attacker.id not in self.battles:
-            await ctx.send(f"{attacker.name} is no longer in the battle.")
+            await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
+            logger.error(f"Attacker {attacker.name} not found in battles dict during execute_action")
             return
 
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
 
         if defender_id not in self.battles:
-            await ctx.send(f"{defender.name} is no longer in the battle.")
-            return
-
-        # Handle status effects
-        for status in list(self.battles[attacker.id]["status"]):
-            if status[0] == "confused":
-                if random.random() < 0.3:  # 30% chance to hit self
-                    damage = self.calculate_attack(attacker.id, attacker.id, environment)
-                    self.battles[attacker.id]["hp"] -= damage
-                    await ctx.send(f"{attacker.name} is confused and hits themselves for {damage} damage!")
-                    return
-            elif status[0] == "burn":
-                burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
-                self.battles[attacker.id]["hp"] -= burn_damage
-                await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
-            
-            # Reduce status duration
-            self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
-            if status[1] - 1 <= 0:
-                self.battles[attacker.id]["status"].remove((status[0], 0))
-
-        result = ""
-
-        if action == "attack":
-            damage = self.calculate_attack(attacker.id, defender_id, environment)
-            self.battles[defender_id]["hp"] -= damage
-            result = f"{attacker.name} attacks for {damage} damage!"
-        elif action == "defend":
-            self.battles[attacker.id]["status"].append(("defend", 1))
-            result = f"{attacker.name} takes a defensive stance!"
-        elif action == "ability":
-            ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
-            if ability_func:
-                result = await ability_func(attacker, defender)
-            else:
-                result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
-        elif action == "special":
-            result = await self.use_special_move(attacker, defender, environment)
-        elif action == "item":
-            result = await self.use_battle_item(attacker, defender)
-
-        if attacker.id not in self.battles or defender_id not in self.battles:
-            await ctx.send("An unexpected error occurred during the action execution.")
+            await ctx.send(f"{defender.name} was not found in the battle. This may be an error.")
+            logger.error(f"Defender {defender.name} not found in battles dict during execute_action")
             return
 
         embed = self.create_battle_embed(attacker, defender, environment)
@@ -386,6 +337,8 @@ class OPCBattle:
 
         self.battles.pop(winner.id, None)
         self.battles.pop(loser.id, None)
+
+        logger.info(f"Battle ended. Winner: {winner.name}, Loser: {loser.name}")
 
     def create_battle_embed(self, player1, player2, environment):
         embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
