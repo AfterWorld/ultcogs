@@ -104,6 +104,16 @@ class GettingStarted:
         embed.add_field(name="Fighting Styles", value="Your chosen fighting style provides bonuses in battle.", inline=False)
         pages.append(embed)
 
+        # New page for Advanced Battle Features
+        embed = discord.Embed(title="Advanced Battle Features", color=discord.Color.red())
+        embed.add_field(name="Tournaments", value="Participate in multi-player tournaments using `.start_tournament`", inline=False)
+        embed.add_field(name="Team Battles", value="Engage in team vs team battles with `.team_battle`", inline=False)
+        embed.add_field(name="Battle Replays", value="Watch past battles using `.battle_replay`", inline=False)
+        embed.add_field(name="Leaderboard", value="Check the top battlers with `.battle_leaderboard`", inline=False)
+        embed.add_field(name="Battle Quests", value="Complete battle-related quests for rewards using `.battle_quests`", inline=False)
+        embed.add_field(name="Battle Arena", value="Join the arena for quick matches with `.join_arena`", inline=False)
+        pages.append(embed)
+
         # Page 10: All Available Commands
         embed = discord.Embed(title="All Available Commands", color=discord.Color.blue())
         commands_list = [
@@ -116,5 +126,12 @@ class GettingStarted:
         ]
         embed.description = "\n".join(commands_list)
         pages.append(embed)
+         # Update the All Available Commands page
+        all_commands_embed = pages[-1]  # Assuming it's the last page
+        new_commands = [
+            ".start_tournament", ".team_battle", ".battle_replay",
+            ".battle_leaderboard", ".battle_quests", ".join_arena", ".leave_arena"
+        ]
+        all_commands_embed.description += "\n" + "\n".join(new_commands)
 
         return pages
