@@ -71,14 +71,21 @@ class OPCBattle:
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-
+    
         while True:
             if player1.id not in self.battles or player2.id not in self.battles:
-                logger.error(f"A player was removed from the battle unexpectedly")
+                logger.error(f"A player was removed from the battle unexpectedly. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-
+    
             action = await self.get_action(ctx, turn, player1, player2, battle_msg)
+            
+            # Check again before executing action
+            if player1.id not in self.battles or player2.id not in self.battles:
+                logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
+                await ctx.send("An error occurred during the battle. It has been ended.")
+                break
+    
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
@@ -88,7 +95,7 @@ class OPCBattle:
             
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
-
+        
         winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
         loser = player2 if winner == player1 else player1
 
@@ -113,17 +120,27 @@ class OPCBattle:
 
     def apply_damage(self, defender_id, damage):
         current_hp = self.battles[defender_id]["hp"]
-        new_hp = max(0, current_hp - damage)
+        new_hp = max(0, current_hp - damage)  # Ensure HP doesn't go below 0
         self.battles[defender_id]["hp"] = new_hp
         logger.debug(f"Player {defender_id} HP: {current_hp} -> {new_hp} (Damage: {damage})")
 
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         logger.info(f"Executing action for {attacker.name}: {action}")
+        if attacker.id not in self.battles:
+            logger.error(f"{attacker.name} (ID: {attacker.id}) not found in battles dict. Current battles: {self.battles.keys()}")
+            await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
+            return
+    
         defender_id = self.battles[attacker.id]["opponent"]
+        if defender_id not in self.battles:
+            logger.error(f"Defender (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
+            await ctx.send(f"Opponent was not found in the battle. This may be an error.")
+            return
+    
         defender = ctx.guild.get_member(defender_id)
-
+    
         result = ""
-
+    
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
             self.apply_damage(defender_id, damage)
@@ -141,11 +158,11 @@ class OPCBattle:
             result = await self.use_special_move(attacker, defender, environment)
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
-
+    
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
-        await battle_msg.edit(embed=embed)
-
+    
+    await battle_msg.edit(embed=embed)
     def calculate_attack(self, attacker_id, defender_id, environment):
         attacker_data = self.battles[attacker_id]
         defender_data = self.battles[defender_id]
