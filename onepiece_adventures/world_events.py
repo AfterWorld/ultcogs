@@ -33,10 +33,17 @@ class WorldEvents:
         self.ancient_weapon = None
         self.research_progress = 0
 
+        # New attributes
+        self.is_event_active = False
+        self.event_message = None
+
     async def spawn_random_event(self):
         try:
+            if self.is_event_active:
+                return
+
             channel = self.bot.get_channel(self.event_channel_id)
-            if not channel or self.active_event:
+            if not channel:
                 return
 
             current_time = datetime.now().timestamp()
@@ -56,22 +63,26 @@ class WorldEvents:
             event = random.choice(events)
             self.active_event = event.__name__
             self.last_event_time = current_time
+            self.is_event_active = True
             await channel.send(f"🌍 A new world event has started: {self.active_event}")
             await event(channel)
         except Exception as e:
             self.logger.error(f"Error in spawn_random_event: {e}")
+        finally:
+            self.is_event_active = False
+            self.active_event = None
 
     async def start_event_loop(self):
         while True:
             try:
                 await asyncio.sleep(300)  # Check every 5 minutes
-                if random.random() < 0.1:  # 10% chance to spawn an event
+                if not self.is_event_active and random.random() < 0.1:  # 10% chance to spawn an event
                     await self.spawn_random_event()
             except Exception as e:
                 self.logger.error(f"Error in event loop: {e}")
 
     async def trigger_event_by_message(self, message):
-        if random.random() < 0.001:  # 0.1% chance per message
+        if not self.is_event_active and random.random() < 0.001:  # 0.1% chance per message
             await self.spawn_random_event()
 
     async def pirate_invasion(self, channel):
@@ -109,7 +120,6 @@ class WorldEvents:
                 await self.award_reward(self.bot.get_user(uid), 1500, 150, {'pirate': 50})
 
         self.participants.clear()
-        self.active_event = None
 
     async def treasure_hunt(self, channel):
         await channel.send("🗺️ A mysterious map has been discovered! The hunt for treasure begins! Use !solve_clue <answer> to progress.")
@@ -142,43 +152,63 @@ class WorldEvents:
             leader = discord.utils.get(channel.guild.members, name=self.current_leader)
             if leader:
                 await self.award_reward(leader, 5000, 200, {'pirate': 100})
-        self.active_event = None
 
     async def sea_monster_appearance(self, channel):
         await channel.send("🐙 A giant sea monster has emerged from the depths! Band together to defeat it! Use !attack to join the battle.")
+        
         self.monster_hp = 1000
         damage_dealt = {}
-        monster_embed = discord.Embed(title="Giant Sea Monster", description=f"Monster HP: {self.monster_hp}")
-        monster_message = await channel.send(embed=monster_embed)
+        participants = set()
         
+        monster_embed = discord.Embed(title="Giant Sea Monster", color=discord.Color.dark_blue())
+        monster_embed.add_field(name="HP", value=f"{self.monster_hp}/1000", inline=False)
+        monster_embed.add_field(name="Participants", value="None yet", inline=False)
+        monster_embed.add_field(name="Top Damager", value="None yet", inline=False)
+        self.event_message = await channel.send(embed=monster_embed)
+
+        def check(m):
+            return m.channel == channel and m.content.lower() == '!attack'
+
         while self.monster_hp > 0:
-            def check(m):
-                return m.channel == channel and m.content.lower() == '!attack'
-
             try:
-                message = await self.bot.wait_for('message', timeout=30.0, check=check)
+                message = await self.bot.wait_for('message', timeout=60.0, check=check)
+                
+                if not participants:  # First attacker
+                    monster_embed.set_field_at(1, name="Participants", value=message.author.mention)
+                
                 damage = random.randint(50, 150)
-                self.monster_hp -= damage
+                self.monster_hp = max(0, self.monster_hp - damage)
+                participants.add(message.author.id)
                 damage_dealt[message.author.id] = damage_dealt.get(message.author.id, 0) + damage
-                self.top_damager = max(damage_dealt, key=damage_dealt.get)
+                
+                top_damager = max(damage_dealt, key=damage_dealt.get)
+                top_damager_user = self.bot.get_user(top_damager)
+                
+                monster_embed.set_field_at(0, name="HP", value=f"{self.monster_hp}/1000")
+                monster_embed.set_field_at(1, name="Participants", value=", ".join([f"<@{uid}>" for uid in participants]))
+                monster_embed.set_field_at(2, name="Top Damager", value=f"{top_damager_user.mention} ({damage_dealt[top_damager]} damage)")
+                
+                await self.event_message.edit(embed=monster_embed)
                 await message.add_reaction('⚔️')
-                monster_embed.description = f"Monster HP: {max(0, self.monster_hp)}"
-                await monster_message.edit(embed=monster_embed)
+                
             except asyncio.TimeoutError:
-                await channel.send("The sea monster attacks! All participants lose 50 HP.")
+                if not participants:
+                    await channel.send("The sea monster, finding no worthy opponents, returns to the depths.")
+                    break
+                else:
+                    await channel.send("The sea monster attacks! All participants lose 50 HP.")
 
-        await channel.send("The sea monster has been defeated! All participants gain 200 exp and 2000 berries.")
-        for user_id, damage in damage_dealt.items():
-            user = self.bot.get_user(user_id)
-            if user:
-                await self.award_reward(user, 2000, 200, {'pirate': 50})
-        
-        top_damager_user = self.bot.get_user(self.top_damager)
-        if top_damager_user:
-            await channel.send(f"{top_damager_user.mention} dealt the most damage and receives an additional 1000 berries!")
-            await self.award_reward(top_damager_user, 1000, 100, {'pirate': 25})
-        
-        self.active_event = None
+        if self.monster_hp <= 0:
+            await channel.send("The sea monster has been defeated! All participants gain 200 exp and 2000 berries.")
+            for user_id in participants:
+                user = self.bot.get_user(user_id)
+                if user:
+                    await self.award_reward(user, 2000, 200, {'pirate': 50})
+            
+            top_damager_user = self.bot.get_user(top_damager)
+            if top_damager_user:
+                await channel.send(f"{top_damager_user.mention} dealt the most damage and receives an additional 1000 berries!")
+                await self.award_reward(top_damager_user, 1000, 100, {'pirate': 25})
 
     async def mysterious_island(self, channel):
         await channel.send("🏝️ A mysterious island has appeared through the mist! Use !explore <location> to investigate its secrets.")
@@ -211,7 +241,6 @@ class WorldEvents:
                 break
 
         await channel.send("The mysterious island fades away. The exploration is over!")
-        self.active_event = None
 
     async def celestial_dragon_visit(self, channel):
         await channel.send("⚠️ A Celestial Dragon is visiting the island! This is a rare opportunity for immense rewards... or severe punishment. React with 🙇 to bow or 🤬 to defy.")
@@ -250,8 +279,6 @@ class WorldEvents:
                 if user:
                     await self.award_reward(user, -25000, 500, {'world_government': -200, 'revolutionary': 100})
 
-        self.active_event = None
-
     async def legendary_pirate_showdown(self, channel):
         legendary_pirates = ["Gol D. Roger", "Whitebeard", "Big Mom", "Kaido", "Shanks"]
         self.legendary_pirate = random.choice(legendary_pirates)
@@ -280,8 +307,6 @@ class WorldEvents:
                     await self.award_reward(challenger, 10000, 1000, {'pirate': 100})
         else:
             await channel.send(f"No one dared to challenge {self.legendary_pirate}. The legendary pirate leaves, disappointed.")
-
-        self.active_event = None
 
     async def ancient_weapon_discovery(self, channel):
         weapons = ["Pluton", "Poseidon", "Uranus"]
@@ -312,8 +337,6 @@ class WorldEvents:
                     await self.award_reward(user, 75000, 2500, {'archaeological': 300, 'world_government': -100, 'revolutionary': 100})
         else:
             await channel.send(f"The World Government intervenes and seals away the information about {self.ancient_weapon}. The expedition is a failure.")
-
-        self.active_event = None
 
     async def award_reward(self, user, berries, exp, reputation=None):
         user_data = await self.config.member(user).all()
