@@ -32,40 +32,42 @@ class OPCBattle:
 
     async def battle(self, ctx, player1: discord.Member, player2: discord.Member):
         logger.info(f"Starting battle between {player1.name} and {player2.name}")
+        if player1 == player2:
+            return await ctx.send("A player can't battle themselves!")
         
         if player1.id in self.battles or player2.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
-
-        attacker_data = await self.config.member(ctx.author).all()
-        defender_data = await self.config.member(opponent).all()
-
-        if not attacker_data.get("character_class"):
-            return await ctx.send(f"{ctx.author.mention}, you need to choose a class first! Use the `.choose_class` command.")
-        if not defender_data.get("character_class"):
-            return await ctx.send(f"{opponent.mention} needs to choose a class first!")
-
-        self.battles[ctx.author.id] = {
-            "hp": self.calculate_max_hp(attacker_data),
-            "max_hp": self.calculate_max_hp(attacker_data),
+    
+        player1_data = await self.config.member(player1).all()
+        player2_data = await self.config.member(player2).all()
+    
+        if not player1_data.get("character_class"):
+            return await ctx.send(f"{player1.mention}, you need to choose a class first! Use the `.choose_class` command.")
+        if not player2_data.get("character_class"):
+            return await ctx.send(f"{player2.mention} needs to choose a class first!")
+    
+        self.battles[player1.id] = {
+            "hp": self.calculate_max_hp(player1_data),
+            "max_hp": self.calculate_max_hp(player1_data),
             "stamina": 100,
-            "opponent": opponent.id,
+            "opponent": player2.id,
             "status": [],
-            **attacker_data
+            **player1_data
         }
-        self.battles[opponent.id] = {
-            "hp": self.calculate_max_hp(defender_data),
-            "max_hp": self.calculate_max_hp(defender_data),
+        self.battles[player2.id] = {
+            "hp": self.calculate_max_hp(player2_data),
+            "max_hp": self.calculate_max_hp(player2_data),
             "stamina": 100,
-            "opponent": ctx.author.id,
+            "opponent": player1.id,
             "status": [],
-            **defender_data
+            **player2_data
         }
-
+    
         environment = random.choice(self.environmental_effects)
-        embed = self.create_battle_embed(ctx.author, opponent, environment)
+        embed = self.create_battle_embed(player1, player2, environment)
         battle_msg = await ctx.send(embed=embed)
-
-        result = await self.battle_loop(ctx, ctx.author, opponent, battle_msg, environment)
+    
+        result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
         logger.info(f"Battle ended. Result: {result}")
         return result
 
@@ -83,7 +85,7 @@ class OPCBattle:
                 await ctx.send(f"{player2.name} was not found in the battle. This may be an error.")
                 break
 
-            action = await self.get_action(ctx, turn, battle_msg)
+            action = await self.get_action(ctx, turn, player1, player2, battle_msg)
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
             if player1.id not in self.battles or player2.id not in self.battles:
@@ -114,14 +116,14 @@ class OPCBattle:
         return (winner, loser)
         
 
-    async def get_action(self, ctx, player, battle_msg):
+    async def get_action(self, ctx, current_player, player1, player2, battle_msg):
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
         for emoji in action_emojis:
             await battle_msg.add_reaction(emoji)
-
+    
         def check(reaction, user):
-            return user.id in [player.id, player.id] and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
-
+            return user.id in [player1.id, player2.id] and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+    
         try:
             reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
             await battle_msg.clear_reactions()
