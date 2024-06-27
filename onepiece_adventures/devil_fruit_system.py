@@ -183,3 +183,21 @@ class DevilFruitSystem:
             embed.add_field(name="Awakened Ability", value=fruit_info['awakened_ability'])
         
         await ctx.send(embed=embed)
+
+    async def devil_fruit_info(self, ctx, fruit_name: str = None):
+    if fruit_name:
+        if fruit_name in self.devil_fruits:
+            fruit_info = self.devil_fruits[fruit_name]
+            embed = discord.Embed(title=f"{fruit_name} Information", color=discord.Color.purple())
+            embed.add_field(name="Type", value=fruit_info['type'], inline=False)
+            embed.add_field(name="Basic Ability", value=fruit_info['ability'], inline=False)
+            embed.add_field(name="Awakened Ability", value=fruit_info['awakened_ability'], inline=False)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("That Devil Fruit doesn't exist.")
+    else:
+        fruits_list = "\n".join([f"{name} ({info['type']})" for name, info in self.devil_fruits.items()])
+        embed = discord.Embed(title="Available Devil Fruits", color=discord.Color.purple())
+        embed.description = fruits_list
+        
+        await ctx.send(embed=embed)
