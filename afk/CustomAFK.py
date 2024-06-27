@@ -45,13 +45,16 @@ class CustomAFK(commands.Cog):
         # Check if the author of the message is AFK and remove their AFK status
         is_afk = await self.config.member(message.author).afk()
         if is_afk:
-            await self.config.member(message.author).afk.set(False)
-            await self.config.member(message.author).reason.set(None)
-            await self.config.member(message.author).image_url.set(None)
-            await self.config.member(message.author).timestamp.set(None)
-            await message.channel.send(
-                f"Welcome back, {message.author.mention}! I've removed your AFK status."
-            )
+            afk_timestamp = await self.config.member(message.author).timestamp()
+            # Ensure some time has passed since setting AFK status
+            if (datetime.utcnow().timestamp() - afk_timestamp) > 5:  # 5 seconds grace period
+                await self.config.member(message.author).afk.set(False)
+                await self.config.member(message.author).reason.set(None)
+                await self.config.member(message.author).image_url.set(None)
+                await self.config.member(message.author).timestamp.set(None)
+                await message.channel.send(
+                    f"Welcome back, {message.author.mention}! I've removed your AFK status."
+                )
 
         # Notify others if they mention an AFK user
         for mention in message.mentions:
