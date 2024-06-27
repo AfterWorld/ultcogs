@@ -5,6 +5,15 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 import asyncio
 import random
 from typing import Dict, List, Any
+from .battle_features import (
+    Tournament, start_tournament,
+    team_battle,
+    save_battle_log, battle_replay,
+    battle_leaderboard,
+    BattleQuest, battle_quests, view_battle_quests,
+    BattleArena, join_arena, leave_arena,
+    end_battle
+)
 
 from .opcbattle import OPCBattle
 from .character_customization import CharacterCustomization
@@ -63,6 +72,7 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
+        self.battle_arena = BattleArena()
         self.opcbattle = OPCBattle(self.bot, self.config)
         self.character_customization = CharacterCustomization(self.bot, self.config)
         self.crew_battle_system = CrewBattleSystem(self.bot, self.config)
@@ -398,6 +408,34 @@ class OnePieceAdventures(commands.Cog):
     async def clearbattles(self, ctx):
         """Clear all ongoing battles. Use this if battles are stuck."""
         await self.opcbattle.clearbattles(ctx)
+
+    @commands.command()
+    async def start_tournament(self, ctx, *participants: discord.Member):
+        await start_tournament(self, ctx, *participants)
+
+    @commands.command()
+    async def team_battle(self, ctx, *members: discord.Member):
+        await team_battle(self, ctx, *members)
+
+    @commands.command()
+    async def battle_replay(self, ctx, battle_id: int):
+        await battle_replay(self, ctx, battle_id)
+
+    @commands.command()
+    async def battle_leaderboard(self, ctx):
+        await battle_leaderboard(self, ctx)
+
+    @commands.command()
+    async def battle_quests(self, ctx):
+        await view_battle_quests(self, ctx)
+
+    @commands.command()
+    async def join_arena(self, ctx):
+        await join_arena(self, ctx)
+
+    @commands.command()
+    async def leave_arena(self, ctx):
+        await leave_arena(self, ctx)
 
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
