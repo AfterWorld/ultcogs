@@ -3,6 +3,7 @@ from redbot.core import commands, Config
 import random
 import asyncio
 import logging
+from datetime import datetime
 
 class WorldEvents:
     def __init__(self, bot, config):
@@ -11,7 +12,7 @@ class WorldEvents:
         self.event_channel_id = 425068612542398476  # Your specified channel ID
         self.active_event = None
         self.participants = set()
-        self.last_event_time = 0
+        self.last_event_time = None
         self.event_cooldown = 3600  # 1 hour cooldown
         self.logger = logging.getLogger("red.onepiece_adventures.world_events")
 
@@ -32,14 +33,14 @@ class WorldEvents:
         self.ancient_weapon = None
         self.research_progress = 0
 
-    async def spawn_random_event(self):
+   async def spawn_random_event(self):
         try:
             channel = self.bot.get_channel(self.event_channel_id)
             if not channel or self.active_event:
                 return
 
-            current_time = asyncio.get_event_loop().time()
-            if current_time - self.last_event_time < self.event_cooldown:
+            current_time = datetime.now().timestamp()
+            if self.last_event_time and (current_time - self.last_event_time < self.event_cooldown):
                 return
 
             events = [
@@ -55,7 +56,6 @@ class WorldEvents:
             event = random.choice(events)
             self.active_event = event.__name__
             self.last_event_time = current_time
-            self.last_event_time = datetime.now().timestamp()
             await event(channel)
         except Exception as e:
             self.logger.error(f"Error in spawn_random_event: {e}")
