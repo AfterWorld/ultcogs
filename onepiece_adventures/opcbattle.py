@@ -86,17 +86,3 @@ class OPCBattle:
         embed.set_footer(text=f"{loser.name} has been defeated!")
 
         await battle_msg.edit(embed=embed)
-
-    @commands.command()
-    async def battlestatus(self, ctx):
-        if ctx.author.id not in self.battles:
-            return await ctx.send("You're not in a battle!")
-
-        opponent_id = self.battles[ctx.author.id]["opponent"]
-        opponent = ctx.guild.get_member(opponent_id)
-
-        embed = discord.Embed(title="Battle Status", color=discord.Color.blue())
-        embed.add_field(name=ctx.author.name, value=f"{self.battle_emojis['health']} {self.battles[ctx.author.id]['hp']} HP", inline=True)
-        embed.add_field(name=opponent.name, value=f"{self.battle_emojis['health']} {self.battles[opponent_id]['hp']} HP", inline=True)
-
-        await ctx.send(embed=embed)
