@@ -1,14 +1,11 @@
 import discord
-from redbot.core import commands
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-import asyncio
 
-class GettingStarted(commands.Cog):
+class GettingStarted:
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
-    async def guide(self, ctx):
+    async def show_guide(self, ctx):
         """Display the One Piece Adventures guide."""
         pages = self.create_guide_pages()
         await menu(ctx, pages, DEFAULT_CONTROLS, timeout=60)
