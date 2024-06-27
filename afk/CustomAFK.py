@@ -42,6 +42,18 @@ class CustomAFK(commands.Cog):
         if message.author.bot:
             return
 
+        # Check if the author of the message is AFK and remove their AFK status
+        is_afk = await self.config.member(message.author).afk()
+        if is_afk:
+            await self.config.member(message.author).afk.set(False)
+            await self.config.member(message.author).reason.set(None)
+            await self.config.member(message.author).image_url.set(None)
+            await self.config.member(message.author).timestamp.set(None)
+            await message.channel.send(
+                f"Welcome back, {message.author.mention}! I've removed your AFK status."
+            )
+
+        # Notify others if they mention an AFK user
         for mention in message.mentions:
             data = await self.config.member(mention).all()
             if data["afk"]:
@@ -94,17 +106,6 @@ class CustomAFK(commands.Cog):
                 button.callback = button_callback
                 view.add_item(button)
                 await reply.edit(view=view)
-
-        if message.author.id in [member.id for member in message.mentions]:
-            data = await self.config.member(message.author).all()
-            if data["afk"]:
-                await self.config.member(message.author).afk.set(False)
-                await self.config.member(message.author).reason.set(None)
-                await self.config.member(message.author).image_url.set(None)
-                await self.config.member(message.author).timestamp.set(None)
-                await message.channel.send(
-                    f"Welcome back, {message.author.mention}! I've removed your AFK status."
-                )
 
 
 async def setup(bot):
