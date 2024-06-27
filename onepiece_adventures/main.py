@@ -136,7 +136,7 @@ class OnePieceAdventures(commands.Cog):
         """Challenge another user to a Davy Back Fight."""
         if opponent == ctx.author:
             return await ctx.send("You can't challenge yourself to a Davy Back Fight!")
-        await self.davy_back_fight_system.start_davy_back_fight(ctx, opponent)
+        await self.davy_back_fight.start_davy_back_fight(ctx, opponent)
 
     @commands.command()
     async def eat_devil_fruit(self, ctx, fruit_name: str):
