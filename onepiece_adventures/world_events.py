@@ -33,7 +33,7 @@ class WorldEvents:
         self.ancient_weapon = None
         self.research_progress = 0
 
-   async def spawn_random_event(self):
+    async def spawn_random_event(self):
         try:
             channel = self.bot.get_channel(self.event_channel_id)
             if not channel or self.active_event:
