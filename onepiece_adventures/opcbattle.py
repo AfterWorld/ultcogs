@@ -297,13 +297,13 @@ class OPCBattle:
         
         if not inventory:
             return f"{user.name} has no items to use!"
-
+    
         item_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(inventory.keys())])
         await user.send(f"Choose an item to use:\n{item_list}\nType the number of the item you want to use.")
-
+    
         def check(m):
             return m.author == user and m.channel.type == discord.ChannelType.private and m.content.isdigit()
-
+    
         try:
             msg = await self.bot.wait_for("message", check=check, timeout=30.0)
             item_index = int(msg.content) - 1
@@ -312,7 +312,8 @@ class OPCBattle:
                 if inventory[item] > 0:
                     inventory[item] -= 1
                     user_data["inventory"] = inventory
-                    return await self.battle_items[item](user, opponent)else:
+                    return await self.battle_items[item](user, opponent)
+                else:
                     return f"{user.name} doesn't have any {item} left!"
             else:
                 return f"{user.name} chose an invalid item number."
