@@ -362,6 +362,22 @@ class OPCBattle:
     def calculate_max_hp(self, player_data):
         return 160 + (player_data['defense'] * 10)
 
+    async def get_action(self, ctx, player, battle_msg):
+        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
+        for emoji in action_emojis:
+            await battle_msg.add_reaction(emoji)
+    
+        def check(reaction, user):
+            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+    
+        try:
+            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+            await battle_msg.clear_reactions()
+            return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
+        except asyncio.TimeoutError:
+            await battle_msg.clear_reactions()
+            return "attack"
+
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
             return await ctx.send("You're not in a battle!")
