@@ -1,5 +1,6 @@
 import discord
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+from datetime import datetime
 
 class GettingStarted:
     def __init__(self, bot):
@@ -7,10 +8,10 @@ class GettingStarted:
 
     async def show_guide(self, ctx):
         """Display the One Piece Adventures guide."""
-        pages = self.create_guide_pages()
+        pages = self.create_guide_pages(ctx)
         await menu(ctx, pages, DEFAULT_CONTROLS, timeout=60)
 
-    def create_guide_pages(self):
+    def create_guide_pages(self, ctx):
         pages = []
 
         # Page 1: Introduction
@@ -41,11 +42,26 @@ class GettingStarted:
         embed.add_field(name=".train_devil_fruit", value="Train your Devil Fruit abilities", inline=False)
         pages.append(embed)
 
-        # Page 5: World Events
-        embed = discord.Embed(title="World Events", color=discord.Color.red())
+        # Page 5: World Events and Raids
+        embed = discord.Embed(title="World Events and Raids", color=discord.Color.red())
         embed.add_field(name="Random Events", value="World events occur randomly and offer unique challenges and rewards.", inline=False)
         embed.add_field(name="Event Cooldown", value="There's a cooldown between world events to prevent spam.", inline=False)
         embed.add_field(name=".event_status", value="Check the status of the current world event", inline=False)
+        
+        # Add timestamps for last event and raid
+        last_event_time = getattr(ctx.cog.world_events, 'last_event_time', None)
+        last_raid_time = getattr(ctx.cog.raid_boss_system, 'last_raid_time', None)
+        
+        if last_event_time:
+            embed.add_field(name="Last World Event", value=f"<t:{int(last_event_time)}:R>", inline=False)
+        else:
+            embed.add_field(name="Last World Event", value="No events yet", inline=False)
+        
+        if last_raid_time:
+            embed.add_field(name="Last Raid Boss", value=f"<t:{int(last_raid_time)}:R>", inline=False)
+        else:
+            embed.add_field(name="Last Raid Boss", value="No raids yet", inline=False)
+        
         pages.append(embed)
 
         # Page 6: Economy and Trading
@@ -71,7 +87,7 @@ class GettingStarted:
         embed.add_field(name="Trade Wisely", value="Keep an eye on market prices and trade smartly to increase your wealth.", inline=False)
         pages.append(embed)
 
-        # Add a new page for all available commands
+        # Page 9: All Available Commands
         embed = discord.Embed(title="All Available Commands", color=discord.Color.blue())
         commands_list = [
             ".profile", ".train", ".explore", ".travel", 
@@ -83,29 +99,5 @@ class GettingStarted:
         ]
         embed.description = "\n".join(commands_list)
         pages.append(embed)
-
-        # Update the World Events page to include timestamps
-        embed = discord.Embed(title="World Events and Raids", color=discord.Color.red())
-        embed.add_field(name="Random Events", value="World events occur randomly and offer unique challenges and rewards.", inline=False)
-        embed.add_field(name="Event Cooldown", value="There's a cooldown between world events to prevent spam.", inline=False)
-        embed.add_field(name=".event_status", value="Check the status of the current world event", inline=False)
-        
-        # Add timestamps for last event and raid
-        last_event_time = ctx.cog.world_events.last_event_time
-        last_raid_time = ctx.cog.raid_boss_system.last_raid_time
-        
-        if last_event_time:
-            embed.add_field(name="Last World Event", value=f"<t:{int(last_event_time)}:R>", inline=False)
-        else:
-            embed.add_field(name="Last World Event", value="No events yet", inline=False)
-        
-        if last_raid_time:
-            embed.add_field(name="Last Raid Boss", value=f"<t:{int(last_raid_time)}:R>", inline=False)
-        else:
-            embed.add_field(name="Last Raid Boss", value="No raids yet", inline=False)
-        
-        pages.append(embed)
-
-        return pages
 
         return pages
