@@ -1,3 +1,7 @@
+import random
+import discord
+from redbot.core import commands
+
 async def team_battle(self, ctx, *members: discord.Member):
     """Start a team battle. Separate teams with 'vs', e.g., @user1 @user2 vs @user3 @user4"""
     teams = ' '.join(m.mention for m in members).split(' vs ')
