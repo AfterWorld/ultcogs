@@ -118,6 +118,10 @@ class OPCBattle:
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
+
+        if attacker.id not in self.battles or defender_id not in self.battles:
+            await ctx.send("The battle has ended unexpectedly.")
+            return await self.end_battle(ctx, attacker, defender, battle_msg)
     
         # Handle status effects
         for status in list(self.battles[attacker.id]["status"]):
@@ -401,8 +405,8 @@ class OPCBattle:
         """Clear all ongoing battles. Use this if battles are stuck."""
         if not await self.bot.is_owner(ctx.author):
             return await ctx.send("Only the bot owner can use this command.")
-
-        self.battles.clear()
+    
+        self.opcbattle.battles.clear()
         await ctx.send("All battles have been cleared.")
         
     async def cog_command_error(self, ctx, error):
