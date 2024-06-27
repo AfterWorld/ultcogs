@@ -336,61 +336,61 @@ class WorldEvents:
         else:
             await ctx.send("That's not the correct solution. Try again!")
 
-async def attack_monster(self, ctx):
-    damage = random.randint(50, 150)
-    self.monster_hp -= damage
-    await ctx.send(f"You dealt {damage} damage to the sea monster!")
-    if self.monster_hp <= 0:
-        await self.award_reward(ctx.author, 5000, 200, {'pirate': 50})
-        await ctx.send("You've defeated the sea monster!")
-        self.active_event = None
+    async def attack_monster(self, ctx):
+        damage = random.randint(50, 150)
+        self.monster_hp -= damage
+        await ctx.send(f"You dealt {damage} damage to the sea monster!")
+        if self.monster_hp <= 0:
+            await self.award_reward(ctx.author, 5000, 200, {'pirate': 50})
+            await ctx.send("You've defeated the sea monster!")
+            self.active_event = None
 
-async def explore_location(self, ctx, location):
-    if location in ["beach", "jungle", "cave", "ruins", "volcano"] and location not in self.explored_locations:
-        self.explored_locations.append(location)
-        treasure = random.choice(["rare fruit", "ancient weapon", "treasure map", "nothing"])
-        if treasure != "nothing":
-            await self.award_reward(ctx.author, 2000, 100, {'pirate': 20})
-        await ctx.send(f"You explored the {location} and found: {treasure}!")
-        self.remaining_explorations -= 1
-    elif location in self.explored_locations:
-        await ctx.send("That location has already been explored.")
-    else:
-        await ctx.send("That location doesn't exist on this island.")
+    async def explore_location(self, ctx, location):
+        if location in ["beach", "jungle", "cave", "ruins", "volcano"] and location not in self.explored_locations:
+            self.explored_locations.append(location)
+            treasure = random.choice(["rare fruit", "ancient weapon", "treasure map", "nothing"])
+            if treasure != "nothing":
+                await self.award_reward(ctx.author, 2000, 100, {'pirate': 20})
+            await ctx.send(f"You explored the {location} and found: {treasure}!")
+            self.remaining_explorations -= 1
+        elif location in self.explored_locations:
+            await ctx.send("That location has already been explored.")
+        else:
+            await ctx.send("That location doesn't exist on this island.")
 
-async def event_status(self, ctx):
-    if not self.active_event:
-        await ctx.send("There's no active world event right now.")
-    else:
-        event_type = self.active_event
-        status_embed = discord.Embed(title=f"Current Event: {event_type}")
+    async def event_status(self, ctx):
+        if not self.active_event:
+            await ctx.send("There's no active world event right now.")
+        else:
+            event_type = self.active_event
+            status_embed = discord.Embed(title=f"Current Event: {event_type}")
 
-        if event_type == "pirate_invasion":
-            status_embed.add_field(name="Defenders", value=self.defenders)
-            status_embed.add_field(name="Pirates", value=self.pirates)
-            status_embed.add_field(name="Time Remaining", value=f"{self.time_remaining} seconds")
-        elif event_type == "treasure_hunt":
-            status_embed.add_field(name="Clues Solved", value=f"{self.clues_solved}/3")
-            status_embed.add_field(name="Current Leader", value=self.current_leader)
-        elif event_type == "sea_monster_appearance":
-            status_embed.add_field(name="Sea Monster HP", value=f"{max(0, self.monster_hp)}/1000")
-            status_embed.add_field(name="Top Damager", value=f"<@{self.top_damager}>")
-        elif event_type == "mysterious_island":
-            status_embed.add_field(name="Locations Explored", value=', '.join(self.explored_locations))
-            status_embed.add_field(name="Remaining Exploration Attempts", value=self.remaining_explorations)
-        elif event_type == "celestial_dragon_visit":
-            status_embed.add_field(name="Bowing", value=self.bowing)
-            status_embed.add_field(name="Defying", value=self.defying)
-        elif event_type == "legendary_pirate_showdown":
-            status_embed.add_field(name="Legendary Pirate", value=self.legendary_pirate)
-            status_embed.add_field(name="Challengers", value=', '.join([c.mention for c in self.challengers]))
-        elif event_type == "ancient_weapon_discovery":
-            status_embed.add_field(name="Ancient Weapon", value=self.ancient_weapon)
-            status_embed.add_field(name="Research Progress", value=f"{self.research_progress}%")
+            if event_type == "pirate_invasion":
+                status_embed.add_field(name="Defenders", value=self.defenders)
+                status_embed.add_field(name="Pirates", value=self.pirates)
+                status_embed.add_field(name="Time Remaining", value=f"{self.time_remaining} seconds")
+            elif event_type == "treasure_hunt":
+                status_embed.add_field(name="Clues Solved", value=f"{self.clues_solved}/3")
+                status_embed.add_field(name="Current Leader", value=self.current_leader)
+            elif event_type == "sea_monster_appearance":
+                status_embed.add_field(name="Sea Monster HP", value=f"{max(0, self.monster_hp)}/1000")
+                status_embed.add_field(name="Top Damager", value=f"<@{self.top_damager}>")
+            elif event_type == "mysterious_island":
+                status_embed.add_field(name="Locations Explored", value=', '.join(self.explored_locations))
+                status_embed.add_field(name="Remaining Exploration Attempts", value=self.remaining_explorations)
+            elif event_type == "celestial_dragon_visit":
+                status_embed.add_field(name="Bowing", value=self.bowing)
+                status_embed.add_field(name="Defying", value=self.defying)
+            elif event_type == "legendary_pirate_showdown":
+                status_embed.add_field(name="Legendary Pirate", value=self.legendary_pirate)
+                status_embed.add_field(name="Challengers", value=', '.join([c.mention for c in self.challengers]))
+            elif event_type == "ancient_weapon_discovery":
+                status_embed.add_field(name="Ancient Weapon", value=self.ancient_weapon)
+                status_embed.add_field(name="Research Progress", value=f"{self.research_progress}%")
 
-        await ctx.send(embed=status_embed)
+            await ctx.send(embed=status_embed)
         
-async def manual_trigger_event(self, ctx):
-    """Manually trigger a random world event (for testing)."""
-    await self.spawn_random_event()
-    await ctx.send("A world event has been manually triggered.")
+    async def manual_trigger_event(self, ctx):
+        """Manually trigger a random world event (for testing)."""
+        await self.spawn_random_event()
+        await ctx.send("A world event has been manually triggered.")
