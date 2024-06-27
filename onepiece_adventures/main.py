@@ -409,7 +409,7 @@ class OnePieceAdventures(commands.Cog):
         """Clear all ongoing battles. Use this if battles are stuck."""
         await self.opcbattle.clearbattles(ctx)
 
-   @commands.command()
+    @commands.command()
     async def start_tournament(self, ctx, *participants: discord.Member):
         """Start a battle tournament with multiple participants."""
         await start_tournament(self, ctx, *participants)
@@ -584,25 +584,25 @@ class OnePieceAdventures(commands.Cog):
             ("davy_back_stats [member]", "View Davy Back Fight stats for yourself or another member")
         ]
         for cmd, desc in commands:
-        embed.add_field(name=f".{cmd}", value=desc, inline=False)
-    pages.append(embed)
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
 
         # advance battle Fight Commands
         embed = discord.Embed(title="One Piece Adventures Help - Advanced Battle Features", color=discord.Color.red())
-    commands = [
-        ("start_tournament <participants>", "Start a battle tournament"),
-        ("team_battle <team1> vs <team2>", "Start a team battle"),
-        ("battle_replay <battle_id>", "Watch a replay of a past battle"),
-        ("battle_leaderboard", "Display the battle leaderboard"),
-        ("battle_quests", "View available battle quests"),
-        ("join_arena", "Join the battle arena queue"),
-        ("leave_arena", "Leave the battle arena queue")
-    ]
-    for cmd, desc in commands:
-        embed.add_field(name=f".{cmd}", value=desc, inline=False)
-    pages.append(embed)
+        commands = [
+            ("start_tournament <participants>", "Start a battle tournament"),
+            ("team_battle <team1> vs <team2>", "Start a team battle"),
+            ("battle_replay <battle_id>", "Watch a replay of a past battle"),
+            ("battle_leaderboard", "Display the battle leaderboard"),
+            ("battle_quests", "View available battle quests"),
+            ("join_arena", "Join the battle arena queue"),
+            ("leave_arena", "Leave the battle arena queue")
+        ]
+        for cmd, desc in commands:
+            embed.add_field(name=f".{cmd}", value=desc, inline=False)
+        pages.append(embed)
 
-    return pages
+        return pages
 
 def setup(bot):
     bot.add_cog(OnePieceAdventures(bot))
