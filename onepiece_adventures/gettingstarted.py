@@ -75,6 +75,3 @@ class GettingStarted(commands.Cog):
         pages.append(embed)
 
         return pages
-
-def setup(bot):
-    bot.add_cog(GettingStarted(bot))
