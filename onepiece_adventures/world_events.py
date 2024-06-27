@@ -47,10 +47,7 @@ class WorldEvents:
                 self.pirate_invasion,
                 self.treasure_hunt,
                 self.sea_monster_appearance,
-                self.mysterious_island,
-                self.celestial_dragon_visit,
-                self.legendary_pirate_showdown,
-                self.ancient_weapon_discovery
+                self.mysterious_island
             ]
             
             event = random.choice(events)
