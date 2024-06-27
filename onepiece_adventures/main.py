@@ -24,6 +24,7 @@ class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.getting_started = GettingStarted(self.bot)
         
         default_global = {
             "islands": {},
@@ -106,6 +107,11 @@ class OnePieceAdventures(commands.Cog):
     async def train(self, ctx, attribute: str):
         """Train a specific attribute (strength, defense, speed)."""
         await self.training_system.train_attribute(ctx, attribute)
+
+    @commands.command()
+    async def guide(self, ctx):
+        """Display the One Piece Adventures guide."""
+        await self.getting_started.show_guide(ctx)
 
     @commands.command()
     async def explore(self, ctx):
