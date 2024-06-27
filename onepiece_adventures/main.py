@@ -105,8 +105,8 @@ class OnePieceAdventures(commands.Cog):
             return
         await self.world_events.trigger_event_by_message(message)
 
-     @commands.Cog.listener()
-     async def on_member_join(self, member):
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
         await self.opwelcome.on_member_join(member)
 
     # Add the opwelcome command group
