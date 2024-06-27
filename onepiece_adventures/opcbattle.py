@@ -34,15 +34,35 @@ class OPCBattle:
         
         if ctx.author.id in self.battles or opponent.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
-
-        self.battles[ctx.author.id] = {"hp": self.calculate_max_hp(attacker_data), "opponent": opponent.id, "status": []}
-        self.battles[opponent.id] = {"hp": self.calculate_max_hp(defender_data), "opponent": ctx.author.id, "status": []}
-
+    
+        attacker_data = await self.config.member(ctx.author).all()
+        defender_data = await self.config.member(opponent).all()
+    
+        # Check if players have chosen a class
+        if not attacker_data.get("character_class"):
+            return await ctx.send(f"{ctx.author.mention}, you need to choose a class first! Use the `.choose_class` command.")
+        if not defender_data.get("character_class"):
+            return await ctx.send(f"{opponent.mention} needs to choose a class first!")
+    
+        self.battles[ctx.author.id] = {
+            "hp": self.calculate_max_hp(attacker_data),
+            "max_hp": self.calculate_max_hp(attacker_data),
+            "stamina": 100,
+            "opponent": opponent.id,
+            "status": []
+        }
+        self.battles[opponent.id] = {
+            "hp": self.calculate_max_hp(defender_data),
+            "max_hp": self.calculate_max_hp(defender_data),
+            "stamina": 100,
+            "opponent": ctx.author.id,
+            "status": []
+        }
+    
         embed = self.create_battle_embed(ctx.author, opponent, attacker_data, defender_data)
         battle_msg = await ctx.send(embed=embed)
 
-        await self.battle_loop(ctx, ctx.author, opponent, battle_msg)
-
+    await self.battle_loop(ctx, ctx.author, opponent, battle_msg)
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 5)
 
