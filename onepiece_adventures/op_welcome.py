@@ -7,6 +7,19 @@ class OPWelcome:
         self.bot = bot
         self.config = config
 
+    async def channel(self, ctx, channel: discord.TextChannel):
+        await self.config.guild(ctx.guild).welcome_channel.set(channel.id)
+        await ctx.send(f"Welcome channel set to {channel.mention}")
+
+    async def toggle(self, ctx):
+        current = await self.config.guild(ctx.guild).welcome_enabled()
+        await self.config.guild(ctx.guild).welcome_enabled.set(not current)
+        state = "enabled" if not current else "disabled"
+        await ctx.send(f"Welcome message {state}.")
+
+    async def test(self, ctx):
+        await self.on_member_join(ctx.author)
+        
     async def on_member_join(self, member):
         guild = member.guild
         if not await self.config.guild(guild).welcome_enabled():
@@ -45,27 +58,3 @@ class OPWelcome:
         )
 
         await channel.send(welcome_message)
-
-    @commands.group()
-    async def opwelcome(self, ctx):
-        """Configure the One Piece welcome message."""
-        pass
-
-    @opwelcome.command()
-    async def channel(self, ctx, channel: discord.TextChannel):
-        """Set the channel for welcome messages."""
-        await self.config.guild(ctx.guild).welcome_channel.set(channel.id)
-        await ctx.send(f"Welcome channel set to {channel.mention}")
-
-    @opwelcome.command()
-    async def toggle(self, ctx):
-        """Toggle the welcome message on or off."""
-        current = await self.config.guild(ctx.guild).welcome_enabled()
-        await self.config.guild(ctx.guild).welcome_enabled.set(not current)
-        state = "enabled" if not current else "disabled"
-        await ctx.send(f"Welcome message {state}.")
-
-    @opwelcome.command()
-    async def test(self, ctx):
-        """Test the welcome message."""
-        await self.on_member_join(ctx.author)
