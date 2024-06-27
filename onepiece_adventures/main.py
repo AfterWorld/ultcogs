@@ -597,6 +597,9 @@ class OnePieceAdventures(commands.Cog):
             ("battle_quests", "View available battle quests"),
             ("join_arena", "Join the battle arena queue"),
             ("leave_arena", "Leave the battle arena queue")
+            ("battle <opponent>", "Start a battle with another player"),
+            ("wins [member]", "Check the number of wins for yourself or another member"),
+
         ]
         for cmd, desc in commands:
             embed.add_field(name=f".{cmd}", value=desc, inline=False)
