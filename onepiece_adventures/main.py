@@ -412,27 +412,6 @@ class OnePieceAdventures(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def surrender(self, ctx):
-        """Surrender from your current battle."""
-        if ctx.author.id not in self.battles:
-            return await ctx.send("You're not in a battle!")
-
-        opponent_id = self.battles[ctx.author.id]["opponent"]
-        opponent = ctx.guild.get_member(opponent_id)
-
-        await self.end_battle(ctx, opponent, ctx.author, await ctx.send("Battle ended due to surrender."))
-        await ctx.send(f"{ctx.author.mention} has surrendered the battle to {opponent.mention}!")
-
-    @commands.command()
-    async def clearbattles(self, ctx):
-        """Clear all ongoing battles. Use this if battles are stuck."""
-        if not await self.bot.is_owner(ctx.author):
-            return await ctx.send("Only the bot owner can use this command.")
-
-        self.battles.clear()
-        await ctx.send("All battles have been cleared.")
-        
-    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         pages = self.create_help_pages()
