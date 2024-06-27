@@ -55,6 +55,7 @@ class WorldEvents:
             event = random.choice(events)
             self.active_event = event.__name__
             self.last_event_time = current_time
+            self.last_event_time = datetime.now().timestamp()
             await event(channel)
         except Exception as e:
             self.logger.error(f"Error in spawn_random_event: {e}")
