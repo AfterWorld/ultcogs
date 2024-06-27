@@ -2,7 +2,8 @@ import discord
 from redbot.core import commands, Config
 from datetime import datetime
 import asyncio
-
+import aiohttp
+import re
 
 class CustomAFK(commands.Cog):
     def __init__(self, bot):
@@ -18,13 +19,29 @@ class CustomAFK(commands.Cog):
         }
         self.config.register_member(**default_member)
 
+    async def is_valid_image_url(self, url):
+        async with aiohttp.ClientSession() as session:
+            async with session.head(url) as response:
+                if response.status == 200:
+                    content_type = response.headers.get("Content-Type", "")
+                    return content_type.startswith(("image/", "video/gif"))
+        return False
+
     @commands.command()
     async def afk(self, ctx, *, reason: str = None):
-        """Set your AFK status with an optional reason or image."""
+        """Set your AFK status with an optional reason, image, or GIF."""
+        image_url = None
+
         if ctx.message.attachments:
             image_url = ctx.message.attachments[0].url
-        else:
-            image_url = None
+        elif reason:
+            # Check for URLs in the reason
+            urls = re.findall(r'(https?://\S+)', reason)
+            for url in urls:
+                if await self.is_valid_image_url(url):
+                    image_url = url
+                    reason = reason.replace(url, '').strip()  # Remove the URL from the reason
+                    break
 
         await self.config.member(ctx.author).afk.set(True)
         await self.config.member(ctx.author).reason.set(reason)
@@ -69,6 +86,7 @@ class CustomAFK(commands.Cog):
 
                 if data["image_url"]:
                     embed.set_image(url=data["image_url"])
+                    embed.add_field(name="Image/GIF URL", value=data["image_url"])
 
                 time_elapsed = datetime.utcnow().timestamp() - data["timestamp"]
                 hours, remainder = divmod(int(time_elapsed), 3600)
@@ -109,7 +127,6 @@ class CustomAFK(commands.Cog):
                 button.callback = button_callback
                 view.add_item(button)
                 await reply.edit(view=view)
-
 
 async def setup(bot):
     await bot.add_cog(CustomAFK(bot))
