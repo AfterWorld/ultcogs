@@ -169,7 +169,7 @@ class OPCBattle:
 
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
-            self.battles[defender_id]["hp"] -= damage
+            self.battles[defender_id]["hp"] = max(0, self.battles[defender_id]["hp"] - damage)
             result = f"{attacker.name} attacks for {damage} damage!"
         elif action == "defend":
             self.battles[attacker.id]["status"].append(("defend", 1))
