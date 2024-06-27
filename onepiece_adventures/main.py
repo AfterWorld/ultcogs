@@ -15,6 +15,7 @@ from .battle_features import (
     end_battle
 )
 
+from .op_welcome import OPWelcome  # Import the new class
 from .opcbattle import OPCBattle
 from .character_customization import CharacterCustomization
 from .crew_battles import CrewBattleSystem
@@ -47,6 +48,9 @@ class OnePieceAdventures(commands.Cog):
             "pvp_arenas": {},
             "market_listings": {},
             "islands": {}
+            "enabled": False,
+            "welcome_channel": None,
+            "welcome_enabled": False
         }
         default_member = {
             "level": 1,
@@ -72,6 +76,7 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
+        self.opwelcome = OPWelcome(bot, self.config)  # Initialize the OPWelcome class
         self.battle_arena = BattleArena()
         self.opcbattle = OPCBattle(self.bot, self.config)
         self.character_customization = CharacterCustomization(self.bot, self.config)
@@ -99,6 +104,25 @@ class OnePieceAdventures(commands.Cog):
         if message.author.bot:
             return
         await self.world_events.trigger_event_by_message(message)
+
+     @commands.Cog.listener()
+    async def on_member_join(self, member):
+        await self.opwelcome.on_member_join(member)
+
+    # Add the opwelcome command group
+    opwelcome = commands.Group(name="opwelcome", invoke_without_command=True)
+
+    @opwelcome.command()
+    async def channel(self, ctx, channel: discord.TextChannel):
+        await self.opwelcome.channel(ctx, channel)
+
+    @opwelcome.command()
+    async def toggle(self, ctx):
+        await self.opwelcome.toggle(ctx)
+
+    @opwelcome.command()
+    async def test(self, ctx):
+        await self.opwelcome.test(ctx)
 
     @commands.command()
     @commands.is_owner()
