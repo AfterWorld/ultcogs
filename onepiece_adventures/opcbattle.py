@@ -11,6 +11,9 @@ class OPCBattle:
         self.battle_emojis = {
             "attack": "⚔️",
             "defend": "🛡️",
+            "ability": "✨",
+            "special": "🌟",
+            "item": "🎒",
             "health": "❤️",
             "stamina": "⚡",
             "strength": "💪",
@@ -57,47 +60,30 @@ class OPCBattle:
             "max_hp": self.calculate_max_hp(attacker_data),
             "stamina": 100,
             "opponent": opponent.id,
-            "status": []
+            "status": [],
+            **attacker_data
         }
         self.battles[opponent.id] = {
             "hp": self.calculate_max_hp(defender_data),
             "max_hp": self.calculate_max_hp(defender_data),
             "stamina": 100,
             "opponent": ctx.author.id,
-            "status": []
+            "status": [],
+            **defender_data
         }
 
         environment = random.choice(self.environmental_effects)
-        embed = self.create_battle_embed(ctx.author, opponent, attacker_data, defender_data, environment)
+        embed = self.create_battle_embed(ctx.author, opponent, environment)
         battle_msg = await ctx.send(embed=embed)
 
         await self.battle_loop(ctx, ctx.author, opponent, battle_msg, environment)
-
-    def create_battle_embed(self, player1, player2, player1_data, player2_data, environment):
-        embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
-        
-        for player, data in [(player1, player1_data), (player2, player2_data)]:
-            battle_data = self.battles[player.id]
-            class_emoji = self.battle_emojis.get(data["character_class"].lower(), "")
-            embed.add_field(
-                name=f"{class_emoji} {player.name} ({data['character_class']})",
-                value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
-                      f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
-                      f"{self.battle_emojis['strength']} STR: {data['strength']} | "
-                      f"{self.battle_emojis['speed']} SPD: {data['speed']}\n"
-                      f"Style: {data.get('fighting_style', 'None')}",
-                inline=True
-            )
-        
-        embed.add_field(name="Environment", value=environment, inline=False)
-        return embed
 
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
 
         while self.battles.get(player1.id) and self.battles.get(player2.id):
-            action = await self.get_action(ctx, turn)
+            action = await self.get_action(ctx, turn, battle_msg)
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
@@ -113,35 +99,37 @@ class OPCBattle:
         
         await self.end_battle(ctx, winner, loser, battle_msg)
 
-    async def get_action(self, ctx, player):
-        def check(m):
-            return m.author == player and m.channel == ctx.channel and m.content.lower() in ["attack", "defend", "ability", "special", "item"]
+    async def get_action(self, ctx, player, battle_msg):
+        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
+        for emoji in action_emojis:
+            await battle_msg.add_reaction(emoji)
 
-        await ctx.send(f"{player.mention}, choose your action: `attack`, `defend`, `ability`, `special`, or `item`")
+        def check(reaction, user):
+            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+
         try:
-            msg = await self.bot.wait_for("message", check=check, timeout=30.0)
-            return msg.content.lower()
+            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+            await battle_msg.clear_reactions()
+            return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
         except asyncio.TimeoutError:
+            await battle_msg.clear_reactions()
             return "attack"
 
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
 
-        attacker_data = await self.config.member(attacker).all()
-        defender_data = await self.config.member(defender).all()
-
         result = ""
 
         if action == "attack":
-            damage = self.calculate_attack(attacker_data, defender_data, environment)
+            damage = self.calculate_attack(attacker.id, defender_id, environment)
             self.battles[defender_id]["hp"] -= damage
             result = f"{attacker.name} attacks for {damage} damage!"
         elif action == "defend":
             self.battles[attacker.id]["status"].append(("defend", 1))
             result = f"{attacker.name} takes a defensive stance!"
         elif action == "ability":
-            ability_func = self.class_abilities.get(attacker_data["character_class"])
+            ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
             if ability_func:
                 result = await ability_func(attacker, defender)
             else:
@@ -151,11 +139,14 @@ class OPCBattle:
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
 
-        embed = self.create_battle_embed(attacker, defender, attacker_data, defender_data, environment)
+        embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
 
-    def calculate_attack(self, attacker_data, defender_data, environment):
+    def calculate_attack(self, attacker_id, defender_id, environment):
+        attacker_data = self.battles[attacker_id]
+        defender_data = self.battles[defender_id]
+        
         base_attack = attacker_data["strength"] + random.randint(1, 10)
         class_bonus = 1.2 if attacker_data["character_class"] == "Swordsman" else 1
         style_bonus = 1.1 if attacker_data.get("fighting_style") else 1
@@ -172,7 +163,7 @@ class OPCBattle:
 
         damage = int(base_attack * class_bonus * style_bonus * crit_multiplier)
 
-        if any(status[0] == "defend" for status in self.battles[defender_data["id"]]["status"]):
+        if any(status[0] == "defend" for status in defender_data["status"]):
             damage //= 2
 
         if environment == "Stormy Weather":
@@ -189,20 +180,20 @@ class OPCBattle:
         return max(0, int(damage - defender_data["defense"]))
 
     async def use_special_move(self, attacker, defender, environment):
-        attacker_data = await self.config.member(attacker).all()
+        attacker_data = self.battles[attacker.id]
         stamina_cost = 30
 
-        if self.battles[attacker.id]["stamina"] < stamina_cost:
+        if attacker_data["stamina"] < stamina_cost:
             return f"{attacker.name} doesn't have enough stamina to use a special move!"
 
-        self.battles[attacker.id]["stamina"] -= stamina_cost
+        attacker_data["stamina"] -= stamina_cost
         
         if attacker_data["character_class"] == "Swordsman":
-            damage = self.calculate_attack(attacker_data, await self.config.member(defender).all(), environment) * 2
+            damage = self.calculate_attack(attacker.id, defender.id, environment) * 2
             self.battles[defender.id]["hp"] -= damage
             return f"{attacker.name} uses 'Santoryu: Oni Giri', dealing {damage} damage!"
         elif attacker_data["character_class"] == "Sniper":
-            damage = self.calculate_attack(attacker_data, await self.config.member(defender).all(), environment) * 2.5
+            damage = self.calculate_attack(attacker.id, defender.id, environment) * 2.5
             if random.random() < 0.7:
                 self.battles[defender.id]["hp"] -= damage
                 return f"{attacker.name} uses 'Fire Bird Star', dealing {damage} damage!"
@@ -211,11 +202,13 @@ class OPCBattle:
         # Add special moves for other classes here
 
     async def use_battle_item(self, user, opponent):
-        items = await self.config.member(user).inventory()
-        if not items:
+        user_data = self.battles[user.id]
+        inventory = user_data.get("inventory", {})
+        
+        if not inventory:
             return f"{user.name} has no items to use!"
 
-        item_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(items.keys())])
+        item_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(inventory.keys())])
         await user.send(f"Choose an item to use:\n{item_list}\nType the number of the item you want to use.")
 
         def check(m):
@@ -224,11 +217,11 @@ class OPCBattle:
         try:
             msg = await self.bot.wait_for("message", check=check, timeout=30.0)
             item_index = int(msg.content) - 1
-            if 0 <= item_index < len(items):
-                item = list(items.keys())[item_index]
-                if items[item] > 0:
-                    items[item] -= 1
-                    await self.config.member(user).inventory.set(items)
+            if 0 <= item_index < len(inventory):
+                item = list(inventory.keys())[item_index]
+                if inventory[item] > 0:
+                    inventory[item] -= 1
+                    user_data["inventory"] = inventory
                     return await self.battle_items[item](user, opponent)
                 else:
                     return f"{user.name} doesn't have any {item} left!"
@@ -252,12 +245,12 @@ class OPCBattle:
         return f"{user.name} uses a Smoke Bomb, blinding {opponent.name} for 2 turns!"
 
     async def swordsman_ability(self, attacker, defender):
-        damage = self.calculate_attack(await self.config.member(attacker).all(), await self.config.member(defender).all()) * 1.5
+        damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 1.5
         self.battles[defender.id]["hp"] -= damage
         return f"{attacker.name} uses Three Sword Style, dealing {damage} damage!"
 
     async def sniper_ability(self, attacker, defender):
-        damage = self.calculate_attack(await self.config.member(attacker).all(), await self.config.member(defender).all()) * 2
+        damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 2
         hit_chance = 0.7
         if random.random() < hit_chance:
             self.battles[defender.id]["hp"] -= damage
@@ -270,24 +263,24 @@ class OPCBattle:
         return f"{attacker.name} uses their navigation skills to boost their evasion for 2 turns!"
 
     async def cook_ability(self, attacker, defender):
-        heal_amount = attacker.strength * 2
-        self.battles[attacker.id]["hp"] = min(self.battles[attacker.id]["hp"] + heal_amount, self.calculate_max_hp(await self.config.member(attacker).all()))
+        heal_amount = self.battles[attacker.id]["strength"] * 2
+        self.battles[attacker.id]["hp"] = min(self.battles[attacker.id]["hp"] + heal_amount, self.battles[attacker.id]["max_hp"])
         return f"{attacker.name} cooks up a quick meal, restoring {heal_amount} HP!"
 
     async def doctor_ability(self, attacker, defender):
-        heal_amount = attacker.intelligence * 3
-        self.battles[attacker.id]["hp"] = min(self.battles[attacker.id]["hp"] + heal_amount, self.calculate_max_hp(await self.config.member(attacker).all()))
+        heal_amount = self.battles[attacker.id]["intelligence"] * 3
+        self.battles[attacker.id]["hp"] = min(self.battles[attacker.id]["hp"] + heal_amount, self.battles[attacker.id]["max_hp"])
         return f"{attacker.name} applies medical knowledge to heal {heal_amount} HP!"
 
     async def end_battle(self, ctx, winner, loser, battle_msg):
-        winner_data = await self.config.member(winner).all()
-        loser_data = await self.config.member(loser).all()
+        winner_data = self.battles[winner.id]
+        loser_data = self.battles[loser.id]
 
         exp_gain = random.randint(10, 20)
         berry_gain = random.randint(100, 200)
 
-        await self.config.member(winner).exp.set(winner_data["exp"] + exp_gain)
-        await self.config.member(winner).berries.set(winner_data["berries"] + berry_gain)
+        winner_data["exp"] += exp_gain
+        winner_data["berries"] += berry_gain
 
         embed = discord.Embed(title="Battle Over!", color=discord.Color.green())
         embed.add_field(name="Winner", value=f"{winner.mention} ({winner_data['character_class']})", inline=False)
@@ -296,10 +289,67 @@ class OPCBattle:
 
         await battle_msg.edit(embed=embed)
 
+        # Update the database with the new values
+        await self.config.member(winner).set(winner_data)
+        await self.config.member(loser).set(loser_data)
+
         del self.battles[winner.id]
         del self.battles[loser.id]
+
+    def create_battle_embed(self, player1, player2, environment):
+        embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
+        
+        for player in [player1, player2]:
+            battle_data = self.battles[player.id]
+            class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
+            embed.add_field(
+                name=f"{class_emoji} {player.name} ({battle_data['character_class']})",
+                value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
+                      f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\nf"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
+                      f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
+                      f"Style: {battle_data.get('fighting_style', 'None')}",
+                inline=True
+            )
+        
+        embed.add_field(name="Environment", value=environment, inline=False)
+        return embed
 
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 5)
 
-    # Add any additional helper methods here
+    async def battlestatus(self, ctx):
+        if ctx.author.id not in self.battles:
+            return await ctx.send("You're not in a battle!")
+
+        opponent_id = self.battles[ctx.author.id]["opponent"]
+        opponent = ctx.guild.get_member(opponent_id)
+
+        embed = self.create_battle_embed(ctx.author, opponent, "Current Battle")
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def surrender(self, ctx):
+        """Surrender from your current battle."""
+        if ctx.author.id not in self.battles:
+            return await ctx.send("You're not in a battle!")
+
+        opponent_id = self.battles[ctx.author.id]["opponent"]
+        opponent = ctx.guild.get_member(opponent_id)
+
+        await self.end_battle(ctx, opponent, ctx.author, await ctx.send("Battle ended due to surrender."))
+        await ctx.send(f"{ctx.author.mention} has surrendered the battle to {opponent.mention}!")
+
+    @commands.command()
+    async def clearbattles(self, ctx):
+        """Clear all ongoing battles. Use this if battles are stuck."""
+        if not await self.bot.is_owner(ctx.author):
+            return await ctx.send("Only the bot owner can use this command.")
+
+        self.battles.clear()
+        await ctx.send("All battles have been cleared.")
+
+    async def cog_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandInvokeError):
+            await ctx.send(f"An error occurred: {error.original}")
+        else:
+            await ctx.send(f"An error occurred: {error}")
