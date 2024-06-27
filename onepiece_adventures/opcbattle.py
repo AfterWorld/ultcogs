@@ -138,12 +138,16 @@ class OPCBattle:
             return "attack"
 
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
+        if attacker.id not in self.battles:
+            await ctx.send(f"{attacker.name} is no longer in the battle.")
+            return
+    
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
     
-        if attacker.id not in self.battles or defender_id not in self.battles:
-            await ctx.send("The battle has ended unexpectedly.")
-            return await self.end_battle(ctx, attacker, defender, battle_msg)
+        if defender_id not in self.battles:
+            await ctx.send(f"{defender.name} is no longer in the battle.")
+            return
     
         # Handle status effects
         for status in list(self.battles[attacker.id]["status"]):
@@ -182,10 +186,14 @@ class OPCBattle:
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
     
-        embed = self.create_battle_embed(attacker, defender, environment)
-        embed.add_field(name="Battle Action", value=result, inline=False)
-        await battle_msg.edit(embed=embed)
+        if attacker.id not in self.battles or defender_id not in self.battles:
+            await ctx.send("An unexpected error occurred during the action execution.")
+            return
+    
+            embed = self.create_battle_embed(attacker, defender, environment)
+            embed.add_field(name="Battle Action", value=result, inline=False)
 
+    await battle_msg.edit(embed=embed)
     def calculate_attack(self, attacker_id, defender_id, environment):
         attacker_data = self.battles[attacker_id]
         defender_data = self.battles[defender_id]
