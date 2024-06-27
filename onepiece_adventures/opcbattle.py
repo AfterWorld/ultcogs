@@ -118,9 +118,26 @@ class OPCBattle:
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
-
+    
+        # Handle status effects
+        for status in list(self.battles[attacker.id]["status"]):
+            if status[0] == "confused":
+                if random.random() < 0.3:  # 30% chance to hit self
+                    damage = self.calculate_attack(attacker.id, attacker.id, environment)
+                    self.battles[attacker.id]["hp"] -= damage
+                    return f"{attacker.name} is confused and hits themselves for {damage} damage!"
+            elif status[0] == "burn":
+                burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
+                self.battles[attacker.id]["hp"] -= burn_damage
+                await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
+            
+            # Reduce status duration
+            self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
+            if status[1] - 1 <= 0:
+                self.battles[attacker.id]["status"].remove((status[0], 0))
+    
         result = ""
-
+    
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
             self.battles[defender_id]["hp"] -= damage
@@ -138,7 +155,7 @@ class OPCBattle:
             result = await self.use_special_move(attacker, defender, environment)
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
-
+    
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
@@ -147,25 +164,26 @@ class OPCBattle:
         attacker_data = self.battles[attacker_id]
         defender_data = self.battles[defender_id]
         
-        base_attack = attacker_data["strength"] + random.randint(1, 10)
+        base_damage = attacker_data["strength"] * 2 + attacker_data["speed"]
         class_bonus = 1.2 if attacker_data["character_class"] == "Swordsman" else 1
         style_bonus = 1.1 if attacker_data.get("fighting_style") else 1
         
-        crit_chance = 0.05 + (attacker_data["speed"] * 0.01)
+        crit_chance = 0.05 + (attacker_data["speed"] * 0.005)
         is_crit = random.random() < crit_chance
-        crit_multiplier = 2 if is_crit else 1
-
-        dodge_chance = 0.05 + (defender_data["speed"] * 0.01)
+        crit_multiplier = 1.5 if is_crit else 1
+    
+        dodge_chance = 0.05 + (defender_data["speed"] * 0.005)
         is_dodge = random.random() < dodge_chance
-
+    
         if is_dodge:
             return 0
-
-        damage = int(base_attack * class_bonus * style_bonus * crit_multiplier)
-
+    
+        damage = base_damage * class_bonus * style_bonus * crit_multiplier
+    
         if any(status[0] == "defend" for status in defender_data["status"]):
-            damage //= 2
-
+            damage *= 0.7
+    
+        # Apply environmental effects
         if environment == "Stormy Weather":
             damage *= random.uniform(0.8, 1.2)
         elif environment == "Calm Waters":
@@ -175,32 +193,69 @@ class OPCBattle:
                 damage *= 1.2
         elif environment == "Treasure Island":
             if random.random() < 0.1:
-                damage *= 2
-
-        return max(0, int(damage - defender_data["defense"]))
-
+                damage *= 1.5
+    
+        final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
+        
+        if is_crit:
+            return f"{final_damage} (Critical Hit!)"
+        else:
+            return final_damage
+        
     async def use_special_move(self, attacker, defender, environment):
         attacker_data = self.battles[attacker.id]
+        defender_data = self.battles[defender.id]
         stamina_cost = 30
-
+    
         if attacker_data["stamina"] < stamina_cost:
             return f"{attacker.name} doesn't have enough stamina to use a special move!"
-
+    
         attacker_data["stamina"] -= stamina_cost
+    
+        base_damage = (attacker_data["strength"] + attacker_data["speed"]) * 2
         
         if attacker_data["character_class"] == "Swordsman":
-            damage = self.calculate_attack(attacker.id, defender.id, environment) * 2
+            move = random.choice(["Santoryu: Oni Giri", "Ittoryu: Shishi Sonson", "Nitoryu: Sai Kuru"])
+            damage = base_damage * 2.5
             self.battles[defender.id]["hp"] -= damage
-            return f"{attacker.name} uses 'Santoryu: Oni Giri', dealing {damage} damage!"
+            return f"{attacker.name} uses '{move}', slashing for {damage:.0f} damage!"
+    
         elif attacker_data["character_class"] == "Sniper":
-            damage = self.calculate_attack(attacker.id, defender.id, environment) * 2.5
-            if random.random() < 0.7:
+            move = random.choice(["Fire Bird Star", "Exploding Star", "Clima-Tact: Thunderbolt Tempo"])
+            damage = base_damage * 2.2
+            if random.random() < 0.8:  # 80% accuracy
                 self.battles[defender.id]["hp"] -= damage
-                return f"{attacker.name} uses 'Fire Bird Star', dealing {damage} damage!"
+                return f"{attacker.name} uses '{move}', striking for {damage:.0f} damage!"
             else:
-                return f"{attacker.name}'s 'Fire Bird Star' misses!"
-        # Add special moves for other classes here
-
+                return f"{attacker.name}'s '{move}' misses!"
+    
+        elif attacker_data["character_class"] == "Navigator":
+            move = random.choice(["Clima-Tact: Cyclone Tempo", "Weather Egg: Rain Tempo", "Mirage Tempo: Fata Morgana"])
+            damage = base_damage * 1.8
+            self.battles[defender.id]["hp"] -= damage
+            self.battles[defender.id]["status"].append(("confused", 2))
+            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and confusing {defender.name}!"
+    
+        elif attacker_data["character_class"] == "Cook":
+            move = random.choice(["Diable Jambe: Flambage Shot", "Collier Shoot", "Party Table Kick Course"])
+            damage = base_damage * 2.3
+            self.battles[defender.id]["hp"] -= damage
+            heal = damage * 0.3
+            attacker_data["hp"] = min(attacker_data["hp"] + heal, attacker_data["max_hp"])
+            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and healing for {heal:.0f} HP!"
+    
+        elif attacker_data["character_class"] == "Doctor":
+            move = random.choice(["Scope", "Monster Point: Konbie Genjin", "Cherry Blossom Blizzard"])
+            damage = base_damage * 2
+            self.battles[defender.id]["hp"] -= damage
+            for status in attacker_data["status"]:
+                if status[0] in ["poison", "burn", "confused"]:
+                    attacker_data["status"].remove(status)
+            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and curing all status effects!"
+    
+        else:
+            return f"{attacker.name} doesn't have any special moves!"
+        
     async def use_battle_item(self, user, opponent):
         user_data = self.battles[user.id]
         inventory = user_data.get("inventory", {})
@@ -317,7 +372,7 @@ class OPCBattle:
 
 
     def calculate_max_hp(self, player_data):
-        return 100 + (player_data['defense'] * 5)
+        return 160 + (player_data['defense'] * 10)
 
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
