@@ -72,7 +72,6 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
-        self.team_battles = TeamBattles(bot, self.config)
         self.battle_arena = BattleArena()
         self.opcbattle = OPCBattle(self.bot, self.config)
         self.character_customization = CharacterCustomization(self.bot, self.config)
