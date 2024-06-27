@@ -78,7 +78,7 @@ class OPCBattle:
 
         await self.battle_loop(ctx, ctx.author, opponent, battle_msg, environment)
 
-    def battle_loop(self, ctx, player1, player2, battle_msg, environment):
+    async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
     
