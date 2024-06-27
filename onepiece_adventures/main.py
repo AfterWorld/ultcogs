@@ -323,6 +323,11 @@ class OnePieceAdventures(commands.Cog):
         await ctx.send(f"You have {berries} Berries.")
 
     @commands.command()
+    async def devil_fruit_info(self, ctx, *, fruit_name: str = None):
+        """Get information about Devil Fruits."""
+        await self.devil_fruit_system.devil_fruit_info(ctx, fruit_name)
+
+    @commands.command()
     async def help_onepiece(self, ctx):
         """Display help for One Piece Adventures commands."""
         embed = discord.Embed(title="One Piece Adventures Help", color=discord.Color.blue())
