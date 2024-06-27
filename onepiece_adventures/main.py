@@ -20,7 +20,7 @@ from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
 from .gettingstarted import GettingStarted
-from .opcbattle import OnePieceCog
+from .opcbattle import OPCBattle
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
@@ -79,7 +79,7 @@ class OnePieceAdventures(commands.Cog):
         self.economy_trading_system = EconomyTradingSystem(self.bot, self.config)
         self.reputation_system = ReputationSystem(self.bot, self.config)
         self.world_events = WorldEvents(self.bot, self.config)
-        self.opcbattle = OnePieceCog(self.bot, self.config)
+        self.opcbattle = OPCBattle(self.bot, self.config)
         
         self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
 
@@ -344,6 +344,21 @@ class OnePieceAdventures(commands.Cog):
     async def devil_fruit_info(self, ctx, *, fruit_name: str = None):
         """Get information about Devil Fruits."""
         await self.devil_fruit_system.devil_fruit_info(ctx, fruit_name)
+
+    @commands.command()
+    async def battle(self, ctx, opponent: discord.Member):
+        """Start a battle with another player."""
+        await self.opcbattle.battle(ctx, opponent)
+    
+    @commands.command()
+    async def attack(self, ctx):
+        """Attack in an ongoing battle."""
+        await self.opcbattle.attack(ctx)
+    
+    @commands.command()
+    async def battlestatus(self, ctx):
+        """Check the status of your current battle."""
+        await self.opcbattle.battlestatus(ctx)
 
     @commands.command()
     async def help_onepiece(self, ctx):
