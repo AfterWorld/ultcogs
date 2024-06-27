@@ -206,7 +206,7 @@ class OPCBattle:
             if random.random() < 0.1:
                 damage *= 1.5
     
-       final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
+        final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
     
         if is_crit:
             return (final_damage, True)  # Return a tuple (damage, is_critical)
