@@ -1,4 +1,6 @@
 import asyncio
+import discord
+from redbot.core import commands
 
 class Tournament:
     def __init__(self, participants):
