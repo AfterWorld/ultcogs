@@ -391,6 +391,10 @@ class OnePieceAdventures(commands.Cog):
             await self.update_wins(winner)
             await ctx.send(f"{winner.mention} has won the battle! Their win count has been updated.")
 
+    async def update_wins(self, winner):
+        async with self.config.member(winner).all() as user_data:
+            user_data['wins'] = user_data.get('wins', 0) + 1
+            
     @commands.command()
     async def battlestatus(self, ctx):
         """Check the status of your current battle."""
