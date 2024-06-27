@@ -1,3 +1,6 @@
+import discord
+from redbot.core import commands
+
 class BattleArena:
     def __init__(self):
         self.queue = []
