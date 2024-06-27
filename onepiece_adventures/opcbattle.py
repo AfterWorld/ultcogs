@@ -186,12 +186,12 @@ class OPCBattle:
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
     
-            if attacker.id not in self.battles or defender_id not in self.battles:
-            await ctx.send("An unexpected error occurred during the action execution.")
-                return
+        if attacker.id not in self.battles or defender_id not in self.battles:
+        await ctx.send("An unexpected error occurred during the action execution.")
+            return
     
-                embed = self.create_battle_embed(attacker, defender, environment)
-                embed.add_field(name="Battle Action", value=result, inline=False)
+            embed = self.create_battle_embed(attacker, defender, environment)
+            embed.add_field(name="Battle Action", value=result, inline=False)
 
     await battle_msg.edit(embed=embed)
     def calculate_attack(self, attacker_id, defender_id, environment):
