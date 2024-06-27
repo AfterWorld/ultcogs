@@ -382,7 +382,14 @@ class OnePieceAdventures(commands.Cog):
     @commands.command()
     async def battle(self, ctx, opponent: discord.Member):
         """Start a battle with another player."""
-        await self.opcbattle.battle(ctx, opponent)
+        if ctx.author == opponent:
+            return await ctx.send("You can't battle yourself!")
+        
+        result = await self.opcbattle.battle(ctx, ctx.author, opponent)
+        if result:
+            winner, loser = result
+            await self.update_wins(winner)
+            await ctx.send(f"{winner.mention} has won the battle! Their win count has been updated.")
 
     @commands.command()
     async def battlestatus(self, ctx):
