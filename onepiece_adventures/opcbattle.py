@@ -138,63 +138,63 @@ class OPCBattle:
             return "attack"
 
    async def execute_action(self, ctx, attacker, action, battle_msg, environment):
-    if attacker.id not in self.battles:
-        await ctx.send(f"{attacker.name} is no longer in the battle.")
-        return
-
-    defender_id = self.battles[attacker.id]["opponent"]
-    defender = ctx.guild.get_member(defender_id)
-
-    if defender_id not in self.battles:
-        await ctx.send(f"{defender.name} is no longer in the battle.")
-        return
-
-    # Handle status effects
-    for status in list(self.battles[attacker.id]["status"]):
-        if status[0] == "confused":
-            if random.random() < 0.3:  # 30% chance to hit self
-                damage = self.calculate_attack(attacker.id, attacker.id, environment)
-                self.battles[attacker.id]["hp"] -= damage
-                await ctx.send(f"{attacker.name} is confused and hits themselves for {damage} damage!")
-                return
-        elif status[0] == "burn":
-            burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
-            self.battles[attacker.id]["hp"] -= burn_damage
-            await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
-        
-        # Reduce status duration
-        self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
-        if status[1] - 1 <= 0:
-            self.battles[attacker.id]["status"].remove((status[0], 0))
-
-    result = ""
-
-    if action == "attack":
-        damage = self.calculate_attack(attacker.id, defender_id, environment)
-        self.battles[defender_id]["hp"] -= damage
-        result = f"{attacker.name} attacks for {damage} damage!"
-    elif action == "defend":
-        self.battles[attacker.id]["status"].append(("defend", 1))
-        result = f"{attacker.name} takes a defensive stance!"
-    elif action == "ability":
-        ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
-        if ability_func:
-            result = await ability_func(attacker, defender)
-        else:
-            result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
-    elif action == "special":
-        result = await self.use_special_move(attacker, defender, environment)
-    elif action == "item":
-        result = await self.use_battle_item(attacker, defender)
-
-    # Check if both players are still in the battle after the action
-    if attacker.id not in self.battles or defender_id not in self.battles:
-        await ctx.send("An unexpected error occurred during the action execution.")
-        return
-
-    embed = self.create_battle_embed(attacker, defender, environment)
-    embed.add_field(name="Battle Action", value=result, inline=False)
-    await battle_msg.edit(embed=embed)
+        if attacker.id not in self.battles:
+            await ctx.send(f"{attacker.name} is no longer in the battle.")
+            return
+    
+        defender_id = self.battles[attacker.id]["opponent"]
+        defender = ctx.guild.get_member(defender_id)
+    
+        if defender_id not in self.battles:
+            await ctx.send(f"{defender.name} is no longer in the battle.")
+            return
+    
+        # Handle status effects
+        for status in list(self.battles[attacker.id]["status"]):
+            if status[0] == "confused":
+                if random.random() < 0.3:  # 30% chance to hit self
+                    damage = self.calculate_attack(attacker.id, attacker.id, environment)
+                    self.battles[attacker.id]["hp"] -= damage
+                    await ctx.send(f"{attacker.name} is confused and hits themselves for {damage} damage!")
+                    return
+            elif status[0] == "burn":
+                burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
+                self.battles[attacker.id]["hp"] -= burn_damage
+                await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
+            
+            # Reduce status duration
+            self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
+            if status[1] - 1 <= 0:
+                self.battles[attacker.id]["status"].remove((status[0], 0))
+    
+        result = ""
+    
+        if action == "attack":
+            damage = self.calculate_attack(attacker.id, defender_id, environment)
+            self.battles[defender_id]["hp"] -= damage
+            result = f"{attacker.name} attacks for {damage} damage!"
+        elif action == "defend":
+            self.battles[attacker.id]["status"].append(("defend", 1))
+            result = f"{attacker.name} takes a defensive stance!"
+        elif action == "ability":
+            ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
+            if ability_func:
+                result = await ability_func(attacker, defender)
+            else:
+                result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
+        elif action == "special":
+            result = await self.use_special_move(attacker, defender, environment)
+        elif action == "item":
+            result = await self.use_battle_item(attacker, defender)
+    
+        # Check if both players are still in the battle after the action
+        if attacker.id not in self.battles or defender_id not in self.battles:
+            await ctx.send("An unexpected error occurred during the action execution.")
+            return
+    
+        embed = self.create_battle_embed(attacker, defender, environment)
+        embed.add_field(name="Battle Action", value=result, inline=False)
+        await battle_msg.edit(embed=embed)
 
     await battle_msg.edit(embed=embed)
     def calculate_attack(self, attacker_id, defender_id, environment):
