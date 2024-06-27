@@ -109,21 +109,27 @@ class OnePieceAdventures(commands.Cog):
     async def on_member_join(self, member):
         await self.opwelcome.on_member_join(member)
 
-    # Add the opwelcome command group
-    opwelcome = commands.Group(name="opwelcome", invoke_without_command=True)
+    @commands.group(name="opwelcome")
+    async def opwelcome(self, ctx):
+        """Configure the One Piece welcome message."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
     @opwelcome.command()
     async def channel(self, ctx, channel: discord.TextChannel):
+        """Set the channel for welcome messages."""
         await self.opwelcome.channel(ctx, channel)
 
     @opwelcome.command()
     async def toggle(self, ctx):
+        """Toggle the welcome message on or off."""
         await self.opwelcome.toggle(ctx)
 
     @opwelcome.command()
     async def test(self, ctx):
+        """Test the welcome message."""
         await self.opwelcome.test(ctx)
-
+        
     @commands.command()
     @commands.is_owner()
     async def trigger_world_event(self, ctx):
