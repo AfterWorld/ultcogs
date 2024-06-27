@@ -346,6 +346,11 @@ class OnePieceAdventures(commands.Cog):
         await self.devil_fruit_system.devil_fruit_info(ctx, fruit_name)
 
     @commands.command()
+    async def battle(self, ctx, opponent: discord.Member):
+        """Start a battle with another player."""
+        await self.opcbattle.battle(ctx, opponent)
+
+    @commands.command()
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
             return await ctx.send("You're not in a battle!")
