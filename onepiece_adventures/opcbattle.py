@@ -46,8 +46,11 @@ class OPCBattle:
         if not player2_data.get("character_class"):
             return await ctx.send(f"{player2.mention} needs to choose a class first!")
 
-        self.battles[player1.id] = self.create_battle_data(player1_data, player2.id)
-        self.battles[player2.id] = self.create_battle_data(player2_data, player1.id)
+        player1_max_hp = self.calculate_max_hp(player1_data)
+        player2_max_hp = self.calculate_max_hp(player2_data)
+
+        self.battles[player1.id] = self.create_battle_data(player1_data, player2.id, player1_max_hp)
+        self.battles[player2.id] = self.create_battle_data(player2_data, player1.id, player2_max_hp)
 
         environment = random.choice(self.environmental_effects)
         embed = self.create_battle_embed(player1, player2, environment)
@@ -57,8 +60,7 @@ class OPCBattle:
         logger.info(f"Battle ended. Result: {result}")
         return result
 
-    def create_battle_data(self, player_data, opponent_id):
-        max_hp = self.calculate_max_hp(player_data)
+    def create_battle_data(self, player_data, opponent_id, max_hp):
         return {
             "hp": max_hp,
             "max_hp": max_hp,
@@ -71,21 +73,20 @@ class OPCBattle:
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-    
+
         while True:
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle unexpectedly. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-    
+
             action = await self.get_action(ctx, turn, player1, player2, battle_msg)
             
-            # Check again before executing action
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-    
+
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
@@ -95,7 +96,7 @@ class OPCBattle:
             
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
-        
+
         winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
         loser = player2 if winner == player1 else player1
 
@@ -120,7 +121,7 @@ class OPCBattle:
 
     def apply_damage(self, defender_id, damage):
         current_hp = self.battles[defender_id]["hp"]
-        new_hp = max(0, current_hp - damage)  # Ensure HP doesn't go below 0
+        new_hp = max(0, current_hp - damage)
         self.battles[defender_id]["hp"] = new_hp
         logger.debug(f"Player {defender_id} HP: {current_hp} -> {new_hp} (Damage: {damage})")
 
@@ -130,17 +131,17 @@ class OPCBattle:
             logger.error(f"{attacker.name} (ID: {attacker.id}) not found in battles dict. Current battles: {self.battles.keys()}")
             await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
             return
-    
+
         defender_id = self.battles[attacker.id]["opponent"]
         if defender_id not in self.battles:
             logger.error(f"Defender (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
             await ctx.send(f"Opponent was not found in the battle. This may be an error.")
             return
-    
+
         defender = ctx.guild.get_member(defender_id)
-    
+
         result = ""
-    
+
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
             self.apply_damage(defender_id, damage)
@@ -158,12 +159,11 @@ class OPCBattle:
             result = await self.use_special_move(attacker, defender, environment)
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
-    
+
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
-    
         await battle_msg.edit(embed=embed)
-        
+
     def calculate_attack(self, attacker_id, defender_id, environment):
         attacker_data = self.battles[attacker_id]
         defender_data = self.battles[defender_id]
@@ -342,6 +342,10 @@ class OPCBattle:
         winner_data["exp"] = winner_data.get("exp", 0) + exp_gain
         winner_data["berries"] = winner_data.get("berries", 0) + berry_gain
 
+        # Reset HP to max for both players in the config
+        winner_data["hp"] = winner_data["max_hp"]
+        loser_data["hp"] = loser_data["max_hp"]
+
         embed = discord.Embed(title="Battle Over!", color=discord.Color.green())
         embed.add_field(name="Winner", value=f"{winner.mention} ({winner_data.get('character_class', 'Unknown')})", inline=False)
         embed.add_field(name="Rewards", value=f"EXP: {exp_gain}\nBerries: {berry_gain}", inline=False)
@@ -351,8 +355,7 @@ class OPCBattle:
 
         # Update the database with the new values
         await self.config.member(winner).set(winner_data)
-        if loser_data:
-            await self.config.member(loser).set(loser_data)
+        await self.config.member(loser).set(loser_data)
 
         self.battles.pop(winner.id, None)
         self.battles.pop(loser.id, None)
@@ -404,6 +407,12 @@ class OPCBattle:
         self.battles.clear()
         await ctx.send("All battles have been cleared.")
         logger.info("All battles have been cleared.")
+
+    async def reset_player_stats(self, member):
+        user_data = await self.config.member(member).all()
+        max_hp = self.calculate_max_hp(user_data)
+        user_data["hp"] = max_hp
+        await self.config.member(member).set(user_data)
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandInvokeError):
