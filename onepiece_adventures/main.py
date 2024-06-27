@@ -443,17 +443,17 @@ class OnePieceAdventures(commands.Cog):
     async def leave_arena(self, ctx):
         """Leave the battle arena queue."""
         await leave_arena(self, ctx)
+
+    @commands.command()
+    async def wins(self, ctx, member: discord.Member = None):
+        """Shows how many wins you have or a user"""
+        await wins(self, ctx)
     
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
         """View your or another user's profile."""
         if member is None:
             member = ctx.author
-
-    @commands.command()
-    async def wins(self, ctx, member: discord.Member = none):
-        """Shows how many wins you have or a user"""
-        await wins(self, ctx)
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
