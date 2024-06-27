@@ -72,6 +72,7 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
+        self.team_battles = TeamBattles(bot, self.config)
         self.battle_arena = BattleArena()
         self.opcbattle = OPCBattle(self.bot, self.config)
         self.character_customization = CharacterCustomization(self.bot, self.config)
@@ -459,6 +460,11 @@ class OnePieceAdventures(commands.Cog):
         """View your or another user's profile."""
         if member is None:
             member = ctx.author
+
+    @commands.command()
+    async def teambattle(self, ctx, *members: discord.Member):
+        """Start a team battle."""
+        await self.team_battles.team_battle(ctx, *members)
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
