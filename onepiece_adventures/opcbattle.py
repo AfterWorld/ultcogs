@@ -118,7 +118,7 @@ class OPCBattle:
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
-
+    
         if attacker.id not in self.battles or defender_id not in self.battles:
             await ctx.send("The battle has ended unexpectedly.")
             return await self.end_battle(ctx, attacker, defender, battle_msg)
@@ -332,28 +332,29 @@ class OPCBattle:
         return f"{attacker.name} applies medical knowledge to heal {heal_amount} HP!"
 
     async def end_battle(self, ctx, winner, loser, battle_msg):
-        winner_data = self.battles[winner.id]
-        loser_data = self.battles[loser.id]
-
+        winner_data = self.battles.get(winner.id, {})
+        loser_data = self.battles.get(loser.id, {})
+    
         exp_gain = random.randint(10, 20)
         berry_gain = random.randint(100, 200)
-
-        winner_data["exp"] += exp_gain
-        winner_data["berries"] += berry_gain
-
+    
+        winner_data["exp"] = winner_data.get("exp", 0) + exp_gain
+        winner_data["berries"] = winner_data.get("berries", 0) + berry_gain
+    
         embed = discord.Embed(title="Battle Over!", color=discord.Color.green())
-        embed.add_field(name="Winner", value=f"{winner.mention} ({winner_data['character_class']})", inline=False)
+        embed.add_field(name="Winner", value=f"{winner.mention} ({winner_data.get('character_class', 'Unknown')})", inline=False)
         embed.add_field(name="Rewards", value=f"EXP: {exp_gain}\nBerries: {berry_gain}", inline=False)
         embed.set_footer(text=f"{loser.name} has been defeated!")
-
+    
         await battle_msg.edit(embed=embed)
-
+    
         # Update the database with the new values
         await self.config.member(winner).set(winner_data)
-        await self.config.member(loser).set(loser_data)
-
-        del self.battles[winner.id]
-        del self.battles[loser.id]
+        if loser_data:
+            await self.config.member(loser).set(loser_data)
+    
+        self.battles.pop(winner.id, None)
+        self.battles.pop(loser.id, None)
 
     def create_battle_embed(self, player1, player2, environment):
         embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
