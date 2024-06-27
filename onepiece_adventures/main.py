@@ -407,7 +407,7 @@ class OnePieceAdventures(commands.Cog):
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
-        embed.set_thumbnail(url=member.avatar_url)
+        embed.set_thumbnail(url=avatar_url)
         
         embed.add_field(name="Level", value=user_data['level'])
         embed.add_field(name="Exp", value=user_data['exp'])
