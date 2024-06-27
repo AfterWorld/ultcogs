@@ -364,7 +364,7 @@ async def event_status(self, ctx):
     else:
         event_type = self.active_event
         status_embed = discord.Embed(title=f"Current Event: {event_type}")
-        
+
         if event_type == "pirate_invasion":
             status_embed.add_field(name="Defenders", value=self.defenders)
             status_embed.add_field(name="Pirates", value=self.pirates)
@@ -387,7 +387,7 @@ async def event_status(self, ctx):
         elif event_type == "ancient_weapon_discovery":
             status_embed.add_field(name="Ancient Weapon", value=self.ancient_weapon)
             status_embed.add_field(name="Research Progress", value=f"{self.research_progress}%")
-        
+
         await ctx.send(embed=status_embed)
         
 async def manual_trigger_event(self, ctx):
