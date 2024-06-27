@@ -33,6 +33,7 @@ class RaidBossSystem:
         
         # Start the raid timer
         self.raid_timer = asyncio.create_task(self.end_raid_timer(ctx))
+        self.last_raid_time = datetime.now().timestamp()
 
     async def join_raid(self, ctx):
         if not self.active_raid:
