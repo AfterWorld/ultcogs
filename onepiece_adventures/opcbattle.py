@@ -187,7 +187,7 @@ class OPCBattle:
             result = await self.use_battle_item(attacker, defender)
     
         if attacker.id not in self.battles or defender_id not in self.battles:
-            await ctx.send("An unexpected error occurred during the action execution.")
+        await ctx.send("An unexpected error occurred during the action execution.")
             return
     
             embed = self.create_battle_embed(attacker, defender, environment)
