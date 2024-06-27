@@ -87,7 +87,20 @@ class GettingStarted:
         embed.add_field(name="Trade Wisely", value="Keep an eye on market prices and trade smartly to increase your wealth.", inline=False)
         pages.append(embed)
 
-        # Page 9: All Available Commands
+        # Page 9: Enhanced Battle System
+        embed = discord.Embed(title="Enhanced Battle System", color=discord.Color.red())
+        embed.add_field(name="Turn-Based Combat", value="In battles, you can choose to attack, defend, or use your class ability each turn.", inline=False)
+        embed.add_field(name="Class Abilities", value="Each class has a unique ability:\n"
+                                                      "• Swordsman: Three Sword Style (increased damage)\n"
+                                                      "• Sniper: Precision Shot (high damage, chance to miss)\n"
+                                                      "• Navigator: Evasion Boost (increased dodge chance)\n"
+                                                      "• Cook: Quick Meal (heal based on strength)\n"
+                                                      "• Doctor: Medical Knowledge (strong heal)", inline=False)
+        embed.add_field(name="Critical Hits & Dodges", value="Battles now include chances for critical hits and dodges based on your speed stat.", inline=False)
+        embed.add_field(name="Fighting Styles", value="Your chosen fighting style provides bonuses in battle.", inline=False)
+        pages.append(embed)
+
+        # Page 10: All Available Commands
         embed = discord.Embed(title="All Available Commands", color=discord.Color.blue())
         commands_list = [
             ".profile", ".train", ".explore", ".travel", 
