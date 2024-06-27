@@ -409,34 +409,41 @@ class OnePieceAdventures(commands.Cog):
         """Clear all ongoing battles. Use this if battles are stuck."""
         await self.opcbattle.clearbattles(ctx)
 
-    @commands.command()
+   @commands.command()
     async def start_tournament(self, ctx, *participants: discord.Member):
+        """Start a battle tournament with multiple participants."""
         await start_tournament(self, ctx, *participants)
-
+    
     @commands.command()
     async def team_battle(self, ctx, *members: discord.Member):
+        """Start a team battle."""
         await team_battle(self, ctx, *members)
-
+    
     @commands.command()
     async def battle_replay(self, ctx, battle_id: int):
+        """Watch a replay of a past battle."""
         await battle_replay(self, ctx, battle_id)
-
+    
     @commands.command()
     async def battle_leaderboard(self, ctx):
+        """Display the battle leaderboard."""
         await battle_leaderboard(self, ctx)
-
+    
     @commands.command()
     async def battle_quests(self, ctx):
+        """View available battle quests."""
         await view_battle_quests(self, ctx)
-
+    
     @commands.command()
     async def join_arena(self, ctx):
+        """Join the battle arena queue."""
         await join_arena(self, ctx)
-
+    
     @commands.command()
     async def leave_arena(self, ctx):
+        """Leave the battle arena queue."""
         await leave_arena(self, ctx)
-
+    
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
         """View your or another user's profile."""
@@ -577,10 +584,25 @@ class OnePieceAdventures(commands.Cog):
             ("davy_back_stats [member]", "View Davy Back Fight stats for yourself or another member")
         ]
         for cmd, desc in commands:
-            embed.add_field(name=f".{cmd}", value=desc, inline=False)
-        pages.append(embed)
+        embed.add_field(name=f".{cmd}", value=desc, inline=False)
+    pages.append(embed)
 
-        return pages
+        # advance battle Fight Commands
+        embed = discord.Embed(title="One Piece Adventures Help - Advanced Battle Features", color=discord.Color.red())
+    commands = [
+        ("start_tournament <participants>", "Start a battle tournament"),
+        ("team_battle <team1> vs <team2>", "Start a team battle"),
+        ("battle_replay <battle_id>", "Watch a replay of a past battle"),
+        ("battle_leaderboard", "Display the battle leaderboard"),
+        ("battle_quests", "View available battle quests"),
+        ("join_arena", "Join the battle arena queue"),
+        ("leave_arena", "Leave the battle arena queue")
+    ]
+    for cmd, desc in commands:
+        embed.add_field(name=f".{cmd}", value=desc, inline=False)
+    pages.append(embed)
+
+    return pages
 
 def setup(bot):
     bot.add_cog(OnePieceAdventures(bot))
