@@ -297,26 +297,24 @@ class OPCBattle:
         del self.battles[loser.id]
 
     def create_battle_embed(self, player1, player2, environment):
-    embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
-    
-    for player in [player1, player2]:
-        battle_data = self.battles[player.id]
-        class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
-        embed.add_field(
-            name=f"{class_emoji} {player.name} ({battle_data['character_class']})",
-            value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
-                  f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
-                  f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
-                  f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
-                  f"Style: {battle_data.get('fighting_style', 'None')}",
-            inline=True
-        )
-    
-    embed.add_field(name="Environment", value=environment, inline=False)
-    return embed
+        embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
+        
+        for player in [player1, player2]:
+            battle_data = self.battles[player.id]
+            class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
+            embed.add_field(
+                name=f"{class_emoji} {player.name} ({battle_data['character_class']})",
+                value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
+                      f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
+                      f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
+                      f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
+                      f"Style: {battle_data.get('fighting_style', 'None')}",
+                inline=True
+            )
         
         embed.add_field(name="Environment", value=environment, inline=False)
         return embed
+
 
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 5)
