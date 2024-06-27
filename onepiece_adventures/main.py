@@ -454,11 +454,6 @@ class OnePieceAdventures(commands.Cog):
     async def wins(self, ctx, member: discord.Member = none):
         """Shows how many wins you have or a user"""
         await wins(self, ctx)
-
-    @commands.command()
-    async def solo(self, ctx, member: discord.Member = none):
-        """Shows how many wins you have or a user"""
-        await solo(self, ctx)
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
