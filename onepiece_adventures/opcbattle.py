@@ -30,12 +30,10 @@ class OPCBattle:
             "Smoke Bomb": self.use_smoke_bomb
         }
 
-    async def battle(self, ctx, opponent: discord.Member):
-        logger.info(f"Starting battle between {ctx.author.name} and {opponent.name}")
-        if ctx.author == opponent:
-            return await ctx.send("You can't battle yourself!")
+    async def battle(self, ctx, player1: discord.Member, player2: discord.Member):
+        logger.info(f"Starting battle between {player1.name} and {player2.name}")
         
-        if ctx.author.id in self.battles or opponent.id in self.battles:
+        if player1.id in self.battles or player2.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
 
         attacker_data = await self.config.member(ctx.author).all()
@@ -74,11 +72,11 @@ class OPCBattle:
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-
+    
         while True:
-            if player1.id not in self.battles:
-                logger.error(f"{player1.name} not found in battles dict during battle loop")
-                await ctx.send(f"{player1.name} was not found in the battle. This may be an error.")
+            if player1.id not in self.battles or player2.id not in self.battles:
+                logger.error(f"A player was removed from the battle unexpectedly")
+                await ctx.send("An error occurred during the battle. It has been ended.")
                 break
             if player2.id not in self.battles:
                 logger.error(f"{player2.name} not found in battles dict during battle loop")
@@ -114,6 +112,7 @@ class OPCBattle:
 
         await self.end_battle(ctx, winner, loser, battle_msg)
         return (winner, loser)
+        
 
     async def get_action(self, ctx, player, battle_msg):
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
@@ -121,7 +120,7 @@ class OPCBattle:
             await battle_msg.add_reaction(emoji)
 
         def check(reaction, user):
-            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+            return user.id in [player.id, player.id] and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
 
         try:
             reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
