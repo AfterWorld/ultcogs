@@ -37,60 +37,49 @@ class OPCBattle:
         
         if player1.id in self.battles or player2.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
-    
+
         player1_data = await self.config.member(player1).all()
         player2_data = await self.config.member(player2).all()
-    
+
         if not player1_data.get("character_class"):
             return await ctx.send(f"{player1.mention}, you need to choose a class first! Use the `.choose_class` command.")
         if not player2_data.get("character_class"):
             return await ctx.send(f"{player2.mention} needs to choose a class first!")
-    
-        self.battles[player1.id] = {
-            "hp": self.calculate_max_hp(player1_data),
-            "max_hp": self.calculate_max_hp(player1_data),
-            "stamina": 100,
-            "opponent": player2.id,
-            "status": [],
-            **player1_data
-        }
-        self.battles[player2.id] = {
-            "hp": self.calculate_max_hp(player2_data),
-            "max_hp": self.calculate_max_hp(player2_data),
-            "stamina": 100,
-            "opponent": player1.id,
-            "status": [],
-            **player2_data
-        }
-    
+
+        self.battles[player1.id] = self.create_battle_data(player1_data, player2.id)
+        self.battles[player2.id] = self.create_battle_data(player2_data, player1.id)
+
         environment = random.choice(self.environmental_effects)
         embed = self.create_battle_embed(player1, player2, environment)
         battle_msg = await ctx.send(embed=embed)
-    
+
         result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
         logger.info(f"Battle ended. Result: {result}")
         return result
 
+    def create_battle_data(self, player_data, opponent_id):
+        max_hp = self.calculate_max_hp(player_data)
+        return {
+            "hp": max_hp,
+            "max_hp": max_hp,
+            "stamina": 100,
+            "opponent": opponent_id,
+            "status": [],
+            **player_data
+        }
+
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-    
+
         while True:
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle unexpectedly")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-            if player2.id not in self.battles:
-                logger.error(f"{player2.name} not found in battles dict during battle loop")
-                await ctx.send(f"{player2.name} was not found in the battle. This may be an error.")
-                break
 
             action = await self.get_action(ctx, turn, player1, player2, battle_msg)
             await self.execute_action(ctx, turn, action, battle_msg, environment)
-            
-            if player1.id not in self.battles or player2.id not in self.battles:
-                logger.error(f"A player was removed from the battle after action execution")
-                break
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
                 break
@@ -100,30 +89,20 @@ class OPCBattle:
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
 
-        if player1.id in self.battles and player2.id in self.battles:
-            winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
-            loser = player2 if winner == player1 else player1
-        elif player1.id in self.battles:
-            winner, loser = player1, player2
-        elif player2.id in self.battles:
-            winner, loser = player2, player1
-        else:
-            await ctx.send("The battle ended in a draw as both players were removed.")
-            logger.error("Both players were removed from the battle")
-            return None
+        winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
+        loser = player2 if winner == player1 else player1
 
         await self.end_battle(ctx, winner, loser, battle_msg)
         return (winner, loser)
-        
 
     async def get_action(self, ctx, current_player, player1, player2, battle_msg):
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
         for emoji in action_emojis:
             await battle_msg.add_reaction(emoji)
-    
+
         def check(reaction, user):
             return user.id in [player1.id, player2.id] and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
-    
+
         try:
             reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
             await battle_msg.clear_reactions()
@@ -132,44 +111,22 @@ class OPCBattle:
             await battle_msg.clear_reactions()
             return "attack"
 
+    def apply_damage(self, defender_id, damage):
+        current_hp = self.battles[defender_id]["hp"]
+        new_hp = max(0, current_hp - damage)
+        self.battles[defender_id]["hp"] = new_hp
+        logger.debug(f"Player {defender_id} HP: {current_hp} -> {new_hp} (Damage: {damage})")
+
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
         logger.info(f"Executing action for {attacker.name}: {action}")
-        if attacker.id not in self.battles:
-            logger.error(f"{attacker.name} (ID: {attacker.id}) not found in battles dict. Current battles: {self.battles.keys()}")
-            await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
-            return
-
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
-
-        if defender_id not in self.battles:
-            logger.error(f"{defender.name} (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
-            await ctx.send(f"{defender.name} was not found in the battle. This may be an error.")
-            return
-
-        # Handle status effects
-        for status in list(self.battles[attacker.id]["status"]):
-            if status[0] == "confused":
-                if random.random() < 0.3:  # 30% chance to hit self
-                    damage = self.calculate_attack(attacker.id, attacker.id, environment)
-                    self.battles[attacker.id]["hp"] -= damage
-                    await ctx.send(f"{attacker.name} is confused and hits themselves for {damage} damage!")
-                    return
-            elif status[0] == "burn":
-                burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
-                self.battles[attacker.id]["hp"] -= burn_damage
-                await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
-            
-            # Reduce status duration
-            self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
-            if status[1] - 1 <= 0:
-                self.battles[attacker.id]["status"].remove((status[0], 0))
 
         result = ""
 
         if action == "attack":
             damage = self.calculate_attack(attacker.id, defender_id, environment)
-            self.battles[defender_id]["hp"] = max(0, self.battles[defender_id]["hp"] - damage)
+            self.apply_damage(defender_id, damage)
             result = f"{attacker.name} attacks for {damage} damage!"
         elif action == "defend":
             self.battles[attacker.id]["status"].append(("defend", 1))
@@ -246,14 +203,14 @@ class OPCBattle:
         if attacker_data["character_class"] == "Swordsman":
             move = random.choice(["Santoryu: Oni Giri", "Ittoryu: Shishi Sonson", "Nitoryu: Sai Kuru"])
             damage = base_damage * 2.5
-            self.battles[defender.id]["hp"] -= damage
+            self.apply_damage(defender.id, damage)
             return f"{attacker.name} uses '{move}', slashing for {damage:.0f} damage!"
     
         elif attacker_data["character_class"] == "Sniper":
             move = random.choice(["Fire Bird Star", "Exploding Star", "Clima-Tact: Thunderbolt Tempo"])
             damage = base_damage * 2.2
             if random.random() < 0.8:  # 80% accuracy
-                self.battles[defender.id]["hp"] -= damage
+                self.apply_damage(defender.id, damage)
                 return f"{attacker.name} uses '{move}', striking for {damage:.0f} damage!"
             else:
                 return f"{attacker.name}'s '{move}' misses!"
@@ -261,14 +218,14 @@ class OPCBattle:
         elif attacker_data["character_class"] == "Navigator":
             move = random.choice(["Clima-Tact: Cyclone Tempo", "Weather Egg: Rain Tempo", "Mirage Tempo: Fata Morgana"])
             damage = base_damage * 1.8
-            self.battles[defender.id]["hp"] -= damage
+            self.apply_damage(defender.id, damage)
             self.battles[defender.id]["status"].append(("confused", 2))
             return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and confusing {defender.name}!"
     
         elif attacker_data["character_class"] == "Cook":
             move = random.choice(["Diable Jambe: Flambage Shot", "Collier Shoot", "Party Table Kick Course"])
             damage = base_damage * 2.3
-            self.battles[defender.id]["hp"] -= damage
+            self.apply_damage(defender.id, damage)
             heal = damage * 0.3
             attacker_data["hp"] = min(attacker_data["hp"] + heal, attacker_data["max_hp"])
             return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and healing for {heal:.0f} HP!"
@@ -276,7 +233,7 @@ class OPCBattle:
         elif attacker_data["character_class"] == "Doctor":
             move = random.choice(["Scope", "Monster Point: Konbie Genjin", "Cherry Blossom Blizzard"])
             damage = base_damage * 2
-            self.battles[defender.id]["hp"] -= damage
+            self.apply_damage(defender.id, damage)
             for status in attacker_data["status"]:
                 if status[0] in ["poison", "burn", "confused"]:
                     attacker_data["status"].remove(status)
@@ -330,14 +287,14 @@ class OPCBattle:
 
     async def swordsman_ability(self, attacker, defender):
         damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 1.5
-        self.battles[defender.id]["hp"] -= damage
+        self.apply_damage(defender.id, damage)
         return f"{attacker.name} uses Three Sword Style, dealing {damage} damage!"
 
     async def sniper_ability(self, attacker, defender):
         damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 2
         hit_chance = 0.7
         if random.random() < hit_chance:
-            self.battles[defender.id]["hp"] -= damage
+            self.apply_damage(defender.id, damage)
             return f"{attacker.name} takes a precision shot, dealing {damage} damage!"
         else:
             return f"{attacker.name}'s precision shot misses!"
@@ -352,7 +309,7 @@ class OPCBattle:
         return f"{attacker.name} cooks up a quick meal, restoring {heal_amount} HP!"
 
     async def doctor_ability(self, attacker, defender):
-        heal_amount = self.battles[attacker.id]["intelligence"] * 3
+        heal_amount = self.battles[attacker.id].get("intelligence", 10) * 3
         self.battles[attacker.id]["hp"] = min(self.battles[attacker.id]["hp"] + heal_amount, self.battles[attacker.id]["max_hp"])
         return f"{attacker.name} applies medical knowledge to heal {heal_amount} HP!"
 
@@ -403,7 +360,7 @@ class OPCBattle:
         return embed
 
     def calculate_max_hp(self, player_data):
-        return 160 + (player_data['defense'] * 10)
+        return 100 + (player_data['defense'] * 10)  # Adjusted base HP to prevent negative values
 
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
