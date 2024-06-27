@@ -1,4 +1,7 @@
 import asyncio
+import discord
+from redbot.core import commands
+
 
 async def save_battle_log(self, battle_id, log):
     async with self.config.battle_logs() as battle_logs:
