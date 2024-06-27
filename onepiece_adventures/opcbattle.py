@@ -4,8 +4,6 @@ import random
 import asyncio
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class OPCBattle:
@@ -14,20 +12,9 @@ class OPCBattle:
         self.config = config
         self.battles = {}
         self.battle_emojis = {
-            "attack": "⚔️",
-            "defend": "🛡️",
-            "ability": "✨",
-            "special": "🌟",
-            "item": "🎒",
-            "health": "❤️",
-            "stamina": "⚡",
-            "strength": "💪",
-            "speed": "🏃",
-            "swordsman": "🗡️",
-            "sniper": "🎯",
-            "navigator": "🧭",
-            "cook": "👨‍🍳",
-            "doctor": "👨‍⚕️"
+            "attack": "⚔️", "defend": "🛡️", "ability": "✨", "special": "🌟", "item": "🎒",
+            "health": "❤️", "stamina": "⚡", "strength": "💪", "speed": "🏃",
+            "swordsman": "🗡️", "sniper": "🎯", "navigator": "🧭", "cook": "👨‍🍳", "doctor": "👨‍⚕️"
         }
         self.class_abilities = {
             "Swordsman": self.swordsman_ability,
@@ -36,9 +23,7 @@ class OPCBattle:
             "Cook": self.cook_ability,
             "Doctor": self.doctor_ability
         }
-        self.environmental_effects = [
-            "Stormy Weather", "Calm Waters", "Marine Presence", "Treasure Island"
-        ]
+        self.environmental_effects = ["Stormy Weather", "Calm Waters", "Marine Presence", "Treasure Island"]
         self.battle_items = {
             "Health Potion": self.use_health_potion,
             "Stamina Boost": self.use_stamina_boost,
@@ -46,6 +31,7 @@ class OPCBattle:
         }
 
     async def battle(self, ctx, opponent: discord.Member):
+        logger.info(f"Starting battle between {ctx.author.name} and {opponent.name}")
         if ctx.author == opponent:
             return await ctx.send("You can't battle yourself!")
         
@@ -77,13 +63,13 @@ class OPCBattle:
             **defender_data
         }
 
-        logger.info(f"Battle started between {ctx.author.name} and {opponent.name}")
-
         environment = random.choice(self.environmental_effects)
         embed = self.create_battle_embed(ctx.author, opponent, environment)
         battle_msg = await ctx.send(embed=embed)
 
-        await self.battle_loop(ctx, ctx.author, opponent, battle_msg, environment)
+        result = await self.battle_loop(ctx, ctx.author, opponent, battle_msg, environment)
+        logger.info(f"Battle ended. Result: {result}")
+        return result
 
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
@@ -91,12 +77,12 @@ class OPCBattle:
 
         while True:
             if player1.id not in self.battles:
+                logger.error(f"{player1.name} not found in battles dict during battle loop")
                 await ctx.send(f"{player1.name} was not found in the battle. This may be an error.")
-                logger.error(f"Player {player1.name} not found in battles dict during battle loop")
                 break
             if player2.id not in self.battles:
+                logger.error(f"{player2.name} not found in battles dict during battle loop")
                 await ctx.send(f"{player2.name} was not found in the battle. This may be an error.")
-                logger.error(f"Player {player2.name} not found in battles dict during battle loop")
                 break
 
             action = await self.get_action(ctx, turn, battle_msg)
@@ -124,23 +110,79 @@ class OPCBattle:
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
             logger.error("Both players were removed from the battle")
-            return
+            return None
 
         await self.end_battle(ctx, winner, loser, battle_msg)
+        return (winner, loser)
+
+    async def get_action(self, ctx, player, battle_msg):
+        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
+        for emoji in action_emojis:
+            await battle_msg.add_reaction(emoji)
+
+        def check(reaction, user):
+            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+
+        try:
+            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+            await battle_msg.clear_reactions()
+            return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
+        except asyncio.TimeoutError:
+            await battle_msg.clear_reactions()
+            return "attack"
 
     async def execute_action(self, ctx, attacker, action, battle_msg, environment):
+        logger.info(f"Executing action for {attacker.name}: {action}")
         if attacker.id not in self.battles:
+            logger.error(f"{attacker.name} (ID: {attacker.id}) not found in battles dict. Current battles: {self.battles.keys()}")
             await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
-            logger.error(f"Attacker {attacker.name} not found in battles dict during execute_action")
             return
 
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
 
         if defender_id not in self.battles:
+            logger.error(f"{defender.name} (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
             await ctx.send(f"{defender.name} was not found in the battle. This may be an error.")
-            logger.error(f"Defender {defender.name} not found in battles dict during execute_action")
             return
+
+        # Handle status effects
+        for status in list(self.battles[attacker.id]["status"]):
+            if status[0] == "confused":
+                if random.random() < 0.3:  # 30% chance to hit self
+                    damage = self.calculate_attack(attacker.id, attacker.id, environment)
+                    self.battles[attacker.id]["hp"] -= damage
+                    await ctx.send(f"{attacker.name} is confused and hits themselves for {damage} damage!")
+                    return
+            elif status[0] == "burn":
+                burn_damage = max(1, int(self.battles[attacker.id]["max_hp"] * 0.05))
+                self.battles[attacker.id]["hp"] -= burn_damage
+                await ctx.send(f"{attacker.name} takes {burn_damage} burn damage!")
+            
+            # Reduce status duration
+            self.battles[attacker.id]["status"][self.battles[attacker.id]["status"].index(status)] = (status[0], status[1] - 1)
+            if status[1] - 1 <= 0:
+                self.battles[attacker.id]["status"].remove((status[0], 0))
+
+        result = ""
+
+        if action == "attack":
+            damage = self.calculate_attack(attacker.id, defender_id, environment)
+            self.battles[defender_id]["hp"] -= damage
+            result = f"{attacker.name} attacks for {damage} damage!"
+        elif action == "defend":
+            self.battles[attacker.id]["status"].append(("defend", 1))
+            result = f"{attacker.name} takes a defensive stance!"
+        elif action == "ability":
+            ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
+            if ability_func:
+                result = await ability_func(attacker, defender)
+            else:
+                result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
+        elif action == "special":
+            result = await self.use_special_move(attacker, defender, environment)
+        elif action == "item":
+            result = await self.use_battle_item(attacker, defender)
 
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
@@ -248,15 +290,15 @@ class OPCBattle:
         
         if not inventory:
             return f"{user.name} has no items to use!"
-    
+
         item_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(inventory.keys())])
         await user.send(f"Choose an item to use:\n{item_list}\nType the number of the item you want to use.")
-    
+
         def check(m):
             return m.author == user and m.channel.type == discord.ChannelType.private and m.content.isdigit()
-    
+
         try:
-            msg = await self.bot.wait_for("message", check=check, timeout=30.0)
+            msg = await self.bot.wait_formsg = await self.bot.wait_for("message", check=check, timeout=30.0)
             item_index = int(msg.content) - 1
             if 0 <= item_index < len(inventory):
                 item = list(inventory.keys())[item_index]
@@ -314,6 +356,7 @@ class OPCBattle:
         return f"{attacker.name} applies medical knowledge to heal {heal_amount} HP!"
 
     async def end_battle(self, ctx, winner, loser, battle_msg):
+        logger.info(f"Ending battle. Winner: {winner.name}, Loser: {loser.name}")
         winner_data = self.battles.get(winner.id, {})
         loser_data = self.battles.get(loser.id, {})
 
@@ -337,8 +380,7 @@ class OPCBattle:
 
         self.battles.pop(winner.id, None)
         self.battles.pop(loser.id, None)
-
-        logger.info(f"Battle ended. Winner: {winner.name}, Loser: {loser.name}")
+        logger.info(f"Removed {winner.name} and {loser.name} from battles dict. Remaining battles: {self.battles.keys()}")
 
     def create_battle_embed(self, player1, player2, environment):
         embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
@@ -361,22 +403,6 @@ class OPCBattle:
 
     def calculate_max_hp(self, player_data):
         return 160 + (player_data['defense'] * 10)
-
-    async def get_action(self, ctx, player, battle_msg):
-        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
-        for emoji in action_emojis:
-            await battle_msg.add_reaction(emoji)
-    
-        def check(reaction, user):
-            return user == player and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
-    
-        try:
-            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
-            await battle_msg.clear_reactions()
-            return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
-        except asyncio.TimeoutError:
-            await battle_msg.clear_reactions()
-            return "attack"
 
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
@@ -401,9 +427,11 @@ class OPCBattle:
     async def clearbattles(self, ctx):
         self.battles.clear()
         await ctx.send("All battles have been cleared.")
+        logger.info("All battles have been cleared.")
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CommandInvokeError):
             await ctx.send(f"An error occurred: {error.original}")
         else:
             await ctx.send(f"An error occurred: {error}")
+        logger.error(f"Error in OPCBattle: {error}", exc_info=True)
