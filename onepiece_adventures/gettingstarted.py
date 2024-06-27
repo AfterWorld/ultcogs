@@ -112,6 +112,8 @@ class GettingStarted:
         embed.add_field(name="Leaderboard", value="Check the top battlers with `.battle_leaderboard`", inline=False)
         embed.add_field(name="Battle Quests", value="Complete battle-related quests for rewards using `.battle_quests`", inline=False)
         embed.add_field(name="Battle Arena", value="Join the arena for quick matches with `.join_arena`", inline=False)
+        embed.add_field(name="Individual Battles", value="Challenge others to 1v1 battles using `.battle`", inline=False)
+        embed.add_field(name="Win Tracking", value="Your battle wins are tracked. Check them with `.wins`", inline=False)
         pages.append(embed)
 
         # Page 10: All Available Commands
