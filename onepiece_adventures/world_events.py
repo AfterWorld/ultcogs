@@ -52,7 +52,7 @@ class WorldEvents:
                 self.legendary_pirate_showdown,
                 self.ancient_weapon_discovery
             ]
-            
+
             event = random.choice(events)
             self.active_event = event.__name__
             self.last_event_time = current_time
