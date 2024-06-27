@@ -1,4 +1,6 @@
 import discord
+from redbot.core import commands
+
 
 async def battle_leaderboard(self, ctx):
     """Display the battle leaderboard."""
