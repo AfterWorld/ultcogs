@@ -1022,6 +1022,3 @@ class OnePieceCog(commands.Cog):
             await ctx.send(embed=embed)
         except Exception as e:
             await self.log_error(ctx, e)
-
-async def setup(bot: Red):
-    await bot.add_cog(OnePieceCog(bot))
