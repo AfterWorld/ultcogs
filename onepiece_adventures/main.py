@@ -25,6 +25,9 @@ class OnePieceAdventures(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         self.getting_started = GettingStarted(self.bot)
+        self.world_events = WorldEvents(self.bot, self.config)
+        self.davy_back_fight = DavyBackFight(self.bot, self.config)
+        self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
         
         default_global = {
             "islands": {},
@@ -79,6 +82,18 @@ class OnePieceAdventures(commands.Cog):
 
     def cog_unload(self):
         self.bg_task.cancel()
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+        await self.world_events.trigger_event_by_message(message)
+
+    @commands.command()
+    @commands.is_owner()
+    async def trigger_world_event(self, ctx):
+        """Manually trigger a world event (Owner only)"""
+        await self.world_events.manual_trigger_event(ctx)
 
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
