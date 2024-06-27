@@ -89,7 +89,11 @@ class GettingStarted:
 
         # Page 9: Enhanced Battle System
         embed = discord.Embed(title="Enhanced Battle System", color=discord.Color.red())
-        embed.add_field(name="Turn-Based Combat", value="In battles, you can choose to attack, defend, or use your class ability each turn.", inline=False)
+        embed = discord.Embed(title="Enhanced Battle System", color=discord.Color.red())
+        embed.add_field(name="Turn-Based Combat", value="In battles, you can choose to attack, defend, use your class ability, perform a special move, or use an item each turn.", inline=False)
+        embed.add_field(name="Stamina System", value="Special moves consume stamina. Manage your stamina wisely!", inline=False)
+        embed.add_field(name="Environmental Effects", value="Battles take place in different environments that can affect combat.", inline=False)
+        embed.add_field(name="Battle Items", value="Use items during battle for various effects, such as healing or boosting stamina.", inline=False)
         embed.add_field(name="Class Abilities", value="Each class has a unique ability:\n"
                                                       "• Swordsman: Three Sword Style (increased damage)\n"
                                                       "• Sniper: Precision Shot (high damage, chance to miss)\n"
