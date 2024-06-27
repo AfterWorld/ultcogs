@@ -21,6 +21,13 @@ from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
 from .gettingstarted import GettingStarted
+from .tournament import Tournament, start_tournament
+from .team_battles import team_battle
+from .battle_replays import save_battle_log, battle_replay
+from .leaderboard import battle_leaderboard
+from .battle_quests import BattleQuest, battle_quests, view_battle_quests
+from .battle_arena import BattleArena, join_arena, leave_arena
+from .battle_rewards import end_battle
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
@@ -63,6 +70,7 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
+        self.battle_arena = BattleArena()
         self.opcbattle = OPCBattle(self.bot, self.config)
         self.character_customization = CharacterCustomization(self.bot, self.config)
         self.crew_battle_system = CrewBattleSystem(self.bot, self.config)
@@ -392,6 +400,34 @@ class OnePieceAdventures(commands.Cog):
     async def surrender(self, ctx):
         """Surrender from your current battle."""
         await self.opcbattle.surrender(ctx)
+
+    @commands.command()
+    async def start_tournament(self, ctx, *participants: discord.Member):
+        await start_tournament(self, ctx, *participants)
+
+    @commands.command()
+    async def team_battle(self, ctx, *members: discord.Member):
+        await team_battle(self, ctx, *members)
+
+    @commands.command()
+    async def battle_replay(self, ctx, battle_id: int):
+        await battle_replay(self, ctx, battle_id)
+
+    @commands.command()
+    async def battle_leaderboard(self, ctx):
+        await battle_leaderboard(self, ctx)
+
+    @commands.command()
+    async def battle_quests(self, ctx):
+        await view_battle_quests(self, ctx)
+
+    @commands.command()
+    async def join_arena(self, ctx):
+        await join_arena(self, ctx)
+
+    @commands.command()
+    async def leave_arena(self, ctx):
+        await leave_arena(self, ctx)
 
     @commands.command()
     @commands.is_owner()
