@@ -1,12 +1,13 @@
-import discord 
-from redbot.core import commands, Config 
-from redbot.core.bot import Red 
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS 
+import discord
+from redbot.core import commands, Config
+from redbot.core.bot import Red
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 import asyncio
 import random
 from typing import Dict, List, Any
 
-
+from .opcbattle import OPCBattle
+from .character_customization import CharacterCustomization
 from .crew_battles import CrewBattleSystem
 from .davy_back_fight import DavyBackFight
 from .devil_fruit_system import DevilFruitSystem
@@ -20,17 +21,11 @@ from .economy_trading_system import EconomyTradingSystem
 from .reputation_system import ReputationSystem
 from .world_events import WorldEvents
 from .gettingstarted import GettingStarted
-from .opcbattle import OPCBattle
-from .character_customization import CharacterCustomization
 
 class OnePieceAdventures(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
-        self.getting_started = GettingStarted(self.bot)
-        self.world_events = WorldEvents(self.bot, self.config)
-        self.davy_back_fight = DavyBackFight(self.bot, self.config)
-        self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
         
         default_global = {
             "islands": {},
@@ -68,6 +63,8 @@ class OnePieceAdventures(commands.Cog):
         self.config.register_member(**default_member)
         
         # Initialize subsystems
+        self.opcbattle = OPCBattle(self.bot, self.config)
+        self.character_customization = CharacterCustomization(self.bot, self.config)
         self.crew_battle_system = CrewBattleSystem(self.bot, self.config)
         self.davy_back_fight = DavyBackFight(self.bot, self.config)
         self.devil_fruit_system = DevilFruitSystem(self.bot, self.config)
@@ -80,14 +77,13 @@ class OnePieceAdventures(commands.Cog):
         self.economy_trading_system = EconomyTradingSystem(self.bot, self.config)
         self.reputation_system = ReputationSystem(self.bot, self.config)
         self.world_events = WorldEvents(self.bot, self.config)
-        self.opcbattle = OPCBattle(self.bot, self.config)
-        self.character_customization = CharacterCustomization(self.bot, self.config)
+        self.getting_started = GettingStarted(self.bot)
         
         self.bg_task = self.bot.loop.create_task(self.world_events.start_event_loop())
 
     def cog_unload(self):
         self.bg_task.cancel()
-
+        
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
@@ -376,6 +372,44 @@ class OnePieceAdventures(commands.Cog):
     async def character_info(self, ctx):
         """View your character information."""
         await self.character_customization.character_info(ctx)
+
+    @commands.command()
+    async def buy_item(self, ctx, item: str, quantity: int = 1):
+        """Buy battle items."""
+        await self.character_customization.buy_item(ctx, item, quantity)
+
+    @commands.command()
+    async def inventory(self, ctx):
+        """View your inventory."""
+        await self.character_customization.inventory(ctx)
+
+    @commands.command()
+    async def use_item(self, ctx, item: str):
+        """Use an item from your inventory."""
+        await self.character_customization.use_item(ctx, item)
+
+    @commands.command()
+    async def profile(self, ctx, member: discord.Member = None):
+        """View your or another user's profile."""
+        if member is None:
+            member = ctx.author
+        
+        user_data = await self.config.member(member).all()
+        embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
+        embed.set_thumbnail(url=member.avatar_url)
+        
+        embed.add_field(name="Level", value=user_data['level'])
+        embed.add_field(name="Exp", value=user_data['exp'])
+        embed.add_field(name="Berries", value=user_data['berries'])
+        embed.add_field(name="Strength", value=user_data['strength'])
+        embed.add_field(name="Defense", value=user_data['defense'])
+        embed.add_field(name="Speed", value=user_data['speed'])
+        embed.add_field(name="Haki Level", value=user_data['haki_level'])
+        embed.add_field(name="Devil Fruit", value=user_data['devil_fruit'] or "None")
+        embed.add_field(name="Crew", value=user_data['crew'] or "None")
+        embed.add_field(name="Current Island", value=user_data['current_island'])
+        
+        await ctx.send(embed=embed)
         
     @commands.command()
     async def help_onepiece(self, ctx):
