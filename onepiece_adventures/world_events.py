@@ -9,7 +9,7 @@ class WorldEvents:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
-        self.event_channel_id = 425068612542398476  # Your specified channel ID
+        self.event_channel_id = 647895768715493437  # Your specified channel ID
         self.active_event = None
         self.participants = set()
         self.last_event_time = None
