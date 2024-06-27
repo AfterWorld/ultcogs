@@ -446,8 +446,13 @@ class OnePieceAdventures(commands.Cog):
 
     @commands.command()
     async def wins(self, ctx, member: discord.Member = None):
-        """Shows how many wins you have or a user"""
-        await wins(self, ctx)
+        """Check the number of wins for yourself or another member."""
+        if member is None:
+            member = ctx.author
+        
+        user_data = await self.config.member(member).all()
+        wins_count = user_data.get('wins', 0)
+        await ctx.send(f"{member.name} has {wins_count} battle wins!")
     
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
