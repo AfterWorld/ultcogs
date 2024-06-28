@@ -354,21 +354,12 @@ class OnePieceAdventures(commands.Cog):
         """Get information about Devil Fruits."""
         await self.devil_fruit_system.devil_fruit_info(ctx, fruit_name)
 
-    @commands.command()
+   @commands.command()
     async def battle(self, ctx, opponent: discord.Member):
-        """Start a battle with another player."""
-        if ctx.author == opponent:
-            return await ctx.send("You can't battle yourself!")
-        
-        result = await self.opcbattle.battle(ctx, ctx.author, opponent)
-        if result:
-            winner, loser = result
-            await self.update_wins(winner)
-            await ctx.send(f"{winner.mention} has won the battle! Their win count has been updated.")
-
-    async def update_wins(self, winner):
-        async with self.config.member(winner).all() as user_data:
-            user_data['wins'] = user_data.get('wins', 0) + 1
+        await self.opcbattle.battle(ctx, opponent)
+        async def update_wins(self, winner):
+            async with self.config.member(winner).all() as user_data:
+                user_data['wins'] = user_data.get('wins', 0) + 1
             
     @commands.command()
     async def battlestatus(self, ctx):
@@ -460,17 +451,17 @@ class OnePieceAdventures(commands.Cog):
         user_data = await self.config.member(member).all()
         wins_count = user_data.get('wins', 0)
         await ctx.send(f"{member.name} has {wins_count} battle wins!")
+
+    @commands.command()
+    async def teambattle(self, ctx, *members: discord.Member):
+        """Start a team battle."""
+        await team_battle(self.bot, self.config, ctx, *members)
     
     @commands.command()
     async def profile(self, ctx, member: discord.Member = None):
         """View your or another user's profile."""
         if member is None:
             member = ctx.author
-
-    @commands.command()
-    async def teambattle(self, ctx, *members: discord.Member):
-        """Start a team battle."""
-        await team_battle(self.bot, self.config, ctx, *members)
         
         user_data = await self.config.member(member).all()
         embed = discord.Embed(title=f"{member.name}'s Profile", color=discord.Color.blue())
