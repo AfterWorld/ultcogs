@@ -8,9 +8,9 @@ from typing import Dict, Tuple, Optional
 logger = logging.getLogger(__name__)
 
 class OPCBattle:
-    def __init__(self, bot):
+    def __init__(self, bot, config):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
+        self.config = config
         default_user = {
             "character_class": None,
             "hp": 100,
