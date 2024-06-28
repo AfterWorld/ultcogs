@@ -73,21 +73,26 @@ class OPCBattle:
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
         turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
-
+    
         while True:
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle unexpectedly. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-
+    
             action = await self.get_action(ctx, turn, player1, player2, battle_msg)
             
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
-
+    
             await self.execute_action(ctx, turn, action, battle_msg, environment)
+            
+            if player1.id not in self.battles or player2.id not in self.battles:
+                logger.error(f"A player was removed from the battle after action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
+                await ctx.send("An error occurred during the battle. It has been ended.")
+                break
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
                 break
@@ -96,10 +101,19 @@ class OPCBattle:
             
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
-
-        winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
-        loser = player2 if winner == player1 else player1
-
+    
+        # Determine the winner safely
+        if player1.id in self.battles and player2.id in self.battles:
+            winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
+            loser = player2 if winner == player1 else player1
+        elif player1.id in self.battles:
+            winner, loser = player1, player2
+        elif player2.id in self.battles:
+            winner, loser = player2, player1
+        else:
+            await ctx.send("The battle ended in a draw as both players were removed.")
+            return None
+    
         await self.end_battle(ctx, winner, loser, battle_msg)
         return (winner, loser)
 
