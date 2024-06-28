@@ -149,7 +149,7 @@ class OPCBattle:
             await battle_msg.clear_reactions()
             raise  # Re-raise the TimeoutError to be caught in battle_loop
 
-   def apply_damage(self, defender_id, damage_info):
+    def apply_damage(self, defender_id, damage_info):
         damage_value, is_crit = damage_info  # Unpack the tuple
         
         current_hp = self.battles[defender_id]["hp"]
