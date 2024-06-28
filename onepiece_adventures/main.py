@@ -354,12 +354,10 @@ class OnePieceAdventures(commands.Cog):
         """Get information about Devil Fruits."""
         await self.devil_fruit_system.devil_fruit_info(ctx, fruit_name)
 
-    @commands.command()
+   @commands.command()
     async def battle(self, ctx, opponent: discord.Member):
-        await self.opcbattle.battle(ctx, opponent)
-        async def update_wins(self, winner):
-            async with self.config.member(winner).all() as user_data:
-                user_data['wins'] = user_data.get('wins', 0) + 1
+        """Start a battle with another player."""
+        await self.opcbattle.battle(ctx, ctx.author, opponent)
             
     @commands.command()
     async def battlestatus(self, ctx):
