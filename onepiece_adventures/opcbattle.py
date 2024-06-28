@@ -3,6 +3,7 @@ from redbot.core import commands, Config
 import random
 import asyncio
 import logging
+from typing import Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ class OPCBattle:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
-        self.battles = {}
+        self.battles: Dict[int, Dict] = {}
         self.battle_emojis = {
             "attack": "⚔️", "defend": "🛡️", "ability": "✨", "special": "🌟",
             "health": "❤️", "stamina": "⚡", "strength": "💪", "speed": "🏃",
@@ -62,10 +63,12 @@ class OPCBattle:
             "stamina": 100,
             "opponent": opponent_id,
             "status": [],
+            "ability_cooldown": 0,
+            "special_cooldown": 0,
             **player_data
         }
 
-    async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
+    async def battle_loop(self, ctx, player1, player2, battle_msg, environment) -> Tuple[discord.Member, discord.Member]:
         await ctx.send(f"The battle takes place in: **{environment}**!")
     
         while True:
@@ -93,6 +96,11 @@ class OPCBattle:
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
                 break
             
+            # Reduce cooldowns
+            for player in [player1, player2]:
+                self.battles[player.id]["ability_cooldown"] = max(0, self.battles[player.id]["ability_cooldown"] - 1)
+                self.battles[player.id]["special_cooldown"] = max(0, self.battles[player.id]["special_cooldown"] - 1)
+            
             await asyncio.sleep(2)
 
         # Determine the winner
@@ -105,10 +113,10 @@ class OPCBattle:
             winner, loser = player2, player1
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
-            return None
+            return None, None
 
         await self.end_battle(ctx, winner, loser, battle_msg)
-        return (winner, loser)
+        return winner, loser
     
     async def get_action(self, ctx, current_player, battle_msg):
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special"]]
@@ -161,13 +169,21 @@ class OPCBattle:
             self.battles[attacker.id]["status"].append(("defend", 1))
             result = f"{attacker.name} takes a defensive stance!"
         elif action == "ability":
-            ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
-            if ability_func:
-                result = await ability_func(attacker, defender)
+            if self.battles[attacker.id]["ability_cooldown"] > 0:
+                result = f"{attacker.name}'s ability is on cooldown for {self.battles[attacker.id]['ability_cooldown']} more turns!"
             else:
-                result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
+                ability_func = self.class_abilities.get(self.battles[attacker.id]["character_class"])
+                if ability_func:
+                    result = await ability_func(attacker, defender)
+                    self.battles[attacker.id]["ability_cooldown"] = 3  # Set cooldown to 3 turns
+                else:
+                    result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
         elif action == "special":
-            result = await self.use_special_move(attacker, defender, environment)
+            if self.battles[attacker.id]["special_cooldown"] > 0:
+                result = f"{attacker.name}'s special move is on cooldown for {self.battles[attacker.id]['special_cooldown']} more turns!"
+            else:
+                result = await self.use_special_move(attacker, defender, environment)
+                self.battles[attacker.id]["special_cooldown"] = 5  # Set cooldown to 5 turns
     
         embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
@@ -384,7 +400,8 @@ class OPCBattle:
                     f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
                     f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
                     f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
-                    f"Style: {battle_data.get('fighting_style', 'None')}",
+                    f"Style: {battle_data.get('fighting_style', 'None')}\n"
+                    f"Ability CD: {battle_data['ability_cooldown']} | Special CD: {battle_data['special_cooldown']}",
                 inline=True
             )
         
