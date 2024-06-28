@@ -358,6 +358,11 @@ class OnePieceAdventures(commands.Cog):
     async def battle(self, ctx, opponent: discord.Member):
         """Start a battle with another player."""
         await self.opcbattle.battle(ctx, ctx.author, opponent)
+
+    @commands.command()
+    async def statz(self, ctx, member: discord.Member = None):
+        """Display your or another member's current stats."""
+        await self.opcbattle.stats(ctx, member)
             
     @commands.command()
     async def battlestatus(self, ctx):
