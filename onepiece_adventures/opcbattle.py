@@ -54,13 +54,19 @@ class OPCBattle:
     
         result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
         
+        logger.info(f"Battle loop result: {result}")
+        
         if isinstance(result, tuple) and len(result) == 2:
             winner, loser = result
             logger.info(f"Battle ended. Winner: {winner.name if winner else 'None'}, Loser: {loser.name if loser else 'None'}")
             return winner, loser
+        elif isinstance(result, discord.Message):
+            logger.error(f"battle_loop returned a Message object: {result.content}")
+            await ctx.send("An error occurred during the battle. It has been ended.")
+            return None, None
         else:
             logger.error(f"Unexpected result from battle_loop: {result}")
-            await ctx.send("An error occurred during the battle. It has been ended.")
+            await ctx.send("An unexpected error occurred during the battle. It has been ended.")
             return None, None
 
     def create_battle_data(self, player_data, opponent_id, max_hp):
@@ -121,6 +127,9 @@ class OPCBattle:
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
             return None, None
+
+    await self.end_battle(ctx, winner, loser, battle_msg)
+    return winner, loser
     
         await self.end_battle(ctx, winner, loser, battle_msg)
         return winner, loser
