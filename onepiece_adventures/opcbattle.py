@@ -87,14 +87,19 @@ class OPCBattle:
             embed = self.create_battle_embed(player1, player2, environment, turn)
             await battle_msg.edit(embed=embed)
     
-            action = await self.get_action(ctx, turn, player1, player2, battle_msg)
+            try:
+                action = await self.get_action(ctx, turn, player1, player2, battle_msg)
+            except asyncio.TimeoutError:
+                await ctx.send(f"{turn.mention} took too long to respond. Their turn has been skipped.")
+                action = "skip"
             
-            if player1.id not in self.battles or player2.id not in self.battles:
-                logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
-                await ctx.send("An error occurred during the battle. It has been ended.")
-                break
+            if action != "skip":
+                if player1.id not in self.battles or player2.id not in self.battles:
+                    logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
+                    await ctx.send("An error occurred during the battle. It has been ended.")
+                    break
     
-            await self.execute_action(ctx, turn, action, battle_msg, environment)
+                await self.execute_action(ctx, turn, action, battle_msg, environment)
             
             if turn.id not in self.battles:
                 logger.error(f"{turn.name} was removed from the battle after action execution.")
@@ -132,17 +137,17 @@ class OPCBattle:
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
         for emoji in action_emojis:
             await battle_msg.add_reaction(emoji)
-
+    
         def check(reaction, user):
-            return user.id in [player1.id, player2.id] and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
-
+            return user.id == current_player.id and str(reaction.emoji) in action_emojis and reaction.message.id == battle_msg.id
+    
         try:
             reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
             await battle_msg.clear_reactions()
             return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
         except asyncio.TimeoutError:
             await battle_msg.clear_reactions()
-            return "attack"
+            raise  # Re-raise the TimeoutError to be caught in battle_loop
 
     def apply_damage(self, defender_id, damage):
         if isinstance(damage, tuple):
@@ -166,11 +171,11 @@ class OPCBattle:
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
     
-        if defender_id not in self.battles:
-            logger.error(f"Defender (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
-            await ctx.send(f"Opponent {defender.name if defender else 'Unknown'} was not found in the battle. This may be an error.")
+        if not defender or defender_id not in self.battles:
+            logger.error(f"Defender (ID: {defender_id}) not found in battles dict or guild. Current battles: {self.battles.keys()}")
+            await ctx.send(f"Opponent was not found in the battle or the server. This may be an error.")
             return
-
+        
         defender = ctx.guild.get_member(defender_id)
 
         result = ""
@@ -194,7 +199,8 @@ class OPCBattle:
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
 
-        embed = self.create_battle_embed(attacker, defender, environment)
+        # Updated this line:
+        embed = self.create_battle_embed(attacker, defender, environment, attacker)  # Use attacker as current_turn
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
 
