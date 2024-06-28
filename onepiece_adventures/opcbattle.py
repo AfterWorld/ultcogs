@@ -51,11 +51,12 @@ class OPCBattle:
 
         self.battles[player1.id] = self.create_battle_data(player1_data, player2.id, player1_max_hp)
         self.battles[player2.id] = self.create_battle_data(player2_data, player1.id, player2_max_hp)
+        self.battles[player2.id]["is_turn"] = False  # Set player2's turn to False initially
 
         environment = random.choice(self.environmental_effects)
-        embed = self.create_battle_embed(player1, player2, environment)
+        embed = self.create_battle_embed(player1, player2, environment, player1)  # Set player1 as the initial turn
         battle_msg = await ctx.send(embed=embed)
-
+    
         result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
         logger.info(f"Battle ended. Result: {result}")
         return result
@@ -67,14 +68,17 @@ class OPCBattle:
             "stamina": 100,
             "opponent": opponent_id,
             "status": [],
+            "is_turn": True,  # Add this line to indicate it's this player's turn
             **player_data
         }
 
     async def battle_loop(self, ctx, player1, player2, battle_msg, environment):
-        turn = player1
         await ctx.send(f"The battle takes place in: **{environment}**!")
     
         while True:
+            # Determine current turn
+            turn = player1 if self.battles[player1.id]["is_turn"] else player2
+    
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle unexpectedly. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
@@ -103,8 +107,26 @@ class OPCBattle:
             if turn.id in self.battles:
                 self.battles[turn.id]["stamina"] = min(100, self.battles[turn.id]["stamina"] + 10)
             
-            turn = player2 if turn == player1 else player1
+            # Switch turns
+            self.battles[player1.id]["is_turn"] = not self.battles[player1.id]["is_turn"]
+            self.battles[player2.id]["is_turn"] = not self.battles[player2.id]["is_turn"]
+    
             await asyncio.sleep(2)
+
+    # Determine the winner safely
+    if player1.id in self.battles and player2.id in self.battles:
+        winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
+        loser = player2 if winner == player1 else player1
+    elif player1.id in self.battles:
+        winner, loser = player1, player2
+    elif player2.id in self.battles:
+        winner, loser = player2, player1
+    else:
+        await ctx.send("The battle ended in a draw as both players were removed.")
+        return None
+
+    await self.end_battle(ctx, winner, loser, battle_msg)
+    return (winner, loser)
     
         # Determine the winner safely
         if player1.id in self.battles and player2.id in self.battles:
@@ -415,14 +437,17 @@ class OPCBattle:
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 10)  # Adjusted base HP to prevent negative values
 
-    async def battlestatus(self, ctx):
+   async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
             return await ctx.send("You're not in a battle!")
-
+    
         opponent_id = self.battles[ctx.author.id]["opponent"]
         opponent = ctx.guild.get_member(opponent_id)
-
-        embed = self.create_battle_embed(ctx.author, opponent, "Current Battle")
+    
+        # Determine whose turn it is (you may need to store this information somewhere)
+        current_turn = ctx.author  # or opponent, depending on the actual current turn
+    
+        embed = self.create_battle_embed(ctx.author, opponent, "Current Battle", current_turn)
         await ctx.send(embed=embed)
         
     async def surrender(self, ctx):
