@@ -23,7 +23,6 @@ class OPCBattle:
         self.config.register_member(**default_user)
         self.battles: Dict[int, Dict] = {}
 
-    @commands.command()
     async def battle(self, ctx, player1: discord.Member, opponent: discord.Member):
         """Start a battle between two players."""
         if player1 == opponent:
