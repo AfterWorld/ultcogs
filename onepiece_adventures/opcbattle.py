@@ -207,12 +207,10 @@ class OPCBattle:
                 damage *= 1.5
     
         final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
+        is_crit = random.random() < crit_chance
     
-        if is_crit:
-            return (final_damage, True)  # Return a tuple (damage, is_critical)
-        else:
-            return (final_damage, False)
-
+        return (final_damage, is_crit)
+        
     async def use_special_move(self, attacker, defender, environment):
         attacker_data = self.battles[attacker.id]
         defender_data = self.battles[defender.id]
@@ -225,15 +223,15 @@ class OPCBattle:
     
         base_damage, _ = self.calculate_attack(attacker.id, defender.id, environment)
         base_damage = int(base_damage * 2)  # Double the base damage for special moves
-    
+        
         if attacker_data["character_class"] == "Swordsman":
-            move = random.choice(["Santoryu: Oni Giri", "Ittoryu: Shishi Sonson", "Nitoryu: Sai Kuru"])
+            move = random.choice(["**Santoryu: Oni Giri**", "**Ittoryu: Shishi Sonson**", "**Nitoryu: Sai Kuru**"])
             damage = int(base_damage * 2.5)
             self.apply_damage(defender.id, (damage, False))  # Assume no crit for special moves
             return f"{attacker.name} uses '{move}', slashing for {damage} damage!"
     
         elif attacker_data["character_class"] == "Sniper":
-            move = random.choice(["Fire Bird Star", "Exploding Star", "Clima-Tact: Thunderbolt Tempo"])
+            move = random.choice(["**Fire Bird Star**", "**Exploding Star**", "**Clima-Tact: Thunderbolt Tempo**"])
             damage = int(base_damage * 2.2)
             if random.random() < 0.8:  # 80% accuracy
                 self.apply_damage(defender.id, (damage, False))
@@ -242,14 +240,14 @@ class OPCBattle:
                 return f"{attacker.name}'s '{move}' misses!"
     
         elif attacker_data["character_class"] == "Navigator":
-            move = random.choice(["Clima-Tact: Cyclone Tempo", "Weather Egg: Rain Tempo", "Mirage Tempo: Fata Morgana"])
+            move = random.choice(["**Clima-Tact: Cyclone Tempo**", "**Weather Egg: Rain Tempo**", "**Mirage Tempo: Fata Morgana**"])
             damage = int(base_damage * 1.8)
             self.apply_damage(defender.id, (damage, False))
             self.battles[defender.id]["status"].append(("confused", 2))
             return f"{attacker.name} uses '{move}', dealing {damage} damage and confusing {defender.name}!"
     
         elif attacker_data["character_class"] == "Cook":
-            move = random.choice(["Diable Jambe: Flambage Shot", "Collier Shoot", "Party Table Kick Course"])
+            move = random.choice(["**Diable Jambe: Flambage Shot**", "**Collier Shoot**", "**Party Table Kick Course**"])
             damage = int(base_damage * 2.3)
             self.apply_damage(defender.id, (damage, False))
             heal = int(damage * 0.3)
@@ -257,7 +255,7 @@ class OPCBattle:
             return f"{attacker.name} uses '{move}', dealing {damage} damage and healing for {heal} HP!"
     
         elif attacker_data["character_class"] == "Doctor":
-            move = random.choice(["Scope", "Monster Point: Konbie Genjin", "Cherry Blossom Blizzard"])
+            move = random.choice(["Scope", "**Monster Point: Konbie Genjin**", "**Cherry Blossom Blizzard**"])
             damage = int(base_damage * 2)
             self.apply_damage(defender.id, (damage, False))
             for status in attacker_data["status"]:
@@ -317,7 +315,7 @@ class OPCBattle:
         self.apply_damage(defender.id, (damage, is_crit))
         crit_text = " (Critical Hit!)" if is_crit else ""
         return f"{attacker.name} uses Three Sword Style, dealing {damage} damage{crit_text}!"
-        
+    
     async def sniper_ability(self, attacker, defender):
         damage, is_crit = self.calculate_attack(attacker.id, defender.id, "Neutral")
         damage = int(damage * 2)  # Double the damage
