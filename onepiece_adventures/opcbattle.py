@@ -149,11 +149,8 @@ class OPCBattle:
             await battle_msg.clear_reactions()
             raise  # Re-raise the TimeoutError to be caught in battle_loop
 
-    def apply_damage(self, defender_id, damage):
-        if isinstance(damage, tuple):
-            damage_value, is_crit = damage
-        else:
-            damage_value, is_crit = damage, False
+   def apply_damage(self, defender_id, damage_info):
+        damage_value, is_crit = damage_info  # Unpack the tuple
         
         current_hp = self.battles[defender_id]["hp"]
         new_hp = max(0, current_hp - damage_value)
@@ -171,18 +168,16 @@ class OPCBattle:
         defender_id = self.battles[attacker.id]["opponent"]
         defender = ctx.guild.get_member(defender_id)
     
-        if not defender or defender_id not in self.battles:
-            logger.error(f"Defender (ID: {defender_id}) not found in battles dict or guild. Current battles: {self.battles.keys()}")
-            await ctx.send(f"Opponent was not found in the battle or the server. This may be an error.")
+        if defender_id not in self.battles:
+            logger.error(f"Defender (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
+            await ctx.send(f"Opponent was not found in the battle. This may be an error.")
             return
-        
-        defender = ctx.guild.get_member(defender_id)
-
+    
         result = ""
-
+    
         if action == "attack":
             damage, is_crit = self.calculate_attack(attacker.id, defender_id, environment)
-            self.apply_damage(defender_id, (damage, is_crit))
+            is_crit = self.apply_damage(defender_id, (damage, is_crit))
             crit_text = " (Critical Hit!)" if is_crit else ""
             result = f"{attacker.name} attacks for {damage} damage{crit_text}!"
         elif action == "defend":
@@ -198,9 +193,8 @@ class OPCBattle:
             result = await self.use_special_move(attacker, defender, environment)
         elif action == "item":
             result = await self.use_battle_item(attacker, defender)
-
-        # Updated this line:
-        embed = self.create_battle_embed(attacker, defender, environment, attacker)  # Use attacker as current_turn
+    
+        embed = self.create_battle_embed(attacker, defender, environment, attacker)
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
 
@@ -220,7 +214,7 @@ class OPCBattle:
         is_dodge = random.random() < dodge_chance
     
         if is_dodge:
-            return 0
+            return 0, False
     
         damage = base_damage * class_bonus * style_bonus * crit_multiplier
     
@@ -240,9 +234,8 @@ class OPCBattle:
                 damage *= 1.5
     
         final_damage = max(1, int(damage - (defender_data["defense"] * 0.5)))
-        is_crit = random.random() < crit_chance
-    
-        return (final_damage, is_crit)
+        
+        return final_damage, is_crit
         
     async def use_special_move(self, attacker, defender, environment):
         attacker_data = self.battles[attacker.id]
