@@ -128,9 +128,6 @@ class OPCBattle:
             await ctx.send("The battle ended in a draw as both players were removed.")
             return None, None
 
-    await self.end_battle(ctx, winner, loser, battle_msg)
-    return winner, loser
-    
         await self.end_battle(ctx, winner, loser, battle_msg)
         return winner, loser
     
