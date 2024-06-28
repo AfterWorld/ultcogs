@@ -12,7 +12,7 @@ class OPCBattle:
         self.config = config
         self.battles = {}
         self.battle_emojis = {
-            "attack": "⚔️", "defend": "🛡️", "ability": "✨", "special": "🌟", "item": "🎒",
+            "attack": "⚔️", "defend": "🛡️", "ability": "✨", "special": "🌟",
             "health": "❤️", "stamina": "⚡", "strength": "💪", "speed": "🏃",
             "swordsman": "🗡️", "sniper": "🎯", "navigator": "🧭", "cook": "👨‍🍳", "doctor": "👨‍⚕️"
         }
@@ -24,11 +24,6 @@ class OPCBattle:
             "Doctor": self.doctor_ability
         }
         self.environmental_effects = ["Stormy Weather", "Calm Waters", "Marine Presence", "Treasure Island"]
-        self.battle_items = {
-            "Health Potion": self.use_health_potion,
-            "Stamina Boost": self.use_stamina_boost,
-            "Smoke Bomb": self.use_smoke_bomb
-        }
 
     async def battle(self, ctx, player1: discord.Member, player2: discord.Member):
         logger.info(f"Starting battle between {player1.name} and {player2.name}")
@@ -51,10 +46,9 @@ class OPCBattle:
 
         self.battles[player1.id] = self.create_battle_data(player1_data, player2.id, player1_max_hp)
         self.battles[player2.id] = self.create_battle_data(player2_data, player1.id, player2_max_hp)
-        self.battles[player2.id]["is_turn"] = False  # Set player2's turn to False initially
 
         environment = random.choice(self.environmental_effects)
-        embed = self.create_battle_embed(player1, player2, environment, player1)  # Set player1 as the initial turn
+        embed = self.create_battle_embed(player1, player2, environment)
         battle_msg = await ctx.send(embed=embed)
     
         result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
@@ -68,7 +62,6 @@ class OPCBattle:
             "stamina": 100,
             "opponent": opponent_id,
             "status": [],
-            "is_turn": True,  # Add this line to indicate it's this player's turn
             **player_data
         }
 
@@ -76,49 +69,33 @@ class OPCBattle:
         await ctx.send(f"The battle takes place in: **{environment}**!")
     
         while True:
-            # Determine current turn
-            turn = player1 if self.battles[player1.id]["is_turn"] else player2
-    
             if player1.id not in self.battles or player2.id not in self.battles:
                 logger.error(f"A player was removed from the battle unexpectedly. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
     
-            embed = self.create_battle_embed(player1, player2, environment, turn)
+            embed = self.create_battle_embed(player1, player2, environment)
             await battle_msg.edit(embed=embed)
     
-            try:
-                action = await self.get_action(ctx, turn, player1, player2, battle_msg)
-            except asyncio.TimeoutError:
-                await ctx.send(f"{turn.mention} took too long to respond. Their turn has been skipped.")
-                action = "skip"
-            
-            if action != "skip":
-                if player1.id not in self.battles or player2.id not in self.battles:
-                    logger.error(f"A player was removed from the battle before action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
-                    await ctx.send("An error occurred during the battle. It has been ended.")
+            for current_player in [player1, player2]:
+                action = await self.get_action(ctx, current_player, battle_msg)
+                if action != "skip":
+                    await self.execute_action(ctx, current_player, action, battle_msg, environment)
+                
+                if current_player.id not in self.battles:
+                    logger.error(f"{current_player.name} was removed from the battle after action execution.")
+                    await ctx.send(f"An error occurred during {current_player.name}'s turn. The battle has been ended.")
                     break
-    
-                await self.execute_action(ctx, turn, action, battle_msg, environment)
-            
-            if turn.id not in self.battles:
-                logger.error(f"{turn.name} was removed from the battle after action execution.")
-                await ctx.send(f"An error occurred during {turn.name}'s turn. The battle has been ended.")
-                break
+                
+                if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
+                    break
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
                 break
             
-            if turn.id in self.battles:
-                self.battles[turn.id]["stamina"] = min(100, self.battles[turn.id]["stamina"] + 10)
-            
-            # Switch turns
-            self.battles[player1.id]["is_turn"] = not self.battles[player1.id]["is_turn"]
-            self.battles[player2.id]["is_turn"] = not self.battles[player2.id]["is_turn"]
-    
             await asyncio.sleep(2)
 
-        # Determine the winner safely
+        # Determine the winner
         if player1.id in self.battles and player2.id in self.battles:
             winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
             loser = player2 if winner == player1 else player1
@@ -133,8 +110,8 @@ class OPCBattle:
         await self.end_battle(ctx, winner, loser, battle_msg)
         return (winner, loser)
     
-    async def get_action(self, ctx, current_player, player1, player2, battle_msg):
-        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
+    async def get_action(self, ctx, current_player, battle_msg):
+        action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special"]]
         for emoji in action_emojis:
             await battle_msg.add_reaction(emoji)
     
@@ -147,10 +124,10 @@ class OPCBattle:
             return list(self.battle_emojis.keys())[list(self.battle_emojis.values()).index(str(reaction.emoji))]
         except asyncio.TimeoutError:
             await battle_msg.clear_reactions()
-            raise  # Re-raise the TimeoutError to be caught in battle_loop
+            return "skip"
 
     def apply_damage(self, defender_id, damage_info):
-        damage_value, is_crit = damage_info  # Unpack the tuple
+        damage_value, is_crit = damage_info
         
         current_hp = self.battles[defender_id]["hp"]
         new_hp = max(0, current_hp - damage_value)
@@ -191,10 +168,8 @@ class OPCBattle:
                 result = f"{attacker.name} tried to use an ability, but their class doesn't have one!"
         elif action == "special":
             result = await self.use_special_move(attacker, defender, environment)
-        elif action == "item":
-            result = await self.use_battle_item(attacker, defender)
     
-        embed = self.create_battle_embed(attacker, defender, environment, attacker)
+        embed = self.create_battle_embed(attacker, defender, environment)
         embed.add_field(name="Battle Action", value=result, inline=False)
         await battle_msg.edit(embed=embed)
 
@@ -397,15 +372,14 @@ class OPCBattle:
         self.battles.pop(loser.id, None)
         logger.info(f"Removed {winner.name} and {loser.name} from battles dict. Remaining battles: {self.battles.keys()}")
 
-    def create_battle_embed(self, player1, player2, environment, current_turn):
+    def create_battle_embed(self, player1, player2, environment):
         embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
         
         for player in [player1, player2]:
             battle_data = self.battles[player.id]
             class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
-            turn_indicator = "➡️ " if player == current_turn else ""
             embed.add_field(
-                name=f"{turn_indicator}{class_emoji} {player.name} ({battle_data['character_class']})",
+                name=f"{class_emoji} {player.name} ({battle_data['character_class']})",
                 value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
                     f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
                     f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
@@ -415,11 +389,10 @@ class OPCBattle:
             )
         
         embed.add_field(name="Environment", value=environment, inline=False)
-        embed.set_footer(text=f"Current Turn: {current_turn.name}")
         return embed
 
     def calculate_max_hp(self, player_data):
-        return 100 + (player_data['defense'] * 10)  # Adjusted base HP to prevent negative values
+        return 100 + (player_data['defense'] * 10)
 
     async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
@@ -428,10 +401,7 @@ class OPCBattle:
         opponent_id = self.battles[ctx.author.id]["opponent"]
         opponent = ctx.guild.get_member(opponent_id)
     
-        # Determine whose turn it is (you may need to store this information somewhere)
-        current_turn = ctx.author  # or opponent, depending on the actual current turn
-    
-        embed = self.create_battle_embed(ctx.author, opponent, "Current Battle", current_turn)
+        embed = self.create_battle_embed(ctx.author, opponent, "Current Battle")
         await ctx.send(embed=embed)
         
     async def surrender(self, ctx):
