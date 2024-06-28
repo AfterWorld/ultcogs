@@ -261,7 +261,7 @@ class OPCBattle:
         await ctx.send(f"🎉 {winner.mention} wins the battle!\n"
                        f"Gained {exp_gain} EXP and {berry_gain} berries!")
 
-    async def stats(self, ctx, member: discord.Member = None):
+    async def statz(self, ctx, member: discord.Member = None):
         """Display your or another member's current stats."""
         target = member or ctx.author
         user_data = await self.config.member(target).all()
