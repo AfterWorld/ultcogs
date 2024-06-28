@@ -113,21 +113,6 @@ class OPCBattle:
     
             await asyncio.sleep(2)
 
-    # Determine the winner safely
-    if player1.id in self.battles and player2.id in self.battles:
-        winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
-        loser = player2 if winner == player1 else player1
-    elif player1.id in self.battles:
-        winner, loser = player1, player2
-    elif player2.id in self.battles:
-        winner, loser = player2, player1
-    else:
-        await ctx.send("The battle ended in a draw as both players were removed.")
-        return None
-
-    await self.end_battle(ctx, winner, loser, battle_msg)
-    return (winner, loser)
-    
         # Determine the winner safely
         if player1.id in self.battles and player2.id in self.battles:
             winner = player1 if self.battles[player1.id]["hp"] > 0 else player2
@@ -139,10 +124,10 @@ class OPCBattle:
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
             return None
-    
+
         await self.end_battle(ctx, winner, loser, battle_msg)
         return (winner, loser)
-
+    
     async def get_action(self, ctx, current_player, player1, player2, battle_msg):
         action_emojis = [self.battle_emojis[action] for action in ["attack", "defend", "ability", "special", "item"]]
         for emoji in action_emojis:
@@ -437,7 +422,7 @@ class OPCBattle:
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 10)  # Adjusted base HP to prevent negative values
 
-   async def battlestatus(self, ctx):
+    async def battlestatus(self, ctx):
         if ctx.author.id not in self.battles:
             return await ctx.send("You're not in a battle!")
     
