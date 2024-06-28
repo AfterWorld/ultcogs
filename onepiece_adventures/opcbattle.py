@@ -33,28 +33,35 @@ class OPCBattle:
         
         if player1.id in self.battles or player2.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
-
+    
         player1_data = await self.config.member(player1).all()
         player2_data = await self.config.member(player2).all()
-
+    
         if not player1_data.get("character_class"):
             return await ctx.send(f"{player1.mention}, you need to choose a class first! Use the `.choose_class` command.")
         if not player2_data.get("character_class"):
             return await ctx.send(f"{player2.mention} needs to choose a class first!")
-
+    
         player1_max_hp = self.calculate_max_hp(player1_data)
         player2_max_hp = self.calculate_max_hp(player2_data)
-
+    
         self.battles[player1.id] = self.create_battle_data(player1_data, player2.id, player1_max_hp)
         self.battles[player2.id] = self.create_battle_data(player2_data, player1.id, player2_max_hp)
-
+    
         environment = random.choice(self.environmental_effects)
         embed = self.create_battle_embed(player1, player2, environment)
         battle_msg = await ctx.send(embed=embed)
     
         result = await self.battle_loop(ctx, player1, player2, battle_msg, environment)
-        logger.info(f"Battle ended. Result: {result}")
-        return result
+        
+        if isinstance(result, tuple) and len(result) == 2:
+            winner, loser = result
+            logger.info(f"Battle ended. Winner: {winner.name if winner else 'None'}, Loser: {loser.name if loser else 'None'}")
+            return winner, loser
+        else:
+            logger.error(f"Unexpected result from battle_loop: {result}")
+            await ctx.send("An error occurred during the battle. It has been ended.")
+            return None, None
 
     def create_battle_data(self, player_data, opponent_id, max_hp):
         return {
@@ -114,7 +121,7 @@ class OPCBattle:
         else:
             await ctx.send("The battle ended in a draw as both players were removed.")
             return None, None
-
+    
         await self.end_battle(ctx, winner, loser, battle_msg)
         return winner, loser
     
