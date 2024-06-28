@@ -362,7 +362,7 @@ class OnePieceAdventures(commands.Cog):
     @commands.command()
     async def statz(self, ctx, member: discord.Member = None):
         """Display your or another member's current stats."""
-        await self.opcbattle.stats(ctx, member)
+        await self.opcbattle.statz(ctx, member)
             
     @commands.command()
     async def battlestatus(self, ctx):
