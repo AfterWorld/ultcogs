@@ -223,46 +223,47 @@ class OPCBattle:
     
         attacker_data["stamina"] -= stamina_cost
     
-        base_damage = (attacker_data["strength"] + attacker_data["speed"]) * 2
-        
+        base_damage, _ = self.calculate_attack(attacker.id, defender.id, environment)
+        base_damage = int(base_damage * 2)  # Double the base damage for special moves
+    
         if attacker_data["character_class"] == "Swordsman":
             move = random.choice(["Santoryu: Oni Giri", "Ittoryu: Shishi Sonson", "Nitoryu: Sai Kuru"])
-            damage = base_damage * 2.5
-            self.apply_damage(defender.id, damage)
-            return f"{attacker.name} uses '{move}', slashing for {damage:.0f} damage!"
+            damage = int(base_damage * 2.5)
+            self.apply_damage(defender.id, (damage, False))  # Assume no crit for special moves
+            return f"{attacker.name} uses '{move}', slashing for {damage} damage!"
     
         elif attacker_data["character_class"] == "Sniper":
             move = random.choice(["Fire Bird Star", "Exploding Star", "Clima-Tact: Thunderbolt Tempo"])
-            damage = base_damage * 2.2
+            damage = int(base_damage * 2.2)
             if random.random() < 0.8:  # 80% accuracy
-                self.apply_damage(defender.id, damage)
-                return f"{attacker.name} uses '{move}', striking for {damage:.0f} damage!"
+                self.apply_damage(defender.id, (damage, False))
+                return f"{attacker.name} uses '{move}', striking for {damage} damage!"
             else:
                 return f"{attacker.name}'s '{move}' misses!"
     
         elif attacker_data["character_class"] == "Navigator":
             move = random.choice(["Clima-Tact: Cyclone Tempo", "Weather Egg: Rain Tempo", "Mirage Tempo: Fata Morgana"])
-            damage = base_damage * 1.8
-            self.apply_damage(defender.id, damage)
+            damage = int(base_damage * 1.8)
+            self.apply_damage(defender.id, (damage, False))
             self.battles[defender.id]["status"].append(("confused", 2))
-            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and confusing {defender.name}!"
+            return f"{attacker.name} uses '{move}', dealing {damage} damage and confusing {defender.name}!"
     
         elif attacker_data["character_class"] == "Cook":
             move = random.choice(["Diable Jambe: Flambage Shot", "Collier Shoot", "Party Table Kick Course"])
-            damage = base_damage * 2.3
-            self.apply_damage(defender.id, damage)
-            heal = damage * 0.3
+            damage = int(base_damage * 2.3)
+            self.apply_damage(defender.id, (damage, False))
+            heal = int(damage * 0.3)
             attacker_data["hp"] = min(attacker_data["hp"] + heal, attacker_data["max_hp"])
-            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and healing for {heal:.0f} HP!"
+            return f"{attacker.name} uses '{move}', dealing {damage} damage and healing for {heal} HP!"
     
         elif attacker_data["character_class"] == "Doctor":
             move = random.choice(["Scope", "Monster Point: Konbie Genjin", "Cherry Blossom Blizzard"])
-            damage = base_damage * 2
-            self.apply_damage(defender.id, damage)
+            damage = int(base_damage * 2)
+            self.apply_damage(defender.id, (damage, False))
             for status in attacker_data["status"]:
                 if status[0] in ["poison", "burn", "confused"]:
                     attacker_data["status"].remove(status)
-            return f"{attacker.name} uses '{move}', dealing {damage:.0f} damage and curing all status effects!"
+            return f"{attacker.name} uses '{move}', dealing {damage} damage and curing all status effects!"
     
         else:
             return f"{attacker.name} doesn't have any special moves!"
@@ -311,16 +312,20 @@ class OPCBattle:
         return f"{user.name} uses a Smoke Bomb, blinding {opponent.name} for 2 turns!"
 
     async def swordsman_ability(self, attacker, defender):
-        damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 1.5
-        self.apply_damage(defender.id, damage)
-        return f"{attacker.name} uses Three Sword Style, dealing {damage} damage!"
-
+        damage, is_crit = self.calculate_attack(attacker.id, defender.id, "Neutral")
+        damage = int(damage * 1.5)  # Increase damage by 50%
+        self.apply_damage(defender.id, (damage, is_crit))
+        crit_text = " (Critical Hit!)" if is_crit else ""
+        return f"{attacker.name} uses Three Sword Style, dealing {damage} damage{crit_text}!"
+        
     async def sniper_ability(self, attacker, defender):
-        damage = self.calculate_attack(attacker.id, defender.id, "Neutral") * 2
+        damage, is_crit = self.calculate_attack(attacker.id, defender.id, "Neutral")
+        damage = int(damage * 2)  # Double the damage
         hit_chance = 0.7
         if random.random() < hit_chance:
-            self.apply_damage(defender.id, damage)
-            return f"{attacker.name} takes a precision shot, dealing {damage} damage!"
+            self.apply_damage(defender.id, (damage, is_crit))
+            crit_text = " (Critical Hit!)" if is_crit else ""
+            return f"{attacker.name} takes a precision shot, dealing {damage} damage{crit_text}!"
         else:
             return f"{attacker.name}'s precision shot misses!"
 
