@@ -80,6 +80,9 @@ class OPCBattle:
                 await ctx.send("An error occurred during the battle. It has been ended.")
                 break
     
+            embed = self.create_battle_embed(player1, player2, environment, turn)
+            await battle_msg.edit(embed=embed)
+    
             action = await self.get_action(ctx, turn, player1, player2, battle_msg)
             
             if player1.id not in self.battles or player2.id not in self.battles:
@@ -89,15 +92,16 @@ class OPCBattle:
     
             await self.execute_action(ctx, turn, action, battle_msg, environment)
             
-            if player1.id not in self.battles or player2.id not in self.battles:
-                logger.error(f"A player was removed from the battle after action execution. Player1: {player1.id in self.battles}, Player2: {player2.id in self.battles}")
-                await ctx.send("An error occurred during the battle. It has been ended.")
+            if turn.id not in self.battles:
+                logger.error(f"{turn.name} was removed from the battle after action execution.")
+                await ctx.send(f"An error occurred during {turn.name}'s turn. The battle has been ended.")
                 break
             
             if self.battles[player1.id]["hp"] <= 0 or self.battles[player2.id]["hp"] <= 0:
                 break
             
-            self.battles[turn.id]["stamina"] = min(100, self.battles[turn.id]["stamina"] + 10)
+            if turn.id in self.battles:
+                self.battles[turn.id]["stamina"] = min(100, self.battles[turn.id]["stamina"] + 10)
             
             turn = player2 if turn == player1 else player1
             await asyncio.sleep(2)
@@ -151,11 +155,13 @@ class OPCBattle:
             logger.error(f"{attacker.name} (ID: {attacker.id}) not found in battles dict. Current battles: {self.battles.keys()}")
             await ctx.send(f"{attacker.name} was not found in the battle. This may be an error.")
             return
-
+    
         defender_id = self.battles[attacker.id]["opponent"]
+        defender = ctx.guild.get_member(defender_id)
+    
         if defender_id not in self.battles:
             logger.error(f"Defender (ID: {defender_id}) not found in battles dict. Current battles: {self.battles.keys()}")
-            await ctx.send(f"Opponent was not found in the battle. This may be an error.")
+            await ctx.send(f"Opponent {defender.name if defender else 'Unknown'} was not found in the battle. This may be an error.")
             return
 
         defender = ctx.guild.get_member(defender_id)
@@ -385,24 +391,26 @@ class OPCBattle:
         self.battles.pop(loser.id, None)
         logger.info(f"Removed {winner.name} and {loser.name} from battles dict. Remaining battles: {self.battles.keys()}")
 
-    def create_battle_embed(self, player1, player2, environment):
-        embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
-        
-        for player in [player1, player2]:
-            battle_data = self.battles[player.id]
-            class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
-            embed.add_field(
-                name=f"{class_emoji} {player.name} ({battle_data['character_class']})",
-                value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
-                      f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
-                      f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
-                      f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
-                      f"Style: {battle_data.get('fighting_style', 'None')}",
-                inline=True
-            )
-        
-        embed.add_field(name="Environment", value=environment, inline=False)
-        return embed
+   def create_battle_embed(self, player1, player2, environment, current_turn):
+    embed = discord.Embed(title=f"Battle: {environment}", color=discord.Color.red())
+    
+    for player in [player1, player2]:
+        battle_data = self.battles[player.id]
+        class_emoji = self.battle_emojis.get(battle_data["character_class"].lower(), "")
+        turn_indicator = "➡️ " if player == current_turn else ""
+        embed.add_field(
+            name=f"{turn_indicator}{class_emoji} {player.name} ({battle_data['character_class']})",
+            value=f"{self.battle_emojis['health']} HP: {battle_data['hp']}/{battle_data['max_hp']}\n"
+                  f"{self.battle_emojis['stamina']} Stamina: {battle_data['stamina']}/100\n"
+                  f"{self.battle_emojis['strength']} STR: {battle_data['strength']} | "
+                  f"{self.battle_emojis['speed']} SPD: {battle_data['speed']}\n"
+                  f"Style: {battle_data.get('fighting_style', 'None')}",
+            inline=True
+        )
+    
+    embed.add_field(name="Environment", value=environment, inline=False)
+    embed.set_footer(text=f"Current Turn: {current_turn.name}")
+    return embed
 
     def calculate_max_hp(self, player_data):
         return 100 + (player_data['defense'] * 10)  # Adjusted base HP to prevent negative values
