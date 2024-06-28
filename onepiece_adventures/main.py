@@ -363,6 +363,17 @@ class OnePieceAdventures(commands.Cog):
     async def statz(self, ctx, member: discord.Member = None):
         """Display your or another member's current stats."""
         await self.opcbattle.statz(ctx, member)
+
+    @commands.command()
+    async def levelup(self, ctx):
+        """Level up your character if you have enough EXP."""
+        await self.opcbattle.level_up(ctx, ctx.author)
+
+    @commands.command()
+    async def reset(self, ctx):
+        """Reset your character's stats to default."""
+        await self.opcbattle.reset_player_stats(ctx.author)
+        await ctx.send(f"{ctx.author.name}'s stats have been reset to default values.")
             
     @commands.command()
     async def battlestatus(self, ctx):
