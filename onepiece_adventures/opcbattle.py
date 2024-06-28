@@ -31,29 +31,29 @@ class OPCBattle:
         
         if ctx.author.id in self.battles or opponent.id in self.battles:
             return await ctx.send("One of the players is already in a battle!")
-
+    
         player1_data = await self.config.member(ctx.author).all()
         player2_data = await self.config.member(opponent).all()
-
+    
         if not player1_data["character_class"]:
             return await ctx.send(f"{ctx.author.mention}, you need to choose a class first!")
         if not player2_data["character_class"]:
             return await ctx.send(f"{opponent.mention} needs to choose a class first!")
-
+    
         self.battles[ctx.author.id] = self.create_battle_data(player1_data, opponent.id)
         self.battles[opponent.id] = self.create_battle_data(player2_data, ctx.author.id)
-
+    
         battle_msg = await ctx.send("Battle started!")
         winner, loser = await self.battle_loop(ctx, ctx.author, opponent, battle_msg)
-
+    
         if winner and loser:
             await self.end_battle(ctx, winner, loser)
         else:
             await ctx.send("The battle ended in a draw.")
-
+    
         del self.battles[ctx.author.id]
         del self.battles[opponent.id]
-
+    
     def create_battle_data(self, player_data: Dict, opponent_id: int) -> Dict:
         return {
             "hp": player_data["hp"],
