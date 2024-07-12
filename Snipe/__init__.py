@@ -1,4 +1,4 @@
-from .snipe import SnipeCog
+from .snipe import Snipe
 
 async def setup(bot):
-    bot.add_cog(SnipeCog(bot))
+    bot.add_cog(Snipe(bot))
