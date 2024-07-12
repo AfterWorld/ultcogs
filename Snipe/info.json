@@ -1,10 +1,12 @@
 {
     "author": ["UltPanda"],
-    "install_msg": "Thank you for installing the Demon Slayer cog! Get ready to slay some demons and master your breathing techniques. Use `[p]help ds` to see all available commands.",
-    "name": "DemonSlayer",
-    "short": "A Demon Slayer themed cog with interactive commands.",
-    "description": "This cog brings the world of Demon Slayer to your Discord server. Assign breathing techniques, slay demons, train, and rise through the ranks of the Demon Slayer Corps!",
-    "tags": ["fun", "games", "rpg", "anime", "demon slayer"],
-    "min_bot_version": "3.5.0",
-    "end_user_data_statement": "This cog stores user data including assigned breathing techniques, Nichirin blade colors, number of demons slayed, and current rank. Users can delete their data at any time."
+    "description": "A cog that allows users to see recently deleted messages using the .snipe command.",
+    "disabled": false,
+    "hidden": false,
+    "install_msg": "Thanks for installing the Snipe cog! Use the .snipe command to see recently deleted messages.",
+    "name": "Snipe",
+    "short": "See recently deleted messages.",
+    "tags": ["utility", "moderation"],
+    "type": "COG",
+    "end_user_data_statement": "This cog does not store any end user data."
 }
