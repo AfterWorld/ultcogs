@@ -36,31 +36,31 @@ class Snipe(commands.Cog):
     async def snipe(self, ctx, index: int = 1):
         """Show recently deleted messages."""
         deleted_messages = await self.config.guild(ctx.guild).deleted_messages()
-
+    
         if not deleted_messages:
             return await ctx.send("No recently deleted messages found, ye scurvy dog!")
-
+    
         if index < 1 or index > len(deleted_messages):
             return await ctx.send(f"Invalid index. Must be between 1 and {len(deleted_messages)}, ye landlubber!")
-
+    
         message_data = deleted_messages[-index]
         author = ctx.guild.get_member(message_data["author"])
         content = message_data["content"]
         timestamp = datetime.fromisoformat(message_data["timestamp"])
         attachments = message_data["attachments"]
-
+    
         embed = discord.Embed(
             title="🏴‍☠️ Recovered Sunken Treasure (Deleted Message) 🏴‍☠️",
             description=content,
             color=discord.Color.dark_gold(),
             timestamp=timestamp
         )
-        embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.avatar_url)
+        embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)  # Modified line
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
-
+    
         if attachments:
             embed.add_field(name="Attachments", value="\n".join(attachments), inline=False)
-
+    
         await ctx.send(embed=embed)
 
 def setup(bot):
