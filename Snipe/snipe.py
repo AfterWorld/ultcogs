@@ -1,40 +1,66 @@
 import discord
-from discord.ext import commands
-from redbot.core import commands as red_commands
+from redbot.core import commands, Config
+from datetime import datetime
 
-class SnipeCog(commands.Cog):
+class Snipe(commands.Cog):
+    """A cog to snipe deleted messages."""
+    
     def __init__(self, bot):
         self.bot = bot
-        self.deleted_messages = []
+        self.config = Config.get_conf(self, identifier=1234567890)
+        default_guild = {
+            "deleted_messages": []
+        }
+        self.config.register_guild(**default_guild)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         if message.author.bot:
             return
 
-        if len(self.deleted_messages) >= 10:
-            self.deleted_messages.pop(0)
+        deleted_messages = await self.config.guild(message.guild).deleted_messages()
+        if len(deleted_messages) >= 10:
+            deleted_messages.pop(0)
 
-        self.deleted_messages.append(message)
+        deleted_messages.append({
+            "author": message.author.id,
+            "content": message.content,
+            "timestamp": message.created_at.isoformat(),
+            "attachments": [attachment.url for attachment in message.attachments]
+        })
 
-    @red_commands.command()
-    async def snipe(self, ctx):
-        if not self.deleted_messages:
-            await ctx.send("No recently deleted messages found.")
-            return
+        await self.config.guild(message.guild).deleted_messages.set(deleted_messages)
 
-        embed = discord.Embed(title="Recently Deleted Messages", color=discord.Color.blue())
+    @commands.command()
+    async def snipe(self, ctx, index: int = 1):
+        """Show recently deleted messages."""
+        deleted_messages = await self.config.guild(ctx.guild).deleted_messages()
 
-        for i, message in enumerate(self.deleted_messages[::-1], start=1):
-            content = message.content
-            attachments = [attachment.url for attachment in message.attachments]
+        if not deleted_messages:
+            return await ctx.send("No recently deleted messages found, ye scurvy dog!")
 
-            if content:
-                embed.add_field(name=f"Message {i}", value=content, inline=False)
-            if attachments:
-                embed.add_field(name=f"Attachments {i}", value="\n".join(attachments), inline=False)
+        if index < 1 or index > len(deleted_messages):
+            return await ctx.send(f"Invalid index. Must be between 1 and {len(deleted_messages)}, ye landlubber!")
+
+        message_data = deleted_messages[-index]
+        author = ctx.guild.get_member(message_data["author"])
+        content = message_data["content"]
+        timestamp = datetime.fromisoformat(message_data["timestamp"])
+        attachments = message_data["attachments"]
+
+        embed = discord.Embed(
+            title="🏴‍☠️ Recovered Sunken Treasure (Deleted Message) 🏴‍☠️",
+            description=content,
+            color=discord.Color.dark_gold(),
+            timestamp=timestamp
+        )
+        embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.avatar_url)
+        embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
+
+        if attachments:
+            embed.add_field(name="Attachments", value="\n".join(attachments), inline=False)
 
         await ctx.send(embed=embed)
 
 def setup(bot):
-    bot.add_cog(SnipeCog(bot))
+    bot.add_cog(Snipe(bot))
