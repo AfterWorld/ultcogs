@@ -1,4 +1,4 @@
 from .snipe import SnipeCog
 
-def setup(bot):
+async def setup(bot: Red):
     bot.add_cog(SnipeCog(bot))
