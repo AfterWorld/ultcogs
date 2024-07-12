@@ -1,4 +1,4 @@
-from .demon_slayer import DemonSlayer
+from .snipe import SnipeCog
 
-async def setup(bot):
-    await bot.add_cog(DemonSlayer(bot))
+def setup(bot):
+    bot.add_cog(SnipeCog(bot))
