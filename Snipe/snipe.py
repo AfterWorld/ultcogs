@@ -3,7 +3,7 @@ from redbot.core import commands, Config
 from datetime import datetime
 
 class Snipe(commands.Cog):
-    """A cog to snipe deleted messages."""
+    """A cog to snipe deleted messages, including attachments."""
     
     def __init__(self, bot):
         self.bot = bot
@@ -23,18 +23,27 @@ class Snipe(commands.Cog):
         if len(deleted_messages) >= 10:
             deleted_messages.pop(0)
 
+        attachments = []
+        for attachment in message.attachments:
+            attachments.append({
+                "url": attachment.url,
+                "filename": attachment.filename,
+                "content_type": attachment.content_type
+            })
+
         deleted_messages.append({
             "author": message.author.id,
             "content": message.content,
             "timestamp": message.created_at.isoformat(),
-            "attachments": [attachment.url for attachment in message.attachments]
+            "attachments": attachments,
+            "embeds": [embed.to_dict() for embed in message.embeds]
         })
 
         await self.config.guild(message.guild).deleted_messages.set(deleted_messages)
 
     @commands.command()
     async def snipe(self, ctx, index: int = 1):
-        """Show recently deleted messages."""
+        """Show recently deleted messages, including attachments."""
         deleted_messages = await self.config.guild(ctx.guild).deleted_messages()
     
         if not deleted_messages:
@@ -48,6 +57,7 @@ class Snipe(commands.Cog):
         content = message_data["content"]
         timestamp = datetime.fromisoformat(message_data["timestamp"])
         attachments = message_data["attachments"]
+        embeds = message_data["embeds"]
     
         embed = discord.Embed(
             title="🏴‍☠️ Recovered Sunken Treasure (Deleted Message) 🏴‍☠️",
@@ -55,13 +65,26 @@ class Snipe(commands.Cog):
             color=discord.Color.dark_gold(),
             timestamp=timestamp
         )
-        embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)  # Modified line
+        embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
         if attachments:
-            embed.add_field(name="Attachments", value="\n".join(attachments), inline=False)
+            attachment_info = []
+            for attachment in attachments:
+                attachment_info.append(f"[{attachment['filename']}]({attachment['url']})")
+            embed.add_field(name="Attachments", value="\n".join(attachment_info), inline=False)
     
         await ctx.send(embed=embed)
+    
+        # Send attachments separately
+        for attachment in attachments:
+            if attachment['content_type'].startswith(('image/', 'video/', 'audio/')):
+                await ctx.send(attachment['url'])
+    
+        # Recreate and send embeds
+        for embed_data in embeds:
+            recreated_embed = discord.Embed.from_dict(embed_data)
+            await ctx.send(embed=recreated_embed)
 
 def setup(bot):
     bot.add_cog(Snipe(bot))
