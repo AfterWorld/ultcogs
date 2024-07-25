@@ -68,11 +68,10 @@ class Snipe(commands.Cog):
         embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
+        media_attachment = None
         if attachments:
-            # Display the first image or GIF attachment in the embed
+            # Find the first image or GIF attachment
             media_attachment = next((att for att in attachments if att['content_type'].startswith(('image/', 'video/gif'))), None)
-            if media_attachment:
-                embed.set_image(url=media_attachment['url'])
             
             # List all attachments
             attachment_info = []
@@ -81,6 +80,10 @@ class Snipe(commands.Cog):
             embed.add_field(name="Attachments", value="\n".join(attachment_info), inline=False)
     
         await ctx.send(embed=embed)
+        
+        # Send media attachment separately to ensure it's displayed
+        if media_attachment:
+            await ctx.send(media_attachment['url'])
     
         # Recreate and send additional embeds
         for embed_data in embeds:
