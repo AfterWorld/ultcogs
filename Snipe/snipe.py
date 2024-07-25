@@ -69,10 +69,10 @@ class Snipe(commands.Cog):
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
         if attachments:
-            # Display the first image attachment in the embed
-            image_attachment = next((att for att in attachments if att['content_type'].startswith('image/')), None)
-            if image_attachment:
-                embed.set_image(url=image_attachment['url'])
+            # Display the first image or GIF attachment in the embed
+            media_attachment = next((att for att in attachments if att['content_type'].startswith(('image/', 'video/gif'))), None)
+            if media_attachment:
+                embed.set_image(url=media_attachment['url'])
             
             # List all attachments
             attachment_info = []
