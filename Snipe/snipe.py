@@ -69,6 +69,12 @@ class Snipe(commands.Cog):
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
         if attachments:
+            # Display the first image attachment in the embed
+            image_attachment = next((att for att in attachments if att['content_type'].startswith('image/')), None)
+            if image_attachment:
+                embed.set_image(url=image_attachment['url'])
+            
+            # List all attachments
             attachment_info = []
             for attachment in attachments:
                 attachment_info.append(f"[{attachment['filename']}]({attachment['url']})")
@@ -76,12 +82,7 @@ class Snipe(commands.Cog):
     
         await ctx.send(embed=embed)
     
-        # Send attachments separately
-        for attachment in attachments:
-            if attachment['content_type'].startswith(('image/', 'video/', 'audio/')):
-                await ctx.send(attachment['url'])
-    
-        # Recreate and send embeds
+        # Recreate and send additional embeds
         for embed_data in embeds:
             recreated_embed = discord.Embed.from_dict(embed_data)
             await ctx.send(embed=recreated_embed)
