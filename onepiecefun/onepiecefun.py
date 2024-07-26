@@ -75,8 +75,8 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"🍎 **Devil Fruit Fact:** {fact}")
 
     @commands.command()
-    async def love(self, ctx, name1: str, name2: str):
-        """Calculate the One Piece love compatibility between two names with animation!"""
+    async def love(self, ctx, user1: discord.Member, user2: discord.Member):
+        """Calculate the One Piece love compatibility between two users with animation!"""
         love_percentage = random.randint(1, 100)
         
         # Create initial embed
@@ -107,27 +107,27 @@ class OnePieceFun(commands.Cog):
             color = discord.Color.dark_magenta()
             emoji = "💞"
 
-        # Create final embed
+        # Create final embed with user mentions
         embed = discord.Embed(
-            title=f"Love Compatibility: {name1} & {name2}",
+            title=f"Love Compatibility: {user1.mention} & {user2.mention}",
             color=color
         )
         embed.add_field(name="Love Percentage", value=f"{love_percentage}% {emoji}", inline=False)
 
         if love_percentage < 20:
-            verdict = f"Arr! {name1} and {name2} be as compatible as Luffy and skipping meals!"
+            verdict = f"Arr! {user1.display_name} and {user2.display_name} be as compatible as Luffy and skipping meals!"
             image_url = "https://i.imgur.com/LqX1jSH.jpeg"
         elif love_percentage < 40:
-            verdict = f"Yohohoho! The love between {name1} and {name2} be as empty as Brook's belly!"
+            verdict = f"Yohohoho! The love between {user1.display_name} and {user2.display_name} be as empty as Brook's belly!"
             image_url = "https://i.imgur.com/7yAj1avb.jpg"
         elif love_percentage < 60:
-            verdict = f"Aye, {name1} and {name2} be gettin' along like Zoro and a compass!"
+            verdict = f"Aye, {user1.display_name} and {user2.display_name} be gettin' along like Zoro and a compass!"
             image_url = "https://i.imgur.com/INqnjtYb.jpg"
         elif love_percentage < 80:
-            verdict = f"Shiver me timbers! {name1} and {name2} be as close as Sanji to his kitchen!"
+            verdict = f"Shiver me timbers! {user1.display_name} and {user2.display_name} be as close as Sanji to his kitchen!"
             image_url = "https://static1.cbrimages.com/wordpress/wp-content/uploads/2022/10/0B4E75F9-5053-4BDA-B326-7E32C6E4FBD9.jpeg"
         else:
-            verdict = f"By the powers of the sea! {name1} and {name2} be as perfect as Luffy and meat!"
+            verdict = f"By the powers of the sea! {user1.display_name} and {user2.display_name} be as perfect as Luffy and meat!"
             image_url = "https://media.tenor.com/l2-mUQdjoScAAAAe/luffy-one-piece.png"
 
         embed.add_field(name="Pirate's Verdict", value=verdict, inline=False)
