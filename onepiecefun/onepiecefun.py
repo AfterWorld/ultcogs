@@ -1,9 +1,10 @@
 import random
 import discord
-from redbot.core import commands, checks, modlog, Config
+from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+from redbot.core.utils.mod import is_mod_or_superior
 
 
 
@@ -235,8 +236,8 @@ class OnePieceFun(commands.Cog):
         decoded = random.choice(messages)
         await ctx.send(f"🗿 You've decoded the poneglyph! It reads:\n\n*{decoded}*")
 
-    @commands.check(is_mod_or_admin)
     @commands.command()
+    @commands.check(is_mod_or_superior)
     async def df_add(self, ctx, name: str, *, description: str):
         """Add a custom Devil Fruit to the server's list."""
         async with self.config.guild(ctx.guild).custom_devil_fruits() as df_list:
@@ -257,8 +258,8 @@ class OnePieceFun(commands.Cog):
         pages = list(pagify(message, delims=["\n\n"], page_length=1000))
         await menu(ctx, pages, DEFAULT_CONTROLS)
 
-    @commands.check(is_mod_or_admin)
     @commands.command()
+    @commands.check(is_mod_or_superior)
     async def bounty_add(self, ctx, name: str, amount: int, *, reason: str):
         """Add a custom bounty for someone in the server."""
         async with self.config.guild(ctx.guild).custom_bounties() as bounty_list:
