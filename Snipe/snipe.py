@@ -1,7 +1,7 @@
 import discord
 from redbot.core import commands, Config
 from datetime import datetime
-from redbot.core.utils.tunnel import Tunnel
+import aiohttp
 
 class Snipe(commands.Cog):
     """A cog to snipe deleted messages, including attachments."""
@@ -27,7 +27,7 @@ class Snipe(commands.Cog):
         attachments = []
         for attachment in message.attachments:
             attachments.append({
-                "url": attachment.proxy_url,  # Use proxy_url instead of url
+                "url": attachment.proxy_url,
                 "filename": attachment.filename,
                 "content_type": attachment.content_type
             })
@@ -77,14 +77,17 @@ class Snipe(commands.Cog):
     
         await ctx.send(embed=embed)
         
-        # Send attachments separately using Tunnel.message_forwarder
+        # Send attachments separately
         for attachment in attachments:
             try:
-                files = await Tunnel.files_from_attach(discord.Object(id=0), use_cached=True)
-                if files:
-                    await Tunnel.message_forwarder(destination=ctx, content=f"Attachment: {attachment['filename']}", files=files)
-                else:
-                    await ctx.send(f"Attachment {attachment['filename']} could not be retrieved.")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment['url']) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            file = discord.File(fp=data, filename=attachment['filename'])
+                            await ctx.send(file=file)
+                        else:
+                            await ctx.send(f"Attachment {attachment['filename']} could not be retrieved.")
             except Exception as e:
                 await ctx.send(f"Error retrieving attachment {attachment['filename']}: {str(e)}")
     
