@@ -92,47 +92,61 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     async def bounty(self, ctx, *, name: str = None):
-        """Check or generate a bounty for a user."""
+        """Check a user's bounty or list all bounties."""
+        bounties = await self.config.guild(ctx.guild).bounties()
+
         if name is None:
-            name = ctx.author.display_name
-
-        custom_bounties = await self.config.guild(ctx.guild).custom_bounties()
-        
-        if name.lower() in custom_bounties:
-            bounty_info = custom_bounties[name.lower()]
-            amount = bounty_info['amount']
-            reason = bounty_info['reason']
-            await ctx.send(f"💰 **Bounty Alert!** 💰\n"
-                           f"The World Government has placed a bounty of {amount:,} Berries on {name}'s head!\n"
-                           f"Reason: {reason}")
+            # If no name is provided, list all bounties
+            if not bounties:
+                return await ctx.send("There are no bounties in this server yet!")
+            
+            message = "💰 **Bounty List** 💰\n\n"
+            for user_id, info in bounties.items():
+                user = ctx.guild.get_member(int(user_id))
+                if user:
+                    message += f"**{user.display_name}**: {info['amount']:,} Berries\n"
+            
+            pages = list(pagify(message, delims=["\n"], page_length=1000))
+            await menu(ctx, pages, DEFAULT_CONTROLS)
         else:
-            # Generate a random bounty if no custom bounty exists
-            bounty = random.randint(1000000, 5000000000)
-            formatted_bounty = f"{bounty:,}"
-            
-            reasons = [
-                "for eating too much at the Baratie without paying",
-                "for mistaking a Marine base for a restaurant",
-                "for trying to sell fake Devil Fruits to Kaido",
-                "for asking Big Mom about her diet plan",
-                "for using Zoro as a compass",
-                "for stealing Doflamingo's sunglasses collection",
-                "for trying to give Kaido swimming lessons",
-                "for asking Buggy about his nose",
-                "for trying to recruit Sea Kings into their crew",
-                "for attempting to give Blackbeard a dental plan",
-                "for trying to sell meat-scented cologne to Luffy",
-                "for starting a 'Save the Sea Kings' campaign",
-                "for opening a Monkey D. Luffy School of Strategy",
-                "for trying to teach the Revolutionary Army to do the 'Binks' Sake' dance"
-            ]
-            
-            reason = random.choice(reasons)
-            
-            await ctx.send(f"💰 **Bounty Alert!** 💰\n"
-                           f"The World Government has placed a bounty of {formatted_bounty} Berries on {name}'s head "
-                           f"{reason}!")
+            # If a name is provided, check for that user's bounty
+            member = ctx.guild.get_member_named(name) or ctx.author
+            user_id = str(member.id)
 
+            if user_id in bounties:
+                amount = bounties[user_id]['amount']
+                await ctx.send(f"💰 **Bounty Alert!** 💰\n"
+                               f"{member.display_name}'s bounty is {amount:,} Berries!")
+            else:
+                # Generate a random bounty if no bounty exists
+                bounty = random.randint(1000000, 5000000000)
+                
+                reasons = [
+                    "for eating too much at the Baratie without paying",
+                    "for mistaking a Marine base for a restaurant",
+                    "for trying to sell fake Devil Fruits to Kaido",
+                    "for asking Big Mom about her diet plan",
+                    "for using Zoro as a compass",
+                    "for stealing Doflamingo's sunglasses collection",
+                    "for trying to give Kaido swimming lessons",
+                    "for asking Buggy about his nose",
+                    "for trying to recruit Sea Kings into their crew",
+                    "for attempting to give Blackbeard a dental plan",
+                    "for trying to sell meat-scented cologne to Luffy",
+                    "for starting a 'Save the Sea Kings' campaign",
+                    "for opening a Monkey D. Luffy School of Strategy",
+                    "for trying to teach the Revolutionary Army to do the 'Binks' Sake' dance"
+                ]
+                
+                reason = random.choice(reasons)
+                
+                # Save the new bounty
+                async with self.config.guild(ctx.guild).bounties() as bounty_list:
+                    bounty_list[user_id] = {"amount": bounty}
+                
+                await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
+                               f"The World Government has placed a bounty of {bounty:,} Berries on {member.display_name}'s head "
+                               f"{reason}!")
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
         """Generate a One Piece-style ship name for two characters."""
@@ -271,14 +285,6 @@ class OnePieceFun(commands.Cog):
         
         pages = list(pagify(message, delims=["\n\n"], page_length=1000))
         await menu(ctx, pages, DEFAULT_CONTROLS)
-
-    @commands.command()
-    @commands.check(is_mod_or_superior)
-    async def bounty_add(self, ctx, name: str, amount: int, *, reason: str):
-        """Add a custom bounty for someone in the server."""
-        async with self.config.guild(ctx.guild).custom_bounties() as bounty_list:
-            bounty_list[name.lower()] = {"amount": amount, "reason": reason}
-        await ctx.send(f"A bounty of {amount:,} Berries has been placed on {name}'s head for {reason}!")
         
     @commands.command()
     async def bountylist(self, ctx):
@@ -352,6 +358,19 @@ class OnePieceFun(commands.Cog):
         effect = random.choice(effects).format(name=name)
         
         await ctx.send(f"{description}\n{effect}")
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+
+        # Increment user's bounty for each message
+        async with self.config.guild(message.guild).bounties() as bounties:
+            user_id = str(message.author.id)
+            if user_id in bounties:
+                bounties[user_id]['amount'] += random.randint(100, 1000)
+            else:
+                bounties[user_id] = {"amount": random.randint(1000000, 5000000)}
 
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
