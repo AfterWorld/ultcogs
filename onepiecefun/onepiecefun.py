@@ -1041,7 +1041,7 @@ class OnePieceFun(commands.Cog):
         
         await ctx.send(embed=embed)
 
-@commands.command()
+    @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
     async def createcrew(self, ctx, crew_name: str, captain: discord.Member):
         """Create a new pirate crew with a captain."""
