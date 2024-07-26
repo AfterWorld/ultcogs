@@ -17,7 +17,7 @@ class OnePieceFun(commands.Cog):
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         default_guild = {
             "custom_devil_fruits": {},
-            "custom_bounties": {}
+            "bounties": {}
         }
         self.config.register_guild(**default_guild)
 
@@ -147,6 +147,20 @@ class OnePieceFun(commands.Cog):
                 await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
                                f"The World Government has placed a bounty of {bounty:,} Berries on {member.display_name}'s head "
                                f"{reason}!")
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+
+        # Increment user's bounty for each message
+        async with self.config.guild(message.guild).bounties() as bounties:
+            user_id = str(message.author.id)
+            if user_id in bounties:
+                bounties[user_id]['amount'] += random.randint(100, 1000)
+            else:
+                bounties[user_id] = {"amount": random.randint(1000000, 5000000)}
+                
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
         """Generate a One Piece-style ship name for two characters."""
@@ -358,19 +372,6 @@ class OnePieceFun(commands.Cog):
         effect = random.choice(effects).format(name=name)
         
         await ctx.send(f"{description}\n{effect}")
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot or not message.guild:
-            return
-
-        # Increment user's bounty for each message
-        async with self.config.guild(message.guild).bounties() as bounties:
-            user_id = str(message.author.id)
-            if user_id in bounties:
-                bounties[user_id]['amount'] += random.randint(100, 1000)
-            else:
-                bounties[user_id] = {"amount": random.randint(1000000, 5000000)}
 
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
