@@ -1,6 +1,7 @@
 import discord
 from redbot.core import commands, Config
 from datetime import datetime
+from redbot.core.utils.tunnel import Tunnel
 
 class Snipe(commands.Cog):
     """A cog to snipe deleted messages, including attachments."""
@@ -26,7 +27,7 @@ class Snipe(commands.Cog):
         attachments = []
         for attachment in message.attachments:
             attachments.append({
-                "url": attachment.url,
+                "url": attachment.proxy_url,  # Use proxy_url instead of url
                 "filename": attachment.filename,
                 "content_type": attachment.content_type
             })
@@ -68,12 +69,7 @@ class Snipe(commands.Cog):
         embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
-        media_attachment = None
         if attachments:
-            # Find the first image or GIF attachment
-            media_attachment = next((att for att in attachments if att['content_type'].startswith(('image/', 'video/gif'))), None)
-            
-            # List all attachments
             attachment_info = []
             for attachment in attachments:
                 attachment_info.append(f"[{attachment['filename']}]({attachment['url']})")
@@ -81,9 +77,16 @@ class Snipe(commands.Cog):
     
         await ctx.send(embed=embed)
         
-        # Send media attachment separately to ensure it's displayed
-        if media_attachment:
-            await ctx.send(media_attachment['url'])
+        # Send attachments separately using Tunnel.message_forwarder
+        for attachment in attachments:
+            try:
+                files = await Tunnel.files_from_attach(discord.Object(id=0), use_cached=True)
+                if files:
+                    await Tunnel.message_forwarder(destination=ctx, content=f"Attachment: {attachment['filename']}", files=files)
+                else:
+                    await ctx.send(f"Attachment {attachment['filename']} could not be retrieved.")
+            except Exception as e:
+                await ctx.send(f"Error retrieving attachment {attachment['filename']}: {str(e)}")
     
         # Recreate and send additional embeds
         for embed_data in embeds:
