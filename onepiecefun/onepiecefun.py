@@ -4,10 +4,8 @@ from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-from redbot.core.utils.mod import is_mod_or_superior
-
-
-
+import asyncio
+from datetime import datetime, timedelta
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
@@ -19,10 +17,32 @@ class OnePieceFun(commands.Cog):
             "custom_devil_fruits": {},
             "bounties": {}
         }
+        default_member = {
+            "last_daily_claim": None
+        }
         self.config.register_guild(**default_guild)
+        self.config.register_member(**default_member)
         self.GENERAL_CHANNEL_ID = 425068612542398476
         self.message_count = {}
         self.last_announcement = {}
+
+    BOUNTY_TITLES = [
+        (0, "Cabin Boy"),
+        (1000000, "Pirate Apprentice"),
+        (10000000, "Rookie Pirate"),
+        (50000000, "Super Rookie"),
+        (100000000, "Notorious Pirate"),
+        (300000000, "Pirate Captain"),
+        (500000000, "Supernova"),
+        (1000000000, "Yonko Commander"),
+        (2000000000, "Yonko Candidate")
+    ]
+
+    def get_bounty_title(self, bounty):
+        for threshold, title in reversed(self.BOUNTY_TITLES):
+            if bounty >= threshold:
+                return title
+        return "Unknown"
 
     @commands.command()
     async def df(self, ctx):
@@ -93,32 +113,9 @@ class OnePieceFun(commands.Cog):
         roast = random.choice(roasts)
         await ctx.send(roast)
 
-    import random
-import discord
-from redbot.core import commands, Config
-from redbot.core.bot import Red
-from redbot.core.utils.chat_formatting import box, pagify
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-import asyncio
-
-class OnePieceFun(commands.Cog):
-    """Fun One Piece-themed commands for entertainment!"""
-
-    def __init__(self, bot: Red):
-        self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
-        default_guild = {
-            "custom_devil_fruits": {},
-            "bounties": {}
-        }
-        self.config.register_guild(**default_guild)
-        self.GENERAL_CHANNEL_ID = 425068612542398476
-        self.message_count = {}
-        self.last_announcement = {}
-
     @commands.command()
     async def bounty(self, ctx, *, user: discord.Member = None):
-        """Check a user's bounty."""
+        """Check a user's bounty and title."""
         if user is None:
             user = ctx.author
 
@@ -127,18 +124,21 @@ class OnePieceFun(commands.Cog):
 
         if user_id in bounties:
             amount = bounties[user_id]['amount']
+            title = self.get_bounty_title(amount)
             await ctx.send(f"💰 **Bounty Alert!** 💰\n"
-                           f"{user.display_name}'s bounty is {amount:,} Berries!")
+                           f"{user.display_name}'s bounty is {amount:,} Berries!\n"
+                           f"Current Title: {title}")
         else:
             # Generate a new bounty if one doesn't exist
             bounty = random.randint(1000000, 5000000)
+            title = self.get_bounty_title(bounty)
             reason = self.generate_bounty_reason()
             async with self.config.guild(ctx.guild).bounties() as bounty_list:
                 bounty_list[user_id] = {"amount": bounty}
             
             await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
                            f"The World Government has placed a bounty of {bounty:,} Berries on {user.display_name}'s head "
-                           f"{reason}!")
+                           f"{reason}!\nCurrent Title: {title}")
 
     @commands.command()
     async def bountylist(self, ctx):
@@ -212,6 +212,47 @@ class OnePieceFun(commands.Cog):
             "for trying to teach the Revolutionary Army to do the 'Binks' Sake' dance"
         ]
         return random.choice(reasons)
+
+    @commands.command()
+    @commands.cooldown(1, 86400, commands.BucketType.user)
+    async def dailybounty(self, ctx):
+        """Claim your daily bounty increase!"""
+        user = ctx.author
+        last_claim = await self.config.member(user).last_daily_claim()
+        now = datetime.utcnow()
+        
+        if last_claim:
+            last_claim = datetime.fromisoformat(last_claim)
+            if now - last_claim < timedelta(days=1):
+                time_left = timedelta(days=1) - (now - last_claim)
+                return await ctx.send(f"Ye can't claim yer daily bounty yet! Come back in {time_left.seconds // 3600} hours and {(time_left.seconds // 60) % 60} minutes, ye greedy sea dog!")
+
+        bounties = await self.config.guild(ctx.guild).bounties()
+        user_id = str(user.id)
+
+        if user_id not in bounties:
+            bounties[user_id] = {"amount": 1000000}
+
+        increase = random.randint(10000, 50000)
+        
+        await ctx.send(f"Ahoy, {user.display_name}! Ye found a treasure chest! Do ye want to open it? (yes/no)")
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel and m.content.lower() in ["yes", "no"]
+            msg = await self.bot.wait_for("message", check=check, timeout=30)
+        except asyncio.TimeoutError:
+            return await ctx.send("Ye let the treasure slip through yer fingers! Try again tomorrow, ye landlubber!")
+
+        if msg.content.lower() == "yes":
+            bounties[user_id]["amount"] += increase
+            await self.config.guild(ctx.guild).bounties.set(bounties)
+            new_bounty = bounties[user_id]["amount"]
+            new_title = self.get_bounty_title(new_bounty)
+            await self.config.member(user).last_daily_claim.set(now.isoformat())
+            await ctx.send(f"💰 Ye claimed {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
+                           f"Current Title: {new_title}")
+        else:
+            await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
                 
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
@@ -410,6 +451,39 @@ class OnePieceFun(commands.Cog):
         effect = random.choice(effects).format(name=name)
         
         await ctx.send(f"{description}\n{effect}")
+
+    @commands.command()
+    async def trivia(self, ctx):
+        """Play a round of One Piece trivia!"""
+        questions = [
+            ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol"),
+            ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro"),
+            ("What is the name of the legendary treasure in One Piece?", "One Piece"),
+            ("What is the name of Luffy's pirate crew?", "Straw Hat Pirates"),
+            ("Who is the cook of the Straw Hat Pirates?", "Sanji"),
+            ("What is the name of the cursed sword Zoro uses?", "Sandai Kitetsu"),
+            ("What type of fruit did Chopper eat?", "Human-Human Fruit"),
+            ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin"),
+            ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak"),
+            ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo")
+        ]
+        
+        question, answer = random.choice(questions)
+        
+        await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
+        
+        def check(m):
+            return m.author == ctx.author and m.channel == ctx.channel
+        
+        try:
+            user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
+        except asyncio.TimeoutError:
+            return await ctx.send(f"Time's up, ye slow sea slug! The correct answer was: {answer}")
+        
+        if user_answer.content.lower() == answer.lower():
+            await ctx.send(f"Aye, that be correct, {ctx.author.display_name}! Ye know yer One Piece lore!")
+        else:
+            await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
 
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
