@@ -137,27 +137,61 @@ class OnePieceFun(commands.Cog):
         await love_message.edit(embed=embed)
         
     @commands.command()
-    async def roast(self, ctx, *, target: str):
-        """Deliver a One Piece-themed roast."""
+    async def roast(self, ctx, *, target: discord.Member = None):
+        """Deliver a hilarious One Piece-themed roast!"""
+        if target is None:
+            target = ctx.author
+        
         roasts = [
-            f"{target}, ye be as useless as a rubber knife at a Logia convention!",
-            f"Oi, {target}! Even Buggy the Clown be laughin' at yer skills!",
-            f"Ye know, {target}, if brains were berries, ye couldn't feed Chopper in his smallest form!",
-            f"Arr, {target}! Ye be as lost as Zoro in a straight hallway!",
-            f"Listen here, {target}, ye have the charm of a Sea King with a toothache!",
-            f"{target}, yer as slow as Luffy's brain during a math test!",
-            f"Oi, {target}! Ye couldn't find the One Piece if it were hangin' 'round yer neck!",
-            f"Ye know what, {target}? Ye be makin' Foxy the Silver Fox look like a genius!",
-            f"Arr, {target}! Ye have the fighting skills of a Den Den Mushi!",
-            f"Blimey, {target}! Ye be as useful in a fight as Usopp's rubber band of doom!",
-            f"{target}, yer navigation skills make Luffy look like Nami!",
-            f"Oi, {target}! Ye have the charisma of a Celestial Dragon at a commoner's party!",
-            f"{target}, ye couldn't beat Spandam in an arm-wrestling match!",
-            f"Arr, {target}! Yer about as intimidating as Chopper's cotton candy loving form!",
-            f"Listen here, {target}, ye have the memory of Gaimon... stuck in a box for 20 years!"
+            f"{target.mention}, ye be as useless as a rubber knife at a Logia convention! 🔪😂",
+            f"Oi, {target.mention}! Even Buggy the Clown be laughin' at yer skills! 🤡",
+            f"Ye know, {target.mention}, if brains were berries, ye couldn't feed Chopper in his smallest form! 🧠🍒",
+            f"Arr, {target.mention}! Ye be as lost as Zoro in a straight hallway! 🗺️😵",
+            f"Listen here, {target.mention}, ye have the charm of a Sea King with a toothache! 🦈😬",
+            f"{target.mention}, yer as slow as Luffy's brain during a math test! 🧮🐌",
+            f"Oi, {target.mention}! Ye couldn't find the One Piece if it were hangin' 'round yer neck! 💎🔍",
+            f"Ye know what, {target.mention}? Ye be makin' Foxy the Silver Fox look like a genius! 🦊🤓",
+            f"Arr, {target.mention}! Ye have the fighting skills of a Den Den Mushi! 🐌👊",
+            f"Blimey, {target.mention}! Ye be as useful in a fight as Usopp's rubber band of doom! 🪀💥",
+            f"{target.mention}, yer navigation skills make Luffy look like Nami! 🧭😵‍💫",
+            f"Oi, {target.mention}! Ye have the charisma of a Celestial Dragon at a commoner's party! 👑🎭",
+            f"{target.mention}, ye couldn't beat Spandam in an arm-wrestling match! 💪�weak:",
+            f"Arr, {target.mention}! Yer about as intimidating as Chopper's cotton candy loving form! 🦌🍭",
+            f"Listen here, {target.mention}, ye have the memory of Gaimon... stuck in a box for 20 years! 📦🧠",
+            f"{target.mention}, ye have the ambition of a Marine cleaning Akainu's boots! 👢😴",
+            f"Oi, {target.mention}! Yer about as brave as Usopp facing a potato bug! 🥔🐛",
+            f"Arrr, {target.mention}! Ye be as smooth as Sanji talkin' to a male okama! 💃😰",
+            f"{target.mention}, ye have the luck of Luffy in an all-you-can't-eat buffet! 🍖🚫",
+            f"Shiver me timbers, {target.mention}! Ye be as sneaky as Franky in his pre-timeskip speedos! 🩲😱",
+            f"Oi, {target.mention}! Ye have the patience of Zoro waitin' for his sense of direction! ⏳🧭",
+            f"{target.mention}, ye be as useful as Absalom's invisibility at a blind date! 👻👀",
+            f"Blimey, {target.mention}! Ye have the subtlety of Luffy at a stealth mission! 🥷😅",
+            f"Arr, {target.mention}! Yer wisdom rivals that of Luffy choosin' between adventure and meat! 🍖🤔",
+            f"Listen here, {target.mention}, ye be as reliable as Buggy's flying body parts in a tornado! 🌪️🤡"
         ]
+
         roast = random.choice(roasts)
-        await ctx.send(roast)
+        
+        # One Piece themed GIFs
+        gifs = [
+            "https://media1.tenor.com/m/7lRL4QGxcEQAAAAC/one-piece-brooklyn99.gif",  # Brook laughing
+            "https://media1.tenor.com/m/_TOUqGiSupAAAAAC/nami-one-piece.gif",  # Nami facepalming
+            "https://media1.tenor.com/m/O2PtVljr38kAAAAC/anime-one-piece.gif",  # Usopp laughing
+            "https://media1.tenor.com/m/Ig-QyHS3mdQAAAAC/one-piece-one-piece-chopper.gif",  # Chopper shocked
+            "https://media1.tenor.com/m/YkSHUSSIBpgAAAAC/sad-sanji.gif",  # Sanji disappointed
+            "https://media1.tenor.com/m/bYLysUNam28AAAAC/chopper-angry-chopper.gif",  # Chopper angry
+            "https://media1.tenor.com/m/DuHndhgl2FoAAAAC/your-team-sucks-you-guys-suck.gif",  # "You suck"
+            "https://media1.tenor.com/m/DhRZ9HA6fbgAAAAC/monkey-d-luffy-luffy.gif",  # Luffy big laugh
+            "https://media1.tenor.com/m/rz6rO_YNj3UAAAAC/trafalgar-law.gif",  # Law facepalm
+            "https://media1.tenor.com/m/UjQkCTOcuTIAAAAd/buggy-one-piece.gif"   # Buggy angry
+        ]
+        
+        embed = discord.Embed(title="🏴‍☠️ One Piece Roast 🏴‍☠️", description=roast, color=discord.Color.red())
+        embed.set_thumbnail(url=target.avatar_url)
+        embed.set_image(url=random.choice(gifs))
+        embed.set_footer(text="Powered by the Grand Line's saltiest pirates!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def bounty(self, ctx, *, user: discord.Member = None):
