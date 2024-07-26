@@ -7,6 +7,7 @@ import discord
 import random
 import asyncio
 from datetime import datetime, timedelta
+from discord.ext import commands
 
 
 class OnePieceFun(commands.Cog):
@@ -413,68 +414,133 @@ class OnePieceFun(commands.Cog):
         
         await ctx.send(embed=embed)
 
+
     @commands.command()
-    async def reaction(self, ctx, *, situation: str):
+    async def reaction(self, ctx, *, situation: str = None):
         """Get a One Piece character's reaction to a situation."""
         characters = {
-            "Luffy": ["laughs and asks if it's edible", "shouts 'I'm gonna be the Pirate King!'", "picks his nose thoughtfully"],
-            "Zoro": ["gets lost trying to respond", "mumbles something about training", "takes a nap"],
-            "Nami": ["demands payment for her opinion", "sighs and facepalms", "starts plotting how to profit from the situation"],
-            "Usopp": ["tells an outrageous lie about a similar situation", "hides behind Luffy", "invents a new gadget to deal with it"],
-            "Sanji": ["offers to cook something to help", "swoons if it involves a lady", "picks a fight with Zoro"],
-            "Chopper": ["hides the wrong way", "offers medical advice", "gets sparkly-eyed with excitement"],
-            "Robin": ["chuckles ominously", "shares a morbid historical fact", "calmly sips tea"],
-            "Franky": ["strikes a pose and shouts 'SUPER!'", "offers to build a machine to solve the problem", "questions if it's 'SUPER' enough"],
-            "Brook": ["makes a skull joke", "asks to see ladies' panties", "starts playing a song about the situation"]
+            "Luffy": ["laughs and asks if it's edible", "shouts 'I'm gonna be the Pirate King!'", "picks his nose thoughtfully", "stretches his arms to grab some meat", "grins widely and says 'Sounds like an adventure!'"],
+            "Zoro": ["gets lost trying to respond", "mumbles something about training", "takes a nap", "challenges the situation to a duel", "opens another bottle of sake"],
+            "Nami": ["demands payment for her opinion", "sighs and facepalms", "starts plotting how to profit from the situation", "checks if the situation affects her tangerines", "draws a map to navigate through the problem"],
+            "Usopp": ["tells an outrageous lie about a similar situation", "hides behind Luffy", "invents a new gadget to deal with it", "claims he's allergic to the situation", "dramatically recounts his '8000 followers' facing a similar problem"],
+            "Sanji": ["offers to cook something to help", "swoons if it involves a lady", "picks a fight with Zoro", "lights a cigarette and ponders coolly", "kicks the problem away with his 'Diable Jambe'"],
+            "Chopper": ["hides the wrong way", "offers medical advice", "gets sparkly-eyed with excitement", "transforms into Guard Point out of surprise", "tries to heal the situation with a Rumble Ball"],
+            "Robin": ["chuckles ominously", "shares a morbid historical fact", "calmly sips tea", "uses her Hana Hana no Mi to multitask a solution", "reads a book about similar situations"],
+            "Franky": ["strikes a pose and shouts 'SUPER!'", "offers to build a machine to solve the problem", "questions if it's 'SUPER' enough", "shows off a new cyborg feature to handle it", "suggests solving it with a 'COUP DE BURST'"],
+            "Brook": ["makes a skull joke", "asks to see ladies' panties", "starts playing a song about the situation", "laughs with a 'Yohohoho!'", "offers to fight the situation with his Soul Solid"]
         }
         
+        # Check if the command is used as a reply
+        if ctx.message.reference and not situation:
+            replied_message = await ctx.fetch_message(ctx.message.reference.message_id)
+            situation = replied_message.content
+        elif not situation:
+            await ctx.send("Yarr! Ye need to provide a situation or reply to a message, ye scurvy dog!")
+            return
+
         character = random.choice(list(characters.keys()))
         reaction = random.choice(characters[character])
         
-        await ctx.send(f"In response to '{situation}', {character} {reaction}.")
+        character_ascii = self.get_character_ascii(character)
+        
+        response = f"```\n{character_ascii}\n```\n"
+        response += f"📜 Situation: **{situation}**\n\n"
+        response += f"💬 **{character}'s Reaction:**\n{reaction}\n\n"
+        response += "🌊 One Piece reactions, straight from the Grand Line! 🏴‍☠️"
+        
+        await ctx.send(response)
 
     @commands.command()
     async def island(self, ctx):
         """Generate a random One Piece-style island name and description."""
-        prefixes = ["Punk", "Whole", "Drum", "Fishman", "Sky", "Water", "Dressrosa", "Shells", "Jaya", "Enies", "Thriller"]
-        suffixes = ["Island", "Kingdom", "Archipelago", "City", "Town", "Land", "Paradise", "Hell", "World", "Country"]
+        prefixes = ["Punk", "Whole", "Drum", "Fishman", "Sky", "Water", "Dressrosa", "Shells", "Jaya", "Enies", "Thriller", "Laugh", "Whisper", "Howl", "Ember", "Frost", "Bloom", "Shadow", "Crystal", "Neon"]
+        suffixes = ["Island", "Kingdom", "Archipelago", "City", "Town", "Land", "Paradise", "Hell", "World", "Country", "Reef", "Plateau", "Jungle", "Desert", "Tundra", "Volcano", "Labyrinth", "Ruins", "Citadel", "Oasis"]
         
-        features = ["giant trees", "talking animals", "extreme weather", "ancient ruins", "futuristic technology", 
-                    "perpetual night", "eternal summer", "floating islands", "underwater caves", "living buildings"]
+        features = ["giant trees that whisper ancient secrets", "talking animals with philosopher's beards", "extreme weather that changes every 5 minutes", "ancient ruins of a technologically advanced civilization", "futuristic technology powered by Sea King snores", 
+                    "perpetual night illuminated by bioluminescent creatures", "eternal summer with occasional snow cone rain", "floating islands connected by rainbow bridges", "underwater caves filled with breathing air bubbles", "living buildings that rearrange themselves daily"]
         
-        dangers = ["man-eating plants", "volcanic eruptions", "whirlpools", "giant sea monsters", "unpredictable gravity", 
-                   "memory-erasing mist", "time distortions", "reality-bending mirages", "cursed treasures", "shape-shifting natives"]
+        dangers = ["man-eating plants with a taste for pirate hats", "volcanic eruptions that spew gold instead of lava", "whirlpools that lead to random parts of the Grand Line", "giant sea monsters that tell dad jokes", "unpredictable gravity that turns walking into flying", 
+                   "memory-erasing mist that makes you forget your favorite food", "time distortions that age cheese but not people", "reality-bending mirages that make Zoro even more lost", "cursed treasures that turn people into Den Den Mushis", "shape-shifting natives who always impersonate the wrong person"]
         
         island_name = f"{random.choice(prefixes)} {random.choice(suffixes)}"
-        description = f"An island known for its {random.choice(features)}. Beware of the {random.choice(dangers)}!"
+        feature = random.choice(features)
+        danger = random.choice(dangers)
+        population = f"{random.randint(100, 1000000):,}"
         
-        await ctx.send(f"🏝️ **{island_name}** 🏝️\n{description}")
+        island_ascii = self.get_island_ascii()
+        
+        response = f"```\n{island_ascii}\n```\n"
+        response += f"🏝️  **{island_name}**  🏝️\n\n"
+        response += f"📊 Population: {population}\n\n"
+        response += f"✨ Known for: {feature}\n\n"
+        response += f"⚠️ Danger: {danger}\n\n"
+        response += "🧭 May your Log Pose guide you to this mysterious island! ⛵"
+        
+        await ctx.send(response)
 
     @commands.command()
     async def crewrole(self, ctx, *, name: str):
         """Assign a random One Piece crew role to someone."""
         roles = [
             "Captain", "First Mate", "Navigator", "Sniper", "Chef", "Doctor", "Shipwright", "Musician",
-            "Archaeologist", "Helmsman", "Lookout", "Strategist", "Cabin Boy/Girl", "Pet"
+            "Archaeologist", "Helmsman", "Lookout", "Strategist", "Cabin Boy/Girl", "Pet", "Quartermaster",
+            "Rigger", "Gunner", "Sailing Master", "Boatswain", "Carpenter"
+        ]
+        
+        quirks = [
+            "who's always hungry", "with a secret past", "who's afraid of their own shadow",
+            "who can't swim (even without a Devil Fruit)", "who tells the worst jokes",
+            "who's obsessed with treasure", "who sleeps through every battle",
+            "who's in love with the ship", "who thinks they're the captain (but they're not)",
+            "who's actually a Marine spy (shh, don't tell anyone)", "who can only speak in rhymes",
+            "who believes they're invisible (they're not)", "who collects wanted posters as a hobby",
+            "who's allergic to adventure", "who's constantly planning mutiny (but never goes through with it)"
         ]
         
         role = random.choice(roles)
-        quirks = [
-            "who's always hungry",
-            "with a secret past",
-            "who's afraid of their own shadow",
-            "who can't swim (even without a Devil Fruit)",
-            "who tells the worst jokes",
-            "who's obsessed with treasure",
-            "who sleeps through every battle",
-            "who's in love with the ship",
-            "who thinks they're the captain (but they're not)",
-            "who's actually a Marine spy (shh, don't tell anyone)"
-        ]
-        
         quirk = random.choice(quirks)
         
-        await ctx.send(f"Ahoy! {name} would be the crew's {role}, {quirk}!")
+        pirate_ascii = self.get_pirate_ascii()
+        
+        response = f"```\n{pirate_ascii}\n```\n"
+        response += f"🏴‍☠️ Ahoy, {name}! Yer new role on the crew be:\n\n"
+        response += f"🎭 **{role}**\n\n"
+        response += f"👀 Special Quirk: {quirk}\n\n"
+        response += "⚓ Welcome aboard, ye scurvy dog! ⚓"
+        
+        await ctx.send(response)
+
+    def get_character_ascii(self, character):
+        # You can create simple ASCII art for each character or use a generic pirate ASCII art
+        return """
+          _____
+         |     |
+         | O O |
+         |  ^  |
+         | --- |
+         |_____|
+        """
+
+    def get_island_ascii(self):
+        return """
+           /\\
+          /  \\
+         /    \\
+        /      \\
+       /        \\
+      /__________\\
+        """
+
+    def get_pirate_ascii(self):
+        return """
+         _____
+        |     |
+        | X X |
+        |  o  |
+        | --- |
+        |_____|
+         /   \\
+        """
 
     @commands.command()
     @commands.cooldown(1, 240, commands.BucketType.user)  # 4-minute cooldown per user
