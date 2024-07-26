@@ -7,8 +7,6 @@ import discord
 import random
 import asyncio
 from datetime import datetime, timedelta
-from discord.ext import commands
-
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
@@ -28,8 +26,8 @@ class OnePieceFun(commands.Cog):
         self.GENERAL_CHANNEL_ID = 425068612542398476
         self.message_count = {}
         self.last_announcement = {}
-        self.trivia_lock = asyncio.Lock()  # Add this line to initialize the trivia_lock
-
+        self.trivia_lock = asyncio.Lock()
+        
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
         (1000000, "Pirate Apprentice"),
