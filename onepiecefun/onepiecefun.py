@@ -107,27 +107,27 @@ class OnePieceFun(commands.Cog):
             color = discord.Color.dark_magenta()
             emoji = "💞"
 
-        # Create final embed with user mentions
+        # Create final embed with usernames
         embed = discord.Embed(
-            title=f"Love Compatibility: {user1.mention} & {user2.mention}",
+            title=f"Love Compatibility: {user1.name} & {user2.name}",
             color=color
         )
         embed.add_field(name="Love Percentage", value=f"{love_percentage}% {emoji}", inline=False)
 
         if love_percentage < 20:
-            verdict = f"Arr! {user1.display_name} and {user2.display_name} be as compatible as Luffy and skipping meals!"
+            verdict = f"Arr! {user1.name} and {user2.name} be as compatible as Luffy and skipping meals!"
             image_url = "https://i.imgur.com/LqX1jSH.jpeg"
         elif love_percentage < 40:
-            verdict = f"Yohohoho! The love between {user1.display_name} and {user2.display_name} be as empty as Brook's belly!"
+            verdict = f"Yohohoho! The love between {user1.name} and {user2.name} be as empty as Brook's belly!"
             image_url = "https://i.imgur.com/7yAj1avb.jpg"
         elif love_percentage < 60:
-            verdict = f"Aye, {user1.display_name} and {user2.display_name} be gettin' along like Zoro and a compass!"
+            verdict = f"Aye, {user1.name} and {user2.name} be gettin' along like Zoro and a compass!"
             image_url = "https://i.imgur.com/INqnjtYb.jpg"
         elif love_percentage < 80:
-            verdict = f"Shiver me timbers! {user1.display_name} and {user2.display_name} be as close as Sanji to his kitchen!"
+            verdict = f"Shiver me timbers! {user1.name} and {user2.name} be as close as Sanji to his kitchen!"
             image_url = "https://static1.cbrimages.com/wordpress/wp-content/uploads/2022/10/0B4E75F9-5053-4BDA-B326-7E32C6E4FBD9.jpeg"
         else:
-            verdict = f"By the powers of the sea! {user1.display_name} and {user2.display_name} be as perfect as Luffy and meat!"
+            verdict = f"By the powers of the sea! {user1.name} and {user2.name} be as perfect as Luffy and meat!"
             image_url = "https://media.tenor.com/l2-mUQdjoScAAAAe/luffy-one-piece.png"
 
         embed.add_field(name="Pirate's Verdict", value=verdict, inline=False)
