@@ -699,7 +699,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"🗿 You've decoded the poneglyph! It reads:\n\n*{decoded}*")
 
     @commands.command()
-    @commands.check(is_mod_or_superior)
+    @commands.check(is_mod_or_admin)
     async def df_add(self, ctx, name: str, *, description: str):
         """Add a custom Devil Fruit to the server's list."""
         async with self.config.guild(ctx.guild).custom_devil_fruits() as df_list:
