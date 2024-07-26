@@ -435,6 +435,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"Ahoy! {name} would be the crew's {role}, {quirk}!")
 
     @commands.command()
+    @commands.cooldown(1, 240, commands.BucketType.user)  # 4-minute cooldown per user
     async def decode(self, ctx):
         """Decode a 'mysterious' poneglyph message."""
         messages = [
@@ -676,23 +677,6 @@ class OnePieceFun(commands.Cog):
             "You tried to steal food from the fridge, but Sanji caught your extended hand.",
         ]
         await ctx.send(f"🖐️ {random.choice(results)}")
-
-    @commands.command()
-    @commands.cooldown(1, 240, commands.BucketType.user)  # 4-minute cooldown per user
-    async def poneglyph(self, ctx):
-        """Discover a random Poneglyph message."""
-        messages = [
-            "The One Piece is actually a lifetime supply of meat - Gol D. Roger's last prank.",
-            "Congratulations! You've found the All Blue... in a puddle.",
-            "The Will of D stands for 'Donut Lovers Anonymous'.",
-            "Caution: Reading this Poneglyph may cause spontaneous dance parties.",
-            "The secret to Kaido's strength: He never skips leg day.",
-            "This Poneglyph is sponsored by Buggy's Delivery Service - We'll Chop Up Your Competition!",
-            "The true treasure was the nakama we made along the way... and also a ton of gold.",
-            "Warning: Exposure to Poneglyphs may result in sudden urges to overthrow the government.",
-            "Fun Fact: The Red Line is actually a giant mood ring. It's feeling blue today.",
-        ]
-        await ctx.send(f"🗿 *You decipher the ancient text:*\n\n{random.choice(messages)}")
 
     @commands.command()
     @commands.cooldown(1, 360, commands.BucketType.user)  # 6-minute cooldown per user
