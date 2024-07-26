@@ -16,7 +16,8 @@ class OnePieceFun(commands.Cog):
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         default_guild = {
             "custom_devil_fruits": {},
-            "bounties": {}
+            "bounties": {},
+            "pirate_crews": {}
         }
         default_member = {
             "last_daily_claim": None
@@ -1039,6 +1040,167 @@ class OnePieceFun(commands.Cog):
         embed.set_footer(text="Remember, you've got 3 minutes before you turn back! Use your new form wisely... or hilariously!")
         
         await ctx.send(embed=embed)
+
+@commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def createcrew(self, ctx, crew_name: str, captain: discord.Member):
+        """Create a new pirate crew with a captain."""
+        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+            if crew_name in crews:
+                return await ctx.send(f"The {crew_name} already exists! Choose a different name, ye scurvy dog!")
+            
+            crews[crew_name] = {"captain": captain.id, "members": [captain.id]}
+        
+        await ctx.send(f"Ahoy! The {crew_name} has been formed with {captain.display_name} as the captain!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def addtocrew(self, ctx, crew_name: str, member: discord.Member):
+        """Add a member to an existing pirate crew."""
+        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+            if crew_name not in crews:
+                return await ctx.send(f"The {crew_name} doesn't exist! Have ye been drinkin' too much rum?")
+            
+            if member.id in crews[crew_name]["members"]:
+                return await ctx.send(f"{member.display_name} is already part of the {crew_name}!")
+            
+            crews[crew_name]["members"].append(member.id)
+        
+        await ctx.send(f"{member.display_name} has joined the {crew_name}! Welcome aboard, matey!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def removefromcrew(self, ctx, crew_name: str, member: discord.Member):
+        """Remove a member from a pirate crew."""
+        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+            if crew_name not in crews:
+                return await ctx.send(f"The {crew_name} doesn't exist! Are ye seein' ghost ships?")
+            
+            if member.id not in crews[crew_name]["members"]:
+                return await ctx.send(f"{member.display_name} isn't part of the {crew_name}!")
+            
+            crews[crew_name]["members"].remove(member.id)
+            
+            if member.id == crews[crew_name]["captain"]:
+                if crews[crew_name]["members"]:
+                    new_captain_id = random.choice(crews[crew_name]["members"])
+                    crews[crew_name]["captain"] = new_captain_id
+                    new_captain = ctx.guild.get_member(new_captain_id)
+                    await ctx.send(f"{member.display_name} has been removed from the {crew_name}!\n"
+                                   f"{new_captain.display_name} is the new captain!")
+                else:
+                    del crews[crew_name]
+                    await ctx.send(f"{member.display_name} has been removed and the {crew_name} has been disbanded!")
+            else:
+                await ctx.send(f"{member.display_name} has been removed from the {crew_name}!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def crewbattle(self, ctx, crew1: str, crew2: str):
+        """Initiate a battle between two pirate crews."""
+        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+            if crew1 not in crews or crew2 not in crews:
+                return await ctx.send("One or both of these crews don't exist! Check yer sea charts!")
+            
+            crew1_power = len(crews[crew1]["members"]) * random.randint(1, 10)
+            crew2_power = len(crews[crew2]["members"]) * random.randint(1, 10)
+            
+            winner = crew1 if crew1_power > crew2_power else crew2
+            loser = crew2 if winner == crew1 else crew1
+            
+            # Update bounties
+            bounty_increase = random.randint(1000000, 5000000)
+            bounty_decrease = random.randint(100000, 1000000)
+            
+            async with self.config.guild(ctx.guild).bounties() as bounties:
+                for member_id in crews[winner]["members"]:
+                    if str(member_id) not in bounties:
+                        bounties[str(member_id)] = {"amount": 0}
+                    bounties[str(member_id)]["amount"] += bounty_increase
+                
+                for member_id in crews[loser]["members"]:
+                    if str(member_id) in bounties:
+                        bounties[str(member_id)]["amount"] = max(0, bounties[str(member_id)]["amount"] - bounty_decrease)
+        
+        await ctx.send(f"⚔️ **Epic Crew Battle** ⚔️\n"
+                       f"The {winner} have emerged victorious over the {loser}!\n"
+                       f"The World Government has increased the bounties of the {winner} by {bounty_increase:,} Berries each!\n"
+                       f"The {loser} have had their bounties decreased by {bounty_decrease:,} Berries each!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def marineraid(self, ctx):
+        """Initiate a Marine raid on the server."""
+        channel = self.bot.get_channel(self.GENERAL_CHANNEL_ID)
+        if not channel:
+            return await ctx.send("Error: General channel not found. The Marines couldn't find their way!")
+
+        marine_admirals = ["Akainu", "Aokiji", "Kizaru", "Fujitora", "Ryokugyu"]
+        admiral = random.choice(marine_admirals)
+
+        await channel.send(f"🚨 **Marine Raid Alert** 🚨\n"
+                           f"Admiral {admiral} has been spotted nearby! All pirates, prepare for battle!")
+
+        # Give users a chance to react
+        await asyncio.sleep(300)  # 5 minutes
+
+        captured = random.sample(ctx.guild.members, k=min(5, len(ctx.guild.members)))
+        escaped = random.sample([m for m in ctx.guild.members if m not in captured], k=min(3, len(ctx.guild.members)))
+
+        capture_message = "The Marines have captured:\n" + "\n".join([m.mention for m in captured])
+        escape_message = "These cunning pirates managed to escape:\n" + "\n".join([m.mention for m in escaped])
+
+        await channel.send(f"The Marine raid has ended!\n\n{capture_message}\n\n{escape_message}")
+
+        # Update bounties
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            for member in escaped:
+                if str(member.id) not in bounties:
+                    bounties[str(member.id)] = {"amount": 1000000}
+                bounties[str(member.id)]["amount"] += random.randint(10000000, 50000000)
+
+        await channel.send("The bounties of the escaped pirates have been increased significantly!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def islandexpedition(self, ctx):
+        """Start a random island expedition event."""
+        islands = [
+            "Mysterious Fog Island", "Prehistoric Dinosaur Island", "Golden Treasury Island",
+            "Perpetual Winter Island", "Sky Island", "Underwater Island Dome"
+        ]
+        island = random.choice(islands)
+        
+        treasures = [
+            "ancient poneglyph", "cursed sword", "eternal log pose", "chest of gold",
+            "mysterious devil fruit", "advanced technology blueprint"
+        ]
+        treasure = random.choice(treasures)
+
+        channel = self.bot.get_channel(self.GENERAL_CHANNEL_ID)
+        if not channel:
+            return await ctx.send("Error: General channel not found. The expedition is lost at sea!")
+
+        await channel.send(f"🏝️ **Island Expedition Event** 🏝️\n"
+                           f"A {island} has been discovered! Who will be the first to claim its treasures?")
+
+        # Give users time to participate (simulated by waiting)
+        await asyncio.sleep(3600)  # 1 hour
+
+        winners = random.sample(ctx.guild.members, k=min(3, len(ctx.guild.members)))
+        
+        result_message = f"The expedition to {island} has concluded!\n\n"
+        result_message += f"The brave pirates {', '.join([w.mention for w in winners])} have discovered a {treasure}!\n"
+        result_message += "Their bounties have been increased for this remarkable find!"
+
+        await channel.send(result_message)
+
+        # Update bounties for winners
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            for winner in winners:
+                if str(winner.id) not in bounties:
+                    bounties[str(winner.id)] = {"amount": 1000000}
+                bounties[str(winner.id)]["amount"] += random.randint(5000000, 20000000)
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
