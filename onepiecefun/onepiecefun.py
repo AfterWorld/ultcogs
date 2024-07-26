@@ -7,6 +7,7 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.utils.mod import is_mod_or_superior
 import asyncio
 from datetime import datetime, timedelta
+from discord.ext import commands
 
 
 class OnePieceFun(commands.Cog):
@@ -79,18 +80,58 @@ class OnePieceFun(commands.Cog):
         """Calculate the One Piece love compatibility between two names."""
         love_percentage = random.randint(1, 100)
         
+        # Determine color based on love percentage
         if love_percentage < 20:
-            message = f"Arr! {name1} and {name2} be as compatible as Luffy and skipping meals! ({love_percentage}%)"
+            color = discord.Color.red()
+            emoji = "💔"
         elif love_percentage < 40:
-            message = f"Yohohoho! The love between {name1} and {name2} be as empty as me belly! ({love_percentage}%)"
+            color = discord.Color.orange()
+            emoji = "😐"
         elif love_percentage < 60:
-            message = f"Aye, {name1} and {name2} be gettin' along like Zoro and a compass! ({love_percentage}%)"
+            color = discord.Color.gold()
+            emoji = "🙂"
         elif love_percentage < 80:
-            message = f"Shiver me timbers! {name1} and {name2} be as close as Sanji to his kitchen! ({love_percentage}%)"
+            color = discord.Color.green()
+            emoji = "💖"
         else:
-            message = f"By the powers of the sea! {name1} and {name2} be as perfect as Luffy and meat! ({love_percentage}%)"
+            color = discord.Color.dark_magenta()
+            emoji = "💞"
 
-        await ctx.send(message)
+        # Create the embed
+        embed = discord.Embed(
+            title=f"Love Compatibility: {name1} & {name2}",
+            color=color
+        )
+
+        # Add love percentage field
+        embed.add_field(name="Love Percentage", value=f"{love_percentage}% {emoji}", inline=False)
+
+        # Add compatibility message
+        if love_percentage < 20:
+            message = f"Arr! {name1} and {name2} be as compatible as Luffy and skipping meals!"
+            image_url = "https://i.imgur.com/LqX1jSH.jpeg"  # Sad Luffy image
+        elif love_percentage < 40:
+            message = f"Yohohoho! The love between {name1} and {name2} be as empty as Brook's belly!"
+            image_url = "https://i.imgur.com/7yAj1avb.jpg"  # Brook laughing image
+        elif love_percentage < 60:
+            message = f"Aye, {name1} and {name2} be gettin' along like Zoro and a compass!"
+            image_url = "https://i.imgur.com/INqnjtYb.jpg"  # Lost Zoro image
+        elif love_percentage < 80:
+            message = f"Shiver me timbers! {name1} and {name2} be as close as Sanji to his kitchen!"
+            image_url = "https://static1.cbrimages.com/wordpress/wp-content/uploads/2022/10/0B4E75F9-5053-4BDA-B326-7E32C6E4FBD9.jpeg"  # Sanji cooking image
+        else:
+            message = f"By the powers of the sea! {name1} and {name2} be as perfect as Luffy and meat!"
+            image_url = "https://media.tenor.com/l2-mUQdjoScAAAAe/luffy-one-piece.png"  # Luffy eating meat image
+
+        embed.add_field(name="Pirate's Verdict", value=message, inline=False)
+
+        # Add image
+        embed.set_image(url=image_url)
+
+        # Add footer
+        embed.set_footer(text="Powered by the Grand Line's mystical love calculator!")
+
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def roast(self, ctx, *, target: str):
@@ -467,25 +508,94 @@ class OnePieceFun(commands.Cog):
             ("What type of fruit did Chopper eat?", "Human-Human Fruit"),
             ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin"),
             ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak"),
-            ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo")
+            ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo"),
+            ("What is the name of Luffy's brother?", "Portgas D. Ace"),
+            ("Who is the shipwright of the Straw Hat Pirates?", "Franky"),
+            ("What is the name of Nami's weapon?", "Clima-Tact"),
+            ("Which Yonko is known as 'Red-Haired'?", "Shanks"),
+            ("What is the name of the island where the Straw Hats trained for two years?", "Rusukaina"),
+            ("Who is the musician of the Straw Hat Pirates?", "Brook"),
+            ("What is the name of the Revolutionary Army's leader?", "Monkey D. Dragon"),
+            ("Which former Shichibukai is known as the 'Hawk-Eye'?", "Dracule Mihawk"),
+            ("What is the name of the sea train that connects Water 7 to other islands?", "Puffing Tom"),
+            ("Who is the captain of the Heart Pirates?", "Trafalgar D. Water Law"),
+            ("What is the name of the island where Zoro trained during the time skip?", "Kuraigana Island"),
+            ("Who is the creator of the Pacifista?", "Dr. Vegapunk"),
+            ("What is the name of Luffy's grandfather?", "Monkey D. Garp"),
+            ("Which Yonko is known as 'Big Mom'?", "Charlotte Linlin"),
+            ("What is the name of the island where the Straw Hats met Brook?", "Thriller Bark"),
+            ("Who is the sniper of the Straw Hat Pirates?", "Usopp"),
+            ("What is the name of Zoro's ultimate technique?", "Asura"),
+            ("Which Devil Fruit did Ace eat?", "Mera Mera no Mi"),
+            ("What is the name of the marine base where Luffy met Coby?", "Shell Town"),
+            ("Who is the former captain of the Sun Pirates?", "Fisher Tiger"),
+            ("What is the name of the special ingredient used in Sanji's raid suit?", "Germa science"),
+            ("Who is the captain of the Kid Pirates?", "Eustass Kid"),
+            ("What is the name of the sword that Zoro received from Ryuma?", "Shusui"),
+            ("Which Yonko is known as 'Blackbeard'?", "Marshall D. Teach"),
+            ("What is the name of the island where the Straw Hats first encountered the Mink Tribe?", "Zou"),
+            ("Who is the helmsman of the Straw Hat Pirates?", "Jinbe"),
+            ("What is the name of the technique Luffy uses to predict enemy attacks?", "Observation Haki"),
+            ("Which pirate crew did Nami originally belong to?", "Arlong Pirates"),
+            ("What is the name of the prison where Ace was held before his execution?", "Impel Down"),
+            ("Who is the captain of the Whitebeard Pirates?", "Edward Newgate"),
+            ("What is the name of the island where Gold Roger was born?", "Loguetown"),
+            ("Who is the former Fleet Admiral of the Marines?", "Sengoku"),
+            ("What is the name of the ship used by the Roger Pirates?", "Oro Jackson"),
+            ("Which Shichibukai is known as the 'Tyrant'?", "Bartholomew Kuma"),
+            ("What is the name of the revolutionary army's second-in-command?", "Sabo"),
+            ("Who is the captain of the Kuja Pirates?", "Boa Hancock"),
+            ("What is the name of the island where the Straw Hats first entered the Grand Line?", "Reverse Mountain"),
+            ("Which Devil Fruit allows the user to create earthquakes?", "Gura Gura no Mi"),
+            ("What is the name of the technique that allows users to coat themselves in Armament Haki?", "Busoshoku Haki"),
+            ("Who is the current Fleet Admiral of the Marines?", "Akainu"),
+            ("What is the name of the country where Sanji was born?", "Germa Kingdom"),
+            ("Which former Shichibukai is known as the 'Knight of the Sea'?", "Jinbe"),
+            ("What is the name of the sword that belongs to Kozuki Oden?", "Enma"),
+            ("Who is the captain of the Rocks Pirates?", "Rocks D. Xebec"),
+            ("What is the name of the island where the Straw Hats fought against CP9?", "Enies Lobby"),
+            ("Which Devil Fruit did Sabo eat?", "Mera Mera no Mi"),
+            ("What is the name of the technique Luffy uses to harden his body?", "Armament Haki"),
+            ("Who is the shipwright that built the Thousand Sunny?", "Franky"),
+            ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden"),
+            ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido")
         ]
         
-        question, answer = random.choice(questions)
+        scores = {}
+        used_questions = set()
         
-        await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
-        
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
-        
-        try:
-            user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
-        except asyncio.TimeoutError:
-            return await ctx.send(f"Time's up, ye slow sea slug! The correct answer was: {answer}")
-        
-        if user_answer.content.lower() == answer.lower():
-            await ctx.send(f"Aye, that be correct, {ctx.author.display_name}! Ye know yer One Piece lore!")
-        else:
-            await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
-
+        while True:
+            if len(used_questions) == len(questions):
+                used_questions.clear()  # Reset if all questions have been used
+            
+            available_questions = [q for q in questions if q not in used_questions]
+            question, answer = random.choice(available_questions)
+            used_questions.add((question, answer))
+            
+            await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
+            
+            def check(m):
+                return m.channel == ctx.channel
+            
+            try:
+                user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
+            except asyncio.TimeoutError:
+                await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
+                continue
+            
+            if user_answer.content.lower() == answer.lower():
+                scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
+                await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
+                
+                if scores[user_answer.author] >= 10:
+                    await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
+                    break
+            else:
+                await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
+            
+            # Display current scores
+            score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in scores.items())
+            await ctx.send(score_message)
+            
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
