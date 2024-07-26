@@ -225,6 +225,35 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
+    async def bountyevent(self, ctx, event_type: str):
+        """Trigger a server-wide bounty event."""
+        valid_events = ["inflation", "deflation", "random"]
+        if event_type not in valid_events:
+            return await ctx.send(f"Invalid event type. Choose from: {', '.join(valid_events)}")
+
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            if event_type == "inflation":
+                factor = random.uniform(1.1, 1.5)
+                description = f"All bounties have increased by {(factor-1)*100:.1f}%!"
+            elif event_type == "deflation":
+                factor = random.uniform(0.5, 0.9)
+                description = f"All bounties have decreased by {(1-factor)*100:.1f}%!"
+            else:  # random
+                factors = [random.uniform(0.5, 1.5) for _ in range(len(bounties))]
+                description = "Bounties have changed unpredictably!"
+
+            for user_id in bounties:
+                if event_type == "random":
+                    factor = factors.pop()
+                bounties[user_id]["amount"] = int(bounties[user_id]["amount"] * factor)
+
+        channel = self.bot.get_channel(self.GENERAL_CHANNEL_ID)
+        if channel:
+            await channel.send(f"🚨 **Emergency Bounty Update** 🚨\n{description}")
+        await ctx.send("Bounty event successfully triggered!")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
     async def resetbounty(self, ctx, user: discord.Member):
         """Reset a user's bounty (Mod only)."""
         async with self.config.guild(ctx.guild).bounties() as bounties:
@@ -709,7 +738,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"🗿 You've decoded the poneglyph! It reads:\n\n*{decoded}*")
 
     @commands.command()
-    @commands.check(is_mod_or_admin)
+    @checks.mod_or_permissions(manage_messages=True)
     async def df_add(self, ctx, name: str, *, description: str):
         """Add a custom Devil Fruit to the server's list."""
         async with self.config.guild(ctx.guild).custom_devil_fruits() as df_list:
