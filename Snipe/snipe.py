@@ -1,7 +1,6 @@
 import discord
 from redbot.core import commands, Config
 from datetime import datetime
-import aiohttp
 
 class Snipe(commands.Cog):
     """A cog to snipe deleted messages, including attachments."""
@@ -77,19 +76,9 @@ class Snipe(commands.Cog):
     
         await ctx.send(embed=embed)
         
-        # Send attachments separately
+        # Simply resend the attachment URLs
         for attachment in attachments:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(attachment['url']) as resp:
-                        if resp.status == 200:
-                            data = await resp.read()
-                            file = discord.File(fp=data, filename=attachment['filename'])
-                            await ctx.send(file=file)
-                        else:
-                            await ctx.send(f"Attachment {attachment['filename']} could not be retrieved.")
-            except Exception as e:
-                await ctx.send(f"Error retrieving attachment {attachment['filename']}: {str(e)}")
+            await ctx.send(attachment['url'])
     
         # Recreate and send additional embeds
         for embed_data in embeds:
