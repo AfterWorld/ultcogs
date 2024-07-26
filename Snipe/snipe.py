@@ -1,5 +1,6 @@
 import discord
 from redbot.core import commands, Config
+from redbot.core.utils.tunnel import Tunnel
 from datetime import datetime
 
 class Snipe(commands.Cog):
@@ -74,16 +75,26 @@ class Snipe(commands.Cog):
                 attachment_info.append(f"[{attachment['filename']}]({attachment['url']})")
             embed.add_field(name="Attachments", value="\n".join(attachment_info), inline=False)
     
-        await ctx.send(embed=embed)
+        await Tunnel.message_forwarder(destination=ctx, embed=embed)
         
-        # Simply resend the attachment URLs
+        # Handle attachments using Tunnel utility
         for attachment in attachments:
-            await ctx.send(attachment['url'])
+            mock_message = discord.Object(id=0)
+            mock_message.attachments = [discord.Object(id=0)]
+            mock_message.attachments[0].url = attachment['url']
+            mock_message.attachments[0].proxy_url = attachment['url']
+            mock_message.attachments[0].filename = attachment['filename']
+            
+            files = await Tunnel.files_from_attach(mock_message, use_cached=True)
+            if files:
+                await Tunnel.message_forwarder(destination=ctx, content=f"Attachment: {attachment['filename']}", files=files)
+            else:
+                await ctx.send(f"Attachment could not be retrieved: {attachment['filename']}")
     
         # Recreate and send additional embeds
         for embed_data in embeds:
             recreated_embed = discord.Embed.from_dict(embed_data)
-            await ctx.send(embed=recreated_embed)
+            await Tunnel.message_forwarder(destination=ctx, embed=recreated_embed)
 
 def setup(bot):
     bot.add_cog(Snipe(bot))
