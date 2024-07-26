@@ -1,9 +1,12 @@
 import random
 import discord
-from redbot.core import commands, Config
+from redbot.core import commands, checks, modlog, Config
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+
+
+
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
