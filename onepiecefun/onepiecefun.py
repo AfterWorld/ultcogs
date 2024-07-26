@@ -535,104 +535,204 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     async def trivia(self, ctx):
         """Play a round of One Piece trivia!"""
-        questions = [
-            ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol"),
-            ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro"),
-            ("What is the name of the legendary treasure in One Piece?", "One Piece"),
-            ("What is the name of Luffy's pirate crew?", "Straw Hat Pirates"),
-            ("Who is the cook of the Straw Hat Pirates?", "Sanji"),
-            ("What is the name of the cursed sword Zoro uses?", "Sandai Kitetsu"),
-            ("What type of fruit did Chopper eat?", "Human-Human Fruit"),
-            ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin"),
-            ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak"),
-            ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo"),
-            ("What is the name of Luffy's brother?", "Portgas D. Ace"),
-            ("Who is the shipwright of the Straw Hat Pirates?", "Franky"),
-            ("What is the name of Nami's weapon?", "Clima-Tact"),
-            ("Which Yonko is known as 'Red-Haired'?", "Shanks"),
-            ("What is the name of the island where the Straw Hats trained for two years?", "Rusukaina"),
-            ("Who is the musician of the Straw Hat Pirates?", "Brook"),
-            ("What is the name of the Revolutionary Army's leader?", "Monkey D. Dragon"),
-            ("Which former Shichibukai is known as the 'Hawk-Eye'?", "Dracule Mihawk"),
-            ("What is the name of the sea train that connects Water 7 to other islands?", "Puffing Tom"),
-            ("Who is the captain of the Heart Pirates?", "Trafalgar D. Water Law"),
-            ("What is the name of the island where Zoro trained during the time skip?", "Kuraigana Island"),
-            ("Who is the creator of the Pacifista?", "Dr. Vegapunk"),
-            ("What is the name of Luffy's grandfather?", "Monkey D. Garp"),
-            ("Which Yonko is known as 'Big Mom'?", "Charlotte Linlin"),
-            ("What is the name of the island where the Straw Hats met Brook?", "Thriller Bark"),
-            ("Who is the sniper of the Straw Hat Pirates?", "Usopp"),
-            ("What is the name of Zoro's ultimate technique?", "Asura"),
-            ("Which Devil Fruit did Ace eat?", "Mera Mera no Mi"),
-            ("What is the name of the marine base where Luffy met Coby?", "Shell Town"),
-            ("Who is the former captain of the Sun Pirates?", "Fisher Tiger"),
-            ("What is the name of the special ingredient used in Sanji's raid suit?", "Germa science"),
-            ("Who is the captain of the Kid Pirates?", "Eustass Kid"),
-            ("What is the name of the sword that Zoro received from Ryuma?", "Shusui"),
-            ("Which Yonko is known as 'Blackbeard'?", "Marshall D. Teach"),
-            ("What is the name of the island where the Straw Hats first encountered the Mink Tribe?", "Zou"),
-            ("Who is the helmsman of the Straw Hat Pirates?", "Jinbe"),
-            ("What is the name of the technique Luffy uses to predict enemy attacks?", "Observation Haki"),
-            ("Which pirate crew did Nami originally belong to?", "Arlong Pirates"),
-            ("What is the name of the prison where Ace was held before his execution?", "Impel Down"),
-            ("Who is the captain of the Whitebeard Pirates?", "Edward Newgate"),
-            ("What is the name of the island where Gold Roger was born?", "Loguetown"),
-            ("Who is the former Fleet Admiral of the Marines?", "Sengoku"),
-            ("What is the name of the ship used by the Roger Pirates?", "Oro Jackson"),
-            ("Which Shichibukai is known as the 'Tyrant'?", "Bartholomew Kuma"),
-            ("What is the name of the revolutionary army's second-in-command?", "Sabo"),
-            ("Who is the captain of the Kuja Pirates?", "Boa Hancock"),
-            ("What is the name of the island where the Straw Hats first entered the Grand Line?", "Reverse Mountain"),
-            ("Which Devil Fruit allows the user to create earthquakes?", "Gura Gura no Mi"),
-            ("What is the name of the technique that allows users to coat themselves in Armament Haki?", "Busoshoku Haki"),
-            ("Who is the current Fleet Admiral of the Marines?", "Akainu"),
-            ("What is the name of the country where Sanji was born?", "Germa Kingdom"),
-            ("Which former Shichibukai is known as the 'Knight of the Sea'?", "Jinbe"),
-            ("What is the name of the sword that belongs to Kozuki Oden?", "Enma"),
-            ("Who is the captain of the Rocks Pirates?", "Rocks D. Xebec"),
-            ("What is the name of the island where the Straw Hats fought against CP9?", "Enies Lobby"),
-            ("Which Devil Fruit did Sabo eat?", "Mera Mera no Mi"),
-            ("What is the name of the technique Luffy uses to harden his body?", "Armament Haki"),
-            ("Who is the shipwright that built the Thousand Sunny?", "Franky"),
-            ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden"),
-            ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido")
-        ]
-        
-        scores = {}
-        used_questions = set()
-        
-        while True:
-            if len(used_questions) == len(questions):
-                used_questions.clear()  # Reset if all questions have been used
+        if self.trivia_lock.locked():
+            await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
+            return
+
+        async with self.trivia_lock:
+            questions = [
+                ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol"),
+                ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro"),
+                ("What is the name of the legendary treasure in One Piece?", "One Piece"),
+                ("What is the name of Luffy's pirate crew?", "Straw Hat Pirates"),
+                ("Who is the cook of the Straw Hat Pirates?", "Sanji"),
+                ("What is the name of the cursed sword Zoro uses?", "Sandai Kitetsu"),
+                ("What type of fruit did Chopper eat?", "Human-Human Fruit"),
+                ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin"),
+                ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak"),
+                ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo"),
+                ("What is the name of Luffy's brother?", "Portgas D. Ace"),
+                ("Who is the shipwright of the Straw Hat Pirates?", "Franky"),
+                ("What is the name of Nami's weapon?", "Clima-Tact"),
+                ("Which Yonko is known as 'Red-Haired'?", "Shanks"),
+                ("What is the name of the island where the Straw Hats trained for two years?", "Rusukaina"),
+                ("Who is the musician of the Straw Hat Pirates?", "Brook"),
+                ("What is the name of the Revolutionary Army's leader?", "Monkey D. Dragon"),
+                ("Which former Shichibukai is known as the 'Hawk-Eye'?", "Dracule Mihawk"),
+                ("What is the name of the sea train that connects Water 7 to other islands?", "Puffing Tom"),
+                ("Who is the captain of the Heart Pirates?", "Trafalgar D. Water Law"),
+                ("What is the name of the island where Zoro trained during the time skip?", "Kuraigana Island"),
+                ("Who is the creator of the Pacifista?", "Dr. Vegapunk"),
+                ("What is the name of Luffy's grandfather?", "Monkey D. Garp"),
+                ("Which Yonko is known as 'Big Mom'?", "Charlotte Linlin"),
+                ("What is the name of the island where the Straw Hats met Brook?", "Thriller Bark"),
+                ("Who is the sniper of the Straw Hat Pirates?", "Usopp"),
+                ("What is the name of Zoro's ultimate technique?", "Asura"),
+                ("Which Devil Fruit did Ace eat?", "Mera Mera no Mi"),
+                ("What is the name of the marine base where Luffy met Coby?", "Shell Town"),
+                ("Who is the former captain of the Sun Pirates?", "Fisher Tiger"),
+                ("What is the name of the special ingredient used in Sanji's raid suit?", "Germa science"),
+                ("Who is the captain of the Kid Pirates?", "Eustass Kid"),
+                ("What is the name of the sword that Zoro received from Ryuma?", "Shusui"),
+                ("Which Yonko is known as 'Blackbeard'?", "Marshall D. Teach"),
+                ("What is the name of the island where the Straw Hats first encountered the Mink Tribe?", "Zou"),
+                ("Who is the helmsman of the Straw Hat Pirates?", "Jinbe"),
+                ("What is the name of the technique Luffy uses to predict enemy attacks?", "Observation Haki"),
+                ("Which pirate crew did Nami originally belong to?", "Arlong Pirates"),
+                ("What is the name of the prison where Ace was held before his execution?", "Impel Down"),
+                ("Who is the captain of the Whitebeard Pirates?", "Edward Newgate"),
+                ("What is the name of the island where Gold Roger was born?", "Loguetown"),
+                ("Who is the former Fleet Admiral of the Marines?", "Sengoku"),
+                ("What is the name of the ship used by the Roger Pirates?", "Oro Jackson"),
+                ("Which Shichibukai is known as the 'Tyrant'?", "Bartholomew Kuma"),
+                ("What is the name of the revolutionary army's second-in-command?", "Sabo"),
+                ("Who is the captain of the Kuja Pirates?", "Boa Hancock"),
+                ("What is the name of the island where the Straw Hats first entered the Grand Line?", "Reverse Mountain"),
+                ("Which Devil Fruit allows the user to create earthquakes?", "Gura Gura no Mi"),
+                ("What is the name of the technique that allows users to coat themselves in Armament Haki?", "Busoshoku Haki"),
+                ("Who is the current Fleet Admiral of the Marines?", "Akainu"),
+                ("What is the name of the country where Sanji was born?", "Germa Kingdom"),
+                ("Which former Shichibukai is known as the 'Knight of the Sea'?", "Jinbe"),
+                ("What is the name of the sword that belongs to Kozuki Oden?", "Enma"),
+                ("Who is the captain of the Rocks Pirates?", "Rocks D. Xebec"),
+                ("What is the name of the island where the Straw Hats fought against CP9?", "Enies Lobby"),
+                ("Which Devil Fruit did Sabo eat?", "Mera Mera no Mi"),
+                ("What is the name of the technique Luffy uses to harden his body?", "Armament Haki"),
+                ("Who is the shipwright that built the Thousand Sunny?", "Franky"),
+                ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden"),
+                ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido")
+            ]
             
-            available_questions = [q for q in questions if q not in used_questions]
-            question, answer = random.choice(available_questions)
-            used_questions.add((question, answer))
+            scores = {}
+            used_questions = set()
             
-            await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
-            
-            def check(m):
-                return m.channel == ctx.channel
-            
-            try:
-                user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
-            except asyncio.TimeoutError:
-                await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
-                continue
-            
-            if user_answer.content.lower() == answer.lower():
-                scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
-                await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
+            await ctx.send("🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
+
+            while True:
+                if len(used_questions) == len(questions):
+                    used_questions.clear()  # Reset if all questions have been used
                 
-                if scores[user_answer.author] >= 10:
-                    await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
-                    break
-            else:
-                await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
-            
-            # Display current scores
-            score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in scores.items())
-            await ctx.send(score_message)
+                available_questions = [q for q in questions if q not in used_questions]
+                question, answer = random.choice(available_questions)
+                used_questions.add((question, answer))
+                
+                await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
+                
+                def check(m):
+                    return m.channel == ctx.channel
+                
+                try:
+                    user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
+                except asyncio.TimeoutError:
+                    await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
+                    continue
+                
+                if user_answer.content.lower() == answer.lower():
+                    scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
+                    await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
+                    
+                    if scores[user_answer.author] >= 10:
+                        await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
+                        break
+                else:
+                    await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
+                
+                # Display current scores
+                score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in scores.items())
+                await ctx.send(score_message)
+
+            await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
+
+    @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
+    async def transponder(self, ctx):
+        """Intercept a random Den Den Mushi conversation."""
+        conversations = [
+            "Luffy: Meat! Meat! Meat!\nSanji: We just ate, you rubber idiot!",
+            "Nami: Has anyone seen my treasure?\nUsopp: *sweating* N-no, definitely not!",
+            "Zoro: I think I'm lost...\nRobin: You're in the crow's nest, Zoro.",
+            "Chopper: I'm not a tanuki!\nRandom Pirate: What a cute raccoon dog!",
+            "Brook: Yohohoho! May I see your pan-\nNami: NO!",
+            "Franky: SUPER!!!\nLaw: Please stop posing, we're in the middle of a battle.",
+            "Buggy: I am the great Captain Buggy!\nShanks: *laughing uncontrollably*",
+            "Garp: I'm coming to visit, Luffy!\nLuffy: Quick, everyone hide!",
+            "Kaido: Why won't anyone let me die?\nBig Mom: WEDDING CAKE!!!",
+        ]
+        await ctx.send(box(random.choice(conversations), lang="ini"))
+
+    @commands.command()
+    @commands.cooldown(1, 180, commands.BucketType.user)  # 3-minute cooldown per user
+    async def gumgum(self, ctx):
+        """Stretch your limbs like Luffy and see what happens!"""
+        results = [
+            "You stretched your arm and accidentally knocked over a Marine's ice cream.",
+            "Your elongated nose tickled a Sea King, and now it's chasing the ship!",
+            "You tried to grab a cloud but ended up pulling down a Sky Island resident.",
+            "Your rubbery fingers got tangled, and now you're a human pretzel.",
+            "You bounced off a wall and landed face-first in Sanji's cooking pot.",
+            "Your stretched ear overheard Nami's secret treasure map location!",
+            "You accidentally launched yourself into the Calm Belt. Oops!",
+            "Your elastic cheeks inflated, and you floated away like a balloon.",
+            "You tried to steal food from the fridge, but Sanji caught your extended hand.",
+        ]
+        await ctx.send(f"🖐️ {random.choice(results)}")
+
+    @commands.command()
+    @commands.cooldown(1, 240, commands.BucketType.user)  # 4-minute cooldown per user
+    async def poneglyph(self, ctx):
+        """Discover a random Poneglyph message."""
+        messages = [
+            "The One Piece is actually a lifetime supply of meat - Gol D. Roger's last prank.",
+            "Congratulations! You've found the All Blue... in a puddle.",
+            "The Will of D stands for 'Donut Lovers Anonymous'.",
+            "Caution: Reading this Poneglyph may cause spontaneous dance parties.",
+            "The secret to Kaido's strength: He never skips leg day.",
+            "This Poneglyph is sponsored by Buggy's Delivery Service - We'll Chop Up Your Competition!",
+            "The true treasure was the nakama we made along the way... and also a ton of gold.",
+            "Warning: Exposure to Poneglyphs may result in sudden urges to overthrow the government.",
+            "Fun Fact: The Red Line is actually a giant mood ring. It's feeling blue today.",
+        ]
+        await ctx.send(f"🗿 *You decipher the ancient text:*\n\n{random.choice(messages)}")
+
+    @commands.command()
+    @commands.cooldown(1, 360, commands.BucketType.user)  # 6-minute cooldown per user
+    async def oceanforecast(self, ctx):
+        """Get a whimsical Grand Line weather forecast."""
+        conditions = ["raining candy", "snowing in July", "raining upwards", "foggy with a chance of Sea Kings",
+                      "partly cloudy with scattered Buggy parts", "sunny with a high chance of random whirlpools",
+                      "stormy with flying fish", "clear skies (suspicious, isn't it?)", "mild with roaming islands"]
+        temperatures = ["hotter than Ace's flames", "colder than Aokiji's heart", "warm as Luffy's smile", 
+                        "cool as Zoro's swords", "temperature is taking a day off"]
+        warnings = ["Watch out for falling ships from Sky Islands!", 
+                    "Beware of spontaneous Davy Back Fights!",
+                    "Caution: Roaming bands of singing pirates ahead!",
+                    "Alert: High chance of getting lost (especially if you're Zoro)",
+                    "Warning: Increased Marine activity due to donut shortage at HQ"]
+        
+        forecast = f"Today's Grand Line forecast:\n" \
+                   f"Condition: {random.choice(conditions)}\n" \
+                   f"Temperature: {random.choice(temperatures)}\n" \
+                   f"Special Warning: {random.choice(warnings)}"
+        
+        await ctx.send(box(forecast, lang="yaml"))
+
+    @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
+    async def rumbleball(self, ctx):
+        """Take a Rumble Ball and see what form you turn into!"""
+        forms = [
+            "Brain Point: Your intellect increases, but you're now irresistibly cute!",
+            "Walk Point: You can now run really fast, but only in one direction.",
+            "Heavy Point: You're super strong, but you keep breaking chairs when you sit.",
+            "Guard Point: You're well-protected, but you look like a giant hairball.",
+            "Horn Point: Great for digging, not so great for going through doors.",
+            "Jumping Point: You can leap tall buildings, but landing is... problematic.",
+            "Arm Point: Your arms are huge! Good luck finding shirts that fit.",
+            "Monster Point: Oops! You're now gigantic and can't control yourself. Sorry about the property damage!",
+            "Cuddle Point: You're irresistibly huggable. Even enemies want to snuggle you.",
+            "Noodle Point: You're extremely flexible, but have trouble standing upright.",
+        ]
+        await ctx.send(f"💊 You took a Rumble Ball! {random.choice(forms)}")
             
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
