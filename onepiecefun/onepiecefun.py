@@ -27,6 +27,7 @@ class OnePieceFun(commands.Cog):
         self.GENERAL_CHANNEL_ID = 425068612542398476
         self.message_count = {}
         self.last_announcement = {}
+        self.trivia_lock = asyncio.Lock()  # Add this line to initialize the trivia_lock
 
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
@@ -75,6 +76,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"🍎 **Devil Fruit Fact:** {fact}")
 
     @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def love(self, ctx, user1: discord.Member, user2: discord.Member):
         """Calculate the One Piece love compatibility between two users with animation!"""
         love_percentage = random.randint(1, 100)
@@ -137,6 +139,7 @@ class OnePieceFun(commands.Cog):
         await love_message.edit(embed=embed)
         
     @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def roast(self, ctx, *, target: discord.Member = None):
         """Deliver a hilarious One Piece-themed roast!"""
         if target is None:
@@ -194,6 +197,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def bounty(self, ctx, *, user: discord.Member = None):
         """Check a user's bounty and title."""
         if user is None:
@@ -221,6 +225,7 @@ class OnePieceFun(commands.Cog):
                            f"{reason}!\nCurrent Title: {title}")
 
     @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def bountylist(self, ctx):
         """List all bounties in the server with rankings."""
         bounties = await self.config.guild(ctx.guild).bounties()
