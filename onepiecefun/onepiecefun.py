@@ -826,5 +826,5 @@ class OnePieceFun(commands.Cog):
         ]
         await ctx.send(f"💊 You took a Rumble Ball! {random.choice(forms)}")
             
-async def setup(bot: Red):
+async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
