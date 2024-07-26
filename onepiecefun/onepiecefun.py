@@ -76,10 +76,21 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     async def love(self, ctx, name1: str, name2: str):
-        """Calculate the One Piece love compatibility between two names."""
+        """Calculate the One Piece love compatibility between two names with animation!"""
         love_percentage = random.randint(1, 100)
         
-        # Determine color based on love percentage
+        # Create initial embed
+        embed = discord.Embed(title=f"Calculating Love Compatibility...", color=discord.Color.blue())
+        embed.set_footer(text="Powered by the Grand Line's mystical love calculator!")
+        message = await ctx.send(embed=embed)
+        
+        # Simulate loading animation
+        for i in range(3):
+            await asyncio.sleep(1)
+            embed.title = f"Calculating Love Compatibility{'.' * (i + 1)}"
+            await message.edit(embed=embed)
+        
+        # Determine final color and emoji based on love percentage
         if love_percentage < 20:
             color = discord.Color.red()
             emoji = "💔"
@@ -96,42 +107,35 @@ class OnePieceFun(commands.Cog):
             color = discord.Color.dark_magenta()
             emoji = "💞"
 
-        # Create the embed
+        # Create final embed
         embed = discord.Embed(
             title=f"Love Compatibility: {name1} & {name2}",
             color=color
         )
-
-        # Add love percentage field
         embed.add_field(name="Love Percentage", value=f"{love_percentage}% {emoji}", inline=False)
 
-        # Add compatibility message
         if love_percentage < 20:
             message = f"Arr! {name1} and {name2} be as compatible as Luffy and skipping meals!"
-            image_url = "https://i.imgur.com/LqX1jSH.jpeg"  # Sad Luffy image
+            image_url = "https://i.imgur.com/LqX1jSH.jpeg"
         elif love_percentage < 40:
             message = f"Yohohoho! The love between {name1} and {name2} be as empty as Brook's belly!"
-            image_url = "https://i.imgur.com/7yAj1avb.jpg"  # Brook laughing image
+            image_url = "https://i.imgur.com/7yAj1avb.jpg"
         elif love_percentage < 60:
             message = f"Aye, {name1} and {name2} be gettin' along like Zoro and a compass!"
-            image_url = "https://i.imgur.com/INqnjtYb.jpg"  # Lost Zoro image
+            image_url = "https://i.imgur.com/INqnjtYb.jpg"
         elif love_percentage < 80:
             message = f"Shiver me timbers! {name1} and {name2} be as close as Sanji to his kitchen!"
-            image_url = "https://static1.cbrimages.com/wordpress/wp-content/uploads/2022/10/0B4E75F9-5053-4BDA-B326-7E32C6E4FBD9.jpeg"  # Sanji cooking image
+            image_url = "https://static1.cbrimages.com/wordpress/wp-content/uploads/2022/10/0B4E75F9-5053-4BDA-B326-7E32C6E4FBD9.jpeg"
         else:
             message = f"By the powers of the sea! {name1} and {name2} be as perfect as Luffy and meat!"
-            image_url = "https://media.tenor.com/l2-mUQdjoScAAAAe/luffy-one-piece.png"  # Luffy eating meat image
+            image_url = "https://media.tenor.com/l2-mUQdjoScAAAAe/luffy-one-piece.png"
 
         embed.add_field(name="Pirate's Verdict", value=message, inline=False)
-
-        # Add image
         embed.set_image(url=image_url)
-
-        # Add footer
         embed.set_footer(text="Powered by the Grand Line's mystical love calculator!")
 
-        await ctx.send(embed=embed)
-
+        await message.edit(embed=embed)
+        
     @commands.command()
     async def roast(self, ctx, *, target: str):
         """Deliver a One Piece-themed roast."""
