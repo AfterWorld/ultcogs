@@ -220,7 +220,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"Ahoy! {name} would be the crew's {role}, {quirk}!")
 
     @commands.command()
-    async def poneglyph(self, ctx):
+    async def decode(self, ctx):
         """Decode a 'mysterious' poneglyph message."""
         messages = [
             "The One Piece is real... but it was the friends we made along the way.",
