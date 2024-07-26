@@ -188,7 +188,7 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     async def bountylist(self, ctx):
-        """List all bounties in the server."""
+        """List all bounties in the server with rankings."""
         bounties = await self.config.guild(ctx.guild).bounties()
         if not bounties:
             return await ctx.send("There are no bounties in this server yet!")
@@ -196,10 +196,10 @@ class OnePieceFun(commands.Cog):
         sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]['amount'], reverse=True)
         
         message = "💰 **Bounty List** 💰\n\n"
-        for user_id, info in sorted_bounties:
+        for index, (user_id, info) in enumerate(sorted_bounties, start=1):
             user = ctx.guild.get_member(int(user_id))
             if user:
-                message += f"**{user.display_name}**: {info['amount']:,} Berries\n"
+                message += f"{index}. **{user.display_name}**: {info['amount']:,} Berries\n"
         
         pages = list(pagify(message, delims=["\n"], page_length=1000))
         await menu(ctx, pages, DEFAULT_CONTROLS)
