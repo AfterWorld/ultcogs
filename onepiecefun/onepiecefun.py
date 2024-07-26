@@ -1,5 +1,4 @@
 from redbot.core import commands, checks, modlog, Config
-from redbot.core.utils.mod import is_mod_or_superior
 from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.bot import Red
@@ -223,6 +222,17 @@ class OnePieceFun(commands.Cog):
             await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
                            f"The World Government has placed a bounty of {bounty:,} Berries on {user.display_name}'s head "
                            f"{reason}!\nCurrent Title: {title}")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def resetbounty(self, ctx, user: discord.Member):
+        """Reset a user's bounty (Mod only)."""
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            if str(user.id) in bounties:
+                del bounties[str(user.id)]
+                await ctx.send(f"{user.display_name}'s bounty has been reset by the World Government!")
+            else:
+                await ctx.send(f"{user.display_name} doesn't have a bounty to reset.")
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
