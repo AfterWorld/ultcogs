@@ -342,26 +342,46 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
         """Generate a One Piece-style ship name for two characters."""
-        ship_prefixes = ["Thousand", "Going", "Oro", "Red", "Big", "Polar", "Moby", "Sexy", "Drunken", "Merry", "Sunny", "Laughing", "Crying", "Flying", "Roaring"]
-        ship_suffixes = ["Sunny", "Merry", "Jackson", "Force", "Top", "Tang", "Dick", "Foxy", "Roger", "Saber", "Dumpling", "Octopus", "Banana", "Cutlass"]
+        ship_prefixes = ["Thousand", "Going", "Oro", "Red", "Big", "Polar", "Moby", "Sexy", "Drunken", "Merry", "Sunny", "Laughing", "Crying", "Flying", "Roaring", "Thundering", "Whispering", "Golden", "Silver", "Burning", "Frozen", "Emerald", "Sapphire", "Ruby", "Diamond"]
+        ship_suffixes = ["Sunny", "Merry", "Jackson", "Force", "Top", "Tang", "Dick", "Foxy", "Roger", "Saber", "Dumpling", "Octopus", "Banana", "Cutlass", "Pearl", "Wave", "Storm", "Phoenix", "Dragon", "Serpent", "Titan", "Giant", "Warrior", "Legend", "Myth"]
         
         ship_name = f"{random.choice(ship_prefixes)} {random.choice(ship_suffixes)}"
-        await ctx.send(f"Ahoy! If {name1} and {name2} had a ship, it'd be called '{ship_name}'! May it sail the Grand Line with pride!")
+        ship_type = random.choice(["Galleon", "Caravel", "Frigate", "Schooner", "Sloop", "Brig", "Man-of-War"])
+        ship_feature = random.choice(["a figurehead of a roaring lion", "sails made from Sea King skin", "a crow's nest shaped like a pirate hat", "cannons that shoot cola", "a built-in ramen shop", "a secret underwater viewing room", "a mini Thriller Bark amusement park"])
+
+        embed = discord.Embed(title=f"⚓ The {ship_name} ⚓", color=discord.Color.blue())
+        embed.add_field(name="Ship Type", value=ship_type, inline=False)
+        embed.add_field(name="Special Feature", value=f"This ship has {ship_feature}!", inline=False)
+        embed.add_field(name="Owners", value=f"Captained by the fearsome duo of {name1} and {name2}", inline=False)
+        embed.set_footer(text="May it sail the Grand Line with pride!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def piratename(self, ctx, *, name: str):
         """Generate a One Piece-style pirate name."""
         epithets = ["Straw Hat", "Fire Fist", "Pirate Hunter", "Black Leg", "Cat Burglar", "Soul King", "Cyborg", "Devil Child", 
-                    "Humming", "Red-Haired", "Hawk-Eye", "Surgeon of Death", "Dark King", "Fire Tank", "Big News", "Red Flag"]
+                    "Humming", "Red-Haired", "Hawk-Eye", "Surgeon of Death", "Dark King", "Fire Tank", "Big News", "Red Flag",
+                    "Thousand Storm", "Iron Mace", "Massacre Soldier", "Diamond", "Foxfire", "Glutton", "Sky Knight", "First Son of the Sea"]
         
         pirate_name = f"'{random.choice(epithets)}' {name}"
-        await ctx.send(f"Yarr! If ye sailed the Grand Line, ye'd be known as {pirate_name}! Strike fear into the hearts of Marines everywhere!")
+        bounty = f"{random.randint(100, 5000):,}000,000"
+        crew_name = f"The {random.choice(['Fearsome', 'Mighty', 'Sneaky', 'Ruthless', 'Jolly', 'Drunken', 'Wild'])} {random.choice(['Skull', 'Fist', 'Storm', 'Wave', 'Sun', 'Moon', 'Star'])} Pirates"
+        signature_move = f"{random.choice(['Thunderbolt', 'Hurricane', 'Inferno', 'Tsunami', 'Earthquake', 'Vortex', 'Nebula'])} {random.choice(['Punch', 'Kick', 'Slash', 'Blast', 'Cannon', 'Strike', 'Crush'])}"
+
+        embed = discord.Embed(title=f"🏴‍☠️ {pirate_name} 🏴‍☠️", color=discord.Color.dark_red())
+        embed.add_field(name="Bounty", value=f"{bounty} Berries", inline=False)
+        embed.add_field(name="Crew", value=crew_name, inline=False)
+        embed.add_field(name="Signature Move", value=signature_move, inline=False)
+        embed.set_footer(text="Strike fear into the hearts of Marines everywhere!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def devilfruit(self, ctx):
         """Generate a random, funny Devil Fruit power."""
-        prefixes = ["Noodle", "Bubble", "Sneeze", "Hiccup", "Tickle", "Belch", "Giggle", "Blush", "Yawn", "Wink", "Blink", "Wiggle"]
-        suffixes = ["Fruit", "Fruit", "Fruit", "Fruit", "Fruit", "Fruit", "Fruit", "Nut", "Berry", "Melon", "Pineapple", "Mango"]
+        prefixes = ["Noodle", "Bubble", "Sneeze", "Hiccup", "Tickle", "Belch", "Giggle", "Blush", "Yawn", "Wink", "Blink", "Wiggle", "Jiggle", "Wobble", "Noogie", "Booger", "Armpit", "Earlobe", "Toenail", "Nostril"]
+        suffixes = ["Fruit", "Fruit", "Fruit", "Nut", "Berry", "Melon", "Pineapple", "Mango", "Durian", "Lychee", "Kumquat", "Persimmon", "Fig", "Pomegranate", "Jackfruit"]
         
         fruit_name = f"{random.choice(prefixes)}-{random.choice(prefixes)} {random.choice(suffixes)}"
         powers = [
@@ -370,11 +390,28 @@ class OnePieceFun(commands.Cog):
             f"the power to turn anything you touch into {fruit_name.split('-')[0].lower()}s",
             f"the ability to shoot {fruit_name.split('-')[1].lower()}s from your fingertips",
             f"the power to summon an army of {fruit_name.split('-')[0].lower()}ing sea creatures",
-            f"the ability to create life-size {fruit_name.split('-')[1].lower()} sculptures with your mind"
+            f"the ability to create life-size {fruit_name.split('-')[1].lower()} sculptures with your mind",
+            f"the power to communicate with {fruit_name.split('-')[0].lower()}s telepathically",
+            f"the ability to predict the future, but only while {fruit_name.split('-')[1].lower()}ing",
+            f"the power to teleport, but only to places where people are {fruit_name.split('-')[0].lower()}ing",
+            f"the ability to change the color of anything to '{fruit_name.split('-')[1].lower()} purple'"
         ]
         
         power = random.choice(powers)
-        await ctx.send(f"Congratulations! Ye've eaten the {fruit_name}! Ye now have {power}. Use it wisely, ye scurvy dog!")
+        weaknesses = [
+            "you smell like overripe fruit when using your power",
+            "you can't stop dancing while using your ability",
+            "your power only works on Tuesdays",
+            "using your power makes you speak in rhymes for an hour",
+            "your hair changes color every time you use your power"
+        ]
+
+        embed = discord.Embed(title=f"🍎 The {fruit_name} 🍎", color=discord.Color.green())
+        embed.add_field(name="Power", value=power, inline=False)
+        embed.add_field(name="Weakness", value=f"However, {random.choice(weaknesses)}.", inline=False)
+        embed.set_footer(text="Use it wisely, ye scurvy dog!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def reaction(self, ctx, *, situation: str):
