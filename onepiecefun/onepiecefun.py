@@ -187,7 +187,7 @@ class OnePieceFun(commands.Cog):
         ]
         
         embed = discord.Embed(title="🏴‍☠️ One Piece Roast 🏴‍☠️", description=roast, color=discord.Color.red())
-        embed.set_thumbnail(url=target.avatar_url)
+        embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_image(url=random.choice(gifs))
         embed.set_footer(text="Powered by the Grand Line's saltiest pirates!")
         
