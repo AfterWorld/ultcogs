@@ -20,6 +20,9 @@ class OnePieceFun(commands.Cog):
             "bounties": {}
         }
         self.config.register_guild(**default_guild)
+        self.GENERAL_CHANNEL_ID = 425068612542398476
+        self.message_count = {}
+        self.last_announcement = {}
 
     @commands.command()
     async def df(self, ctx):
@@ -90,76 +93,125 @@ class OnePieceFun(commands.Cog):
         roast = random.choice(roasts)
         await ctx.send(roast)
 
+    import random
+import discord
+from redbot.core import commands, Config
+from redbot.core.bot import Red
+from redbot.core.utils.chat_formatting import box, pagify
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+import asyncio
+
+class OnePieceFun(commands.Cog):
+    """Fun One Piece-themed commands for entertainment!"""
+
+    def __init__(self, bot: Red):
+        self.bot = bot
+        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        default_guild = {
+            "custom_devil_fruits": {},
+            "bounties": {}
+        }
+        self.config.register_guild(**default_guild)
+        self.GENERAL_CHANNEL_ID = 425068612542398476
+        self.message_count = {}
+        self.last_announcement = {}
+
     @commands.command()
-    async def bounty(self, ctx, *, name: str = None):
-        """Check a user's bounty or list all bounties."""
+    async def bounty(self, ctx, *, user: discord.Member = None):
+        """Check a user's bounty."""
+        if user is None:
+            user = ctx.author
+
         bounties = await self.config.guild(ctx.guild).bounties()
+        user_id = str(user.id)
 
-        if name is None:
-            # If no name is provided, list all bounties
-            if not bounties:
-                return await ctx.send("There are no bounties in this server yet!")
-            
-            message = "💰 **Bounty List** 💰\n\n"
-            for user_id, info in bounties.items():
-                user = ctx.guild.get_member(int(user_id))
-                if user:
-                    message += f"**{user.display_name}**: {info['amount']:,} Berries\n"
-            
-            pages = list(pagify(message, delims=["\n"], page_length=1000))
-            await menu(ctx, pages, DEFAULT_CONTROLS)
+        if user_id in bounties:
+            amount = bounties[user_id]['amount']
+            await ctx.send(f"💰 **Bounty Alert!** 💰\n"
+                           f"{user.display_name}'s bounty is {amount:,} Berries!")
         else:
-            # If a name is provided, check for that user's bounty
-            member = ctx.guild.get_member_named(name) or ctx.author
-            user_id = str(member.id)
+            # Generate a new bounty if one doesn't exist
+            bounty = random.randint(1000000, 5000000)
+            reason = self.generate_bounty_reason()
+            async with self.config.guild(ctx.guild).bounties() as bounty_list:
+                bounty_list[user_id] = {"amount": bounty}
+            
+            await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
+                           f"The World Government has placed a bounty of {bounty:,} Berries on {user.display_name}'s head "
+                           f"{reason}!")
 
-            if user_id in bounties:
-                amount = bounties[user_id]['amount']
-                await ctx.send(f"💰 **Bounty Alert!** 💰\n"
-                               f"{member.display_name}'s bounty is {amount:,} Berries!")
-            else:
-                # Generate a random bounty if no bounty exists
-                bounty = random.randint(1000000, 5000000000)
-                
-                reasons = [
-                    "for eating too much at the Baratie without paying",
-                    "for mistaking a Marine base for a restaurant",
-                    "for trying to sell fake Devil Fruits to Kaido",
-                    "for asking Big Mom about her diet plan",
-                    "for using Zoro as a compass",
-                    "for stealing Doflamingo's sunglasses collection",
-                    "for trying to give Kaido swimming lessons",
-                    "for asking Buggy about his nose",
-                    "for trying to recruit Sea Kings into their crew",
-                    "for attempting to give Blackbeard a dental plan",
-                    "for trying to sell meat-scented cologne to Luffy",
-                    "for starting a 'Save the Sea Kings' campaign",
-                    "for opening a Monkey D. Luffy School of Strategy",
-                    "for trying to teach the Revolutionary Army to do the 'Binks' Sake' dance"
-                ]
-                
-                reason = random.choice(reasons)
-                
-                # Save the new bounty
-                async with self.config.guild(ctx.guild).bounties() as bounty_list:
-                    bounty_list[user_id] = {"amount": bounty}
-                
-                await ctx.send(f"💰 **New Bounty Alert!** 💰\n"
-                               f"The World Government has placed a bounty of {bounty:,} Berries on {member.display_name}'s head "
-                               f"{reason}!")
+    @commands.command()
+    async def bountylist(self, ctx):
+        """List all bounties in the server."""
+        bounties = await self.config.guild(ctx.guild).bounties()
+        if not bounties:
+            return await ctx.send("There are no bounties in this server yet!")
+        
+        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]['amount'], reverse=True)
+        
+        message = "💰 **Bounty List** 💰\n\n"
+        for user_id, info in sorted_bounties:
+            user = ctx.guild.get_member(int(user_id))
+            if user:
+                message += f"**{user.display_name}**: {info['amount']:,} Berries\n"
+        
+        pages = list(pagify(message, delims=["\n"], page_length=1000))
+        await menu(ctx, pages, DEFAULT_CONTROLS)
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
 
-        # Increment user's bounty for each message
-        async with self.config.guild(message.guild).bounties() as bounties:
-            user_id = str(message.author.id)
-            if user_id in bounties:
-                bounties[user_id]['amount'] += random.randint(100, 1000)
-            else:
-                bounties[user_id] = {"amount": random.randint(1000000, 5000000)}
+        user_id = str(message.author.id)
+        self.message_count[user_id] = self.message_count.get(user_id, 0) + 1
+
+        if self.message_count[user_id] >= 10:
+            self.message_count[user_id] = 0
+            await self.increase_bounty(message.author, message.guild)
+
+    async def increase_bounty(self, user, guild):
+        async with self.config.guild(guild).bounties() as bounties:
+            if str(user.id) not in bounties:
+                bounties[str(user.id)] = {"amount": random.randint(1000000, 5000000)}
+            
+            current_bounty = bounties[str(user.id)]['amount']
+            increase = random.randint(1000, 10000)
+            new_bounty = current_bounty + increase
+            bounties[str(user.id)]['amount'] = new_bounty
+
+            if new_bounty // 1000000 > current_bounty // 1000000:
+                await self.announce_bounty_increase(user, new_bounty, guild)
+
+    async def announce_bounty_increase(self, user, new_bounty, guild):
+        channel = guild.get_channel(self.GENERAL_CHANNEL_ID)
+        if channel:
+            last_time = self.last_announcement.get(str(user.id), 0)
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_time > 3600:  # 1 hour cooldown
+                await channel.send(f"📢 **Bounty Update!** 📢\n"
+                                   f"{user.mention}'s bounty has increased to {new_bounty:,} Berries! "
+                                   f"The Marines are on high alert!")
+                self.last_announcement[str(user.id)] = current_time
+
+    def generate_bounty_reason(self):
+        reasons = [
+            "for eating too much at the Baratie without paying",
+            "for mistaking a Marine base for a restaurant",
+            "for trying to sell fake Devil Fruits to Kaido",
+            "for asking Big Mom about her diet plan",
+            "for using Zoro as a compass",
+            "for stealing Doflamingo's sunglasses collection",
+            "for trying to give Kaido swimming lessons",
+            "for asking Buggy about his nose",
+            "for trying to recruit Sea Kings into their crew",
+            "for attempting to give Blackbeard a dental plan",
+            "for trying to sell meat-scented cologne to Luffy",
+            "for starting a 'Save the Sea Kings' campaign",
+            "for opening a Monkey D. Luffy School of Strategy",
+            "for trying to teach the Revolutionary Army to do the 'Binks' Sake' dance"
+        ]
+        return random.choice(reasons)
                 
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
@@ -296,20 +348,6 @@ class OnePieceFun(commands.Cog):
         message = "🍎 **Custom Devil Fruits** 🍎\n\n"
         for name, desc in df_list.items():
             message += f"**{name}**: {desc}\n\n"
-        
-        pages = list(pagify(message, delims=["\n\n"], page_length=1000))
-        await menu(ctx, pages, DEFAULT_CONTROLS)
-        
-    @commands.command()
-    async def bountylist(self, ctx):
-        """List all custom bounties for this server."""
-        bounty_list = await self.config.guild(ctx.guild).custom_bounties()
-        if not bounty_list:
-            return await ctx.send("There are no custom bounties in this server yet!")
-        
-        message = "💰 **Custom Bounties** 💰\n\n"
-        for name, info in bounty_list.items():
-            message += f"**{name}**: {info['amount']:,} Berries\nReason: {info['reason']}\n\n"
         
         pages = list(pagify(message, delims=["\n\n"], page_length=1000))
         await menu(ctx, pages, DEFAULT_CONTROLS)
