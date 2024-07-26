@@ -1,13 +1,12 @@
-import random
-import discord
 from redbot.core import commands, Config
-from redbot.core.bot import Red
+from redbot.core.utils.mod import is_mod_or_superior
 from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-from redbot.core.utils.mod import is_mod_or_superior
+from redbot.core.bot import Red
+import discord
+import random
 import asyncio
 from datetime import datetime, timedelta
-from discord.ext import commands
 
 
 class OnePieceFun(commands.Cog):
