@@ -227,21 +227,47 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def bountylist(self, ctx):
-        """List all bounties in the server with rankings."""
+        """List the top 10 bounties in the server with rankings."""
         bounties = await self.config.guild(ctx.guild).bounties()
         if not bounties:
-            return await ctx.send("There are no bounties in this server yet!")
+            return await ctx.send("🏴‍☠️ Arr! There be no bounties in this server yet, ye scurvy dogs!")
         
-        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]['amount'], reverse=True)
+        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]['amount'], reverse=True)[:10]
         
-        message = "💰 **Bounty List** 💰\n\n"
+        message = "```md\n"
+        message += "💰 Top 10 Most Wanted Pirates 💰\n"
+        message += "===================================\n\n"
         for index, (user_id, info) in enumerate(sorted_bounties, start=1):
             user = ctx.guild.get_member(int(user_id))
             if user:
-                message += f"{index}. **{user.display_name}**: {info['amount']:,} Berries\n"
+                bounty_amount = f"{info['amount']:,}"
+                pirate_rank = self.get_pirate_rank(info['amount'])
+                message += f"{index}. {user.display_name}\n"
+                message += f"   Bounty: {bounty_amount} Berries\n"
+                message += f"   Rank: {pirate_rank}\n\n"
+        message += "===================================\n"
+        message += "Wanted Dead or Alive by the World Government\n"
+        message += "```"
         
-        pages = list(pagify(message, delims=["\n"], page_length=1000))
-        await menu(ctx, pages, DEFAULT_CONTROLS)
+        footer = "🌊 These scallywags be the most dangerous pirates in these waters! 🏴‍☠️"
+        
+        await ctx.send(message)
+        await ctx.send(footer)
+
+    def get_pirate_rank(self, bounty):
+        ranks = [
+            (1000000000, "Yonko"),
+            (500000000, "Yonko Commander"),
+            (100000000, "Supernova"),
+            (50000000, "Notorious Pirate"),
+            (10000000, "Rising Rookie"),
+            (1000000, "Small-time Pirate"),
+            (0, "Cabin Boy")
+        ]
+        for threshold, rank in ranks:
+            if bounty >= threshold:
+                return rank
+        return "Unknown"
 
     @commands.Cog.listener()
     async def on_message(self, message):
