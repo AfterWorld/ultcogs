@@ -7,6 +7,7 @@ import discord
 import random
 import asyncio
 from datetime import datetime, timedelta
+from discord.ext import commands
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
@@ -864,78 +865,115 @@ class OnePieceFun(commands.Cog):
             await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
+    @commands.cooldown(1, 300, commands.BucketType.user)
     async def transponder(self, ctx):
         """Intercept a random Den Den Mushi conversation."""
         conversations = [
-            "Luffy: Meat! Meat! Meat!\nSanji: We just ate, you rubber idiot!",
-            "Nami: Has anyone seen my treasure?\nUsopp: *sweating* N-no, definitely not!",
-            "Zoro: I think I'm lost...\nRobin: You're in the crow's nest, Zoro.",
-            "Chopper: I'm not a tanuki!\nRandom Pirate: What a cute raccoon dog!",
-            "Brook: Yohohoho! May I see your pan-\nNami: NO!",
-            "Franky: SUPER!!!\nLaw: Please stop posing, we're in the middle of a battle.",
-            "Buggy: I am the great Captain Buggy!\nShanks: *laughing uncontrollably*",
-            "Garp: I'm coming to visit, Luffy!\nLuffy: Quick, everyone hide!",
-            "Kaido: Why won't anyone let me die?\nBig Mom: WEDDING CAKE!!!",
+            ("Luffy & Sanji", "Luffy: Meat! Meat! Meat!\nSanji: We just ate, you rubber idiot!", "🍖"),
+            ("Nami & Usopp", "Nami: Has anyone seen my treasure?\nUsopp: *sweating* N-no, definitely not!", "💰"),
+            ("Zoro & Robin", "Zoro: I think I'm lost...\nRobin: You're in the crow's nest, Zoro.", "🧭"),
+            ("Chopper & Random Pirate", "Chopper: I'm not a tanuki!\nRandom Pirate: What a cute raccoon dog!", "🦝"),
+            ("Brook & Nami", "Brook: Yohohoho! May I see your pan-\nNami: NO!", "👙"),
+            ("Franky & Law", "Franky: SUPER!!!\nLaw: Please stop posing, we're in the middle of a battle.", "🦾"),
+            ("Buggy & Shanks", "Buggy: I am the great Captain Buggy!\nShanks: *laughing uncontrollably*", "🤡"),
+            ("Garp & Luffy", "Garp: I'm coming to visit, Luffy!\nLuffy: Quick, everyone hide!", "👴"),
+            ("Kaido & Big Mom", "Kaido: Why won't anyone let me die?\nBig Mom: WEDDING CAKE!!!", "🍰")
         ]
-        await ctx.send(box(random.choice(conversations), lang="ini"))
+        convo = random.choice(conversations)
+        
+        embed = discord.Embed(title="📞 Intercepted Den Den Mushi Conversation 📞", color=discord.Color.purple())
+        embed.add_field(name=f"{convo[2]} Participants", value=convo[0], inline=False)
+        embed.add_field(name="Conversation", value=convo[1], inline=False)
+        embed.set_footer(text="Purupurupuru... Gatcha!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.cooldown(1, 180, commands.BucketType.user)  # 3-minute cooldown per user
+    @commands.cooldown(1, 180, commands.BucketType.user)
     async def gumgum(self, ctx):
         """Stretch your limbs like Luffy and see what happens!"""
         results = [
-            "You stretched your arm and accidentally knocked over a Marine's ice cream.",
-            "Your elongated nose tickled a Sea King, and now it's chasing the ship!",
-            "You tried to grab a cloud but ended up pulling down a Sky Island resident.",
-            "Your rubbery fingers got tangled, and now you're a human pretzel.",
-            "You bounced off a wall and landed face-first in Sanji's cooking pot.",
-            "Your stretched ear overheard Nami's secret treasure map location!",
-            "You accidentally launched yourself into the Calm Belt. Oops!",
-            "Your elastic cheeks inflated, and you floated away like a balloon.",
-            "You tried to steal food from the fridge, but Sanji caught your extended hand.",
+            ("Marine's Ice Cream", "You stretched your arm and accidentally knocked over a Marine's ice cream. The Marine is now crying over his lost treat!", "🍦💥"),
+            ("Sea King Tickle", "Your elongated nose tickled a Sea King, and now it's chasing the ship! Time for a hasty retreat!", "👃🐉"),
+            ("Sky Island Mishap", "You tried to grab a cloud but ended up pulling down a Sky Island resident. They're not amused by your accidental skydiving invitation!", "☁️😱"),
+            ("Human Pretzel", "Your rubbery fingers got tangled, and now you're a human pretzel. Sanji's considering adding you to the menu!", "🥨"),
+            ("Cooking Pot Faceplant", "You bounced off a wall and landed face-first in Sanji's cooking pot. Congratulations, you're now the secret ingredient!", "🍲😵"),
+            ("Nami's Secret", "Your stretched ear overheard Nami's secret treasure map location! But can you keep a secret?", "🗺️🤫"),
+            ("Calm Belt Launch", "You accidentally launched yourself into the Calm Belt. Say hi to the Sea Kings for us!", "🌊😅"),
+            ("Balloon Pirate", "Your elastic cheeks inflated, and you floated away like a balloon. Enjoy the view from up there!", "🎈"),
+            ("Fridge Raider Caught", "You tried to steal food from the fridge, but Sanji caught your extended hand. Prepare for a lecture on patience and portion control!", "🍖🚫")
         ]
-        await ctx.send(f"🖐️ {random.choice(results)}")
+        result = random.choice(results)
+        
+        embed = discord.Embed(title="🖐️ Gum-Gum Stretch! 🖐️", color=discord.Color.red())
+        embed.add_field(name=f"{result[2]} {result[0]}", value=result[1], inline=False)
+        embed.set_footer(text="Gomu Gomu no... Oops!")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.cooldown(1, 360, commands.BucketType.user)  # 6-minute cooldown per user
+    @commands.cooldown(1, 360, commands.BucketType.user)
     async def oceanforecast(self, ctx):
         """Get a whimsical Grand Line weather forecast."""
-        conditions = ["raining candy", "snowing in July", "raining upwards", "foggy with a chance of Sea Kings",
-                      "partly cloudy with scattered Buggy parts", "sunny with a high chance of random whirlpools",
-                      "stormy with flying fish", "clear skies (suspicious, isn't it?)", "mild with roaming islands"]
-        temperatures = ["hotter than Ace's flames", "colder than Aokiji's heart", "warm as Luffy's smile", 
-                        "cool as Zoro's swords", "temperature is taking a day off"]
-        warnings = ["Watch out for falling ships from Sky Islands!", 
-                    "Beware of spontaneous Davy Back Fights!",
-                    "Caution: Roaming bands of singing pirates ahead!",
-                    "Alert: High chance of getting lost (especially if you're Zoro)",
-                    "Warning: Increased Marine activity due to donut shortage at HQ"]
+        conditions = [
+            ("Candy Rain", "It's raining candy! Chopper is in heaven, but everyone's teeth hurt.", "🍬"),
+            ("July Snow", "It's snowing in July. Nami's weather predictions are getting weirder by the day.", "❄️"),
+            ("Upward Rain", "The rain is falling upwards. Gravity seems to be on vacation today.", "☔↑"),
+            ("Sea King Fog", "It's foggy with a chance of Sea Kings. Keep your voices down and hope they don't notice the ship.", "🌫️🐉"),
+            ("Buggy Weather", "It's partly cloudy with scattered Buggy parts. Duck to avoid flying noses!", "☁️🤡"),
+            ("Whirlpool Sun", "It's sunny with a high chance of random whirlpools. Nami's navigation skills will be put to the test!", "☀️🌀"),
+            ("Flying Fish Storm", "A storm is brewing, complete with flying fish. Sanji's excited about the self-delivering ingredients.", "⛈️🐟"),
+            ("Suspicious Clear Skies", "The skies are suspiciously clear. Everyone's on edge waiting for the other shoe to drop.", "🌞🕵️"),
+            ("Island Migration", "It's mild with roaming islands. Try not to crash into any mobile landmasses!", "🏝️🚶")
+        ]
+        temperatures = [
+            "Hotter than Ace's flames 🔥", "Colder than Aokiji's heart 🧊", 
+            "Warm as Luffy's smile 😄", "Cool as Zoro's swords 🗡️", 
+            "The temperature is taking a day off 🏖️"
+        ]
+        warnings = [
+            "Watch out for falling ships from Sky Islands! Skypiea spring cleaning is in full swing. ⚠️☁️⚓",
+            "Beware of spontaneous Davy Back Fights! Foxy is feeling particularly mischievous today. 🏁🎭",
+            "Caution: Roaming bands of singing pirates ahead! Bring earplugs or join the chorus. 🎵🏴‍☠️",
+            "Alert: High chance of getting lost (especially if you're Zoro). We've tied a bell around Zoro for easy tracking. 🧭❓",
+            "Warning: Increased Marine activity due to donut shortage at HQ. Akainu is hangry and on the warpath. 🍩🚔"
+        ]
         
-        forecast = f"Today's Grand Line forecast:\n" \
-                   f"Condition: {random.choice(conditions)}\n" \
-                   f"Temperature: {random.choice(temperatures)}\n" \
-                   f"Special Warning: {random.choice(warnings)}"
+        condition = random.choice(conditions)
+        temp = random.choice(temperatures)
+        warning = random.choice(warnings)
         
-        await ctx.send(box(forecast, lang="yaml"))
+        embed = discord.Embed(title="🌊 Grand Line Weather Forecast 🌊", color=discord.Color.blue())
+        embed.add_field(name=f"{condition[2]} Condition", value=condition[1], inline=False)
+        embed.add_field(name="🌡️ Temperature", value=temp, inline=False)
+        embed.add_field(name="⚠️ Special Warning", value=warning, inline=False)
+        embed.set_footer(text="Navigate safely, pirates! 🏴‍☠️")
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
+    @commands.cooldown(1, 300, commands.BucketType.user)
     async def rumbleball(self, ctx):
         """Take a Rumble Ball and see what form you turn into!"""
         forms = [
-            "Brain Point: Your intellect increases, but you're now irresistibly cute!",
-            "Walk Point: You can now run really fast, but only in one direction.",
-            "Heavy Point: You're super strong, but you keep breaking chairs when you sit.",
-            "Guard Point: You're well-protected, but you look like a giant hairball.",
-            "Horn Point: Great for digging, not so great for going through doors.",
-            "Jumping Point: You can leap tall buildings, but landing is... problematic.",
-            "Arm Point: Your arms are huge! Good luck finding shirts that fit.",
-            "Monster Point: Oops! You're now gigantic and can't control yourself. Sorry about the property damage!",
-            "Cuddle Point: You're irresistibly huggable. Even enemies want to snuggle you.",
-            "Noodle Point: You're extremely flexible, but have trouble standing upright.",
+            ("Brain Point 🧠", "Your intellect increases dramatically! You can now solve complex puzzles, but you're so cute that enemies want to pinch your cheeks instead of fight."),
+            ("Walk Point 🏃", "You can now run at incredible speeds, but only in one direction. Hope you chose the right way!"),
+            ("Heavy Point 💪", "You're super strong now! But be careful, you keep breaking chairs when you sit and doorways are your new arch-nemesis."),
+            ("Guard Point 🛡️", "You're practically invincible, but you look like a giant walking hairball. Prepare for lots of petting and the occasional attempt to use you as a mop."),
+            ("Horn Point 🦌", "Your antlers are amazing for digging and charging, but good luck fitting through doors or finding a hat that fits."),
+            ("Jumping Point 🦘", "You can leap over tall buildings in a single bound! Landing gracefully, however, is a whole other story. Boing!"),
+            ("Arm Point 💪", "Your arms are enormous and powerful! Arm wrestling is now your forte, but shirt shopping is a nightmare."),
+            ("Monster Point 👹", "Oh no! You're gigantic and out of control! On the bright side, you're really good at remodeling islands now. Sorry about the property damage!"),
+            ("Cuddle Point 🤗", "You're irresistibly huggable. Even the toughest enemies just want to snuggle you. This is either really good or really bad for combat."),
+            ("Noodle Point 🍜", "You're incredibly flexible now! You can squeeze through any space, but standing upright is a constant struggle. Spaghetti has become your spirit animal.")
         ]
-        await ctx.send(f"💊 You took a Rumble Ball! {random.choice(forms)}")
+        form = random.choice(forms)
+        
+        embed = discord.Embed(title="💊 Rumble Ball Transformation 💊", color=discord.Color.green())
+        embed.add_field(name=f"You turned into: {form[0]}", value=form[1], inline=False)
+        embed.set_footer(text="Remember, you've got 3 minutes before you turn back! Use your new form wisely... or hilariously!")
+        
+        await ctx.send(embed=embed)
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
