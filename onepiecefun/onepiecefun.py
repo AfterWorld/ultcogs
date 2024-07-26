@@ -1138,28 +1138,57 @@ class OnePieceFun(commands.Cog):
         marine_admirals = ["Akainu", "Aokiji", "Kizaru", "Fujitora", "Ryokugyu"]
         admiral = random.choice(marine_admirals)
 
-        await channel.send(f"🚨 **Marine Raid Alert** 🚨\n"
-                           f"Admiral {admiral} has been spotted nearby! All pirates, prepare for battle!")
+        # Create and send an embed message for the raid
+        embed = discord.Embed(
+            title="🚨 Marine Raid Alert 🚨",
+            description=f"Admiral {admiral} has been spotted nearby! All pirates, prepare for battle!",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="How to Participate", value="React with ⚔️ to join the battle against the Marines!")
+        embed.set_footer(text="You have 5 minutes to prepare before the raid begins!")
 
-        # Give users a chance to react
+        raid_msg = await channel.send(embed=embed)
+        await raid_msg.add_reaction("⚔️")
+
+        # Wait for reactions
         await asyncio.sleep(300)  # 5 minutes
 
-        captured = random.sample(ctx.guild.members, k=min(5, len(ctx.guild.members)))
-        escaped = random.sample([m for m in ctx.guild.members if m not in captured], k=min(3, len(ctx.guild.members)))
+        # Fetch the updated message to get all reactions
+        raid_msg = await channel.fetch_message(raid_msg.id)
+        participants = [user for user in await raid_msg.reactions[0].users().flatten() if not user.bot]
 
-        capture_message = "The Marines have captured:\n" + "\n".join([m.mention for m in captured])
-        escape_message = "These cunning pirates managed to escape:\n" + "\n".join([m.mention for m in escaped])
+        if not participants:
+            await channel.send("No brave pirates stepped up to face the Marines. The raid was called off!")
+            return
 
-        await channel.send(f"The Marine raid has ended!\n\n{capture_message}\n\n{escape_message}")
+        # Determine outcomes
+        captured = random.sample(participants, k=min(len(participants) // 2, 5))
+        escaped = [p for p in participants if p not in captured]
 
-        # Update bounties
+        # Prepare result messages
+        capture_message = "The Marines have captured:\n" + "\n".join([m.mention for m in captured]) if captured else "No pirates were captured this time!"
+        escape_message = "These cunning pirates managed to escape:\n" + "\n".join([m.mention for m in escaped]) if escaped else "No pirates managed to escape!"
+
+        # Send results
+        result_embed = discord.Embed(
+            title="Marine Raid Results",
+            description=f"The battle against Admiral {admiral} has concluded!",
+            color=discord.Color.blue()
+        )
+        result_embed.add_field(name="Captured Pirates", value=capture_message, inline=False)
+        result_embed.add_field(name="Escaped Pirates", value=escape_message, inline=False)
+
+        await channel.send(embed=result_embed)
+
+        # Update bounties for escaped pirates
         async with self.config.guild(ctx.guild).bounties() as bounties:
             for member in escaped:
                 if str(member.id) not in bounties:
                     bounties[str(member.id)] = {"amount": 1000000}
                 bounties[str(member.id)]["amount"] += random.randint(10000000, 50000000)
 
-        await channel.send("The bounties of the escaped pirates have been increased significantly!")
+        if escaped:
+            await channel.send("The bounties of the escaped pirates have been increased significantly!")
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
