@@ -1,13 +1,21 @@
 import random
 import discord
-from redbot.core import commands
+from redbot.core import commands, Config
 from redbot.core.bot import Red
+from redbot.core.utils.chat_formatting import box, pagify
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        default_guild = {
+            "custom_devil_fruits": {},
+            "custom_bounties": {}
+        }
+        self.config.register_guild(**default_guild)
 
     @commands.command()
     async def df(self, ctx):
@@ -163,6 +171,169 @@ class OnePieceFun(commands.Cog):
         reaction = random.choice(characters[character])
         
         await ctx.send(f"In response to '{situation}', {character} {reaction}.")
+
+    @commands.command()
+    async def island(self, ctx):
+        """Generate a random One Piece-style island name and description."""
+        prefixes = ["Punk", "Whole", "Drum", "Fishman", "Sky", "Water", "Dressrosa", "Shells", "Jaya", "Enies", "Thriller"]
+        suffixes = ["Island", "Kingdom", "Archipelago", "City", "Town", "Land", "Paradise", "Hell", "World", "Country"]
+        
+        features = ["giant trees", "talking animals", "extreme weather", "ancient ruins", "futuristic technology", 
+                    "perpetual night", "eternal summer", "floating islands", "underwater caves", "living buildings"]
+        
+        dangers = ["man-eating plants", "volcanic eruptions", "whirlpools", "giant sea monsters", "unpredictable gravity", 
+                   "memory-erasing mist", "time distortions", "reality-bending mirages", "cursed treasures", "shape-shifting natives"]
+        
+        island_name = f"{random.choice(prefixes)} {random.choice(suffixes)}"
+        description = f"An island known for its {random.choice(features)}. Beware of the {random.choice(dangers)}!"
+        
+        await ctx.send(f"🏝️ **{island_name}** 🏝️\n{description}")
+
+    @commands.command()
+    async def crewrole(self, ctx, *, name: str):
+        """Assign a random One Piece crew role to someone."""
+        roles = [
+            "Captain", "First Mate", "Navigator", "Sniper", "Chef", "Doctor", "Shipwright", "Musician",
+            "Archaeologist", "Helmsman", "Lookout", "Strategist", "Cabin Boy/Girl", "Pet"
+        ]
+        
+        role = random.choice(roles)
+        quirks = [
+            "who's always hungry",
+            "with a secret past",
+            "who's afraid of their own shadow",
+            "who can't swim (even without a Devil Fruit)",
+            "who tells the worst jokes",
+            "who's obsessed with treasure",
+            "who sleeps through every battle",
+            "who's in love with the ship",
+            "who thinks they're the captain (but they're not)",
+            "who's actually a Marine spy (shh, don't tell anyone)"
+        ]
+        
+        quirk = random.choice(quirks)
+        
+        await ctx.send(f"Ahoy! {name} would be the crew's {role}, {quirk}!")
+
+    @commands.command()
+    async def poneglyph(self, ctx):
+        """Decode a 'mysterious' poneglyph message."""
+        messages = [
+            "The One Piece is real... but it was the friends we made along the way.",
+            "Congratulations! You can read poneglyphs. The World Government wants to know your location.",
+            "Here's the secret recipe for Sanji's best dish... just kidding, it's blank!",
+            "Turn left at the giant whale, right at the sky island, and straight on 'til morning.",
+            "This poneglyph intentionally left blank. Please try again in 800 years.",
+            "The true power of the Gum-Gum fruit is... [The rest is too weathered to read]",
+            "Warning: Reading this poneglyph may cause spontaneous dance parties.",
+            "Raftel is just an anagram of... [The rest is covered in Buggy's graffiti]"
+        ]
+        
+        decoded = random.choice(messages)
+        await ctx.send(f"🗿 You've decoded the poneglyph! It reads:\n\n*{decoded}*")
+
+    @commands.command()
+    @commands.check(is_mod_or_admin)
+    async def df_add(self, ctx, name: str, *, description: str):
+        """Add a custom Devil Fruit to the server's list."""
+        async with self.config.guild(ctx.guild).custom_devil_fruits() as df_list:
+            df_list[name] = description
+        await ctx.send(f"The {name} has been added to the Devil Fruit encyclopedia!")
+
+    @commands.command()
+    async def df_list(self, ctx):
+        """List all custom Devil Fruits for this server."""
+        df_list = await self.config.guild(ctx.guild).custom_devil_fruits()
+        if not df_list:
+            return await ctx.send("There are no custom Devil Fruits in this server's encyclopedia yet!")
+        
+        message = "🍎 **Custom Devil Fruits** 🍎\n\n"
+        for name, desc in df_list.items():
+            message += f"**{name}**: {desc}\n\n"
+        
+        pages = list(pagify(message, delims=["\n\n"], page_length=1000))
+        await menu(ctx, pages, DEFAULT_CONTROLS)
+
+    @commands.command()
+    @commands.check(is_mod_or_admin)
+    async def bounty_add(self, ctx, name: str, amount: int, *, reason: str):
+        """Add a custom bounty for someone in the server."""
+        async with self.config.guild(ctx.guild).custom_bounties() as bounty_list:
+            bounty_list[name] = {"amount": amount, "reason": reason}
+        await ctx.send(f"A bounty of {amount:,} Berries has been placed on {name}'s head for {reason}!")
+
+    @commands.command()
+    async def bounty_list(self, ctx):
+        """List all custom bounties for this server."""
+        bounty_list = await self.config.guild(ctx.guild).custom_bounties()
+        if not bounty_list:
+            return await ctx.send("There are no custom bounties in this server yet!")
+        
+        message = "💰 **Custom Bounties** 💰\n\n"
+        for name, info in bounty_list.items():
+            message += f"**{name}**: {info['amount']:,} Berries\nReason: {info['reason']}\n\n"
+        
+        pages = list(pagify(message, delims=["\n\n"], page_length=1000))
+        await menu(ctx, pages, DEFAULT_CONTROLS)
+
+    @commands.command()
+    async def strawhat(self, ctx, *, name: str):
+        """If the mentioned person joined the Straw Hat crew, what would their role and quirk be?"""
+        roles = [
+            "the second chef, specializing in desserts",
+            "the apprentice shipwright, always carrying a hammer",
+            "the assistant doctor, with a fear of blood",
+            "the backup musician, who only knows one song",
+            "the unofficial storyteller, with tales no one believes",
+            "the ship's gardener, growing suspicious plants",
+            "the crew's tailor, with a very 'unique' fashion sense",
+            "the log keeper, who embellishes every entry",
+            "the fishing expert, who's never caught a fish",
+            "the treasure appraiser, who overvalues everything"
+        ]
+        
+        quirks = [
+            "but they sleep through every meal",
+            "and they have a secret collection of Marine wanted posters",
+            "though they get seasick easily",
+            "but they think every island is Raftel",
+            "and they're convinced they're the reincarnation of Gol D. Roger",
+            "though they're terrified of Luffy's stretching",
+            "but they keep trying to 'improve' Nami's climate baton",
+            "and they have a peculiar habit of talking to Sea Kings",
+            "though they believe they're the strongest after Luffy (they're not)",
+            "but they're on a quest to find the 'One Piece' of perfect clothing"
+        ]
+        
+        role = random.choice(roles)
+        quirk = random.choice(quirks)
+        
+        await ctx.send(f"If {name} joined the Straw Hat crew, they'd be {role}, {quirk}!")
+
+    @commands.command()
+    async def move(self, ctx, *, name: str):
+        """Generate a random One Piece-style move name."""
+        prefixes = ["Gum-Gum", "Flame-Flame", "Rumble-Rumble", "Dragon-Dragon", "Chop-Chop", "Slip-Slip", "Smoke-Smoke", "Sand-Sand"]
+        moves = ["Pistol", "Bazooka", "Gatling", "Rifle", "Storm", "Whip", "Hammer", "Cannon", "Tornado", "Blast", "Sword", "Spear"]
+        adjectives = ["Flaming", "Thundering", "Colossal", "Rapid-Fire", "Spinning", "Gigantic", "Piercing", "Exploding"]
+        
+        move_name = f"{random.choice(prefixes)} {random.choice(adjectives)} {random.choice(moves)}"
+        description = f"{name} unleashes their secret technique: {move_name}!"
+        
+        effects = [
+            "It's super effective!",
+            "The attack misses wildly and hits a nearby building instead.",
+            "Somehow, it turns into a dance move mid-attack.",
+            "Everyone is impressed, but also slightly confused.",
+            "It works perfectly, but {name} forgets how they did it immediately after.",
+            "The attack is so powerful, it launches {name} backwards!",
+            "It's not very effective... but it looks really cool!",
+            "The move is interrupted by the dinner bell. Priorities, right?"
+        ]
+        
+        effect = random.choice(effects).format(name=name)
+        
+        await ctx.send(f"{description}\n{effect}")
 
 async def setup(bot: Red):
     await bot.add_cog(OnePieceFun(bot))
