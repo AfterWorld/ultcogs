@@ -836,72 +836,72 @@ class OnePieceFun(commands.Cog):
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}}
         
         questions = [
-                ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol"),
-                ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro"),
-                ("What is the name of the legendary treasure in One Piece?", "One Piece"),
-                ("What is the name of Luffy's pirate crew?", "Straw Hat Pirates"),
-                ("Who is the cook of the Straw Hat Pirates?", "Sanji"),
-                ("What is the name of the cursed sword Zoro uses?", "Sandai Kitetsu"),
-                ("What type of fruit did Chopper eat?", "Human-Human Fruit"),
-                ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin"),
-                ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak"),
-                ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo"),
-                ("What is the name of Luffy's brother?", "Portgas D. Ace"),
-                ("Who is the shipwright of the Straw Hat Pirates?", "Franky"),
-                ("What is the name of Nami's weapon?", "Clima-Tact"),
-                ("Which Yonko is known as 'Red-Haired'?", "Shanks"),
-                ("What is the name of the island where the Straw Hats trained for two years?", "Rusukaina"),
-                ("Who is the musician of the Straw Hat Pirates?", "Brook"),
-                ("What is the name of the Revolutionary Army's leader?", "Monkey D. Dragon"),
-                ("Which former Shichibukai is known as the 'Hawk-Eye'?", "Dracule Mihawk"),
-                ("What is the name of the sea train that connects Water 7 to other islands?", "Puffing Tom"),
-                ("Who is the captain of the Heart Pirates?", "Trafalgar D. Water Law"),
-                ("What is the name of the island where Zoro trained during the time skip?", "Kuraigana Island"),
-                ("Who is the creator of the Pacifista?", "Dr. Vegapunk"),
-                ("What is the name of Luffy's grandfather?", "Monkey D. Garp"),
-                ("Which Yonko is known as 'Big Mom'?", "Charlotte Linlin"),
-                ("What is the name of the island where the Straw Hats met Brook?", "Thriller Bark"),
-                ("Who is the sniper of the Straw Hat Pirates?", "Usopp"),
-                ("What is the name of Zoro's ultimate technique?", "Asura"),
-                ("Which Devil Fruit did Ace eat?", "Mera Mera no Mi"),
-                ("What is the name of the marine base where Luffy met Coby?", "Shell Town"),
-                ("Who is the former captain of the Sun Pirates?", "Fisher Tiger"),
-                ("What is the name of the special ingredient used in Sanji's raid suit?", "Germa science"),
-                ("Who is the captain of the Kid Pirates?", "Eustass Kid"),
-                ("What is the name of the sword that Zoro received from Ryuma?", "Shusui"),
-                ("Which Yonko is known as 'Blackbeard'?", "Marshall D. Teach"),
-                ("What is the name of the island where the Straw Hats first encountered the Mink Tribe?", "Zou"),
-                ("Who is the helmsman of the Straw Hat Pirates?", "Jinbe"),
-                ("What is the name of the technique Luffy uses to predict enemy attacks?", "Observation Haki"),
-                ("Which pirate crew did Nami originally belong to?", "Arlong Pirates"),
-                ("What is the name of the prison where Ace was held before his execution?", "Impel Down"),
-                ("Who is the captain of the Whitebeard Pirates?", "Edward Newgate"),
-                ("What is the name of the island where Gold Roger was born?", "Loguetown"),
-                ("Who is the former Fleet Admiral of the Marines?", "Sengoku"),
-                ("What is the name of the ship used by the Roger Pirates?", "Oro Jackson"),
-                ("Which Shichibukai is known as the 'Tyrant'?", "Bartholomew Kuma"),
-                ("What is the name of the revolutionary army's second-in-command?", "Sabo"),
-                ("Who is the captain of the Kuja Pirates?", "Boa Hancock"),
-                ("What is the name of the island where the Straw Hats first entered the Grand Line?", "Reverse Mountain"),
-                ("Which Devil Fruit allows the user to create earthquakes?", "Gura Gura no Mi"),
-                ("What is the name of the technique that allows users to coat themselves in Armament Haki?", "Busoshoku Haki"),
-                ("Who is the current Fleet Admiral of the Marines?", "Akainu"),
-                ("What is the name of the country where Sanji was born?", "Germa Kingdom"),
-                ("Which former Shichibukai is known as the 'Knight of the Sea'?", "Jinbe"),
-                ("What is the name of the sword that belongs to Kozuki Oden?", "Enma"),
-                ("Who is the captain of the Rocks Pirates?", "Rocks D. Xebec"),
-                ("What is the name of the island where the Straw Hats fought against CP9?", "Enies Lobby"),
-                ("Which Devil Fruit did Sabo eat?", "Mera Mera no Mi"),
-                ("What is the name of the technique Luffy uses to harden his body?", "Armament Haki"),
-                ("Who is the shipwright that built the Thousand Sunny?", "Franky"),
-                ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden"),
-                ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido")
+                ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol", "It's a stretchy move!", "It starts with 'Gomu Gomu'", "It ends with 'Pistol'"),
+                ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro", "He uses three swords", "His first name starts with 'Z'", "His full name is R_____ Z___"),
+                ("What is the name of the legendary treasure in One Piece?", "One Piece", "It's what everyone is looking for", "It's in the title of the show", "It's two words... or is it?"),
+                ("What is the name of Luffy's pirate crew?", "Straw Hat Pirates", "It's named after an accessory", "It involves a type of headwear", "It starts with 'Straw'"),
+                ("Who is the cook of the Straw Hat Pirates?", "Sanji", "He's known for his kicks", "He has a curly eyebrow", "His name starts with 'S'"),
+                ("What is the name of the cursed sword Zoro uses?", "Sandai Kitetsu", "It's one of Zoro's three swords", "It's a cursed blade", "It starts with 'Sandai'"),
+                ("What type of fruit did Chopper eat?", "Human-Human Fruit", "It turned an animal into a hybrid", "It's related to humans", "It's the ____ ____ Fruit"),
+                ("Who is the archaeologist of the Straw Hat Pirates?", "Nico Robin", "She can sprout body parts", "Her first name is the same as a common male name", "Her full name is N___ R____"),
+                ("What is the name of the island where the Straw Hats met Vivi?", "Whiskey Peak", "It's named after an alcoholic beverage", "It's a type of liquor", "It ends with 'Peak'"),
+                ("Who is the main antagonist of the Dressrosa arc?", "Doflamingo", "He's a former Shichibukai", "He wears pink feathers", "His name starts with 'D'"),
+                ("What is the name of Luffy's brother?", "Portgas D. Ace", "He has fire powers", "His first name is a card value", "His full name is P_____ D. A__"),
+                ("Who is the shipwright of the Straw Hat Pirates?", "Franky", "He's a cyborg", "He loves cola", "His name rhymes with 'cranky'"),
+                ("What is the name of Nami's weapon?", "Clima-Tact", "It controls the weather", "It's a staff-like weapon", "It starts with 'Clima'"),
+                ("Which Yonko is known as 'Red-Haired'?", "Shanks", "He's Luffy's idol", "He gave Luffy his straw hat", "His name starts with 'S'"),
+                ("What is the name of the island where the Straw Hats trained for two years?", "Rusukaina", "It's where Luffy trained", "It's a winter island", "It starts with 'R'"),
+                ("Who is the musician of the Straw Hat Pirates?", "Brook", "He's a skeleton", "He loves asking to see panties", "His name is a type of small stream"),
+                ("What is the name of the Revolutionary Army's leader?", "Monkey D. Dragon", "He's Luffy's father", "He shares Luffy's family name", "His full name is M_____ D. D_____"),
+                ("Which former Shichibukai is known as the 'Hawk-Eye'?", "Dracule Mihawk", "He's the world's greatest swordsman", "His eyes resemble a hawk's", "His first name is D______"),
+                ("What is the name of the sea train that connects Water 7 to other islands?", "Puffing Tom", "It's a train that runs on the sea", "It's named after a children's story", "It starts with 'Puffing'"),
+                ("Who is the captain of the Heart Pirates?", "Trafalgar D. Water Law", "He's a surgeon", "He has the Op-Op Fruit", "His first name is T________"),
+                ("What is the name of the island where Zoro trained during the time skip?", "Kuraigana Island", "It's where Mihawk lives", "It's a dark and gloomy place", "It starts with 'K'"),
+                ("Who is the creator of the Pacifista?", "Dr. Vegapunk", "He's a genius scientist", "He works for the World Government", "His title is 'Dr.'"),
+                ("What is the name of Luffy's grandfather?", "Monkey D. Garp", "He's a Marine hero", "He shares Luffy's family name", "His full name is M_____ D. G___"),
+                ("Which Yonko is known as 'Big Mom'?", "Charlotte Linlin", "She rules Whole Cake Island", "She has many children", "Her first name is C________"),
+                ("What is the name of the island where the Straw Hats met Brook?", "Thriller Bark", "It's a giant ship", "It's filled with zombies", "It starts with 'Thriller'"),
+                ("Who is the sniper of the Straw Hat Pirates?", "Usopp", "He has a long nose", "He's known for his lies", "His name sounds like 'you sob'"),
+                ("What is the name of Zoro's ultimate technique?", "Asura", "It makes him appear to have multiple arms and heads", "It's named after a deity", "It starts with 'A'"),
+                ("Which Devil Fruit did Ace eat?", "Mera Mera no Mi", "It's a Logia type", "It's related to fire", "It starts with 'Mera'"),
+                ("What is the name of the marine base where Luffy met Coby?", "Shell Town", "It's where Zoro was held captive", "It's related to sea creatures", "It ends with 'Town'"),
+                ("Who is the former captain of the Sun Pirates?", "Fisher Tiger", "He's a fishman", "He freed slaves from Mariejois", "His first name is F_____"),
+                ("What is the name of the special ingredient used in Sanji's raid suit?", "Germa science", "It's related to Sanji's family", "It's advanced technology", "It starts with 'Germa'"),
+                ("Who is the captain of the Kid Pirates?", "Eustass Kid", "He has magnetic powers", "He's part of the Worst Generation", "His last name is 'Kid'"),
+                ("What is the name of the sword that Zoro received from Ryuma?", "Shusui", "It's a black blade", "It's from Wano Country", "It starts with 'Sh'"),
+                ("Which Yonko is known as 'Blackbeard'?", "Marshall D. Teach", "He has two Devil Fruit powers", "He was part of Whitebeard's crew", "His first name is M_______"),
+                ("What is the name of the island where the Straw Hats first encountered the Mink Tribe?", "Zou", "It's on the back of a giant elephant", "It's home to the Mink Tribe", "It's a very short name"),
+                ("Who is the helmsman of the Straw Hat Pirates?", "Jinbe", "He's a fishman", "He was a former Shichibukai", "His name starts with 'J'"),
+                ("What is the name of the technique Luffy uses to predict enemy attacks?", "Observation Haki", "It's a type of Haki", "It allows the user to sense things", "It starts with 'Observation'"),
+                ("Which pirate crew did Nami originally belong to?", "Arlong Pirates", "They're fishmen", "Their captain has a saw-like nose", "The crew name starts with 'A'"),
+                ("What is the name of the prison where Ace was held before his execution?", "Impel Down", "It's an underwater prison", "It has multiple levels", "It starts with 'Impel'"),
+                ("Who is the captain of the Whitebeard Pirates?", "Edward Newgate", "He's known as the 'Strongest Man in the World'", "His nickname is 'Whitebeard'", "His first name is E_____"),
+                ("What is the name of the island where Gold Roger was born?", "Loguetown", "It's known as the 'Town of the Beginning and the End'", "It's where Roger was executed", "It starts with 'Logue'"),
+                ("Who is the former Fleet Admiral of the Marines?", "Sengoku", "He has a Buddha Devil Fruit", "He was succeeded by Akainu", "His name starts with 'S'"),
+                ("What is the name of the ship used by the Roger Pirates?", "Oro Jackson", "It was built by Tom", "It conquered the Grand Line", "It starts with 'Oro'"),
+                ("Which Shichibukai is known as the 'Tyrant'?", "Bartholomew Kuma", "He's a cyborg", "He has paw pads on his hands", "His first name is B__________"),
+                ("What is the name of the revolutionary army's second-in-command?", "Sabo", "He's Luffy's sworn brother", "He has the Mera Mera no Mi", "His name starts with 'S'"),
+                ("Who is the captain of the Kuja Pirates?", "Boa Hancock", "She's known as the 'Pirate Empress'", "She can turn people to stone", "Her first name is B__"),
+                ("What is the name of the island where the Straw Hats first entered the Grand Line?", "Reverse Mountain", "It's a special mountain", "Ships travel up it to enter the Grand Line", "It starts with 'Reverse'"),
+                ("Which Devil Fruit allows the user to create earthquakes?", "Gura Gura no Mi", "It was Whitebeard's fruit", "It's considered the strongest Paramecia", "It starts with 'Gura'"),
+                ("What is the name of the technique that allows users to coat themselves in Armament Haki?", "Busoshoku Haki", "It's a type of Haki", "It turns the user's body black", "It starts with 'Buso'"),
+                ("Who is the current Fleet Admiral of the Marines?", "Akainu", "He has magma powers", "He killed Ace", "His name means 'Red Dog'"),
+                ("What is the name of the country where Sanji was born?", "Germa Kingdom", "It's a kingdom of science", "Sanji's family rules it", "It starts with 'Germa'"),
+                ("Which former Shichibukai is known as the 'Knight of the Sea'?", "Jinbe", "He's a fishman", "He joined the Straw Hat crew", "His name starts with 'J'"),
+                ("What is the name of the sword that belongs to Kozuki Oden?", "Enma", "It's one of the 21 Great Grade swords", "Zoro now wields it", "It starts with 'E'"),
+                ("Who is the captain of the Rocks Pirates?", "Rocks D. Xebec", "He was Garp and Roger's greatest enemy", "He was defeated at God Valley", "His last name is 'Rocks'"),
+                ("What is the name of the island where the Straw Hats fought against CP9?", "Enies Lobby", "It's a government island", "It has a giant waterfall", "It starts with 'Enies'"),
+                ("Which Devil Fruit did Sabo eat?", "Mera Mera no Mi", "It was previously Ace's fruit", "It's a fire Logia", "It starts with 'Mera'"),
+                ("What is the name of the technique Luffy uses to harden his body?", "Armament Haki", "It's a type of Haki", "It turns body parts black", "It starts with 'Arma'"),
+                ("Who is the shipwright that built the Thousand Sunny?", "Franky", "He's a cyborg", "He's part of the Straw Hat crew", "His name rhymes with 'cranky'"),
+                ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden", "It's full of dinosaurs", "It's where they met the giants Dorry and Brogy", "It starts with 'Little'"),
+                ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido", "He can turn into a dragon", "He rules Wano Country", "His name starts with 'K'")
             ]
         random.shuffle(questions)
         
         await ctx.send("🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
     
-        for question, answer in questions:
+        for question, answer, hint1, hint2, hint3 in questions:
             if not self.trivia_sessions[ctx.channel.id]["active"]:
                 break
             
@@ -909,27 +909,35 @@ class OnePieceFun(commands.Cog):
             
             def check(m):
                 return m.channel == ctx.channel and m.author != ctx.bot.user
-            
-            try:
-                user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
-            except asyncio.TimeoutError:
-                await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
-                continue
-            
-            if user_answer.content.lower() == answer.lower():
-                scores = self.trivia_sessions[ctx.channel.id]["scores"]
-                scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
-                await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
-                
-                if scores[user_answer.author] >= 10:
-                    await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
-                    break
-            else:
-                await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
-            
-            # Display current scores
-            await self.display_scores(ctx)
     
+            start_time = time.time()
+            answered = False
+    
+            while time.time() - start_time < 30 and not answered:
+                try:
+                    msg = await self.bot.wait_for("message", check=check, timeout=1.0)
+                    if msg.content.lower() == answer.lower():
+                        scores = self.trivia_sessions[ctx.channel.id]["scores"]
+                        scores[msg.author] = scores.get(msg.author, 0) + 1
+                        await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer One Piece lore!")
+                        answered = True
+                        if scores[msg.author] >= 10:
+                            await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
+                            self.trivia_sessions[ctx.channel.id]["active"] = False
+                            break
+                except asyncio.TimeoutError:
+                    elapsed = time.time() - start_time
+                    if 10 <= elapsed < 11:
+                        await ctx.send(f"Hint: {hint1}")
+                    elif 20 <= elapsed < 21:
+                        await ctx.send(f"Hint: {hint2}")
+                    elif 25 <= elapsed < 26:
+                        await ctx.send(f"Hint: {hint3}")
+    
+            if not answered:
+                await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
+    
+            await self.display_scores(ctx)
             await asyncio.sleep(2)  # Short pause between questions
     
         await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
@@ -943,7 +951,7 @@ class OnePieceFun(commands.Cog):
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
         await ctx.send(box(score_message))
-
+    
     @commands.command()
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def triviastop(self, ctx):
