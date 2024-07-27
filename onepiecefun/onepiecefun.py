@@ -941,7 +941,7 @@ class OnePieceFun(commands.Cog):
         start_time = time.time()
         answered = False
 
-        while time.time() - start_time < 30 and not answered:
+        while time.time() - start_time < 180 and not answered:
             try:
                 msg = await self.bot.wait_for("message", check=check, timeout=1.0)
                 if msg.content.lower() in [answer.lower() for answer in answers]:
@@ -958,7 +958,7 @@ class OnePieceFun(commands.Cog):
                     await ctx.send(f"Hint: {hint1}")
                 elif 20 <= elapsed < 21:
                     await ctx.send(f"Hint: {hint2}")
-                elif 25 <= elapsed < 26:
+                elif 60 <= elapsed < 26:
                     await ctx.send(f"Hint: {hint3}")
             
             if not self.trivia_sessions[ctx.channel.id]["active"]:
