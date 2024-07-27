@@ -1268,7 +1268,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(box(poster))
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown
+    @commands.cooldown(1, 1800, commands.BucketType.user)  # 5-minute cooldown
     async def berryflip(self, ctx, bet: int, choice: str = None):
         """
         Flip a Berry coin and test your luck! Bet from your current bounty.
