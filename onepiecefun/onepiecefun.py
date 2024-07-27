@@ -932,7 +932,7 @@ class OnePieceFun(commands.Cog):
         finally:
             await self.end_game(ctx)
 
-    async def ask_question(self, ctx, question, answer, hint1, hint2, hint3):
+    async def ask_question(self, ctx, question, answers, hint1, hint2, hint3):
         await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
         
         def check(m):
@@ -944,7 +944,7 @@ class OnePieceFun(commands.Cog):
         while time.time() - start_time < 30 and not answered:
             try:
                 msg = await self.bot.wait_for("message", check=check, timeout=1.0)
-                if msg.content.lower() == answer.lower():
+                if msg.content.lower() in [answer.lower() for answer in answers]:
                     scores = self.trivia_sessions[ctx.channel.id]["scores"]
                     scores[msg.author] = scores.get(msg.author, 0) + 1
                     await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer One Piece lore!")
@@ -965,7 +965,7 @@ class OnePieceFun(commands.Cog):
                 return False  # The game was stopped
 
         if not answered:
-            await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
+            await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(answers)}")
 
         try:
             await self.display_scores(ctx)
