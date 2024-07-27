@@ -29,7 +29,6 @@ class OnePieceFun(commands.Cog):
             "trivia_scores": {},
             "trivia_cooldowns": {}
         }
-        }
         default_member = {
             "last_daily_claim": None
         }
@@ -51,6 +50,7 @@ class OnePieceFun(commands.Cog):
         (1000000000, "Yonko Commander"),
         (2000000000, "Yonko Candidate")
     ]
+    
     self.questions = [
             ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol", "It's a stretchy move!", "It starts with 'Gomu Gomu'", "It ends with 'Pistol'", "easy"),
             ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro", "He uses three swords", "His first name starts with 'Z'", "His full name is R_____ Z___", "easy"),
