@@ -1242,7 +1242,10 @@ class OnePieceFun(commands.Cog):
     async def wanted(self, ctx, member: discord.Member = None):
         """Generate a wanted poster for a user."""
         member = member or ctx.author
-        bounty = await self.config.guild(ctx.guild).bounties().get(str(member.id), {}).get("amount", 0)
+        
+        # Correctly retrieve the bounty information
+        all_bounties = await self.config.guild(ctx.guild).bounties()
+        bounty = all_bounties.get(str(member.id), {}).get("amount", 0)
         
         poster = f"""
 ╔══════════════════════╗
@@ -1260,6 +1263,41 @@ class OnePieceFun(commands.Cog):
 ╚══════════════════════╝
 """
         await ctx.send(box(poster))
+
+    @commands.command()
+    async def berryflip(self, ctx, bet: int):
+        """Flip a Berry coin and test your luck! Bet from your current bounty."""
+        user_id = str(ctx.author.id)
+        
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            if user_id not in bounties:
+                return await ctx.send("Ye don't have a bounty yet, ye rookie! Go cause some trouble first!")
+            
+            current_bounty = bounties[user_id]['amount']
+            
+            if bet < 1:
+                return await ctx.send("Ye need to bet at least 1 Berry, ye stingy sea dog!")
+            
+            if bet > current_bounty:
+                return await ctx.send(f"Ye can't bet more than yer bounty of {current_bounty:,} Berries, ye greedy landlubber!")
+            
+            flip = random.choice(["Heads", "Tails"])
+            
+            if flip == "Heads":
+                new_bounty = current_bounty + bet
+                bounties[user_id]['amount'] = new_bounty
+                result = f"Ye won {bet:,} Berries! Yer new bounty is {new_bounty:,} Berries! The Marines will be after ye soon!"
+            else:
+                new_bounty = max(0, current_bounty - bet)  # Ensure bounty doesn't go negative
+                bounties[user_id]['amount'] = new_bounty
+                result = f"Ye lost {bet:,} Berries! Yer new bounty is {new_bounty:,} Berries! Better luck next time, ye landlubber!"
+        
+        embed = discord.Embed(title="🪙 Berry Flip 🪙", color=discord.Color.gold())
+        embed.add_field(name="The Flip", value=f"The Berry coin flips through the air and lands on... {flip}!", inline=False)
+        embed.add_field(name="Result", value=result, inline=False)
+        embed.set_footer(text=f"Current Bounty: {new_bounty:,} Berries")
+        
+        await ctx.send(embed=embed)
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
