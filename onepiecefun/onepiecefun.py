@@ -112,7 +112,7 @@ class OnePieceFun(commands.Cog):
             ("Who is the shipwright that built the Thousand Sunny?", "Franky", "He's a cyborg", "He's part of the Straw Hat crew", "His name rhymes with 'cranky'", "easy"),
             ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden", "It's full of dinosaurs", "It's where they met the giants Dorry and Brogy", "It starts with 'Little'", "normal"),
             ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido", "He can turn into a dragon", "He rules Wano Country", "His name starts with 'K'", "easy")
-        ]
+    ]
             
     def get_bounty_title(self, bounty):
         for threshold, title in reversed(self.BOUNTY_TITLES):
