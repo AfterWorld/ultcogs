@@ -4,6 +4,7 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.bot import Red
 import discord
 import random
+import time
 import asyncio
 from datetime import datetime, timedelta
 
