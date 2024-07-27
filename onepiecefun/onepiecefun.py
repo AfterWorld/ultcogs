@@ -1256,12 +1256,12 @@ class OnePieceFun(commands.Cog):
 ║ ╔══════════════════╗ ║
 ║ ║                  ║ ║
 ║ ║                  ║ ║
-║ ║   {member.name[:14].center(14)}  ║ ║
+║ ║   {member.name[:14].center(14)} ║ ║
 ║ ║                  ║ ║
 ║ ║                  ║ ║
 ║ ╚══════════════════╝ ║
 ║                      ║
-║  {f'{bounty:,}'.center(20)} ║
+║  {f'{bounty:,}'.center(20)}║
 ║        BERRIES       ║
 ╚══════════════════════╝
 """
