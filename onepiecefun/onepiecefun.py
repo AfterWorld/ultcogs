@@ -1237,6 +1237,29 @@ class OnePieceFun(commands.Cog):
                 if str(winner.id) not in bounties:
                     bounties[str(winner.id)] = {"amount": 1000000}
                 bounties[str(winner.id)]["amount"] += random.randint(5000000, 20000000)
+
+    @commands.command()
+    async def wanted(self, ctx, member: discord.Member = None):
+        """Generate a wanted poster for a user."""
+        member = member or ctx.author
+        bounty = await self.config.guild(ctx.guild).bounties().get(str(member.id), {}).get("amount", 0)
+        
+        poster = f"""
+╔══════════════════════╗
+║     WANTED ALIVE     ║
+║ ╔══════════════════╗ ║
+║ ║                  ║ ║
+║ ║                  ║ ║
+║ ║   {member.name[:14].center(14)}  ║ ║
+║ ║                  ║ ║
+║ ║                  ║ ║
+║ ╚══════════════════╝ ║
+║                      ║
+║  {f'{bounty:,}'.center(20)} ║
+║        BERRIES       ║
+╚══════════════════════╝
+"""
+        await ctx.send(box(poster))
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
