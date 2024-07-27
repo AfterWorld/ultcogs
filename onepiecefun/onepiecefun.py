@@ -1247,8 +1247,8 @@ class OnePieceFun(commands.Cog):
         member = member or ctx.author
         
         # Correctly retrieve the bounty information
-        all_bounties = await self.config.guild(ctx.guild).bounties()
-        bounty = all_bounties.get(str(member.id), {}).get("amount", 0)
+        bounties = await self.config.guild(ctx.guild).bounties()
+        bounty = bounties.get(str(member.id), {}).get("amount", 0)
         
         poster = f"""
 ╔══════════════════════╗
@@ -1269,12 +1269,16 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown
-    async def berryflip(self, ctx, bet: int, choice: str):
+    async def berryflip(self, ctx, bet: int, choice: str = None):
         """
         Flip a Berry coin and test your luck! Bet from your current bounty.
-        Choose 'heads' or 'tails' to place your bet.
+        Usage: .berryflip <amount> [heads/tails]
+        If no choice is made, it defaults to heads.
         """
         user_id = str(ctx.author.id)
+        
+        if choice is None:
+            choice = 'heads'
         choice = choice.lower()
         
         if choice not in ['heads', 'tails']:
@@ -1282,8 +1286,8 @@ class OnePieceFun(commands.Cog):
 
         async with self.config.guild(ctx.guild).all() as guild_data:
             bounties = guild_data['bounties']
-            gambling_stats = guild_data['gambling_stats']
-            double_payout = guild_data['double_payout_event']
+            gambling_stats = guild_data.get('gambling_stats', {})
+            double_payout = guild_data.get('double_payout_event', False)
 
             if user_id not in bounties:
                 return await ctx.send("Ye don't have a bounty yet, ye rookie! Go cause some trouble first!")
@@ -1322,6 +1326,8 @@ class OnePieceFun(commands.Cog):
                 gambling_stats[user_id]["losses"] += 1
                 gambling_stats[user_id]["net_gain"] -= bet
 
+            guild_data['gambling_stats'] = gambling_stats
+
         embed = discord.Embed(title="🪙 Berry Flip 🪙", color=discord.Color.gold())
         embed.add_field(name="The Flip", value=f"The Berry coin flips through the air and lands on... {flip}!", inline=False)
         embed.add_field(name="Result", value=result, inline=False)
@@ -1330,7 +1336,7 @@ class OnePieceFun(commands.Cog):
         embed.set_footer(text=f"Current Bounty: {new_bounty:,} Berries")
         
         await ctx.send(embed=embed)
-
+        
     @commands.command()
     async def gamblelb(self, ctx):
         """Display the gambling leaderboard."""
