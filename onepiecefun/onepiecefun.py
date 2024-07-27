@@ -21,7 +21,9 @@ class OnePieceFun(commands.Cog):
             "pirate_crews": {},
             "gambling_stats": {},
             "double_payout_event": False,
-            "double_payout_end_time": None
+            "double_payout_end_time": None,
+            "inspection_active": False,
+            "sea_king_alert": False
         }
         default_member = {
             "last_daily_claim": None
@@ -1378,6 +1380,134 @@ class OnePieceFun(commands.Cog):
         general_channel = self.bot.get_channel(self.GENERAL_CHANNEL_ID)
         if general_channel:
             await general_channel.send("🏁 The Double Payout Event has ended! Gambling winnings have returned to normal.")
+
+    @commands.command()
+    @checks.admin_or_permissions(manage_guild=True)
+    async def worldGovernmentDecree(self, ctx, *, decree: str):
+        """Make an official 'World Government' announcement."""
+        embed = discord.Embed(
+            title="🌐 World Government Official Decree 🌐",
+            description=decree,
+            color=discord.Color.gold()
+        )
+        embed.set_footer(text=f"Issued by Celestial Dragon {ctx.author.display_name}")
+        embed.set_thumbnail(url="https://static.wikia.nocookie.net/onepiece/images/a/a1/World_Government_Infobox.png")  # World Government logo
+        
+        # Send to all channels with 'announcement' in the name
+        announcement_channels = [channel for channel in ctx.guild.text_channels if 'announcement' in channel.name.lower()]
+        if not announcement_channels:
+            await ctx.send("No announcement channels found. Sending decree here.")
+            await ctx.send(embed=embed)
+        else:
+            for channel in announcement_channels:
+                await channel.send(embed=embed)
+            await ctx.send(f"Decree sent to {len(announcement_channels)} announcement channel(s).")
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_channels=True)
+    async def seaKingAlert(self, ctx, channel: discord.TextChannel = None):
+        """Simulate a Sea King attack on a specific channel or the current channel."""
+        if channel is None:
+            channel = ctx.channel
+
+        async with self.config.guild(ctx.guild).sea_king_alert() as alert_active:
+            if alert_active:
+                await ctx.send("A Sea King is already attacking! Deal with that one first!")
+                return
+            alert_active = True
+
+        sea_king_images = [
+            "https://www.dexerto.com/cdn-cgi/image/width=1080,quality=75,format=auto/https://editors.dexerto.com/wp-content/uploads/2023/06/21/one-piece-sea-king-and-luffy-1024x576.jpeg",  # Replace with actual Sea King image URLs
+            "https://www.dexerto.com/cdn-cgi/image/width=1080,quality=75,format=auto/https://editors.dexerto.com/wp-content/uploads/2023/06/21/one-piece-poseidon-ancient-weapon-1024x576.jpeg",
+            "https://static.wikia.nocookie.net/onepiece/images/e/e2/Sea_King_Infobox.png"
+        ]
+        sea_king_image = random.choice(sea_king_images)
+
+        embed = discord.Embed(title="🌊🐉 SEA KING ALERT 🐉🌊", color=discord.Color.blue())
+        embed.set_image(url=sea_king_image)
+        await channel.send(embed=embed)
+
+        messages = [
+            "A massive Sea King has appeared!",
+            "All conversations in this channel are interrupted!",
+            "Quick, someone call for Luffy!",
+            "The Sea King is eyeing the ship hungrily!",
+            "Prepare for evasive maneuvers!",
+            "Where's a Calm Belt when you need one?!"
+        ]
+
+        for message in messages:
+            await channel.send(message)
+            await asyncio.sleep(2)
+
+        # Restrict messaging in the channel
+        await channel.set_permissions(ctx.guild.default_role, send_messages=False)
+        await channel.send("The Sea King has temporarily halted all communication in this channel!")
+
+        # Wait for 5 minutes
+        await asyncio.sleep(300)
+
+        # Re-enable messaging
+        await channel.set_permissions(ctx.guild.default_role, send_messages=None)
+        await channel.send("The Sea King has been defeated! Normal communications can resume.")
+
+        async with self.config.guild(ctx.guild).sea_king_alert() as alert_active:
+            alert_active = False
+
+    @commands.command()
+    @checks.admin_or_permissions(manage_guild=True)
+    async def admiralInspection(self, ctx):
+        """Trigger a surprise 'Admiral Inspection' of the server."""
+        async with self.config.guild(ctx.guild).inspection_active() as inspection:
+            if inspection:
+                await ctx.send("An inspection is already in progress!")
+                return
+            inspection = True
+
+        admirals = {
+            "Akainu": "https://static.wikia.nocookie.net/onepiece/images/5/5b/Sakazuki_Pre_Timeskip_Portrait.png",
+            "Aokiji": "https://static.wikia.nocookie.net/onepiece/images/5/5a/Kuzan_Pre_Timeskip_Portrait.png",
+            "Kizaru": "https://static.wikia.nocookie.net/onepiece/images/9/97/Borsalino_Portrait.png",
+            "Fujitora": "https://static.wikia.nocookie.net/onepiece/images/d/db/Issho_Portrait.png",
+            "Ryokugyu": "https://static.wikia.nocookie.net/onepiece/images/a/a2/Aramaki_Portrait.png"
+        }
+        admiral, image_url = random.choice(list(admirals.items()))
+        
+        embed = discord.Embed(
+            title=f"🎖️ Admiral {admiral} Inspection 🎖️",
+            description=(
+                f"Admiral {admiral} is conducting a surprise inspection of our base!\n"
+                "All Marines, stand at attention! Pirates, try to act natural!\n"
+                "The Admiral will be checking all channels for the next hour."
+            ),
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=image_url)
+        
+        # Send to all text channels
+        for channel in ctx.guild.text_channels:
+            await channel.send(embed=embed)
+
+        # Simulated inspection
+        inspection_messages = [
+            "Admiral {} is checking the weapon stocks...",
+            "Admiral {} is reviewing the wanted posters...",
+            "Admiral {} is inspecting the ship's log...",
+            "Admiral {} is testing the Den Den Mushi network...",
+            "Admiral {} is evaluating the base's defenses..."
+        ]
+
+        for _ in range(5):  # Send 5 inspection updates
+            await asyncio.sleep(600)  # Wait 10 minutes between updates
+            channel = random.choice(ctx.guild.text_channels)
+            message = random.choice(inspection_messages).format(admiral)
+            await channel.send(message)
+
+        # End the inspection
+        await ctx.send(f"Admiral {admiral} has completed the inspection and left the base.")
+        
+        async with self.config.guild(ctx.guild).inspection_active() as inspection:
+            inspection = False
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
