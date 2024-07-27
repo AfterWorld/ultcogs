@@ -18,7 +18,10 @@ class OnePieceFun(commands.Cog):
         default_guild = {
             "custom_devil_fruits": {},
             "bounties": {},
-            "pirate_crews": {}
+            "pirate_crews": {},
+            "gambling_stats": {},
+            "double_payout_event": False,
+            "double_payout_end_time": None
         }
         default_member = {
             "last_daily_claim": None
@@ -1265,11 +1268,23 @@ class OnePieceFun(commands.Cog):
         await ctx.send(box(poster))
 
     @commands.command()
-    async def berryflip(self, ctx, bet: int):
-        """Flip a Berry coin and test your luck! Bet from your current bounty."""
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown
+    async def berryflip(self, ctx, bet: int, choice: str):
+        """
+        Flip a Berry coin and test your luck! Bet from your current bounty.
+        Choose 'heads' or 'tails' to place your bet.
+        """
         user_id = str(ctx.author.id)
+        choice = choice.lower()
         
-        async with self.config.guild(ctx.guild).bounties() as bounties:
+        if choice not in ['heads', 'tails']:
+            return await ctx.send("Ye must choose 'heads' or 'tails', ye indecisive sea dog!")
+
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            bounties = guild_data['bounties']
+            gambling_stats = guild_data['gambling_stats']
+            double_payout = guild_data['double_payout_event']
+
             if user_id not in bounties:
                 return await ctx.send("Ye don't have a bounty yet, ye rookie! Go cause some trouble first!")
             
@@ -1281,23 +1296,82 @@ class OnePieceFun(commands.Cog):
             if bet > current_bounty:
                 return await ctx.send(f"Ye can't bet more than yer bounty of {current_bounty:,} Berries, ye greedy landlubber!")
             
-            flip = random.choice(["Heads", "Tails"])
+            flip = random.choice(["heads", "tails"])
             
-            if flip == "Heads":
-                new_bounty = current_bounty + bet
+            if flip == choice:
+                winnings = bet * 2  # Double the bet
+                if double_payout:
+                    winnings *= 2  # Double again if special event is active
+                new_bounty = current_bounty + winnings
                 bounties[user_id]['amount'] = new_bounty
-                result = f"Ye won {bet:,} Berries! Yer new bounty is {new_bounty:,} Berries! The Marines will be after ye soon!"
+                result = f"Ye won {winnings:,} Berries! Yer new bounty is {new_bounty:,} Berries! The Marines will be after ye soon!"
+                
+                # Update gambling stats
+                if user_id not in gambling_stats:
+                    gambling_stats[user_id] = {"wins": 0, "losses": 0, "net_gain": 0}
+                gambling_stats[user_id]["wins"] += 1
+                gambling_stats[user_id]["net_gain"] += winnings
             else:
                 new_bounty = max(0, current_bounty - bet)  # Ensure bounty doesn't go negative
                 bounties[user_id]['amount'] = new_bounty
                 result = f"Ye lost {bet:,} Berries! Yer new bounty is {new_bounty:,} Berries! Better luck next time, ye landlubber!"
-        
+                
+                # Update gambling stats
+                if user_id not in gambling_stats:
+                    gambling_stats[user_id] = {"wins": 0, "losses": 0, "net_gain": 0}
+                gambling_stats[user_id]["losses"] += 1
+                gambling_stats[user_id]["net_gain"] -= bet
+
         embed = discord.Embed(title="🪙 Berry Flip 🪙", color=discord.Color.gold())
         embed.add_field(name="The Flip", value=f"The Berry coin flips through the air and lands on... {flip}!", inline=False)
         embed.add_field(name="Result", value=result, inline=False)
+        if double_payout:
+            embed.add_field(name="Special Event", value="Double Payout Event is active! All winnings are doubled!", inline=False)
         embed.set_footer(text=f"Current Bounty: {new_bounty:,} Berries")
         
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def gamblelb(self, ctx):
+        """Display the gambling leaderboard."""
+        async with self.config.guild(ctx.guild).gambling_stats() as gambling_stats:
+            sorted_stats = sorted(gambling_stats.items(), key=lambda x: x[1]['net_gain'], reverse=True)[:10]
+            
+            embed = discord.Embed(title="🏆 Gambling Leaderboard 🏆", color=discord.Color.gold())
+            for i, (user_id, stats) in enumerate(sorted_stats, 1):
+                user = ctx.guild.get_member(int(user_id))
+                if user:
+                    embed.add_field(
+                        name=f"{i}. {user.display_name}",
+                        value=f"Net Gain: {stats['net_gain']:,} Berries\nWins: {stats['wins']}\nLosses: {stats['losses']}",
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+
+    @commands.command()
+    @checks.admin_or_permissions(manage_guild=True)
+    async def startdoublepayout(self, ctx, duration: int):
+        """Start a double payout event for a specified number of minutes."""
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            guild_data['double_payout_event'] = True
+            guild_data['double_payout_end_time'] = (datetime.utcnow() + timedelta(minutes=duration)).isoformat()
+
+        await ctx.send(f"🎉 Double Payout Event has started! All gambling winnings will be doubled for the next {duration} minutes!")
+
+        # Schedule the event to end
+        await self.schedule_double_payout_end(ctx.guild, duration)
+
+    async def schedule_double_payout_end(self, guild, duration):
+        await asyncio.sleep(duration * 60)
+        async with self.config.guild(guild).all() as guild_data:
+            guild_data['double_payout_event'] = False
+            guild_data['double_payout_end_time'] = None
+        
+        # Announce the end of the event in the general channel
+        general_channel = self.bot.get_channel(self.GENERAL_CHANNEL_ID)
+        if general_channel:
+            await general_channel.send("🏁 The Double Payout Event has ended! Gambling winnings have returned to normal.")
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
