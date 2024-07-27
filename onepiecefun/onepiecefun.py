@@ -39,19 +39,7 @@ class OnePieceFun(commands.Cog):
         self.last_announcement = {}
         self.trivia_lock = asyncio.Lock()
         
-    BOUNTY_TITLES = [
-        (0, "Cabin Boy"),
-        (1000000, "Pirate Apprentice"),
-        (10000000, "Rookie Pirate"),
-        (50000000, "Super Rookie"),
-        (100000000, "Notorious Pirate"),
-        (300000000, "Pirate Captain"),
-        (500000000, "Supernova"),
-        (1000000000, "Yonko Commander"),
-        (2000000000, "Yonko Candidate")
-    ]
-    
-    self.questions = [
+        self.questions = [
             ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol", "It's a stretchy move!", "It starts with 'Gomu Gomu'", "It ends with 'Pistol'", "easy"),
             ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro", "He uses three swords", "His first name starts with 'Z'", "His full name is R_____ Z___", "easy"),
             ("What is the name of the legendary treasure in One Piece?", "One Piece", "It's what everyone is looking for", "It's in the title of the show", "It's two words... or is it?", "easy"),
@@ -114,6 +102,17 @@ class OnePieceFun(commands.Cog):
             ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido", "He can turn into a dragon", "He rules Wano Country", "His name starts with 'K'", "easy")
     ]
             
+    BOUNTY_TITLES = [
+        (0, "Cabin Boy"),
+        (1000000, "Pirate Apprentice"),
+        (10000000, "Rookie Pirate"),
+        (50000000, "Super Rookie"),
+        (100000000, "Notorious Pirate"),
+        (300000000, "Pirate Captain"),
+        (500000000, "Supernova"),
+        (1000000000, "Yonko Commander"),
+        (2000000000, "Yonko Candidate")
+    ]
     def get_bounty_title(self, bounty):
         for threshold, title in reversed(self.BOUNTY_TITLES):
             if bounty >= threshold:
