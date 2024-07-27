@@ -52,6 +52,7 @@ class OnePieceFun(commands.Cog):
         return "Unknown"
 
     @commands.command()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def df(self, ctx):
         """Get a random Devil Fruit fact or a made-up funny one."""
         df_facts = [
