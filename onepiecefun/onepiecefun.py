@@ -15,6 +15,7 @@ class OnePieceFun(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.trivia_sessions = {}
         default_guild = {
             "custom_devil_fruits": {},
             "bounties": {},
@@ -828,12 +829,13 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     async def trivia(self, ctx):
         """Play a round of One Piece trivia!"""
-        if self.trivia_lock.locked():
+        if ctx.channel.id in self.trivia_sessions:
             await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
-
-        async with self.trivia_lock:
-            questions = [
+    
+        self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}}
+        
+        questions = [
                 ("What is the name of Luffy's signature attack?", "Gomu Gomu no Pistol"),
                 ("Who is known as the 'Pirate Hunter'?", "Roronoa Zoro"),
                 ("What is the name of the legendary treasure in One Piece?", "One Piece"),
@@ -895,46 +897,64 @@ class OnePieceFun(commands.Cog):
                 ("What is the name of the island where the Straw Hats met Vivi?", "Little Garden"),
                 ("Which Yonko is known as 'Kaido of the Beasts'?", "Kaido")
             ]
+        random.shuffle(questions)
+        
+        await ctx.send("🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
+    
+        for question, answer in questions:
+            if not self.trivia_sessions[ctx.channel.id]["active"]:
+                break
             
-            scores = {}
-            used_questions = set()
+            await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
             
-            await ctx.send("🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
+            def check(m):
+                return m.channel == ctx.channel and m.author != ctx.bot.user
+            
+            try:
+                user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
+            except asyncio.TimeoutError:
+                await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
+                continue
+            
+            if user_answer.content.lower() == answer.lower():
+                scores = self.trivia_sessions[ctx.channel.id]["scores"]
+                scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
+                await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
+                
+                if scores[user_answer.author] >= 10:
+                    await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
+                    break
+            else:
+                await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
+            
+            # Display current scores
+            await self.display_scores(ctx)
+    
+            await asyncio.sleep(2)  # Short pause between questions
+    
+        await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
+        del self.trivia_sessions[ctx.channel.id]
+    
+    async def display_scores(self, ctx):
+        scores = self.trivia_sessions[ctx.channel.id]["scores"]
+        if not scores:
+            return
+        
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
+        await ctx.send(box(score_message))
 
-            while True:
-                if len(used_questions) == len(questions):
-                    used_questions.clear()  # Reset if all questions have been used
-                
-                available_questions = [q for q in questions if q not in used_questions]
-                question, answer = random.choice(available_questions)
-                used_questions.add((question, answer))
-                
-                await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
-                
-                def check(m):
-                    return m.channel == ctx.channel
-                
-                try:
-                    user_answer = await self.bot.wait_for("message", check=check, timeout=30.0)
-                except asyncio.TimeoutError:
-                    await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
-                    continue
-                
-                if user_answer.content.lower() == answer.lower():
-                    scores[user_answer.author] = scores.get(user_answer.author, 0) + 1
-                    await ctx.send(f"Aye, that be correct, {user_answer.author.display_name}! Ye know yer One Piece lore!")
-                    
-                    if scores[user_answer.author] >= 10:
-                        await ctx.send(f"🎉 Congratulations, {user_answer.author.display_name}! Ye've reached 10 points and won the game! 🏆")
-                        break
-                else:
-                    await ctx.send(f"Nay, that's not right, ye scurvy dog! The correct answer was: {answer}")
-                
-                # Display current scores
-                score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in scores.items())
-                await ctx.send(score_message)
+    @commands.command()
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def triviastop(self, ctx):
+        """Stop the current trivia game."""
+        if ctx.channel.id not in self.trivia_sessions:
+            await ctx.send("There's no active trivia game in this channel, ye confused sea dog!")
+            return
+        
+        self.trivia_sessions[ctx.channel.id]["active"] = False
+        await ctx.send("The trivia game has been stopped by the captain's orders!")
 
-            await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)
