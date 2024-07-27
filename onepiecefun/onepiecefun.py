@@ -340,6 +340,14 @@ class OnePieceFun(commands.Cog):
                 await ctx.send(f"{user.display_name} doesn't have a bounty to reset.")
 
     @commands.command()
+    @checks.admin_or_permissions(manage_guild=True)
+    async def setbounty(self, ctx, user: discord.Member, amount: int):
+        """Set a user's bounty to a specific amount (Admin only)."""
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            bounties[str(user.id)] = {"amount": amount}
+        await ctx.send(f"The World Government has set {user.display_name}'s bounty to {amount:,} Berries!")
+
+    @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def bountylist(self, ctx):
         """List the top 10 bounties in the server with rankings."""
