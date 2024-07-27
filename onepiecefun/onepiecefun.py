@@ -1458,11 +1458,12 @@ class OnePieceFun(commands.Cog):
     @checks.admin_or_permissions(manage_guild=True)
     async def admiralInspection(self, ctx):
         """Trigger a surprise 'Admiral Inspection' of the server."""
-        async with self.config.guild(ctx.guild).inspection_active() as inspection:
-            if inspection:
-                await ctx.send("An inspection is already in progress!")
-                return
-            inspection = True
+        inspection_active = await self.config.guild(ctx.guild).inspection_active()
+        if inspection_active:
+            await ctx.send("An inspection is already in progress!")
+            return
+
+        await self.config.guild(ctx.guild).inspection_active.set(True)
 
         admirals = {
             "Akainu": "https://static.wikia.nocookie.net/onepiece/images/5/5b/Sakazuki_Pre_Timeskip_Portrait.png",
@@ -1497,17 +1498,18 @@ class OnePieceFun(commands.Cog):
             "Admiral {} is evaluating the base's defenses..."
         ]
 
-        for _ in range(5):  # Send 5 inspection updates
-            await asyncio.sleep(600)  # Wait 10 minutes between updates
-            channel = random.choice(ctx.guild.text_channels)
-            message = random.choice(inspection_messages).format(admiral)
-            await channel.send(message)
-
-        # End the inspection
-        await ctx.send(f"Admiral {admiral} has completed the inspection and left the base.")
-        
-        async with self.config.guild(ctx.guild).inspection_active() as inspection:
-            inspection = False
+        try:
+            for _ in range(5):  # Send 5 inspection updates
+                await asyncio.sleep(600)  # Wait 10 minutes between updates
+                channel = random.choice(ctx.guild.text_channels)
+                message = random.choice(inspection_messages).format(admiral)
+                await channel.send(message)
+        except Exception as e:
+            await ctx.send(f"An error occurred during the inspection: {str(e)}")
+        finally:
+            # End the inspection
+            await ctx.send(f"Admiral {admiral} has completed the inspection and left the base.")
+            await self.config.guild(ctx.guild).inspection_active.set(False)
             
 async def setup(bot):
     await bot.add_cog(OnePieceFun(bot))
