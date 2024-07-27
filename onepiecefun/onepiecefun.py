@@ -1139,7 +1139,6 @@ class OnePieceFun(commands.Cog):
         marine_admirals = ["Akainu", "Aokiji", "Kizaru", "Fujitora", "Ryokugyu"]
         admiral = random.choice(marine_admirals)
 
-        # Create and send an embed message for the raid
         embed = discord.Embed(
             title="🚨 Marine Raid Alert 🚨",
             description=f"Admiral {admiral} has been spotted nearby! All pirates, prepare for battle!",
@@ -1156,14 +1155,21 @@ class OnePieceFun(commands.Cog):
 
         # Fetch the updated message to get all reactions
         raid_msg = await channel.fetch_message(raid_msg.id)
-        participants = [user for user in await raid_msg.reactions[0].users().flatten() if not user.bot]
+        
+        # Get only the users who reacted (excluding bots)
+        reaction = discord.utils.get(raid_msg.reactions, emoji="⚔️")
+        if reaction:
+            participants = [user async for user in reaction.users() if not user.bot]
+        else:
+            participants = []
 
         if not participants:
             await channel.send("No brave pirates stepped up to face the Marines. The raid was called off!")
             return
 
         # Determine outcomes
-        captured = random.sample(participants, k=min(len(participants) // 2, 5))
+        num_captured = min(len(participants) // 2, 5)
+        captured = random.sample(participants, k=num_captured)
         escaped = [p for p in participants if p not in captured]
 
         # Prepare result messages
@@ -1190,7 +1196,7 @@ class OnePieceFun(commands.Cog):
 
         if escaped:
             await channel.send("The bounties of the escaped pirates have been increased significantly!")
-
+            
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
     async def islandexpedition(self, ctx):
