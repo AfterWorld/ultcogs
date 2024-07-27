@@ -25,13 +25,13 @@ class OnePieceFun(commands.Cog):
             "double_payout_event": False,
             "double_payout_end_time": None,
             "inspection_active": False,
-            "sea_king_alert": False,
             "trivia_scores": {},
             "trivia_cooldowns": {}
         }
         default_member = {
             "last_daily_claim": None
         }
+        self.config.register_guild(sea_king_alert=False)
         self.config.register_guild(**default_guild)
         self.config.register_member(**default_member)
         self.GENERAL_CHANNEL_ID = 425068612542398476
@@ -1505,14 +1505,15 @@ class OnePieceFun(commands.Cog):
         if channel is None:
             channel = ctx.channel
 
-        async with self.config.guild(ctx.guild).sea_king_alert() as alert_active:
-            if alert_active:
-                await ctx.send("A Sea King is already attacking! Deal with that one first!")
-                return
-            alert_active = True
+        alert_active = await self.config.guild(ctx.guild).sea_king_alert()
+        if alert_active:
+            await ctx.send("A Sea King is already attacking! Deal with that one first!")
+            return
+
+        await self.config.guild(ctx.guild).sea_king_alert.set(True)
 
         sea_king_images = [
-            "https://www.dexerto.com/cdn-cgi/image/width=1080,quality=75,format=auto/https://editors.dexerto.com/wp-content/uploads/2023/06/21/one-piece-sea-king-and-luffy-1024x576.jpeg",  # Replace with actual Sea King image URLs
+            "https://www.dexerto.com/cdn-cgi/image/width=1080,quality=75,format=auto/https://editors.dexerto.com/wp-content/uploads/2023/06/21/one-piece-sea-king-and-luffy-1024x576.jpeg",
             "https://www.dexerto.com/cdn-cgi/image/width=1080,quality=75,format=auto/https://editors.dexerto.com/wp-content/uploads/2023/06/21/one-piece-poseidon-ancient-weapon-1024x576.jpeg",
             "https://static.wikia.nocookie.net/onepiece/images/e/e2/Sea_King_Infobox.png"
         ]
@@ -1546,9 +1547,8 @@ class OnePieceFun(commands.Cog):
         await channel.set_permissions(ctx.guild.default_role, send_messages=None)
         await channel.send("The Sea King has been defeated! Normal communications can resume.")
 
-        async with self.config.guild(ctx.guild).sea_king_alert() as alert_active:
-            alert_active = False
-
+        await self.config.guild(ctx.guild).sea_king_alert.set(False)
+    
     @commands.command()
     @checks.admin_or_permissions(manage_guild=True)
     async def admiralInspection(self, ctx):
