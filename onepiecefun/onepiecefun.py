@@ -916,9 +916,11 @@ class OnePieceFun(commands.Cog):
         try:
             for question, answer, hint1, hint2, hint3, _ in random.sample(filtered_questions, len(filtered_questions)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
+                    await ctx.send("The trivia game has been stopped!")
                     break
                 
-                await self.ask_question(ctx, question, answer, hint1, hint2, hint3)
+                if not await self.ask_question(ctx, question, answer, hint1, hint2, hint3):
+                    break  # Exit if the game was stopped during a question
                 
                 if any(score >= 10 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
                     break
@@ -949,8 +951,7 @@ class OnePieceFun(commands.Cog):
                     answered = True
                     if scores[msg.author] >= 10:
                         await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
-                        self.trivia_sessions[ctx.channel.id]["active"] = False
-                        break
+                        return False  # End the game
             except asyncio.TimeoutError:
                 elapsed = time.time() - start_time
                 if 10 <= elapsed < 11:
@@ -959,36 +960,15 @@ class OnePieceFun(commands.Cog):
                     await ctx.send(f"Hint: {hint2}")
                 elif 25 <= elapsed < 26:
                     await ctx.send(f"Hint: {hint3}")
+            
+            if not self.trivia_sessions[ctx.channel.id]["active"]:
+                return False  # The game was stopped
 
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answer was: {answer}")
 
         await self.display_scores(ctx)
-
-    async def display_scores(self, ctx):
-        scores = self.trivia_sessions[ctx.channel.id]["scores"]
-        if not scores:
-            return
-        
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
-        await ctx.send(box(score_message))
-
-    async def end_game(self, ctx):
-        if ctx.channel.id in self.trivia_sessions:
-            final_scores = self.trivia_sessions[ctx.channel.id]["scores"]
-            del self.trivia_sessions[ctx.channel.id]
-            
-            # Update overall trivia scores
-            async with self.config.guild(ctx.guild).trivia_scores() as scores:
-                for player, score in final_scores.items():
-                    if str(player.id) not in scores:
-                        scores[str(player.id)] = {"total_score": 0, "games_played": 0}
-                    scores[str(player.id)]["total_score"] += score
-                    scores[str(player.id)]["games_played"] += 1
-
-            await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
-            await self.display_leaderboard(ctx)
+        return True  # Continue the game
 
     @commands.command()
     async def triviastop(self, ctx):
@@ -999,7 +979,15 @@ class OnePieceFun(commands.Cog):
         
         self.trivia_sessions[ctx.channel.id]["active"] = False
         await ctx.send("The trivia game has been stopped by the captain's orders!")
+        # Ensure the game ends immediately
+        await self.end_game(ctx)
 
+    async def end_game(self, ctx):
+        if ctx.channel.id in self.trivia_sessions:
+            del self.trivia_sessions[ctx.channel.id]
+            await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
+            await self.display_leaderboard(ctx)
+            
     @commands.command()
     async def trivialeaderboard(self, ctx):
         """Display the trivia leaderboard."""
