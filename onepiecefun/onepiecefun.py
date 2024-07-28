@@ -52,7 +52,7 @@ class OnePieceFun(commands.Cog):
     
     async def initialize_questions(self):
         self.questions = {}
-        categories = ['one_piece']  # Only include categories you have files for
+        categories = ['one_piece']  # Only include 'one_piece' for now
         for category in categories:
             questions = await self.load_questions(category)
             if questions:
@@ -66,15 +66,21 @@ class OnePieceFun(commands.Cog):
                 print(f"Attempting to load questions from: {url}")  # Debug print
                 async with session.get(url) as resp:
                     if resp.status == 200:
-                        questions = await resp.json()
+                        raw_content = await resp.text()
+                        print(f"Raw content: {raw_content[:500]}...")  # Print first 500 characters
+                        questions = json.loads(raw_content)
                         print(f"Successfully loaded {len(questions)} questions for {category}")
                         return questions
                     else:
                         print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
                         return None
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error for {category}: {str(e)}")
+            return None
         except Exception as e:
             print(f"An error occurred while loading questions for {category}: {str(e)}")
             return None
+        
     LOG = logging.getLogger("red.onepiecefun")
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
