@@ -52,16 +52,18 @@ class OnePieceFun(commands.Cog):
         print("Questions loaded. Available categories:", list(self.questions.keys()))
     
     async def initialize_questions(self):
-        try:
-            self.questions = {}
-            categories = ['one_piece']
-            for category in categories:
-                questions = await self.load_questions(category)
-                if questions:
-                    self.questions[category] = questions
-            print(f"Loaded categories: {list(self.questions.keys())}")
-        except Exception as e:
-            print(f"Error in initialize_questions: {str(e)}")
+        self.questions = {}
+        data_folder = cog_data_path(self)
+        for file in data_folder.glob("*_questions.yaml"):
+            category = file.stem.replace('_questions', '')
+            try:
+                with file.open('r') as f:
+                    questions = yaml.safe_load(f)
+                self.questions[category] = questions
+                print(f"Loaded {len(questions)} questions for {category}")
+            except Exception as e:
+                print(f"Error loading questions for {category}: {str(e)}")
+        print(f"Loaded categories: {list(self.questions.keys())}")
     
     async def load_questions(self, category):
         try:
@@ -888,24 +890,22 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
-    @commands.cooldown(1, 600, commands.BucketType.channel)  # 10-minute cooldown
-    async def trivia(self, ctx, category: str = "one_piece"):
+    @commands.cooldown(1, 600, commands.BucketType.channel)
+    async def trivia(self, ctx, category: str = None):
         """Start a trivia game for a specific category!"""
-        print(f"Trivia command called with category: {category}")  # Debug print
-        print(f"Available categories: {list(self.questions.keys())}")  # Debug print
-        
-        if ctx.channel.id in self.trivia_sessions:
-            await ctx.send("A trivia game is already in progress in this channel!")
+        if not self.questions:
+            await ctx.send("No trivia questions are available. Please upload some questions first!")
+            return
+    
+        if category is None:
+            # If no category is specified, list available categories
+            categories = ", ".join(self.questions.keys())
+            await ctx.send(f"Available categories: {categories}\nUse `.trivia <category>` to start a game.")
             return
     
         category = category.lower()
         if category not in self.questions:
-            available_categories = ", ".join(self.questions.keys())
-            await ctx.send(f"Invalid category. Available categories: {available_categories}")
-            return
-    
-        if not self.questions[category]:
-            await ctx.send(f"No questions available for {category}! The trivia game cannot start.")
+            await ctx.send(f"Invalid category. Available categories: {', '.join(self.questions.keys())}")
             return
     
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
@@ -989,6 +989,54 @@ class OnePieceFun(commands.Cog):
     
             await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
             await self.display_leaderboard(ctx, category)
+
+    @commands.command()
+    @commands.is_owner()  # Restrict this command to the bot owner
+    async def triviaupload(self, ctx):
+        """Upload a custom YAML file for trivia."""
+        if not ctx.message.attachments:
+            await ctx.send("Please attach a YAML file with your trivia questions.")
+            return
+    
+        attachment = ctx.message.attachments[0]
+        if not attachment.filename.endswith('.yaml'):
+            await ctx.send("The attached file must be a YAML file.")
+            return
+    
+        try:
+            content = await attachment.read()
+            questions = yaml.safe_load(content)
+    
+            # Validate the structure of the YAML file
+            if not isinstance(questions, list):
+                raise ValueError("The YAML file should contain a list of questions.")
+    
+            for question in questions:
+                if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
+                    raise ValueError("Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
+    
+            # Get the category name from the filename (without .yaml extension)
+            category = attachment.filename[:-5].lower()
+    
+            # Save the questions to the bot's data folder
+            file_path = cog_data_path(self) / f"{category}_questions.yaml"
+            with file_path.open('wb') as f:
+                f.write(content)
+    
+            # Load the new questions into memory
+            self.questions[category] = questions
+    
+            await ctx.send(f"Successfully uploaded and loaded {len(questions)} questions for the '{category}' category.")
+        except Exception as e:
+            await ctx.send(f"An error occurred while processing the file: {str(e)}")
+            return
+
+    @triviaupload.error
+    async def triviaupload_error(self, ctx, error):
+        if isinstance(error, commands.NotOwner):
+            await ctx.send("Only the bot owner can upload new trivia questions.")
+        else:
+            await ctx.send(f"An error occurred: {str(error)}")
         
     @commands.command()
     async def triviastop(self, ctx):
