@@ -1239,7 +1239,15 @@ class OnePieceFun(commands.Cog):
             if crew_name in crews:
                 return await ctx.send(f"The {crew_name} already exists! Choose a different name, ye scurvy dog!")
             
-            crews[crew_name] = {"captain": captain.id, "members": [captain.id]}
+            crews[crew_name] = {
+                "captain": captain.id,
+                "members": [captain.id],
+                "total_bounty": 0,
+                "created_at": datetime.utcnow().isoformat()
+            }
+        
+        # Update the crew's total bounty
+        await self.update_crew_bounty(ctx.guild, crew_name)
         
         await ctx.send(f"Ahoy! The {crew_name} has been formed with {captain.display_name} as the captain!")
 
@@ -1255,6 +1263,9 @@ class OnePieceFun(commands.Cog):
                 return await ctx.send(f"{member.display_name} is already part of the {crew_name}!")
             
             crews[crew_name]["members"].append(member.id)
+        
+        # Update the crew's total bounty
+        await self.update_crew_bounty(ctx.guild, crew_name)
         
         await ctx.send(f"{member.display_name} has joined the {crew_name}! Welcome aboard, matey!")
 
@@ -1283,39 +1294,84 @@ class OnePieceFun(commands.Cog):
                     await ctx.send(f"{member.display_name} has been removed and the {crew_name} has been disbanded!")
             else:
                 await ctx.send(f"{member.display_name} has been removed from the {crew_name}!")
+        
+        # Update the crew's total bounty
+        await self.update_crew_bounty(ctx.guild, crew_name)
+
+    @commands.command()
+    async def crewinfo(self, ctx, *, crew_name: str):
+        """Display information about a pirate crew."""
+        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+            if crew_name not in crews:
+                return await ctx.send(f"The {crew_name} doesn't exist! Are ye hallucinatin' from too much rum?")
+            
+            crew = crews[crew_name]
+            captain = ctx.guild.get_member(crew["captain"])
+            members = [ctx.guild.get_member(member_id) for member_id in crew["members"] if ctx.guild.get_member(member_id)]
+            
+            embed = discord.Embed(title=f"🏴‍☠️ {crew_name} Crew Info 🏴‍☠️", color=discord.Color.dark_red())
+            embed.add_field(name="Captain", value=captain.mention if captain else "Unknown", inline=False)
+            embed.add_field(name="Total Crew Bounty", value=f"{crew['total_bounty']:,} Berries", inline=False)
+            embed.add_field(name="Crew Size", value=str(len(members)), inline=False)
+            embed.add_field(name="Founding Date", value=discord.utils.format_dt(datetime.fromisoformat(crew["created_at"])), inline=False)
+            
+            member_list = "\n".join([member.mention for member in members[:10]])
+            if len(members) > 10:
+                member_list += f"\n... and {len(members) - 10} more scallywags!"
+            embed.add_field(name="Crew Members", value=member_list, inline=False)
+            
+            await ctx.send(embed=embed)
+
+    async def update_crew_bounty(self, guild, crew_name):
+        """Update the total bounty for a crew based on its members' individual bounties."""
+        async with self.config.guild(guild).all() as guild_data:
+            crews = guild_data["pirate_crews"]
+            bounties = guild_data["bounties"]
+            
+            if crew_name in crews:
+                total_bounty = sum(bounties.get(str(member_id), {}).get("amount", 0) for member_id in crews[crew_name]["members"])
+                crews[crew_name]["total_bounty"] = total_bounty
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
     async def crewbattle(self, ctx, crew1: str, crew2: str):
         """Initiate a battle between two pirate crews."""
-        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            crews = guild_data["pirate_crews"]
+            bounties = guild_data["bounties"]
+            
             if crew1 not in crews or crew2 not in crews:
                 return await ctx.send("One or both of these crews don't exist! Check yer sea charts!")
             
-            crew1_power = len(crews[crew1]["members"]) * random.randint(1, 10)
-            crew2_power = len(crews[crew2]["members"]) * random.randint(1, 10)
+            crew1_power = crews[crew1]["total_bounty"] * random.uniform(0.8, 1.2)
+            crew2_power = crews[crew2]["total_bounty"] * random.uniform(0.8, 1.2)
             
             winner = crew1 if crew1_power > crew2_power else crew2
             loser = crew2 if winner == crew1 else crew1
             
             # Update bounties
-            bounty_increase = random.randint(1000000, 5000000)
-            bounty_decrease = random.randint(100000, 1000000)
+            bounty_increase_percentage = random.uniform(0.05, 0.15)  # 5% to 15% increase
+            bounty_decrease_percentage = random.uniform(0.02, 0.08)  # 2% to 8% decrease
             
-            async with self.config.guild(ctx.guild).bounties() as bounties:
-                for member_id in crews[winner]["members"]:
-                    if str(member_id) not in bounties:
-                        bounties[str(member_id)] = {"amount": 0}
-                    bounties[str(member_id)]["amount"] += bounty_increase
-                
-                for member_id in crews[loser]["members"]:
-                    if str(member_id) in bounties:
-                        bounties[str(member_id)]["amount"] = max(0, bounties[str(member_id)]["amount"] - bounty_decrease)
+            for member_id in crews[winner]["members"]:
+                member_id_str = str(member_id)
+                if member_id_str not in bounties:
+                    bounties[member_id_str] = {"amount": 1000000}
+                bounties[member_id_str]["amount"] += int(bounties[member_id_str]["amount"] * bounty_increase_percentage)
+            
+            for member_id in crews[loser]["members"]:
+                member_id_str = str(member_id)
+                if member_id_str in bounties:
+                    bounties[member_id_str]["amount"] = max(0, int(bounties[member_id_str]["amount"] * (1 - bounty_decrease_percentage)))
+            
+            # Update crew bounties
+            await self.update_crew_bounty(ctx.guild, winner)
+            await self.update_crew_bounty(ctx.guild, loser)
         
         await ctx.send(f"⚔️ **Epic Crew Battle** ⚔️\n"
                        f"The {winner} have emerged victorious over the {loser}!\n"
-                       f"The World Government has increased the bounties of the {winner} by {bounty_increase:,} Berries each!\n"
-                       f"The {loser} have had their bounties decreased by {bounty_decrease:,} Berries each!")
+                       f"The World Government has increased the bounties of the {winner} by {bounty_increase_percentage:.1%}!\n"
+                       f"The {loser} have had their bounties decreased by {bounty_decrease_percentage:.1%}!")
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
