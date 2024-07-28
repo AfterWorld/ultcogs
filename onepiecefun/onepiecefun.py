@@ -1301,11 +1301,19 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     async def crewinfo(self, ctx, *, crew_name: str):
         """Display information about a pirate crew."""
-        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            crews = guild_data["pirate_crews"]
+            bounties = guild_data["bounties"]
+            
             if crew_name not in crews:
                 return await ctx.send(f"The {crew_name} doesn't exist! Are ye hallucinatin' from too much rum?")
             
             crew = crews[crew_name]
+            
+            # Update total_bounty if it's missing
+            if "total_bounty" not in crew:
+                crew["total_bounty"] = sum(bounties.get(str(member_id), {}).get("amount", 0) for member_id in crew["members"])
+            
             captain = ctx.guild.get_member(crew["captain"])
             members = [ctx.guild.get_member(member_id) for member_id in crew["members"] if ctx.guild.get_member(member_id)]
             
@@ -1313,12 +1321,17 @@ class OnePieceFun(commands.Cog):
             embed.add_field(name="Captain", value=captain.mention if captain else "Unknown", inline=False)
             embed.add_field(name="Total Crew Bounty", value=f"{crew['total_bounty']:,} Berries", inline=False)
             embed.add_field(name="Crew Size", value=str(len(members)), inline=False)
-            embed.add_field(name="Founding Date", value=discord.utils.format_dt(datetime.fromisoformat(crew["created_at"])), inline=False)
+            
+            # Add created_at field if it exists, otherwise use "Unknown"
+            created_at = crew.get("created_at", "Unknown")
+            if created_at != "Unknown":
+                created_at = discord.utils.format_dt(datetime.fromisoformat(created_at))
+            embed.add_field(name="Founding Date", value=created_at, inline=False)
             
             member_list = "\n".join([member.mention for member in members[:10]])
             if len(members) > 10:
                 member_list += f"\n... and {len(members) - 10} more scallywags!"
-            embed.add_field(name="Crew Members", value=member_list, inline=False)
+            embed.add_field(name="Crew Members", value=member_list or "No active members", inline=False)
             
             await ctx.send(embed=embed)
 
@@ -1331,6 +1344,33 @@ class OnePieceFun(commands.Cog):
             if crew_name in crews:
                 total_bounty = sum(bounties.get(str(member_id), {}).get("amount", 0) for member_id in crews[crew_name]["members"])
                 crews[crew_name]["total_bounty"] = total_bounty
+
+    async def update_crew_bounty(self, guild, crew_name):
+        """Update the total bounty for a crew based on its members' individual bounties."""
+        async with self.config.guild(guild).all() as guild_data:
+            crews = guild_data["pirate_crews"]
+            bounties = guild_data["bounties"]
+            
+            if crew_name in crews:
+                total_bounty = sum(bounties.get(str(member_id), {}).get("amount", 0) for member_id in crews[crew_name]["members"])
+                crews[crew_name]["total_bounty"] = total_bounty
+
+    @commands.command()
+    @checks.mod_or_permissions(manage_messages=True)
+    async def updateallcrews(self, ctx):
+        """Update the total bounty for all crews."""
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            crews = guild_data["pirate_crews"]
+            bounties = guild_data["bounties"]
+            
+            for crew_name in crews:
+                total_bounty = sum(bounties.get(str(member_id), {}).get("amount", 0) for member_id in crews[crew_name]["members"])
+                crews[crew_name]["total_bounty"] = total_bounty
+                
+                if "created_at" not in crews[crew_name]:
+                    crews[crew_name]["created_at"] = datetime.utcnow().isoformat()
+        
+        await ctx.send("All crew bounties and creation dates have been updated!")
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
