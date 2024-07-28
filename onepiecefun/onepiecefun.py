@@ -42,8 +42,15 @@ class OnePieceFun(commands.Cog):
         self.load_questions()
 
         def load_questions(self):
-            with open('one_piece_questions.json', 'r') as f:
-                self.questions = json.load(f)
+            try:
+                with open('one_piece_questions.json', 'r') as f:
+                    return json.load(f)
+            except FileNotFoundError:
+                print("Error: one_piece_questions.json file not found.")
+                return []
+            except json.JSONDecodeError:
+                print("Error: Invalid JSON in one_piece_questions.json file.")
+                return []
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
@@ -895,10 +902,10 @@ class OnePieceFun(commands.Cog):
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
 
-        start_time = time.time()
+        start_time = asyncio.get_event_loop().time()
         answered = False
 
-        while time.time() - start_time < 180 and not answered:
+        while asyncio.get_event_loop().time() - start_time < 180 and not answered:
             try:
                 msg = await self.bot.wait_for("message", check=check, timeout=1.0)
                 if msg.content.lower() in [answer.lower() for answer in question['answers']]:
@@ -910,7 +917,7 @@ class OnePieceFun(commands.Cog):
                         await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
                         return False  # End the game
             except asyncio.TimeoutError:
-                elapsed = time.time() - start_time
+                elapsed = asyncio.get_event_loop().time() - start_time
                 if 10 <= elapsed < 11:
                     await ctx.send(f"Hint: {question['hints'][0]}")
                 elif 20 <= elapsed < 21:
@@ -939,7 +946,7 @@ class OnePieceFun(commands.Cog):
         
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
-        await ctx.send(box(score_message))
+        await ctx.send(f"```{score_message}```")
 
     async def end_game(self, ctx):
         if ctx.channel.id in self.trivia_sessions:
