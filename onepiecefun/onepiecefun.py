@@ -50,19 +50,19 @@ class OnePieceFun(commands.Cog):
         self.questions = await self.load_questions()
 
     async def load_questions(self):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get('https://raw.githubusercontent.com/AfterWorld/ultcogs/main/one_piece_questions.json') as resp:
-                if resp.status == 200:
-                    questions = await resp.json()
-                    print(f"Successfully loaded {len(questions)} questions")
-                    return questions
-                else:
-                    print(f"Failed to fetch questions. Status code: {resp.status}")
-                    return []
-    except Exception as e:
-        print(f"An error occurred while loading questions: {str(e)}")
-        return []
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://raw.githubusercontent.com/AfterWorld/ultcogs/main/one_piece_questions.json') as resp:
+                    if resp.status == 200:
+                        questions = await resp.json()
+                        print(f"Successfully loaded {len(questions)} questions")
+                        return questions
+                    else:
+                        print(f"Failed to fetch questions. Status code: {resp.status}")
+                        return []
+        except Exception as e:
+            print(f"An error occurred while loading questions: {str(e)}")
+            return []
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
