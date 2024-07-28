@@ -13,7 +13,7 @@ import asyncio
 import yaml
 from datetime import datetime, timedelta
 
- LOG = logging.getLogger("red.onepiecefun")
+LOG = logging.getLogger("red.onepiecefun")
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
