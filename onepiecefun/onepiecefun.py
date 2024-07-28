@@ -5,6 +5,7 @@ from redbot.core.bot import Red
 import discord
 import aiohttp
 import json
+import logging
 import os
 import random
 import time
@@ -74,7 +75,7 @@ class OnePieceFun(commands.Cog):
         except Exception as e:
             print(f"An error occurred while loading questions for {category}: {str(e)}")
             return None
-            
+    LOG = logging.getLogger("red.onepiecefun")
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
         (1000000, "Pirate Apprentice"),
