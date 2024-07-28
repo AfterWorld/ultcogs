@@ -44,7 +44,9 @@ class OnePieceFun(commands.Cog):
     def load_questions(self):
         try:
             with open('one_piece_questions.json', 'r') as f:
-                return json.load(f)
+                questions = json.load(f)
+            print(f"Successfully loaded {len(questions)} questions")
+            return questions
         except FileNotFoundError:
             print("Error: one_piece_questions.json file not found.")
             return []
