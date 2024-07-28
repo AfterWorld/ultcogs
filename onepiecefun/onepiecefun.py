@@ -3,6 +3,7 @@ from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.bot import Red
 import discord
+import aiohttp
 import json
 import os
 import random
@@ -41,25 +42,27 @@ class OnePieceFun(commands.Cog):
         self.last_announcement = {}
         self.trivia_lock = asyncio.Lock()
         self.trivia_sessions = {}
-        self.questions = self.load_questions()
+        self.questions = []
+        
+    asyncio.create_task(self.initialize_questions())
 
-    def load_questions(self):
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            file_path = os.path.join(script_dir, 'one_piece_questions.json')
-            with open(file_path, 'r', encoding='utf-8') as f:
-                questions = json.load(f)
-            print(f"Successfully loaded {len(questions)} questions")
-            return questions
-        except FileNotFoundError:
-            print(f"Error: one_piece_questions.json file not found in {script_dir}")
-            return []
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON in one_piece_questions.json file")
-            return []
-        except Exception as e:
-            print(f"An unexpected error occurred: {str(e)}")
-            return []
+    async def initialize_questions(self):
+        self.questions = await self.load_questions()
+
+    async def load_questions(self):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://raw.githubusercontent.com/AfterWorld/ultcogs/main/one_piece_questions.json') as resp:
+                if resp.status == 200:
+                    questions = await resp.json()
+                    print(f"Successfully loaded {len(questions)} questions")
+                    return questions
+                else:
+                    print(f"Failed to fetch questions. Status code: {resp.status}")
+                    return []
+    except Exception as e:
+        print(f"An error occurred while loading questions: {str(e)}")
+        return []
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
