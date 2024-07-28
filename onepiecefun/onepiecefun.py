@@ -910,7 +910,7 @@ async def load_questions(self, category):
 
     async def ask_question(self, ctx, question):
         category = self.trivia_sessions[ctx.channel.id]["category"]
-        await ctx.send(f"🏴‍☠️ **{category.capitalize()} Trivia** 🏴‍☠️\n\n{question['question']}"))
+        await ctx.send(f"🏴‍☠️ **{category.capitalize()} Trivia** 🏴‍☠️\n\n{question['question']}")
         
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
