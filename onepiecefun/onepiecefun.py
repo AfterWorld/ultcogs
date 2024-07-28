@@ -43,15 +43,20 @@ class OnePieceFun(commands.Cog):
 
     def load_questions(self):
         try:
-            with open('one_piece_questions.json', 'r') as f:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(script_dir, 'one_piece_questions.json')
+            with open(file_path, 'r', encoding='utf-8') as f:
                 questions = json.load(f)
             print(f"Successfully loaded {len(questions)} questions")
             return questions
         except FileNotFoundError:
-            print("Error: one_piece_questions.json file not found.")
+            print(f"Error: one_piece_questions.json file not found in {script_dir}")
             return []
         except json.JSONDecodeError:
-            print("Error: Invalid JSON in one_piece_questions.json file.")
+            print("Error: Invalid JSON in one_piece_questions.json file")
+            return []
+        except Exception as e:
+            print(f"An unexpected error occurred: {str(e)}")
             return []
             
     BOUNTY_TITLES = [
@@ -873,7 +878,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
     
         try:
-            for question in random.sample(self.questions, len(self.questions)):
+            for question in random.sample(self.questions, min(len(self.questions), 20)):  # Limit to 20 questions per game
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
