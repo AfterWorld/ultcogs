@@ -1,0 +1,23 @@
+[
+  {
+    "question": "What is the name of Luffy's signature attack?",
+    "answers": ["Gomu Gomu no Pistol", "Gum Gum Pistol"],
+    "hints": [
+      "It's a stretchy move!",
+      "It starts with 'Gomu Gomu'",
+      "It ends with 'Pistol'"
+    ],
+    "difficulty": "easy"
+  },
+  {
+    "question": "Who is known as the 'Pirate Hunter'?",
+    "answers": ["Roronoa Zoro", "Zoro"],
+    "hints": [
+      "He uses three swords",
+      "His first name starts with 'Z'",
+      "His full name is R_____ Z___"
+    ],
+    "difficulty": "easy"
+  }
+  // ... add all other unique questions here ...
+]
