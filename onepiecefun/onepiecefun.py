@@ -1,5 +1,6 @@
 from redbot.core import commands, checks, modlog, Config
 from redbot.core.utils.chat_formatting import box, pagify
+from redbot.core.data_manager import cog_data_path
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.bot import Red
 import discord
@@ -54,15 +55,25 @@ class OnePieceFun(commands.Cog):
     async def initialize_questions(self):
         self.questions = {}
         data_folder = cog_data_path(self)
-        for file in data_folder.glob("*_questions.yaml"):
-            category = file.stem.replace('_questions', '')
-            try:
-                with file.open('r') as f:
-                    questions = yaml.safe_load(f)
-                self.questions[category] = questions
-                print(f"Loaded {len(questions)} questions for {category}")
-            except Exception as e:
-                print(f"Error loading questions for {category}: {str(e)}")
+        yaml_files = list(data_folder.glob("*_questions.yaml"))
+        
+        if not yaml_files:
+            print("No question files found. Loading default One Piece questions.")
+            # Load the default One Piece questions from the URL
+            one_piece_questions = await self.load_questions("one_piece")
+            if one_piece_questions:
+                self.questions["one_piece"] = one_piece_questions
+        else:
+            for file in yaml_files:
+                category = file.stem.replace('_questions', '')
+                try:
+                    with file.open('r') as f:
+                        questions = yaml.safe_load(f)
+                    self.questions[category] = questions
+                    print(f"Loaded {len(questions)} questions for {category}")
+                except Exception as e:
+                    print(f"Error loading questions for {category}: {str(e)}")
+        
         print(f"Loaded categories: {list(self.questions.keys())}")
     
     async def load_questions(self, category):
@@ -1104,8 +1115,10 @@ class OnePieceFun(commands.Cog):
     @commands.is_owner()
     async def reload_trivia(self, ctx):
         """Manually reload trivia questions."""
+        await ctx.send("Reloading trivia questions...")
         await self.initialize_questions()
-        await ctx.send(f"Trivia questions reloaded. Available categories: {list(self.questions.keys())}")
+        categories = ", ".join(self.questions.keys())
+        await ctx.send(f"Trivia questions reloaded. Available categories: {categories}")
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)
