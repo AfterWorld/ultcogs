@@ -48,22 +48,26 @@ class OnePieceFun(commands.Cog):
         self.bot.loop.create_task(self.initialize_questions())
 
     async def initialize_questions(self):
-        self.questions = await self.load_questions()
+        self.questions = {}
+        categories = ['one_piece', 'naruto', 'bleach']  # Add more categories as needed
+        for category in categories:
+            self.questions[category] = await self.load_questions(category)
 
-    async def load_questions(self):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://raw.githubusercontent.com/AfterWorld/ultcogs/main/one_piece_questions.json') as resp:
-                    if resp.status == 200:
-                        questions = await resp.json()
-                        print(f"Successfully loaded {len(questions)} questions")
-                        return questions
-                    else:
-                        print(f"Failed to fetch questions. Status code: {resp.status}")
-                        return []
-        except Exception as e:
-            print(f"An error occurred while loading questions: {str(e)}")
-            return []
+async def load_questions(self, category):
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/categories/{category}_questions.json'
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    questions = await resp.json()
+                    print(f"Successfully loaded {len(questions)} questions for {category}")
+                    return questions
+                else:
+                    print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
+                    return []
+    except Exception as e:
+        print(f"An error occurred while loading questions for {category}: {str(e)}")
+        return []
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
@@ -865,30 +869,33 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
+    @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.channel)
-    async def trivia(self, ctx):
-        """Start a One Piece trivia game!"""
-        print(f"Trivia command called")
-        print(f"Number of questions available: {len(self.questions)}")
-        
+    async def trivia(self, ctx, category: str = "one_piece"):
+        """Start a trivia game for a specific category!"""
+        category = category.lower()
+        if category not in self.questions:
+            await ctx.send(f"Invalid category. Available categories: {', '.join(self.questions.keys())}")
+            return
+    
         if ctx.channel.id in self.trivia_sessions:
             await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
     
-        if not self.questions:
-            await ctx.send("No questions available! The trivia game cannot start.")
+        if not self.questions[category]:
+            await ctx.send(f"No questions available for {category}! The trivia game cannot start.")
             return
     
-        self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}}
-        
-        await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
+        self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
+    
+        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 10 points wins! 🏆")
     
         try:
-            for question in random.sample(self.questions, min(len(self.questions), 20)):  # Limit to 20 questions per game
+            for question in random.sample(self.questions[category], min(len(self.questions[category]), 20)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
-                
+    
                 if not await self.ask_question(ctx, question):
                     break
     
@@ -902,7 +909,8 @@ class OnePieceFun(commands.Cog):
             await self.end_game(ctx)
 
     async def ask_question(self, ctx, question):
-        await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question['question']}")
+        category = self.trivia_sessions[ctx.channel.id]["category"]
+        await ctx.send(f"🏴‍☠️ **{category.capitalize()} Trivia** 🏴‍☠️\n\n{question['question']}"))
         
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
@@ -955,8 +963,21 @@ class OnePieceFun(commands.Cog):
 
     async def end_game(self, ctx):
         if ctx.channel.id in self.trivia_sessions:
+            category = self.trivia_sessions[ctx.channel.id]["category"]
+            final_scores = self.trivia_sessions[ctx.channel.id]["scores"]
             del self.trivia_sessions[ctx.channel.id]
-        await ctx.send("The One Piece Trivia game has ended! Thanks for playing, ye scurvy dogs!")
+            
+            async with self.config.guild(ctx.guild).trivia_scores() as scores:
+                if category not in scores:
+                    scores[category] = {}
+                for player, score in final_scores.items():
+                    if str(player.id) not in scores[category]:
+                        scores[category][str(player.id)] = {"total_score": 0, "games_played": 0}
+                    scores[category][str(player.id)]["total_score"] += score
+                    scores[category][str(player.id)]["games_played"] += 1
+    
+            await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
+            await self.display_leaderboard(ctx, category)
         
     @commands.command()
     async def triviastop(self, ctx):
@@ -985,15 +1006,19 @@ class OnePieceFun(commands.Cog):
             await self.display_leaderboard(ctx)
 
     @commands.command()
-    async def trivialeaderboard(self, ctx):
-        """Display the trivia leaderboard."""
-        await self.display_leaderboard(ctx)
-
-    async def display_leaderboard(self, ctx):
+    async def trivialeaderboard(self, ctx, category: str = "one_piece"):
+        """Display the trivia leaderboard for a specific category."""
+        await self.display_leaderboard(ctx, category.lower())
+    
+    async def display_leaderboard(self, ctx, category):
         async with self.config.guild(ctx.guild).trivia_scores() as scores:
-            sorted_scores = sorted(scores.items(), key=lambda x: x[1]['total_score'], reverse=True)[:10]
+            if category not in scores:
+                await ctx.send(f"No leaderboard available for {category.capitalize()} trivia.")
+                return
             
-            embed = discord.Embed(title="🏆 One Piece Trivia Leaderboard 🏆", color=discord.Color.gold())
+            sorted_scores = sorted(scores[category].items(), key=lambda x: x[1]['total_score'], reverse=True)[:10]
+            
+            embed = discord.Embed(title=f"🏆 {category.capitalize()} Trivia Leaderboard 🏆", color=discord.Color.gold())
             for i, (player_id, data) in enumerate(sorted_scores, 1):
                 player = ctx.guild.get_member(int(player_id))
                 if player:
