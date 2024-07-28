@@ -46,23 +46,24 @@ class OnePieceFun(commands.Cog):
         
         # Create a task to initialize questions
         self.bot.loop.create_task(self.initialize_questions())
+        
     async def load_questions_and_print(self):
         await self.initialize_questions()
         print("Questions loaded. Available categories:", list(self.questions.keys()))
-
+    
     async def initialize_questions(self):
         self.questions = {}
-        categories = ['one_piece', 'naruto', 'bleach']  # Add more categories as needed
+        categories = ['one_piece']  # For now, let's focus on just one_piece
         for category in categories:
             questions = await self.load_questions(category)
             if questions:
                 self.questions[category] = questions
-            print(f"Loaded categories: {list(self.questions.keys())}")  # Debug print
+        print(f"Loaded categories: {list(self.questions.keys())}")  # Debug print
     
     async def load_questions(self, category):
         try:
             async with aiohttp.ClientSession() as session:
-                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/categories/{category}_questions.json'
+                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/onepiecefun/categories/{category}_questions.json'
                 print(f"Attempting to load questions from: {url}")  # Debug print
                 async with session.get(url) as resp:
                     if resp.status == 200:
@@ -886,10 +887,6 @@ class OnePieceFun(commands.Cog):
         if category not in self.questions:
             available_categories = ", ".join(self.questions.keys())
             await ctx.send(f"Invalid category. Available categories: {available_categories}")
-            return
-    
-        if ctx.channel.id in self.trivia_sessions:
-            await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
     
         if not self.questions[category]:
