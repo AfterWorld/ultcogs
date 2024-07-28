@@ -43,17 +43,15 @@ class OnePieceFun(commands.Cog):
         self.trivia_lock = asyncio.Lock()
         self.trivia_sessions = {}
         self.questions = []
-        
-        # Create a task to initialize questions
-        self.bot.loop.create_task(self.initialize_questions())
-        
+        self.bot.loop.create_task(self.load_questions_and_print())
+
     async def load_questions_and_print(self):
         await self.initialize_questions()
         print("Questions loaded. Available categories:", list(self.questions.keys()))
     
     async def initialize_questions(self):
         self.questions = {}
-        categories = ['one_piece']  # For now, let's focus on just one_piece
+        categories = ['one_piece']  # Only include categories you have files for
         for category in categories:
             questions = await self.load_questions(category)
             if questions:
