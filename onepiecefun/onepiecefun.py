@@ -51,23 +51,28 @@ class OnePieceFun(commands.Cog):
         print("Questions loaded. Available categories:", list(self.questions.keys()))
     
     async def initialize_questions(self):
-        self.questions = {}
-        categories = ['one_piece']  # Only include 'one_piece' for now
-        for category in categories:
-            questions = await self.load_questions(category)
-            if questions:
-                self.questions[category] = questions
-        print(f"Loaded categories: {list(self.questions.keys())}")  # Debug print
+        try:
+            self.questions = {}
+            categories = ['one_piece']
+            for category in categories:
+                questions = await self.load_questions(category)
+                if questions:
+                    self.questions[category] = questions
+            print(f"Loaded categories: {list(self.questions.keys())}")
+        except Exception as e:
+            print(f"Error in initialize_questions: {str(e)}")
     
     async def load_questions(self, category):
         try:
             async with aiohttp.ClientSession() as session:
                 url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/onepiecefun/categories/{category}_questions.json'
-                print(f"Attempting to load questions from: {url}")  # Debug print
+                print(f"Attempting to load questions from: {url}")
                 async with session.get(url) as resp:
+                    print(f"Response status: {resp.status}")
+                    print(f"Response headers: {resp.headers}")
                     if resp.status == 200:
                         raw_content = await resp.text()
-                        print(f"Raw content: {raw_content[:500]}...")  # Print first 500 characters
+                        print(f"Raw content (first 500 chars): {raw_content[:500]}")
                         questions = json.loads(raw_content)
                         print(f"Successfully loaded {len(questions)} questions for {category}")
                         return questions
@@ -76,6 +81,7 @@ class OnePieceFun(commands.Cog):
                         return None
         except json.JSONDecodeError as e:
             print(f"JSON decoding error for {category}: {str(e)}")
+            print(f"Problematic content: {raw_content}")
             return None
         except Exception as e:
             print(f"An error occurred while loading questions for {category}: {str(e)}")
@@ -1030,6 +1036,13 @@ class OnePieceFun(commands.Cog):
                     )
             
             await ctx.send(embed=embed)
+
+    @commands.command()
+    @commands.is_owner()
+    async def reload_trivia(self, ctx):
+        """Manually reload trivia questions."""
+        await self.initialize_questions()
+        await ctx.send(f"Trivia questions reloaded. Available categories: {list(self.questions.keys())}")
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.user)
