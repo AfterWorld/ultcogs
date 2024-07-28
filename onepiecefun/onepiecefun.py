@@ -39,18 +39,18 @@ class OnePieceFun(commands.Cog):
         self.last_announcement = {}
         self.trivia_lock = asyncio.Lock()
         self.trivia_sessions = {}
-        self.load_questions()
+        self.questions = self.load_questions()
 
-        def load_questions(self):
-            try:
-                with open('one_piece_questions.json', 'r') as f:
-                    return json.load(f)
-            except FileNotFoundError:
-                print("Error: one_piece_questions.json file not found.")
-                return []
-            except json.JSONDecodeError:
-                print("Error: Invalid JSON in one_piece_questions.json file.")
-                return []
+    def load_questions(self):
+        try:
+            with open('one_piece_questions.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Error: one_piece_questions.json file not found.")
+            return []
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON in one_piece_questions.json file.")
+            return []
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
