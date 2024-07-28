@@ -42,8 +42,8 @@ class OnePieceFun(commands.Cog):
         self.load_questions()
 
         def load_questions(self):
-        with open('one_piece_questions.json', 'r') as f:
-            self.questions = json.load(f)
+            with open('one_piece_questions.json', 'r') as f:
+                self.questions = json.load(f)
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
