@@ -855,21 +855,26 @@ class OnePieceFun(commands.Cog):
     @commands.cooldown(1, 300, commands.BucketType.channel)
     async def trivia(self, ctx, difficulty: str = "all"):
         """Start a One Piece trivia game!"""
+        print(f"Trivia command called with difficulty: {difficulty}")
+        print(f"Number of questions available: {len(self.questions)}")
+        
         if ctx.channel.id in self.trivia_sessions:
             await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
-
+    
         if difficulty.lower() not in ["easy", "normal", "hard", "all"]:
             await ctx.send("Invalid difficulty! Choose from 'easy', 'normal', 'hard', or 'all'. Using 'all' by default.")
             difficulty = "all"
-
+    
         if difficulty.lower() == "all":
             filtered_questions = self.questions
             difficulty_display = "All Difficulties"
         else:
             filtered_questions = [q for q in self.questions if q['difficulty'] == difficulty.lower()]
             difficulty_display = difficulty.capitalize()
-
+    
+        print(f"Number of filtered questions: {len(filtered_questions)}")
+    
         if not filtered_questions:
             await ctx.send(f"No questions available for {difficulty} difficulty!")
             return
