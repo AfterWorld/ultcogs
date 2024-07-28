@@ -855,40 +855,25 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.channel)
-    async def trivia(self, ctx, difficulty: str = None):
+    async def trivia(self, ctx):
         """Start a One Piece trivia game!"""
-        print(f"Trivia command called with difficulty: {difficulty}")
+        print(f"Trivia command called")
         print(f"Number of questions available: {len(self.questions)}")
         
         if ctx.channel.id in self.trivia_sessions:
             await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
     
-        valid_difficulties = ["easy", "normal", "hard"]
-        
-        if difficulty is None:
-            # If no difficulty specified, use all questions
-            filtered_questions = self.questions
-            difficulty_display = "All Difficulties"
-        elif difficulty.lower() in valid_difficulties:
-            filtered_questions = [q for q in self.questions if q['difficulty'] == difficulty.lower()]
-            difficulty_display = difficulty.capitalize()
-        else:
-            await ctx.send(f"Invalid difficulty! Choose from {', '.join(valid_difficulties)}, or don't specify for all difficulties.")
-            return
-    
-        print(f"Number of filtered questions: {len(filtered_questions)}")
-    
-        if not filtered_questions:
-            await ctx.send(f"No questions available for {difficulty_display} difficulty!")
+        if not self.questions:
+            await ctx.send("No questions available! The trivia game cannot start.")
             return
     
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}}
         
-        await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! Difficulty: {difficulty_display}. First to 10 points wins! 🏆")
+        await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! First to 10 points wins! 🏆")
     
         try:
-            for question in random.sample(filtered_questions, len(filtered_questions)):
+            for question in random.sample(self.questions, len(self.questions)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
