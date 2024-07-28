@@ -994,31 +994,43 @@ class OnePieceFun(commands.Cog):
             await ctx.send("There's no active trivia game in this channel, ye confused sea dog!")
             return
         
+        category = self.trivia_sessions[ctx.channel.id]["category"]
         self.trivia_sessions[ctx.channel.id]["active"] = False
         await ctx.send("The trivia game has been stopped by the captain's orders!")
         await self.end_game(ctx)
 
     async def end_game(self, ctx):
         if ctx.channel.id in self.trivia_sessions:
+            category = self.trivia_sessions[ctx.channel.id]["category"]
             final_scores = self.trivia_sessions[ctx.channel.id]["scores"]
             del self.trivia_sessions[ctx.channel.id]
             
             async with self.config.guild(ctx.guild).trivia_scores() as scores:
+                if category not in scores:
+                    scores[category] = {}
                 for player, score in final_scores.items():
-                    if str(player.id) not in scores:
-                        scores[str(player.id)] = {"total_score": 0, "games_played": 0}
-                    scores[str(player.id)]["total_score"] += score
-                    scores[str(player.id)]["games_played"] += 1
-
-            await ctx.send("The trivia game has ended! Thanks for playing, ye scurvy dogs!")
-            await self.display_leaderboard(ctx)
+                    if str(player.id) not in scores[category]:
+                        scores[category][str(player.id)] = {"total_score": 0, "games_played": 0}
+                    scores[category][str(player.id)]["total_score"] += score
+                    scores[category][str(player.id)]["games_played"] += 1
+    
+            await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
+            await self.display_leaderboard(ctx, category)
 
     @commands.command()
     async def trivialeaderboard(self, ctx, category: str = "one_piece"):
         """Display the trivia leaderboard for a specific category."""
         await self.display_leaderboard(ctx, category.lower())
     
-    async def display_leaderboard(self, ctx, category):
+    async def display_leaderboard(self, ctx, category=None):
+        if category is None:
+            # If no category is provided, use the category from the active session
+            if ctx.channel.id in self.trivia_sessions:
+                category = self.trivia_sessions[ctx.channel.id]["category"]
+            else:
+                # Default to 'one_piece' if there's no active session
+                category = "one_piece"
+    
         async with self.config.guild(ctx.guild).trivia_scores() as scores:
             if category not in scores:
                 await ctx.send(f"No leaderboard available for {category.capitalize()} trivia.")
