@@ -44,7 +44,8 @@ class OnePieceFun(commands.Cog):
         self.trivia_sessions = {}
         self.questions = []
         
-    asyncio.create_task(self.initialize_questions())
+        # Create a task to initialize questions
+        self.bot.loop.create_task(self.initialize_questions())
 
     async def initialize_questions(self):
         self.questions = await self.load_questions()
