@@ -99,7 +99,204 @@ class OnePieceFun(commands.Cog):
             ("What is the name of the technique Luffy uses to harden his body?", ["Armament Haki", "Busoshoku Haki"], "It's a type of Haki", "It turns body parts black", "It starts with 'Arma'", "normal"),
             ("Who is the shipwright that built the Thousand Sunny?", ["Franky", "Cutty Flam"], "He's a cyborg", "He's part of the Straw Hat crew", "His name rhymes with 'cranky'", "easy"),
             ("What is the name of the island where the Straw Hats met Vivi?", ["Little Garden"], "It's full of dinosaurs", "It's where they met the giants Dorry and Brogy", "It starts with 'Little'", "normal"),
-            ("Which Yonko is known as 'Kaido of the Beasts'?", ["Kaido"], "He can turn into a dragon", "He rules Wano Country", "His name starts with 'K'", "easy")
+            ("Which Yonko is known as 'Kaido of the Beasts'?", ["Kaido"], "He can turn into a dragon", "He rules Wano Country", "His name starts with 'K'", "easy"),
+            ("What is the name of Luffy's mother?", ["Monkey D. Lynne"], "Her identity is not yet revealed in the manga", "This is a fan theory", "Her name is speculation", "hard"),
+            ("What is the name of the ancient weapon that Pluton is based on?", ["Unknown"], "It's a battleship", "Its location is hidden", "It's one of three ancient weapons", "hard"),
+            ("Who is the captain of the Bonney Pirates?", ["Jewelry Bonney"], "She can manipulate age", "She's part of the Worst Generation", "Her name is a type of jewelry", "normal"),
+            ("What is the name of the island where the Straw Hats met Rayleigh?", ["Sabaody Archipelago"], "It's known for its bubble trees", "It's where crews prepare to enter the New World", "It starts with 'Saba'", "normal"),
+            ("Who is the creator of the Poneglyphs?", ["Kozuki Clan"], "They're from Wano Country", "They created the indestructible stones", "Their name starts with 'K'", "hard"),
+            ("What is the name of Zoro's hometown?", ["Shimotsuki Village"], "It's in East Blue", "It's where he learned swordsmanship", "It starts with 'Shimo'", "normal"),
+            ("Who is the navigator of the Straw Hat Pirates?", ["Nami"], "She loves money", "She can predict the weather", "Her name means 'wave'", "easy"),
+            ("What is the name of the island where Chopper was born?", ["Drum Island"], "It's a winter island", "It's known for its medical expertise", "It starts with 'Drum'", "normal"),
+            ("Who is the user of the Goro Goro no Mi (Rumble-Rumble Fruit)?", ["Enel", "Eneru"], "He was the 'God' of Skypiea", "He has lightning powers", "His name starts with 'E'", "normal"),
+            ("What is the name of Luffy's special gear that makes him look like a giant?", ["Gear Fourth: Tankman"], "It's a defensive form", "It's round and bouncy", "It starts with 'Tank'", "hard"),
+            ("Who is the captain of the Firetank Pirates?", ["Capone Bege", "Bege"], "He's known as 'Gang'", "His body can become a castle", "His first name is C_____", "normal"),
+            ("What is the name of the island where the Straw Hats met Laboon?", ["Twin Cape"], "It's at the entrance of the Grand Line", "It has a lighthouse", "It starts with 'Twin'", "hard"),
+            ("Who is the user of the Ope Ope no Mi (Op-Op Fruit)?", ["Trafalgar D. Water Law", "Law"], "He's a surgeon", "He can create 'Rooms'", "His last name is L__", "normal"),
+            ("What is the name of Sanji's wanted poster epithet?", ["Black Leg"], "It refers to his fighting style", "It's about a part of his body", "It starts with 'Black'", "easy"),
+            ("Who is the captain of the On Air Pirates?", ["Scratchmen Apoo"], "He's known as the 'Roar of the Sea'", "His body is musical instruments", "His last name is A___", "hard"),
+            ("What is the name of the island where Nico Robin was born?", ["Ohara"], "It was destroyed by a Buster Call", "It was known for its great library", "It starts with 'O'", "normal"),
+            ("Who is the user of the Yami Yami no Mi (Dark-Dark Fruit)?", ["Marshall D. Teach", "Blackbeard"], "He can nullify other Devil Fruit powers", "He was part of Whitebeard's crew", "His nickname is B________", "normal"),
+            ("What is the name of Luffy's special gear that makes him look like he's on fire?", ["Gear Second"], "It increases his speed and strength", "It makes his body steam", "It's the second gear he developed", "easy"),
+            ("Who is the captain of the Drake Pirates?", ["X Drake"], "He's a former Marine rear admiral", "He can turn into a dinosaur", "His name includes a letter of the alphabet", "normal"),
+            ("What is the name of the island where the Straw Hats met Crocus?", ["Twin Cape"], "It's at the entrance of the Grand Line", "It's where Laboon waits", "It starts with 'Twin'", "hard"),
+            ("Who is the user of the Hana Hana no Mi (Flower-Flower Fruit)?", ["Nico Robin"], "She can sprout body parts", "She's the archaeologist of the Straw Hats", "Her first name is N___", "easy"),
+            ("What is the name of Zoro's most powerful sword?", ["Enma"], "It belonged to Kozuki Oden", "It can draw out its wielder's Haki", "It starts with 'E'", "hard"),
+            ("Who is the captain of the Hawkins Pirates?", ["Basil Hawkins"], "He's known as the 'Magician'", "He uses tarot cards in battle", "His first name is a herb", "normal"),
+            ("What is the name of the organization that Nico Robin worked for?", ["Baroque Works"], "It was led by Crocodile", "Its members used codenames", "It starts with 'B'", "normal"),
+            ("Who is the user of the Moku Moku no Mi (Smoke-Smoke Fruit)?", ["Smoker"], "He's a Marine vice admiral", "His weapon is a jitte", "His name is related to his power", "easy"),
+            ("What is the name of Luffy's special gear that makes his arms huge?", ["Gear Third"], "It inflates his bones", "It makes his attacks gigantic", "It's the third gear he developed", "easy"),
+            ("Who is the captain of the Fallen Monk Pirates?", ["Urouge"], "He's known as the 'Mad Monk'", "He gets stronger when damaged", "His name starts with 'U'", "hard"),
+            ("What is the name of the island where Buggy was first introduced?", ["Orange Town"], "It's in East Blue", "Buggy was terrorizing it", "It's named after a fruit", "normal"),
+            ("Who is the user of the Gura Gura no Mi (Tremor-Tremor Fruit)?", ["Edward Newgate", "Whitebeard"], "He was known as the 'Strongest Man in the World'", "He can create earthquakes", "His nickname is W________", "normal"),
+            ("What is the name of Sanji's family?", ["Vinsmoke"], "They rule Germa Kingdom", "They're known for their scientific advancements", "It starts with 'Vin'", "normal"),
+            ("Who is the captain of the Bellamy Pirates?", ["Bellamy"], "He's known as the 'Hyena'", "He uses springs to fight", "His name starts with 'B'", "normal"),
+            ("What is the name of the island where the Straw Hats met Hatchan again?", ["Sabaody Archipelago"], "It's known for its bubbles", "It's where crews prepare to enter the New World", "It starts with 'Saba'", "normal"),
+            ("Who is the user of the Suna Suna no Mi (Sand-Sand Fruit)?", ["Crocodile"], "He was a Shichibukai", "He tried to take over Alabasta", "His name is a reptile", "easy"),
+            ("What is the name of Luffy's special gear that allows him to fly?", ["Gear Fourth: Boundman"], "It combines Haki and his rubber powers", "It makes him look like a bouncing ball", "It starts with 'Bound'", "hard"),
+            ("Who is the captain of the Barto Club?", ["Bartolomeo"], "He's known as the 'Cannibal'", "He can create barriers", "His name starts with 'Bar'", "normal"),
+            ("What is the name of the country Vivi is a princess of?", ["Alabasta"], "It's a desert kingdom", "Crocodile tried to take it over", "It starts with 'A'", "easy"),
+            ("Who is the user of the Nikyu Nikyu no Mi (Paw-Paw Fruit)?", ["Bartholomew Kuma"], "He was a Shichibukai", "He was turned into a Pacifista", "His last name is K___", "normal"),
+            ("What is the name of Brook's former pirate crew?", ["Rumbar Pirates"], "They promised to return to Laboon", "They all died except Brook", "It starts with 'Rum'", "hard"),
+            ("Who is the captain of the Sun Pirates?", ["Fisher Tiger", "Jinbe"], "It's a crew of fishmen", "They were former slaves", "The first captain's name starts with 'F'", "hard"),
+            ("What is the name of the island where Luffy trained during the time skip?", ["Rusukaina"], "It's where Rayleigh left Luffy", "It has 48 seasons", "It starts with 'Ru'", "hard"),
+            ("Who is the user of the Mera Mera no Mi (Flame-Flame Fruit) after Ace?", ["Sabo"], "He's Luffy's sworn brother", "He's part of the Revolutionary Army", "His name starts with 'S'", "normal"),
+            ("What is the name of Zoro's dojo where he trained as a child?", ["Isshin Dojo"], "It's where he met Kuina", "It's in Shimotsuki Village", "It starts with 'I'", "hard"),
+            ("Who is the captain of the Foxy Pirates?", ["Foxy"], "He's known for the Davy Back Fight", "He has the Noro Noro no Mi", "His name is an animal", "normal"),
+            ("What is the name of the island where the Straw Hats fought Enel?", ["Skypiea"], "It's a sky island", "It has dials and clouds", "It starts with 'Sky'", "easy"),
+            ("Who is the user of the Gomu Gomu no Mi (Gum-Gum Fruit)?", ["Monkey D. Luffy"], "He's the main character", "He can stretch his body", "His last name is L____", "easy"),
+            ("What is the name of Nami's hometown?", ["Cocoyasi Village"], "It was under Arlong's control", "It's where Bell-mère lived", "It starts with 'Coco'", "normal"),
+            ("Who is the captain of the Red Hair Pirates?", ["Shanks"], "He inspired Luffy to become a pirate", "He's a Yonko", "His name starts with 'S'", "easy"),
+            ("What is the name of the sword that Zoro got from Kuina?", ["Wado Ichimonji"], "It's his white sword", "It represents his promise", "It starts with 'Wado'", "normal"),
+            ("Who is the user of the Hie Hie no Mi (Ice-Ice Fruit)?", ["Kuzan", "Aokiji"], "He's a former Marine admiral", "He can freeze things", "His admiral name means 'Blue Pheasant'", "normal"),
+            ("What is the name of the technique Luffy uses to stretch his arm and punch from a distance?", ["Gomu Gomu no Pistol", "Gum-Gum Pistol"], "It's his basic attack", "It's like a stretchy punch", "It ends with 'Pistol'", "easy"),
+            ("Who is the shipwright that built the Going Merry?", ["Merry"], "He's from Syrup Village", "He worked for Kaya", "His name is the same as the ship", "normal"),
+            ("What is the name of the island where the Straw Hats fought Gecko Moria?", ["Thriller Bark"], "It's actually a giant ship", "It's full of zombies", "It starts with 'Thriller'", "easy"),
+            ("Who is the user of the Goro Goro no Mi (Rumble-Rumble Fruit)?", ["Enel", "Eneru"], "He was the 'God' of Skypiea", "He has lightning powers", "His name starts with 'E'", "normal"),
+            ("What is the name of Usopp's home village?", ["Syrup Village"], "It's where he met Kaya", "It's in East Blue", "It's named after a sweet substance", "normal"),
+            ("Who is the captain of the Alvida Pirates before meeting Buggy?", ["Alvida"], "She ate the Sube Sube no Mi", "She was the first antagonist in the series", "Her name starts with 'A'", "normal"),
+            ("What is the name of the island where Zoro was first introduced?", ["Shell Town"], "It's where Luffy met Coby", "It had a corrupt Marine base", "It ends with 'Town'", "normal"),
+            ("Who is the user of the Doku Doku no Mi (Venom-Venom Fruit)?", ["Magellan"], "He was the warden of Impel Down", "He can produce various poisons", "His name starts with 'M'", "hard"),
+            ("What is the name of Luffy's special move where he inflates like a balloon?", ["Gomu Gomu no Fusen", "Gum-Gum Balloon"], "It's a defensive technique", "He uses it to bounce back cannonballs", "It ends with 'Balloon' or 'Fusen'", "normal"),
+            ("Who is the captain of the Buggy Pirates?", ["Buggy"], "He's a former Roger Pirate", "He has the Bara Bara no Mi", "He's a clown", "easy"),
+            ("What is the name of the restaurant where Sanji worked before joining the Straw Hats?", ["Baratie"], "It's a floating restaurant", "Zeff is the head chef", "It starts with 'B'", "easy"),
+            ("Who is the user of the Bari Bari no Mi (Barrier-Barrier Fruit)?", ["Bartolomeo"], "He's a huge fan of Luffy", "He can create barriers", "His name starts with 'Bar'", "normal"),
+            ("What is the name of the island where Chopper learned medicine?", ["Drum Island"], "It's a winter island", "It was ruled by Wapol", "It starts with 'Drum'", "normal"),
+            ("Who is the captain of the Happo Navy?", ["Don Chinjao"], "He had a pointed head", "He's Sai's grandfather", "His name starts with 'Don'", "hard"),
+            ("What is the name of the technique where Luffy bites his thumb and blows air into his bones?", ["Gear Third"], "It makes his body parts gigantic", "It's his third power-up", "It starts with 'Gear'", "easy"),
+            ("Who is the user of the Kage Kage no Mi (Shadow-Shadow Fruit)?", ["Gecko Moria"], "He was a Shichibukai", "He can steal and manipulate shadows", "His last name is M____", "normal"),
+            ("What is the name of the island where the Straw Hats met Crocus and Laboon?", ["Twin Cape"], "It's at the entrance of the Grand Line", "It has a lighthouse", "It starts with 'Twin'", "hard"),
+            ("Who is the captain of the Kuja Pirates?", ["Boa Hancock"], "She's known as the 'Pirate Empress'", "She can turn people to stone", "Her first name is B__", "normal"),
+            ("What is the name of Zoro's ultimate attack that creates the illusion of nine swords?", ["Asura"], "It makes him appear to have multiple arms and heads", "It's named after a deity", "It starts with 'A'", "hard"),
+            ("Who is the user of the Soru Soru no Mi (Soul-Soul Fruit)?", ["Charlotte Linlin", "Big Mom"], "She's a Yonko", "She can manipulate souls", "Her epithet is B__ M__", "normal"),
+            ("What is the name of the island where Usopp trained during the time skip?", ["Boin Archipelago"], "It's known as the 'Greenstone'", "It's full of giant plants", "It starts with 'Boin'", "hard"),
+            ("Who is the captain of the Blackbeard Pirates?", ["Marshall D. Teach", "Blackbeard"], "He has two Devil Fruit powers", "He was part of Whitebeard's crew", "His nickname is B________", "easy"),
+            ("What is the name of Sanji's fighting style?", ["Black Leg Style"], "It focuses on kicking techniques", "It was taught by Zeff", "It starts with 'Black'", "easy"),
+            ("Who is the user of the Hobi Hobi no Mi (Hobby-Hobby Fruit)?", ["Sugar"], "She can turn people into toys", "She's part of the Donquixote Pirates", "Her name is a sweet substance", "hard"),
+            ("What is the name of the island where Luffy and Ace grew up?", ["Mt. Colubo"], "It's in East Blue", "It's where they lived with Dadan", "It starts with 'Mt.'", "normal"),
+            ("Who is the user of the Bara Bara no Mi (Chop-Chop Fruit)?", ["Buggy"], "He's a former Roger Pirate", "He can split his body parts", "He's a clown", "easy"),
+            ("What is the name of Nami's adoptive mother?", ["Bell-mère"], "She was a former Marine", "She raised Nami and Nojiko", "Her name is related to a vegetable", "normal"),
+            ("Who is the captain of the Beasts Pirates?", ["Kaido"], "He's known as the 'Strongest Creature'", "He rules Wano Country", "His name starts with 'K'", "easy"),
+            ("What is the name of the technique Zoro uses to cut steel?", ["Shishi Sonson"], "It's part of his One-Sword Style", "It means 'Lion's Song'", "It starts with 'Shishi'", "hard"),
+            ("Who is the user of the Tori Tori no Mi, Model: Phoenix (Bird-Bird Fruit, Model: Phoenix)?", ["Marco"], "He was the first division commander of the Whitebeard Pirates", "He can transform into a blue phoenix", "His name starts with 'M'", "normal"),
+            ("What is the name of the island where Robin spent the time skip?", ["Tequila Wolf"], "It's where the Revolutionary Army found her", "It's known for its giant bridge", "It starts with 'Tequila'", "hard"),
+            ("Who is the captain of the Big Mom Pirates?", ["Charlotte Linlin", "Big Mom"], "She's a Yonko", "She has many children", "Her epithet is B__ M__", "easy"),
+            ("What is the name of Luffy's special gear that allows him to bounce?", ["Gear Fourth: Boundman"], "It combines Haki and his rubber powers", "It makes him look like a bouncing ball", "It starts with 'Bound'", "normal"),
+            ("Who is the user of the Ushi Ushi no Mi, Model: Giraffe (Ox-Ox Fruit, Model: Giraffe)?", ["Kaku"], "He was a member of CP9", "He uses 'Rokushiki' techniques", "His name is related to a square", "hard"),
+            ("What is the name of the country Nico Robin is from?", ["Ohara"], "It was destroyed by a Buster Call", "It was known for its great library", "It starts with 'O'", "normal"),
+            ("Who is the captain of the Roger Pirates?", ["Gol D. Roger"], "He was the Pirate King", "He started the Great Pirate Era", "His middle initial is 'D'", "easy"),
+            ("What is the name of Zoro's sword style that uses nine swords?", ["Kyutoryu", "Nine Sword Style"], "It's an illusion technique", "It makes him look like an Asura", "It starts with 'Kyu'", "hard"),
+            ("Who is the user of the Hito Hito no Mi, Model: Daibutsu (Human-Human Fruit, Model: Great Buddha)?", ["Sengoku"], "He was the Fleet Admiral before Akainu", "He can turn into a giant golden Buddha", "His name starts with 'S'", "hard"),
+            ("What is the name of the island where the Straw Hats met Camie and Pappug?", ["Sabaody Archipelago"], "It's known for its bubbles", "It's where crews prepare to enter the New World", "It starts with 'Saba'", "normal"),
+            ("Who is the captain of the Straw Hat Grand Fleet?", ["Monkey D. Luffy"], "He didn't want the fleet but accepted it", "He has 5600 subordinates", "His middle initial is 'D'", "easy"),
+            ("What is the name of Sanji's technique where he spins to heat up his leg?", ["Diable Jambe"], "It means 'Devil Leg' in French", "It makes his kicks fiery", "It starts with 'Diable'", "normal"),
+            ("Who is the user of the Zoan fruit that allows transformation into a mammoth?", ["Jack"], "He's one of Kaido's top commanders", "He's known as 'Jack the Drought'", "His name is a common male name", "hard"),
+            ("What is the name of the island where Gecko Moria stole shadows?", ["Thriller Bark"], "It's actually a giant ship", "It's full of zombies", "It starts with 'Thriller'", "easy"),
+            ("Who is the captain of the Tontatta Pirates?", ["Leo"], "He's a dwarf from Dressrosa", "He uses the Nui Nui no Mi", "His name is a zodiac sign", "hard"),
+            ("What is the name of Luffy's special move where he rapidly punches with stretched arms?", ["Gomu Gomu no Gatling", "Gum-Gum Gatling"], "It's a barrage of punches", "It's named after a type of gun", "It ends with 'Gatling'", "easy"),
+            ("Who is the user of the Magu Magu no Mi (Magma-Magma Fruit)?", ["Akainu", "Sakazuki"], "He's the current Fleet Admiral", "He killed Ace", "His admiral name means 'Red Dog'", "normal"),
+            ("What is the name of the island where the Straw Hats met Vivi?", ["Whiskey Peak"], "It's known for welcoming pirates", "It was actually full of bounty hunters", "It starts with 'Whiskey'", "normal"),
+            ("Who is the captain of the Heart Pirates?", ["Trafalgar D. Water Law", "Law"], "He's a former Shichibukai", "He has the Op-Op Fruit", "His first name is T________", "easy"),
+            ("What is the name of Brook's signature attack that freezes enemies?", ["Soul Solid"], "It uses the power of his Devil Fruit", "It's performed with his sword cane", "It starts with 'Soul'", "normal"),
+            ("Who is the user of the Gasu Gasu no Mi (Gas-Gas Fruit)?", ["Caesar Clown"], "He's a scientist who worked with Vegapunk", "He can control various gases", "His first name is a title", "normal"),
+            ("What is the name of the island where Zoro was first introduced?", ["Shell Town"], "It's where Luffy met Coby", "It had a corrupt Marine base", "It ends with 'Town'", "normal"),
+            ("Who is the captain of the Vinsmoke Family?", ["Vinsmoke Judge"], "He's Sanji's father", "He's the king of Germa 66", "His title is 'Judge'", "normal"),
+            ("What is the name of Usopp's weapon that uses pop greens?", ["Kuro Kabuto"], "It's a slingshot", "It can transform", "It starts with 'Kuro'", "hard"),
+            ("Who is the user of the Mera Mera no Mi (Flame-Flame Fruit) originally?", ["Portgas D. Ace"], "He was Luffy's brother", "He was a commander in Whitebeard's crew", "His first name is A__", "easy"),
+            ("What is the name of the technique Luffy uses to stretch his leg for a powerful kick?", ["Gomu Gomu no Stamp", "Gum-Gum Stamp"], "It's a kicking technique", "It's named after something you use on letters", "It ends with 'Stamp'", "normal"),
+            ("Who is the captain of the Whitebeard Pirates after Marineford?", ["Marco"], "He was the first division commander", "He has a mythical Zoan fruit", "His name starts with 'M'", "normal"),
+            ("What is the name of the island where the Straw Hats fought Crocodile?", ["Alabasta"], "It's a desert kingdom", "Vivi is the princess", "It starts with 'A'", "easy"),
+            ("Who is the user of the Yami Yami no Mi (Dark-Dark Fruit)?", ["Marshall D. Teach", "Blackbeard"], "He can nullify other Devil Fruit powers", "He was part of Whitebeard's crew", "His nickname is B________", "normal"),
+            ("What is the name of Franky's signature attack where he connects his arms to make a cannon?", ["Coup de Vent"], "It uses compressed air", "It's a powerful ranged attack", "It's in French", "hard"),
+            ("Who is the captain of the Sun Pirates after Fisher Tiger?", ["Jinbe"], "He's a former Shichibukai", "He joined the Straw Hat crew", "His name starts with 'J'", "normal"),
+            ("What is the name of the technique where Luffy hardens his arm with Haki?", ["Busoshoku: Koka", "Armament: Hardening"], "It turns his arm black", "It's a form of Haki", "It ends with 'Hardening' or 'Koka'", "normal"),
+            ("Who is the user of the Hana Hana no Mi (Flower-Flower Fruit)?", ["Nico Robin"], "She can sprout body parts", "She's the archaeologist of the Straw Hats", "Her first name is N___", "easy"),
+            ("What is the name of the island where Luffy and Ace met Sabo?", ["Goa Kingdom"], "It's in East Blue", "It has a huge wall dividing the city", "It starts with 'Goa'", "hard"),
+            ("Who is the captain of the Happo Navy?", ["Don Chinjao"], "He had a pointed head", "He's Sai's grandfather", "His name starts with 'Don'", "hard"),
+            ("What is the name of Zoro's attack where he creates a tornado?", ["Tatsumaki", "Dragon Twister"], "It's part of his Three Sword Style", "It means 'tornado' in Japanese", "It starts with 'Tatsu'", "normal"),
+            ("Who is the user of the Gura Gura no Mi (Tremor-Tremor Fruit) after Whitebeard?", ["Marshall D. Teach", "Blackbeard"], "He stole this power after Marineford", "It's his second Devil Fruit", "His nickname is B________", "hard"),
+            ("What is the name of the giant goldfish that lives near Little Garden?", ["Island Eater"], "It's big enough to eat islands", "The giants Dorry and Brogy hunt it", "It starts with 'Island'", "hard"),
+            ("Who is the captain of the Donquixote Pirates?", ["Donquixote Doflamingo"], "He was a Shichibukai", "He ruled Dressrosa", "His nickname is 'Joker'", "easy"),
+            ("What is the name of Robin's technique where she creates giant limbs?", ["Mil Fleur: Gigantesco Mano"], "It means 'Thousand Flower: Giant Hand'", "She uses it for powerful attacks", "It starts with 'Mil Fleur'", "hard"),
+            ("Who is the user of the Awa Awa no Mi (Bubble-Bubble Fruit)?", ["Kalifa"], "She was a member of CP9", "She can create bubbles", "Her name starts with 'K'", "hard"),
+            ("What is the name of the island where Luffy trained with Rayleigh?", ["Rusukaina"], "It's where Luffy learned Haki", "It has 48 seasons", "It starts with 'Ru'", "hard"),
+            ("Who is the captain of the Thriller Bark Pirates?", ["Gecko Moria"], "He was a Shichibukai", "He can steal and manipulate shadows", "His last name is M____", "normal"),
+            ("What is the name of Sanji's technique where he kicks rapidly while airborne?", ["Concassé"], "It's a descending heel drop", "It's named after a cooking technique", "It starts with 'Con'", "hard"),
+            ("Who is the user of the Noro Noro no Mi (Slow-Slow Fruit)?", ["Foxy"], "He's the captain of the Foxy Pirates", "He uses it in Davy Back Fights", "His name is an animal", "normal"),
+            ("What is the name of the Marine Headquarters where Ace was executed?", ["Marineford"], "It's in the first half of the Grand Line", "It's where the final war of the first half took place", "It starts with 'Marine'", "easy"),
+            ("Who is the captain of the Beautiful Pirates?", ["Cavendish"], "He's known as the 'Pirate Prince'", "He has a split personality", "His name is a type of tobacco", "hard"),
+            ("What is the name of Chopper's transformation where he becomes very small?", ["Brain Point"], "It's his most intelligent form", "It's his original hybrid form", "It starts with 'Brain'", "normal"),
+            ("Who is the user of the Suke Suke no Mi (Clear-Clear Fruit)?", ["Absalom"], "He was part of Thriller Bark", "He can turn invisible", "His name starts with 'A'", "hard"),
+            ("What is the name of the technique where Luffy inflates his fist to giant size?", ["Gear Third: Gigant Pistol", "Gear Third: Giant Pistol"], "It's a powerful punch", "It makes his fist enormous", "It ends with 'Pistol'", "normal"),
+            ("Who is the captain of the Firetank Pirates?", ["Capone Bege", "Bege"], "He's known as 'Gang'", "His body can become a castle", "His first name is C_____", "normal"),
+            ("What is the name of the sword Zoro got from Ryuma?", ["Shusui"], "It's a black blade", "It's one of the 21 Great Grade swords", "It starts with 'Shu'", "hard"),
+            ("Who is the user of the Ope Ope no Mi (Op-Op Fruit)?", ["Trafalgar D. Water Law", "Law"], "He's a surgeon", "He can create 'Rooms'", "His last name is L__", "easy"),
+            ("What is the name of the island where Blackbeard defeated Ace?", ["Banaro Island"], "It's where Ace and Blackbeard fought", "It's in the New World", "It starts with 'Ba'", "hard"),
+            ("Who is the captain of the Drake Pirates?", ["X Drake"], "He's a former Marine rear admiral", "He can turn into a dinosaur", "His name includes a letter of the alphabet", "normal"),
+            ("What is the name of Nami's clima-tact after Usopp's upgrade in Weatheria?", ["Sorcery Clima-Tact"], "It's her most advanced weapon", "It can control weather", "It starts with 'Sorcery'", "hard"),
+            ("Who is the user of the Zushi Zushi no Mi (Push-Push Fruit)?", ["Issho", "Fujitora"], "He's a Marine admiral", "He can control gravity", "His admiral name means 'Wisteria Tiger'", "hard"),
+            ("What is the name of the technique Luffy uses to stretch his leg high into the air and bring it down?", ["Gomu Gomu no Axe", "Gum-Gum Axe"], "It's a powerful descending kick", "It's named after a cutting tool", "It ends with 'Axe'", "normal"),
+            ("Who is the user of the Kilo Kilo no Mi (Kilo-Kilo Fruit)?", ["Miss Valentine"], "She was an agent of Baroque Works", "She can change her weight", "Her codename is a holiday", "hard"),
+            ("What is the name of the island where Mihawk resides?", ["Kuraigana Island"], "It's where Zoro trained during the time skip", "It's a dark and gloomy place", "It starts with 'Kurai'", "hard"),
+            ("Who is the captain of the Bonney Pirates?", ["Jewelry Bonney"], "She can manipulate age", "She's part of the Worst Generation", "Her name is a type of jewelry", "normal"),
+            ("What is the name of Franky's ultimate attack where he combines with the Thousand Sunny?", ["General Franky"], "It's a giant robot", "It's named after a military rank", "It starts with 'General'", "normal"),
+            ("Who is the user of the Soru Soru no Mi (Soul-Soul Fruit)?", ["Charlotte Linlin", "Big Mom"], "She's a Yonko", "She can manipulate souls", "Her epithet is B__ M__", "normal"),
+            ("What is the name of the technique Sanji uses to set his leg on fire?", ["Diable Jambe"], "It means 'Devil Leg' in French", "It makes his kicks fiery", "It starts with 'Diable'", "normal"),
+            ("Who is the captain of the Hawkins Pirates?", ["Basil Hawkins"], "He's known as the 'Magician'", "He uses tarot cards in battle", "His first name is a herb", "normal"),
+            ("What is the name of the island where the Straw Hats first entered the New World?", ["Fishman Island"], "It's 10,000 meters under the sea", "It's protected by Big Mom", "It starts with 'Fish'", "easy"),
+            ("Who is the user of the Doku Doku no Mi (Venom-Venom Fruit)?", ["Magellan"], "He was the warden of Impel Down", "He can produce various poisons", "His name starts with 'M'", "hard"),
+            ("What is the name of Brook's special attack that puts enemies to sleep?", ["Nemuriuta Flanc", "Lullaby Parry"], "It uses the power of his music", "It's a sleep-inducing technique", "It starts with 'Nemuri' or 'Lullaby'", "hard"),
+            ("Who is the captain of the On Air Pirates?", ["Scratchmen Apoo"], "He's known as the 'Roar of the Sea'", "His body is musical instruments", "His last name is A___", "hard"),
+            ("What is the name of the technique Zoro uses to create the illusion of having six arms and three heads?", ["Asura"], "It's his ultimate technique", "It's named after a deity", "It starts with 'A'", "normal"),
+            ("Who is the user of the Mochi Mochi no Mi (Mochi-Mochi Fruit)?", ["Charlotte Katakuri"], "He's one of Big Mom's sons", "He can manipulate mochi", "His name starts with 'K'", "normal"),
+            ("What is the name of the island where Ace was born?", ["Baterilla"], "It's in South Blue", "It's where Roger left Portgas D. Rouge", "It starts with 'Ba'", "hard"),
+            ("Who is the captain of the Happo Navy?", ["Don Chinjao"], "He had a pointed head", "He's Sai's grandfather", "His name starts with 'Don'", "hard"),
+            ("What is the name of Usopp's ultimate attack where he summons a giant plant?", ["Midori Boshi: Uchiwa King", "Green Star: Uchiwa King"], "It creates a massive leaf", "It's named after a type of fan", "It ends with 'King'", "hard"),
+            ("Who is the user of the Baku Baku no Mi (Munch-Munch Fruit)?", ["Wapol"], "He was the king of Drum Kingdom", "He can eat anything and fuse with it", "His name starts with 'W'", "normal"),
+            ("What is the name of the technique Luffy uses to harden his body with Haki?", ["Busoshoku: Koka", "Armament: Hardening"], "It turns his body black", "It's a form of Haki", "It ends with 'Hardening' or 'Koka'", "normal"),
+            ("Who is the captain of the Fallen Monk Pirates?", ["Urouge"], "He's known as the 'Mad Monk'", "He gets stronger when damaged", "His name starts with 'U'", "hard"),
+            ("What is the name of the island where the Straw Hats met Rayleigh?", ["Sabaody Archipelago"], "It's known for its bubbles", "It's where crews prepare to enter the New World", "It starts with 'Saba'", "normal"),
+            ("Who is the user of the Yami Yami no Mi (Dark-Dark Fruit)?", ["Marshall D. Teach", "Blackbeard"], "He can nullify other Devil Fruit powers", "He was part of Whitebeard's crew", "His nickname is B________", "normal"),
+            ("What is the name of the technique where Luffy stretches both arms backwards?", ["Gomu Gomu no Bazooka", "Gum-Gum Bazooka"], "It's a powerful double palm strike", "It's named after a weapon", "It ends with 'Bazooka'", "easy"),
+            ("Who is the captain of the Kid Pirates?", ["Eustass Kid", "Kid"], "He has magnetic powers", "He's part of the Worst Generation", "His last name is 'Kid'", "normal"),
+            ("What is the name of the sword Zoro received from Ryuma?", ["Shusui"], "It's a black blade", "It's from Wano Country", "It starts with 'Sh'", "hard"),
+            ("Who is the user of the Nikyu Nikyu no Mi (Paw-Paw Fruit)?", ["Bartholomew Kuma"], "He was a Shichibukai", "He was turned into a Pacifista", "His last name is K___", "normal"),
+            ("What is the name of the technique Sanji uses to walk on air?", ["Sky Walk"], "It's based on CP9's Geppo", "It allows him to fight in the air", "It starts with 'Sky'", "normal"),
+            ("Who is the captain of the Buggy Pirates?", ["Buggy"], "He's a former Roger Pirate", "He has the Bara Bara no Mi", "He's a clown", "easy"),
+            ("What is the name of the island where Zoro was first introduced?", ["Shell Town"], "It's where Luffy met Coby", "It had a corrupt Marine base", "It ends with 'Town'", "normal"),
+            ("Who is the user of the Horu Horu no Mi (Horm-Horm Fruit)?", ["Emporio Ivankov"], "They're the queen of Kamabakka Kingdom", "They can manipulate hormones", "Their nickname is 'Iva'", "hard"),
+            ("What is the name of Nami's ultimate attack that creates massive storm clouds?", ["Thunder Breed Tempo"], "It's her most powerful lightning attack", "It uses her Clima-Tact", "It ends with 'Tempo'", "hard"),
+            ("Who is the captain of the Barto Club?", ["Bartolomeo"], "He's known as the 'Cannibal'", "He can create barriers", "His name starts with 'Bar'", "normal"),
+            ("What is the name of the technique Chopper uses to transform into a huge monster?", ["Monster Point"], "It was originally uncontrollable", "It's his most powerful form", "It starts with 'Monster'", "easy"),
+            ("Who is the user of the Mera Mera no Mi (Flame-Flame Fruit) after Ace?", ["Sabo"], "He's Luffy's sworn brother", "He's part of the Revolutionary Army", "His name starts with 'S'", "normal"),
+            ("What is the name of the island where Nico Robin was born?", ["Ohara"], "It was destroyed by a Buster Call", "It was known for its great library", "It starts with 'O'", "normal"),
+            ("Who is the captain of the Whitebeard Pirates?", ["Edward Newgate", "Whitebeard"], "He's known as the 'Strongest Man in the World'", "His nickname is 'Whitebeard'", "His first name is E_____", "easy"),
+            ("What is the name of the technique Luffy uses to enlarge his body?", ["Gear Third"], "It inflates his bones", "It makes his attacks gigantic", "It's the third gear he developed", "easy"),
+            ("Who is the user of the Goro Goro no Mi (Rumble-Rumble Fruit)?", ["Enel", "Eneru"], "He was the 'God' of Skypiea", "He has lightning powers", "His name starts with 'E'", "normal"),
+            ("What is the name of the island where the Straw Hats fought Gecko Moria?", ["Thriller Bark"], "It's actually a giant ship", "It's full of zombies", "It starts with 'Thriller'", "easy"),
+            ("Who is the captain of the Sun Pirates?", ["Fisher Tiger", "Jinbe"], "It's a crew of fishmen", "They were former slaves", "The first captain's name starts with 'F'", "hard"),
+            ("What is the name of Zoro's attack where he jumps into the air and spins with his swords?", ["Santoryu Ogi: Sanzen Sekai", "Three Sword Style Secret Technique: Three Thousand Worlds"], "It's one of his most powerful attacks", "It creates the illusion of many swords", "It ends with 'Sekai' or 'Worlds'", "hard"),
+            ("Who is the user of the Ope Ope no Mi (Op-Op Fruit)?", ["Trafalgar D. Water Law", "Law"], "He's a surgeon", "He can create 'Rooms'", "His last name is L__", "easy"),
+            ("What is the name of the technique Luffy uses to quickly dodge attacks?", ["Observation Haki", "Kenbunshoku Haki"], "It allows him to sense incoming attacks", "It's a form of Haki", "It starts with 'Observation' or 'Ken'", "normal"),
+            ("Who is the captain of the Blackbeard Pirates?", ["Marshall D. Teach", "Blackbeard"], "He has two Devil Fruit powers", "He was part of Whitebeard's crew", "His nickname is B________", "easy"),
+            ("What is the name of the island where the Straw Hats met Vivi?", ["Whiskey Peak"], "It's known for welcoming pirates", "It was actually full of bounty hunters", "It starts with 'Whiskey'", "normal"),
+            ("Who is the user of the Hie Hie no Mi (Ice-Ice Fruit)?", ["Kuzan", "Aokiji"], "He's a former Marine admiral", "He can freeze things", "His admiral name means 'Blue Pheasant'", "normal"),
+            ("What is the name of Brook's special attack that freezes enemies?", ["Soul Solid"], "It uses the power of his Devil Fruit", "It's performed with his sword cane", "It starts with 'Soul'", "normal"),
+            ("Who is the captain of the Roger Pirates?", ["Gol D. Roger"], "He was the Pirate King", "He started the Great Pirate Era", "His middle initial is 'D'", "easy"),
+            ("What is the name of the technique where Luffy inflates his fist to giant size?", ["Gear Third: Gigant Pistol", "Gear Third: Giant Pistol"], "It's a powerful punch", "It makes his fist enormous", "It ends with 'Pistol'", "normal"),
+            ("Who is the user of the Gasu Gasu no Mi (Gas-Gas Fruit)?", ["Caesar Clown"], "He's a scientist who worked with Vegapunk", "He can control various gases", "His first name is a title", "normal"),
+            ("What is the name of the island where Luffy trained with Rayleigh?", ["Rusukaina"], "It's where Luffy learned Haki", "It has 48 seasons", "It starts with 'Ru'", "hard"),
+            ("Who is the captain of the Beautiful Pirates?", ["Cavendish"], "He's known as the 'Pirate Prince'", "He has a split personality", "His name is a type of tobacco", "hard"),
+            ("What is the name of Chopper's transformation where he becomes very tall and thin?", ["Jumping Point"], "It's used for high jumps", "It's one of his original transformations", "It starts with 'Jump'", "normal"),
+            ("Who is the user of the Suke Suke no Mi (Clear-Clear Fruit)?", ["Absalom"], "He was part of Thriller Bark", "He can turn invisible", "His name starts with 'A'", "hard"),
+            ("What is the name of the technique Sanji uses to ignite his entire body?", ["Hell Memories"], "It's his most powerful fire-based attack", "It uses his traumatic memories as fuel", "It starts with 'Hell'", "hard"),
+            ("Who is the captain of the Firetank Pirates?", ["Capone Bege", "Bege"], "He's known as 'Gang'", "His body can become a castle", "His first name is C_____", "normal"),
+            ("What is the name of the sword Zoro inherited from his childhood friend?", ["Wado Ichimonji"], "It's his white sword", "It represents his promise to Kuina", "It starts with 'Wado'", "normal"),
+            ("Who is the user of the Zushi Zushi no Mi (Push-Push Fruit)?", ["Issho", "Fujitora"], "He's a Marine admiral", "He can control gravity", "His admiral name means 'Wisteria Tiger'", "hard"),
+            ("What is the name of the technique Luffy uses to harden and expand his arm?", ["Gomu Gomu no Kong Gun", "Gum-Gum Kong Gun"], "It's a Gear Fourth technique", "It's named after a giant ape", "It ends with 'Kong Gun'", "hard"),
+            ("Who is the captain of the Kuja Pirates?", ["Boa Hancock"], "She's known as the 'Pirate Empress'", "She can turn people to stone", "Her first name is B__", "normal"),
+            ("What is the name of the island where the Straw Hats met Brook?", ["Thriller Bark"], "It's actually a giant ship", "It's full of zombies", "It starts with 'Thriller'", "easy"),
+            ("Who is the user of the Tori Tori no Mi, Model: Phoenix (Bird-Bird Fruit, Model: Phoenix)?", ["Marco"], "He was the first division commander of the Whitebeard Pirates", "He can transform into a blue phoenix", "His name starts with 'M'", "normal")
         ]
             
     BOUNTY_TITLES = [
@@ -903,25 +1100,31 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.channel)
-    async def trivia(self, ctx, difficulty: str = "normal"):
+    async def trivia(self, ctx, difficulty: str = "all"):
         """Start a One Piece trivia game!"""
         if ctx.channel.id in self.trivia_sessions:
             await ctx.send("Arr! There be a trivia game already in progress! Wait for it to end, ye impatient sea dog!")
             return
-
-        if difficulty.lower() not in ["easy", "normal", "hard"]:
-            await ctx.send("Invalid difficulty! Choose from 'easy', 'normal', or 'hard'.")
-            return
-
-        filtered_questions = [q for q in self.questions if q[5] == difficulty.lower()]
+    
+        if difficulty.lower() not in ["easy", "normal", "hard", "all"]:
+            await ctx.send("Invalid difficulty! Choose from 'easy', 'normal', 'hard', or 'all'. Using 'all' by default.")
+            difficulty = "all"
+    
+        if difficulty.lower() == "all":
+            filtered_questions = self.questions
+            difficulty_display = "All Difficulties"
+        else:
+            filtered_questions = [q for q in self.questions if q[5] == difficulty.lower()]
+            difficulty_display = difficulty.capitalize()
+    
         if not filtered_questions:
             await ctx.send(f"No questions available for {difficulty} difficulty!")
             return
-
+    
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}}
         
-        await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! Difficulty: {difficulty.capitalize()}. First to 10 points wins! 🏆")
-
+        await ctx.send(f"🏴‍☠️ A new One Piece Trivia game has begun! Difficulty: {difficulty_display}. First to 10 points wins! 🏆")
+    
         try:
             for question, answer, hint1, hint2, hint3, _ in random.sample(filtered_questions, len(filtered_questions)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
@@ -930,25 +1133,25 @@ class OnePieceFun(commands.Cog):
                 
                 if not await self.ask_question(ctx, question, answer, hint1, hint2, hint3):
                     break
-
+    
                 if any(score >= 10 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
                     break
-
+    
                 await asyncio.sleep(2)
         except Exception as e:
             await ctx.send(f"An error occurred: {str(e)}")
         finally:
             await self.end_game(ctx)
-
+    
     async def ask_question(self, ctx, question, answers, hint1, hint2, hint3):
         await ctx.send(f"🏴‍☠️ **One Piece Trivia** 🏴‍☠️\n\n{question}")
         
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
-
+    
         start_time = time.time()
         answered = False
-
+    
         while time.time() - start_time < 180 and not answered:
             try:
                 msg = await self.bot.wait_for("message", check=check, timeout=1.0)
@@ -966,21 +1169,21 @@ class OnePieceFun(commands.Cog):
                     await ctx.send(f"Hint: {hint1}")
                 elif 20 <= elapsed < 21:
                     await ctx.send(f"Hint: {hint2}")
-                elif 60 <= elapsed < 26:
+                elif 60 <= elapsed < 61:
                     await ctx.send(f"Hint: {hint3}")
             
             if not self.trivia_sessions[ctx.channel.id]["active"]:
                 return False  # The game was stopped
-
+    
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(answers)}")
-
+    
         try:
             await self.display_scores(ctx)
         except Exception as e:
             await ctx.send(f"Error displaying scores: {str(e)}")
         return True  # Continue the game
-
+    
     async def display_scores(self, ctx):
         if ctx.channel.id not in self.trivia_sessions:
             return
