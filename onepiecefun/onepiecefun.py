@@ -51,23 +51,25 @@ class OnePieceFun(commands.Cog):
         self.questions = {}
         categories = ['one_piece', 'naruto', 'bleach']  # Add more categories as needed
         for category in categories:
-            self.questions[category] = await self.load_questions(category)
+            questions = await self.load_questions(category)
+            if questions:
+                self.questions[category] = questions
 
-async def load_questions(self, category):
-    try:
-        async with aiohttp.ClientSession() as session:
-            url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/categories/{category}_questions.json'
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    questions = await resp.json()
-                    print(f"Successfully loaded {len(questions)} questions for {category}")
-                    return questions
-                else:
-                    print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
-                    return []
-    except Exception as e:
-        print(f"An error occurred while loading questions for {category}: {str(e)}")
-        return []
+    async def load_questions(self, category):
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/categories/{category}_questions.json'
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        questions = await resp.json()
+                        print(f"Successfully loaded {len(questions)} questions for {category}")
+                        return questions
+                    else:
+                        print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
+                        return None
+        except Exception as e:
+            print(f"An error occurred while loading questions for {category}: {str(e)}")
+            return None
             
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
@@ -869,13 +871,13 @@ async def load_questions(self, category):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
-    @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.channel)
+    @commands.cooldown(1, 600, commands.BucketType.channel)  # 10-minute cooldown
     async def trivia(self, ctx, category: str = "one_piece"):
         """Start a trivia game for a specific category!"""
         category = category.lower()
         if category not in self.questions:
-            await ctx.send(f"Invalid category. Available categories: {', '.join(self.questions.keys())}")
+            available_categories = ", ".join(self.questions.keys())
+            await ctx.send(f"Invalid category. Available categories: {available_categories}")
             return
     
         if ctx.channel.id in self.trivia_sessions:
@@ -905,6 +907,7 @@ async def load_questions(self, category):
                 await asyncio.sleep(2)
         except Exception as e:
             await ctx.send(f"An error occurred: {str(e)}")
+            LOG.error(f"Error in trivia game: {str(e)}", exc_info=True)
         finally:
             await self.end_game(ctx)
 
@@ -914,42 +917,30 @@ async def load_questions(self, category):
         
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
-
-        start_time = asyncio.get_event_loop().time()
+    
+        start_time = time.time()
         answered = False
-
-        while asyncio.get_event_loop().time() - start_time < 180 and not answered:
+    
+        while time.time() - start_time < 30 and not answered:
             try:
                 msg = await self.bot.wait_for("message", check=check, timeout=1.0)
                 if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                     scores = self.trivia_sessions[ctx.channel.id]["scores"]
                     scores[msg.author] = scores.get(msg.author, 0) + 1
-                    await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer One Piece lore!")
+                    await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                     answered = True
                     if scores[msg.author] >= 10:
                         await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
                         return False  # End the game
             except asyncio.TimeoutError:
-                elapsed = asyncio.get_event_loop().time() - start_time
-                if 10 <= elapsed < 11:
-                    await ctx.send(f"Hint: {question['hints'][0]}")
-                elif 20 <= elapsed < 21:
-                    await ctx.send(f"Hint: {question['hints'][1]}")
-                elif 60 <= elapsed < 61:
-                    await ctx.send(f"Hint: {question['hints'][2]}")
-            
-            if not self.trivia_sessions[ctx.channel.id]["active"]:
-                return False  # The game was stopped
-
+                pass
+        
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(question['answers'])}")
-
-        try:
-            await self.display_scores(ctx)
-        except Exception as e:
-            await ctx.send(f"Error displaying scores: {str(e)}")
+    
+        await self.display_scores(ctx)
         return True  # Continue the game
-
+    
     async def display_scores(self, ctx):
         if ctx.channel.id not in self.trivia_sessions:
             return
