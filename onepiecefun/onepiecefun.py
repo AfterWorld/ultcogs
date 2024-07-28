@@ -10,6 +10,7 @@ import os
 import random
 import time
 import asyncio
+import yaml
 from datetime import datetime, timedelta
 
 
@@ -65,7 +66,7 @@ class OnePieceFun(commands.Cog):
     async def load_questions(self, category):
         try:
             async with aiohttp.ClientSession() as session:
-                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/onepiecefun/categories/{category}_questions.json'
+                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/onepiecefun/categories/{category}_questions.yaml'
                 print(f"Attempting to load questions from: {url}")
                 async with session.get(url) as resp:
                     print(f"Response status: {resp.status}")
@@ -73,14 +74,14 @@ class OnePieceFun(commands.Cog):
                     if resp.status == 200:
                         raw_content = await resp.text()
                         print(f"Raw content (first 500 chars): {raw_content[:500]}")
-                        questions = json.loads(raw_content)
+                        questions = yaml.safe_load(raw_content)
                         print(f"Successfully loaded {len(questions)} questions for {category}")
                         return questions
                     else:
                         print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
                         return None
-        except json.JSONDecodeError as e:
-            print(f"JSON decoding error for {category}: {str(e)}")
+        except yaml.YAMLError as e:
+            print(f"YAML parsing error for {category}: {str(e)}")
             print(f"Problematic content: {raw_content}")
             return None
         except Exception as e:
