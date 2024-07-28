@@ -3,6 +3,8 @@ from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.bot import Red
 import discord
+import json
+import os
 import random
 import time
 import asyncio
