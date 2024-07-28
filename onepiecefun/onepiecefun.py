@@ -13,7 +13,7 @@ import asyncio
 import yaml
 from datetime import datetime, timedelta
 
-
+ LOG = logging.getLogger("red.onepiecefun")
 
 class OnePieceFun(commands.Cog):
     """Fun One Piece-themed commands for entertainment!"""
@@ -88,7 +88,6 @@ class OnePieceFun(commands.Cog):
             print(f"An error occurred while loading questions for {category}: {str(e)}")
             return None
         
-    LOG = logging.getLogger("red.onepiecefun")
     BOUNTY_TITLES = [
         (0, "Cabin Boy"),
         (1000000, "Pirate Apprentice"),
@@ -895,6 +894,10 @@ class OnePieceFun(commands.Cog):
         print(f"Trivia command called with category: {category}")  # Debug print
         print(f"Available categories: {list(self.questions.keys())}")  # Debug print
         
+        if ctx.channel.id in self.trivia_sessions:
+            await ctx.send("A trivia game is already in progress in this channel!")
+            return
+    
         category = category.lower()
         if category not in self.questions:
             available_categories = ", ".join(self.questions.keys())
@@ -994,7 +997,6 @@ class OnePieceFun(commands.Cog):
             await ctx.send("There's no active trivia game in this channel, ye confused sea dog!")
             return
         
-        category = self.trivia_sessions[ctx.channel.id]["category"]
         self.trivia_sessions[ctx.channel.id]["active"] = False
         await ctx.send("The trivia game has been stopped by the captain's orders!")
         await self.end_game(ctx)
@@ -1016,7 +1018,7 @@ class OnePieceFun(commands.Cog):
     
             await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
             await self.display_leaderboard(ctx, category)
-
+        
     @commands.command()
     async def trivialeaderboard(self, ctx, category: str = "one_piece"):
         """Display the trivia leaderboard for a specific category."""
