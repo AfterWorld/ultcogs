@@ -390,7 +390,7 @@ class OnePieceFun(commands.Cog):
             (10000000000, "Yonko"),
             (1000000000000, "Pirate King")
         ]
-        for threshold, rank in ranks:
+        for threshold, rank in reversed(ranks):
             if bounty >= threshold:
                 return rank
         return "Unknown"
