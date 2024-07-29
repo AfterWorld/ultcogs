@@ -491,6 +491,53 @@ class OnePieceFun(commands.Cog):
                            f"Current Title: {new_title}")
         else:
             await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
+
+    @commands.command()
+    @checks.admin_or_permissions(administrator=True)
+    async def resetallbounties(self, ctx, default_bounty: int = 1000000):
+        """Reset all user bounties to a default value (default is 1,000,000 Berries)."""
+        
+        # Ask for confirmation
+        confirm_msg = await ctx.send(f"Are ye sure ye want to reset ALL bounties to {default_bounty:,} Berries? "
+                                     f"This action cannot be undone! React with ✅ to confirm or ❌ to cancel.")
+        await confirm_msg.add_reaction("✅")
+        await confirm_msg.add_reaction("❌")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == confirm_msg.id
+
+        try:
+            reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send("Reset bounties operation timed out. No bounties were changed.")
+            return
+        else:
+            if str(reaction.emoji) == "❌":
+                await ctx.send("Reset bounties operation cancelled. No bounties were changed.")
+                return
+
+        async with self.config.guild(ctx.guild).bounties() as bounties:
+            # Store the old bounties for the summary
+            old_bounties = bounties.copy()
+            
+            # Reset all bounties
+            for user_id in bounties:
+                bounties[user_id]["amount"] = default_bounty
+
+        # Prepare a summary embed
+        embed = discord.Embed(title="🏴‍☠️ Bounty Reset Summary 🏴‍☠️", color=discord.Color.red())
+        embed.description = f"All bounties have been reset to {default_bounty:,} Berries!"
+        embed.add_field(name="Total Bounties Reset", value=str(len(old_bounties)), inline=False)
+        
+        # Calculate and display some statistics
+        total_old = sum(b["amount"] for b in old_bounties.values())
+        total_new = len(old_bounties) * default_bounty
+        embed.add_field(name="Total Berries Before", value=f"{total_old:,}", inline=True)
+        embed.add_field(name="Total Berries After", value=f"{total_new:,}", inline=True)
+        embed.add_field(name="Difference", value=f"{total_new - total_old:,}", inline=True)
+
+        await ctx.send(embed=embed)
+        await ctx.send("Yarr! All bounties have been reset by the World Government's decree!")
                 
     @commands.command()
     async def shipname(self, ctx, name1: str, name2: str):
