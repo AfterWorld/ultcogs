@@ -34,20 +34,20 @@ class UltPrivates(commands.Cog):
         await message.channel.send(gif_url)
 
     async def grand_entrance(self, message):
-        """Make a grand entrance as a top Gorosei."""
+        """Make a grand entrance as a top Panda."""
         # Delete the triggering message
         await message.delete()
 
         entrance_messages = [
-            "🌟 Silence, mortals! A Top Gorosei has graced this chat with their presence! 🌟",
+            "🌟 Silence, mortals! A Panda has graced this chat with their presence! 🌟",
             "⚡️ Tremble, for the wisdom of the ages has entered the server! ⚡️",
-            "🌪 The winds of change blow as a Top Gorosei steps into our midst! 🌪",
+            "🌪 The winds of change blow as a Top Panda steps into our midst! 🌪",
             "🔥 Behold! The very foundation of the World Government now walks among us! 🔥",
-            "🌊 As the tides are governed by the moon, so too is this server now under the watchful eye of a Top Gorosei! 🌊"
+            "🌊 As the tides are governed by the moon, so too is this server now under the watchful eye of the main Panda! 🌊"
         ]
 
         embed = discord.Embed(
-            title="👑 A Top Gorosei Has Arrived! 👑",
+            title="👑 A Top Panda Has Arrived! 👑",
             description=entrance_messages[0],
             color=discord.Color.gold()
         )
