@@ -925,10 +925,10 @@ class OnePieceFun(commands.Cog):
     
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
     
-        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 10 points wins! 🏆")
+        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")
     
         try:
-            for question in random.sample(self.questions[category], min(len(self.questions[category]), 20)):
+            for question in random.sample(self.questions[category], min(len(self.questions[category]), 50)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
@@ -936,7 +936,7 @@ class OnePieceFun(commands.Cog):
                 if not await self.ask_question(ctx, question):
                     break
     
-                if any(score >= 10 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
+                if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
                     break
     
                 await asyncio.sleep(2)
