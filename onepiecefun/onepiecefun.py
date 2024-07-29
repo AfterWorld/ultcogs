@@ -32,7 +32,8 @@ class OnePieceFun(commands.Cog):
             "double_payout_end_time": None,
             "inspection_active": False,
             "trivia_scores": {},
-            "trivia_cooldowns": {}
+            "trivia_cooldowns": {},
+            "last_berryflip": {}
         }
         default_member = {
             "last_daily_claim": None
@@ -399,13 +400,13 @@ class OnePieceFun(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-
-        user_id = str(message.author.id)
-        self.message_count[user_id] = self.message_count.get(user_id, 0) + 1
-
-        if self.message_count[user_id] >= 10:
-            self.message_count[user_id] = 0
-            await self.increase_bounty(message.author, message.guild)
+        
+        if message.channel.id == self.GENERAL_CHANNEL_ID:
+            user_id = str(message.author.id)
+            async with self.config.guild(message.guild).bounties() as bounties:
+                if user_id not in bounties:
+                    bounties[user_id] = {"amount": 0}
+                bounties[user_id]["amount"] += random.randint(10, 50)  # Low amount increase
 
     async def increase_bounty(self, user, guild):
         async with self.config.guild(guild).bounties() as bounties:
@@ -1276,24 +1277,25 @@ class OnePieceFun(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    @checks.mod_or_permissions(manage_messages=True)
-    async def createcrew(self, ctx, crew_name: str, captain: discord.Member):
-        """Create a new pirate crew with a captain."""
-        async with self.config.guild(ctx.guild).pirate_crews() as crews:
+    async def createcrew(self, ctx, *, crew_name: str):
+        user_id = str(ctx.author.id)
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            bounties = guild_data['bounties']
+            crews = guild_data['pirate_crews']
+
+            if user_id not in bounties or bounties[user_id]['amount'] < 100000000:  # Pirate Captain threshold
+                return await ctx.send("Ye need a bounty of at least 100,000,000 Berries to create a crew, ye rookie!")
+
             if crew_name in crews:
-                return await ctx.send(f"The {crew_name} already exists! Choose a different name, ye scurvy dog!")
-            
+                return await ctx.send("That crew name already exists, ye unoriginal sea dog!")
+
             crews[crew_name] = {
-                "captain": captain.id,
-                "members": [captain.id],
-                "total_bounty": 0,
+                "captain": ctx.author.id,
+                "members": [ctx.author.id],
                 "created_at": datetime.utcnow().isoformat()
             }
-        
-        # Update the crew's total bounty
-        await self.update_crew_bounty(ctx.guild, crew_name)
-        
-        await ctx.send(f"Ahoy! The {crew_name} has been formed with {captain.display_name} as the captain!")
+
+        await ctx.send(f"The {crew_name} has been formed with {ctx.author.display_name} as the captain!")
 
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
@@ -1521,10 +1523,10 @@ class OnePieceFun(commands.Cog):
             for member in escaped:
                 if str(member.id) not in bounties:
                     bounties[str(member.id)] = {"amount": 1000000}
-                bounties[str(member.id)]["amount"] += random.randint(10000000, 50000000)
+                bounties[str(member.id)]["amount"] += random.randint(1000, 5000)  # Lowered reward
     
         if escaped:
-            await channel.send("The bounties of the escaped pirates have been increased significantly!")
+            await channel.send("The bounties of the escaped pirates have been slightly increased!")
             
     @commands.command()
     @checks.mod_or_permissions(manage_messages=True)
@@ -1594,13 +1596,16 @@ class OnePieceFun(commands.Cog):
         await ctx.send(box(poster))
 
     @commands.command()
-    @commands.cooldown(1, 1800, commands.BucketType.user)  # 5-minute cooldown
+    @commands.cooldown(1, 86400, commands.BucketType.user)  # Once per day
     async def berryflip(self, ctx, bet: int, choice: str = None):
         """
         Flip a Berry coin and test your luck! Bet from your current bounty.
         Usage: .berryflip <amount> [heads/tails]
         If no choice is made, it defaults to heads.
         """
+        if bet < 1 or bet > 5000:
+            return await ctx.send("Ye can only bet between 1 and 5000 Berries, ye greedy sea dog!")
+    
         user_id = str(ctx.author.id)
         
         if choice is None:
@@ -1609,19 +1614,23 @@ class OnePieceFun(commands.Cog):
         
         if choice not in ['heads', 'tails']:
             return await ctx.send("Ye must choose 'heads' or 'tails', ye indecisive sea dog!")
-
+    
         async with self.config.guild(ctx.guild).all() as guild_data:
             bounties = guild_data['bounties']
             gambling_stats = guild_data.get('gambling_stats', {})
             double_payout = guild_data.get('double_payout_event', False)
-
+            last_flip = guild_data.get('last_berryflip', {}).get(user_id)
+    
+            if last_flip:
+                last_flip_time = datetime.fromisoformat(last_flip)
+                if datetime.utcnow() - last_flip_time < timedelta(days=1):
+                    time_left = timedelta(days=1) - (datetime.utcnow() - last_flip_time)
+                    return await ctx.send(f"Ye must wait {time_left.seconds // 3600} hours and {(time_left.seconds // 60) % 60} minutes before ye can flip again!")
+    
             if user_id not in bounties:
                 return await ctx.send("Ye don't have a bounty yet, ye rookie! Go cause some trouble first!")
             
             current_bounty = bounties[user_id]['amount']
-            
-            if bet < 1:
-                return await ctx.send("Ye need to bet at least 1 Berry, ye stingy sea dog!")
             
             if bet > current_bounty:
                 return await ctx.send(f"Ye can't bet more than yer bounty of {current_bounty:,} Berries, ye greedy landlubber!")
@@ -1651,9 +1660,10 @@ class OnePieceFun(commands.Cog):
                     gambling_stats[user_id] = {"wins": 0, "losses": 0, "net_gain": 0}
                 gambling_stats[user_id]["losses"] += 1
                 gambling_stats[user_id]["net_gain"] -= bet
-
+    
             guild_data['gambling_stats'] = gambling_stats
-
+            guild_data['last_berryflip'][user_id] = datetime.utcnow().isoformat()
+    
         embed = discord.Embed(title="🪙 Berry Flip 🪙", color=discord.Color.gold())
         embed.add_field(name="The Flip", value=f"The Berry coin flips through the air and lands on... {flip}!", inline=False)
         embed.add_field(name="Result", value=result, inline=False)
