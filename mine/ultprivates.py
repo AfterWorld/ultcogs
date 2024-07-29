@@ -30,7 +30,7 @@ class UltPrivates(commands.Cog):
         await message.channel.purge(limit=5, check=is_user)
 
         # Send the GIF
-        gif_url = "https://media.giphy.com/media/S36fZu0PmDqMSVxXxH/giphy.gif"  # Replace with your chosen GIF
+        gif_url = "https://media1.tenor.com/m/GXRZ4wDvg_8AAAAd/kung-fu-panda-skadoosh.gif"  # Replace with your chosen GIF
         await message.channel.send(gif_url)
 
     async def grand_entrance(self, message):
