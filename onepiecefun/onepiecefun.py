@@ -905,30 +905,32 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
-    @commands.cooldown(1, 600, commands.BucketType.channel)
-    async def trivia(self, ctx, category: str = None):
+    @commands.cooldown(1, 600, commands.BucketType.channel)  # 10-minute cooldown
+    async def trivia(self, ctx, category: str = "one_piece"):
         """Start a trivia game for a specific category!"""
-        if not self.questions:
-            await ctx.send("No trivia questions are available. Please upload some questions first!")
-            return
-    
-        if category is None:
-            # If no category is specified, list available categories
-            categories = ", ".join(self.questions.keys())
-            await ctx.send(f"Available categories: {categories}\nUse `.trivia <category>` to start a game.")
+        print(f"Trivia command called with category: {category}")  # Debug print
+        print(f"Available categories: {list(self.questions.keys())}")  # Debug print
+        
+        if ctx.channel.id in self.trivia_sessions:
+            await ctx.send("A trivia game is already in progress in this channel!")
             return
     
         category = category.lower()
         if category not in self.questions:
-            await ctx.send(f"Invalid category. Available categories: {', '.join(self.questions.keys())}")
+            available_categories = ", ".join(self.questions.keys())
+            await ctx.send(f"Invalid category. Available categories: {available_categories}")
+            return
+    
+        if not self.questions[category]:
+            await ctx.send(f"No questions available for {category}! The trivia game cannot start.")
             return
     
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
     
-        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")
+        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")  # Changed from 10 to 25
     
         try:
-            for question in random.sample(self.questions[category], min(len(self.questions[category]), 50)):
+            for question in random.sample(self.questions[category], min(len(self.questions[category]), 50)):  # Increased from 20 to 50
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
@@ -936,7 +938,7 @@ class OnePieceFun(commands.Cog):
                 if not await self.ask_question(ctx, question):
                     break
     
-                if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
+                if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):  # Changed from 10 to 25
                     break
     
                 await asyncio.sleep(2)
@@ -956,24 +958,28 @@ class OnePieceFun(commands.Cog):
         start_time = time.time()
         answered = False
         hint_index = 0
+        hint_times = [20, 30, 60]
     
-        while time.time() - start_time < 30 and not answered:
+        while time.time() - start_time < 120 and not answered:
             try:
-                msg = await self.bot.wait_for("message", check=check, timeout=10.0)
+                time_passed = time.time() - start_time
+                timeout = min(10, 120 - time_passed)
+                msg = await self.bot.wait_for("message", check=check, timeout=timeout)
+                
                 if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                     scores = self.trivia_sessions[ctx.channel.id]["scores"]
                     scores[msg.author] = scores.get(msg.author, 0) + 1
                     await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                     answered = True
-                    if scores[msg.author] >= 25:
+                    if scores[msg.author] >= 25:  # Changed from 10 to 25
                         await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏆")
                         return False  # End the game
-                elif hint_index < len(question['hints']):
-                    await ctx.send(f"Hint: {question['hints'][hint_index]}")
-                    hint_index += 1
+                
             except asyncio.TimeoutError:
-                if hint_index < len(question['hints']):
-                    await ctx.send(f"Hint: {question['hints'][hint_index]}")
+                time_passed = time.time() - start_time
+                if hint_index < len(hint_times) and time_passed >= hint_times[hint_index]:
+                    if hint_index < len(question['hints']):
+                        await ctx.send(f"Hint: {question['hints'][hint_index]}")
                     hint_index += 1
     
         if not answered:
