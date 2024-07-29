@@ -378,13 +378,17 @@ class OnePieceFun(commands.Cog):
 
     def get_pirate_rank(self, bounty):
         ranks = [
-            (1000000000, "Yonko"),
-            (500000000, "Yonko Commander"),
-            (100000000, "Supernova"),
-            (50000000, "Notorious Pirate"),
-            (10000000, "Rising Rookie"),
-            (1000000, "Small-time Pirate"),
-            (0, "Cabin Boy")
+            (0, "Cabin Boy"),
+            (1000000, "Pirate Apprentice"),
+            (10000000, "Rookie Pirate"),
+            (50000000, "Super Rookie"),
+            (100000000, "Notorious Pirate"),
+            (300000000, "Pirate Captain"),
+            (500000000, "Supernova"),
+            (1000000000, "Yonko Commander"),
+            (2000000000, "Yonko Candidate"),
+            (10000000000, "Yonko"),
+            (1000000000000, "Pirate King")
         ]
         for threshold, rank in ranks:
             if bounty >= threshold:
