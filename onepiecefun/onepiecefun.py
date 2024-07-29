@@ -964,7 +964,7 @@ class OnePieceFun(commands.Cog):
                     scores[msg.author] = scores.get(msg.author, 0) + 1
                     await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                     answered = True
-                    if scores[msg.author] >= 10:
+                    if scores[msg.author] >= 25:
                         await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
                         return False  # End the game
             except asyncio.TimeoutError:
@@ -1014,8 +1014,8 @@ class OnePieceFun(commands.Cog):
             return
     
         attachment = ctx.message.attachments[0]
-        if not attachment.filename.endswith('.yaml'):
-            await ctx.send("The attached file must be a YAML file.")
+        if not attachment.filename.endswith(('.yaml', '.yml')):
+            await ctx.send("The attached file must be a YAML file (with .yaml or .yml extension).")
             return
     
         try:
@@ -1030,8 +1030,8 @@ class OnePieceFun(commands.Cog):
                 if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
                     raise ValueError("Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
     
-            # Get the category name from the filename (without .yaml extension)
-            category = attachment.filename[:-5].lower()
+            # Get the category name from the filename (without .yaml or .yml extension)
+            category = attachment.filename.rsplit('.', 1)[0].lower()
     
             # Save the questions to the bot's data folder
             file_path = cog_data_path(self) / f"{category}_questions.yaml"
@@ -1045,7 +1045,7 @@ class OnePieceFun(commands.Cog):
         except Exception as e:
             await ctx.send(f"An error occurred while processing the file: {str(e)}")
             return
-
+    
     @triviaupload.error
     async def triviaupload_error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
