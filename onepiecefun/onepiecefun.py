@@ -959,34 +959,41 @@ class OnePieceFun(commands.Cog):
         answered = False
         hint_index = 0
         hint_times = [20, 30, 60]
+        question_duration = 120  # 2 minutes
     
-        while time.time() - start_time < 120 and not answered:
-            current_time = time.time()
-            elapsed_time = current_time - start_time
-    
-            # Check if it's time to give a hint
-            if hint_index < len(hint_times) and elapsed_time >= hint_times[hint_index]:
+        async def send_hints():
+            nonlocal hint_index
+            for hint_time in hint_times:
+                await asyncio.sleep(hint_time - (hint_times[hint_index-1] if hint_index > 0 else 0))
+                if answered:
+                    break
                 if hint_index < len(question['hints']):
                     await ctx.send(f"Hint: {question['hints'][hint_index]}")
                 hint_index += 1
     
-            try:
-                # Wait for a message, but only until the next hint time or the end of the question
-                next_event_time = min(hint_times[hint_index] if hint_index < len(hint_times) else 120, 120) - elapsed_time
-                msg = await self.bot.wait_for("message", check=check, timeout=next_event_time)
+        hint_task = asyncio.create_task(send_hints())
+    
+        try:
+            while time.time() - start_time < question_duration and not answered:
+                try:
+                    msg = await asyncio.wait_for(self.bot.wait_for("message", check=check), 
+                                                 timeout=question_duration - (time.time() - start_time))
+                    
+                    if msg.content.lower() in [answer.lower() for answer in question['answers']]:
+                        scores = self.trivia_sessions[ctx.channel.id]["scores"]
+                        scores[msg.author] = scores.get(msg.author, 0) + 1
+                        await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
+                        answered = True
+                        if scores[msg.author] >= 25:
+                            await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏴‍☠️")
+                            return False  # End the game
                 
-                if msg.content.lower() in [answer.lower() for answer in question['answers']]:
-                    scores = self.trivia_sessions[ctx.channel.id]["scores"]
-                    scores[msg.author] = scores.get(msg.author, 0) + 1
-                    await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
-                    answered = True
-                    if scores[msg.author] >= 25:
-                        await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏴‍☠️")
-                        return False  # End the game
-            
-            except asyncio.TimeoutError:
-                # This is expected, it allows us to send hints without waiting for the full 120 seconds
-                pass
+                except asyncio.TimeoutError:
+                    # This is expected if no answer is given before the next hint or end of question
+                    pass
+    
+        finally:
+            hint_task.cancel()  # Ensure the hint task is cancelled when the question ends
     
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(question['answers'])}")
