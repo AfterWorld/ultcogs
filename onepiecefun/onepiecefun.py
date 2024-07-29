@@ -961,26 +961,32 @@ class OnePieceFun(commands.Cog):
         hint_times = [20, 30, 60]
     
         while time.time() - start_time < 120 and not answered:
+            current_time = time.time()
+            elapsed_time = current_time - start_time
+    
+            # Check if it's time to give a hint
+            if hint_index < len(hint_times) and elapsed_time >= hint_times[hint_index]:
+                if hint_index < len(question['hints']):
+                    await ctx.send(f"Hint: {question['hints'][hint_index]}")
+                hint_index += 1
+    
             try:
-                time_passed = time.time() - start_time
-                timeout = min(10, 120 - time_passed)
-                msg = await self.bot.wait_for("message", check=check, timeout=timeout)
+                # Wait for a message, but only until the next hint time or the end of the question
+                next_event_time = min(hint_times[hint_index] if hint_index < len(hint_times) else 120, 120) - elapsed_time
+                msg = await self.bot.wait_for("message", check=check, timeout=next_event_time)
                 
                 if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                     scores = self.trivia_sessions[ctx.channel.id]["scores"]
                     scores[msg.author] = scores.get(msg.author, 0) + 1
                     await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                     answered = True
-                    if scores[msg.author] >= 25:  # Changed from 10 to 25
-                        await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏆")
+                    if scores[msg.author] >= 25:
+                        await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏴‍☠️")
                         return False  # End the game
-                
+            
             except asyncio.TimeoutError:
-                time_passed = time.time() - start_time
-                if hint_index < len(hint_times) and time_passed >= hint_times[hint_index]:
-                    if hint_index < len(question['hints']):
-                        await ctx.send(f"Hint: {question['hints'][hint_index]}")
-                    hint_index += 1
+                # This is expected, it allows us to send hints without waiting for the full 120 seconds
+                pass
     
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(question['answers'])}")
