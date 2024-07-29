@@ -955,25 +955,31 @@ class OnePieceFun(commands.Cog):
     
         start_time = time.time()
         answered = False
+        hint_index = 0
     
         while time.time() - start_time < 30 and not answered:
             try:
-                msg = await self.bot.wait_for("message", check=check, timeout=1.0)
+                msg = await self.bot.wait_for("message", check=check, timeout=10.0)
                 if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                     scores = self.trivia_sessions[ctx.channel.id]["scores"]
                     scores[msg.author] = scores.get(msg.author, 0) + 1
                     await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                     answered = True
                     if scores[msg.author] >= 25:
-                        await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 10 points and won the game! 🏆")
+                        await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏆")
                         return False  # End the game
+                elif hint_index < len(question['hints']):
+                    await ctx.send(f"Hint: {question['hints'][hint_index]}")
+                    hint_index += 1
             except asyncio.TimeoutError:
-                pass
-        
+                if hint_index < len(question['hints']):
+                    await ctx.send(f"Hint: {question['hints'][hint_index]}")
+                    hint_index += 1
+    
         if not answered:
             await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(question['answers'])}")
     
-        await self.display_scores(ctx)
+        await asyncio.sleep(2)  # Add a short pause between questions
         return True  # Continue the game
     
     async def display_scores(self, ctx):
@@ -1041,7 +1047,8 @@ class OnePieceFun(commands.Cog):
             # Load the new questions into memory
             self.questions[category] = questions
     
-            await ctx.send(f"Successfully uploaded and loaded {len(questions)} questions for the '{category}' category.")
+            await ctx.send(f"Successfully uploaded and loaded {len(questions)} questions for the '{category}' category.\n"
+                           f"File saved at: {file_path}")
         except Exception as e:
             await ctx.send(f"An error occurred while processing the file: {str(e)}")
             return
@@ -1052,7 +1059,21 @@ class OnePieceFun(commands.Cog):
             await ctx.send("Only the bot owner can upload new trivia questions.")
         else:
             await ctx.send(f"An error occurred: {str(error)}")
+
+    @commands.command()
+    @commands.is_owner()
+    async def trivialist(self, ctx):
+        """List all uploaded trivia files."""
+        data_folder = cog_data_path(self)
+        trivia_files = list(data_folder.glob("*_questions.yaml"))
         
+        if not trivia_files:
+            await ctx.send("No trivia files have been uploaded yet.")
+            return
+    
+        file_list = "\n".join([f"- {file.name}" for file in trivia_files])
+        await ctx.send(f"Uploaded trivia files:\n{file_list}")
+            
     @commands.command()
     async def triviastop(self, ctx):
         """Stop the current trivia game."""
