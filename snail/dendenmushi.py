@@ -30,7 +30,7 @@ class DenDenMushi(commands.Cog):
             "Golden": {"emoji": "🐌", "color": 0xFFD700, "range": "global"},
             "Black": {"emoji": "🐌", "color": 0x000000, "range": "intercept"}
         }
-
+        
     @commands.group()
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
@@ -108,28 +108,46 @@ class DenDenMushi(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        # Check if the message is in a source channel
+        if message.channel.id in self.active_connections:
+            await self._send_message(message, is_source=True)
+        
+        # Check if the message is in a target channel
         for source_id, connection_info in self.active_connections.items():
             if message.channel.id == connection_info['target']:
-                source_channel = self.bot.get_channel(source_id)
-                if source_channel:
-                    snail_type = connection_info['type']
-                    color = self.snail_types[snail_type]['color']
-                    emoji = self.snail_types[snail_type]['emoji']
+                await self._send_message(message, is_source=False, source_id=source_id)
 
-                    embed = discord.Embed(
-                        title=f"{emoji} Den Den Mushi Message {emoji}",
-                        description=f"**{message.author.display_name}:** {message.content}",
-                        color=color
-                    )
-                    embed.set_footer(text=f"Transmitted via {snail_type} Den Den Mushi • Gacha~")
+    async def _send_message(self, message: discord.Message, is_source: bool, source_id: int = None):
+        if is_source:
+            connection_info = self.active_connections[message.channel.id]
+            target_channel = self.bot.get_channel(connection_info['target'])
+            source_channel = message.channel
+        else:
+            source_channel = self.bot.get_channel(source_id)
+            target_channel = message.channel
 
-                    if message.attachments:
-                        embed.add_field(name="Visual Den Den Mushi Transmission", value="\n".join([a.url for a in message.attachments]), inline=False)
+        if not target_channel or not source_channel:
+            return
 
-                    delay = self._get_transmission_delay(snail_type)
-                    await asyncio.sleep(delay)
+        snail_type = connection_info['type'] if is_source else self.active_connections[source_id]['type']
+        color = self.snail_types[snail_type]['color']
+        emoji = self.snail_types[snail_type]['emoji']
 
-                    await source_channel.send("Purupurupuru~", embed=embed)
+        embed = discord.Embed(
+            title=f"{emoji} Den Den Mushi Message {emoji}",
+            description=f"**{message.author.display_name}:** {message.content}",
+            color=color
+        )
+        embed.set_footer(text=f"Transmitted via {snail_type} Den Den Mushi • Gacha~")
+
+        if message.attachments:
+            embed.add_field(name="Visual Den Den Mushi Transmission", value="\n".join([a.url for a in message.attachments]), inline=False)
+
+        delay = self._get_transmission_delay(snail_type)
+        await asyncio.sleep(delay)
+
+        destination = target_channel if is_source else source_channel
+        await destination.send("Purupurupuru~", embed=embed)
 
     @dendenmushi.command(name="intercept")
     @checks.is_owner()
