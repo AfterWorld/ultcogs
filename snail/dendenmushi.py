@@ -140,8 +140,17 @@ class DenDenMushi(commands.Cog):
         )
         embed.set_footer(text=f"Transmitted via {snail_type} Den Den Mushi • Gacha~")
 
+        # Handle attachments (images, GIFs)
         if message.attachments:
-            embed.add_field(name="Visual Den Den Mushi Transmission", value="\n".join([a.url for a in message.attachments]), inline=False)
+            file = message.attachments[0]
+            if file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+                embed.set_image(url=file.url)
+            embed.add_field(name="Attachments", value="\n".join([f"[{a.filename}]({a.url})" for a in message.attachments]), inline=False)
+
+        # Handle URLs in the message content
+        urls = re.findall(r'(https?://\S+)', message.content)
+        if urls:
+            embed.add_field(name="URLs", value="\n".join(urls), inline=False)
 
         delay = self._get_transmission_delay(snail_type)
         await asyncio.sleep(delay)
