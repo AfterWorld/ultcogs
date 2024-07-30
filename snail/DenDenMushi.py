@@ -7,6 +7,14 @@ from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box, pagify
 
 class DenDenMushi(commands.Cog):
+    """
+    One Piece themed communication system using Den Den Mushi.
+    
+    This cog allows administrators to set up channel-to-channel
+    communications with various Den Den Mushi types, each with
+    unique properties like range and transmission speed.
+    """
+
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
@@ -27,13 +35,18 @@ class DenDenMushi(commands.Cog):
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def dendenmushi(self, ctx: commands.Context):
-        """Manage Den Den Mushi connections. Only administrators can use this command."""
+        """Manage Den Den Mushi connections."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @dendenmushi.command(name="connect")
     async def dendenmushi_connect(self, ctx: commands.Context, target_channel: discord.TextChannel, snail_type: str = None):
-        """Connect to a target channel using a Den Den Mushi. Optionally specify the snail type."""
+        """
+        Connect to a target channel using a Den Den Mushi.
+        
+        You can optionally specify the snail type (Baby, Adult, Silver, Golden, Black).
+        If no type is specified, one will be chosen randomly.
+        """
         guild = ctx.guild
         source_channel = ctx.channel
 
@@ -47,7 +60,6 @@ class DenDenMushi(commands.Cog):
 
         chosen_type = snail_type.capitalize() if snail_type else random.choice(list(self.snail_types.keys()))
         
-        # Check if the connection is allowed based on the Den Den Mushi range
         if not self._check_connection_range(source_channel, target_channel, chosen_type):
             await ctx.send(f"Behehehe~ The {chosen_type} Den Den Mushi can't reach that far!")
             return
@@ -72,7 +84,7 @@ class DenDenMushi(commands.Cog):
 
     @dendenmushi.command(name="list")
     async def dendenmushi_list(self, ctx: commands.Context):
-        """List all active Den Den Mushi connections in the Grand Line (server)."""
+        """List all active Den Den Mushi connections in the server."""
         guild = ctx.guild
         connections = await self.config.guild(guild).connections()
         
@@ -114,7 +126,6 @@ class DenDenMushi(commands.Cog):
                     if message.attachments:
                         embed.add_field(name="Visual Den Den Mushi Transmission", value="\n".join([a.url for a in message.attachments]), inline=False)
 
-                    # Simulate transmission delay based on Den Den Mushi type
                     delay = self._get_transmission_delay(snail_type)
                     await asyncio.sleep(delay)
 
@@ -123,7 +134,11 @@ class DenDenMushi(commands.Cog):
     @dendenmushi.command(name="intercept")
     @checks.is_owner()
     async def dendenmushi_intercept(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Secretly intercept messages from a channel (Owner only, simulating the Black Den Den Mushi)."""
+        """
+        Secretly intercept messages from a channel.
+        
+        This command is only available to the bot owner and simulates the Black Den Den Mushi.
+        """
         guild = ctx.guild
         source_channel = ctx.channel
 
@@ -169,6 +184,3 @@ class DenDenMushi(commands.Cog):
     async def cog_load(self):
         for guild in self.bot.guilds:
             self.active_connections.update(await self.config.guild(guild).connections())
-
-def setup(bot: Red):
-    bot.add_cog(DenDenMushi(bot))
