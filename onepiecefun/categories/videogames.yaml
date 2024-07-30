@@ -1,0 +1,500 @@
+
+- question: "Who is the main protagonist of the 'Legend of Zelda' series?"
+  answers: 
+    - "Link"
+    - "The Hero of Time"
+  hints:
+    - "He wears a green tunic"
+    - "He wields the Master Sword"
+    - "He rescues Princess Zelda"
+  difficulty: "easy"
+
+- question: "What is the name of the famous plumber in Nintendo games?"
+  answers: 
+    - "Mario"
+    - "Super Mario"
+  hints:
+    - "He wears a red cap and blue overalls"
+    - "He rescues Princess Peach"
+    - "He has a brother named Luigi"
+  difficulty: "easy"
+
+- question: "In which game do you catch and train creatures called Pokémon?"
+  answers: 
+    - "Pokémon"
+    - "Pocket Monsters"
+  hints:
+    - "You play as a Pokémon trainer"
+    - "You can catch them all"
+    - "There are many versions like Red, Blue, Gold, etc."
+  difficulty: "easy"
+
+- question: "What is the name of the blue hedgehog in Sega games?"
+  answers: 
+    - "Sonic"
+    - "Sonic the Hedgehog"
+  hints:
+    - "He runs very fast"
+    - "He collects golden rings"
+    - "His nemesis is Dr. Robotnik"
+  difficulty: "easy"
+
+- question: "Which game features a character named Master Chief?"
+  answers: 
+    - "Halo"
+    - "Halo: Combat Evolved"
+  hints:
+    - "It's a first-person shooter"
+    - "It's set in space"
+    - "The main character wears green armor"
+  difficulty: "normal"
+
+- question: "What is the name of the protagonist in 'The Witcher' series?"
+  answers: 
+    - "Geralt of Rivia"
+    - "Geralt"
+  hints:
+    - "He's a monster hunter for hire"
+    - "He has white hair"
+    - "He's known as the White Wolf"
+  difficulty: "normal"
+
+- question: "In which game series do you play as an assassin reliving genetic memories?"
+  answers: 
+    - "Assassin's Creed"
+    - "AC"
+  hints:
+    - "You use a device called the Animus"
+    - "It involves historical settings"
+    - "The assassins fight the Templars"
+  difficulty: "normal"
+
+- question: "What is the name of the blocky sandbox game created by Mojang?"
+  answers: 
+    - "Minecraft"
+    - "Minecraft: Java Edition"
+  hints:
+    - "You can build almost anything"
+    - "It has pixelated, cube-based graphics"
+    - "You mine resources and craft items"
+  difficulty: "easy"
+
+- question: "Which game features a character named Lara Croft?"
+  answers: 
+    - "Tomb Raider"
+    - "Tomb Raider series"
+  hints:
+    - "The main character is an archaeologist"
+    - "She explores ancient ruins"
+    - "She dual-wields pistols"
+  difficulty: "easy"
+
+- question: "What is the name of the battle royale game developed by Epic Games?"
+  answers: 
+    - "Fortnite"
+    - "Fortnite Battle Royale"
+  hints:
+    - "100 players fight to be the last one standing"
+    - "You can build structures"
+    - "It features colorful, cartoonish graphics"
+  difficulty: "easy"
+
+- question: "In which game series do you play as Agent 47?"
+  answers: 
+    - "Hitman"
+    - "Hitman series"
+  hints:
+    - "You play as a bald assassin"
+    - "You often disguise yourself"
+    - "The protagonist has a barcode tattoo"
+  difficulty: "normal"
+
+- question: "What is the name of the popular MOBA game developed by Riot Games?"
+  answers: 
+    - "League of Legends"
+    - "LoL"
+  hints:
+    - "It features champions battling in lanes"
+    - "Players destroy the enemy's Nexus to win"
+    - "It has a large esports scene"
+  difficulty: "normal"
+
+- question: "Which game features a character named Kratos?"
+  answers: 
+    - "God of War"
+    - "God of War series"
+  hints:
+    - "The protagonist is a Spartan warrior"
+    - "It's based on Greek mythology"
+    - "Later games feature Norse mythology"
+  difficulty: "normal"
+
+- question: "What is the name of the sci-fi game series featuring Commander Shepard?"
+  answers: 
+    - "Mass Effect"
+    - "Mass Effect trilogy"
+  hints:
+    - "It's a space opera RPG"
+    - "You command the Normandy spaceship"
+    - "You fight against the Reapers"
+  difficulty: "normal"
+
+- question: "In which game do you build and manage a city while dealing with natural disasters?"
+  answers: 
+    - "SimCity"
+    - "SimCity series"
+  hints:
+    - "You play as the mayor"
+    - "You zone areas for residential, commercial, and industrial use"
+    - "It's a city-building simulation game"
+  difficulty: "normal"
+
+- question: "What is the name of the action-RPG series known for its difficulty?"
+  answers: 
+    - "Dark Souls"
+    - "Souls series"
+  hints:
+    - "It's known for its challenging gameplay"
+    - "You collect souls from defeated enemies"
+    - "It's developed by FromSoftware"
+  difficulty: "normal"
+
+- question: "Which game features a character named Solid Snake?"
+  answers: 
+    - "Metal Gear Solid"
+    - "Metal Gear series"
+  hints:
+    - "It's a stealth action game"
+    - "The main character is a special forces operative"
+    - "It's created by Hideo Kojima"
+  difficulty: "normal"
+
+- question: "What is the name of the life simulation game where you control virtual people?"
+  answers: 
+    - "The Sims"
+    - "The Sims series"
+  hints:
+    - "You create and control virtual people"
+    - "You build and furnish houses"
+    - "Characters speak a fictional language called Simlish"
+  difficulty: "easy"
+
+- question: "In which game series do you play as various heroes in a team-based shooter?"
+  answers: 
+    - "Overwatch"
+    - "Overwatch series"
+  hints:
+    - "It's a team-based first-person shooter"
+    - "Characters have unique abilities"
+    - "It's developed by Blizzard Entertainment"
+  difficulty: "normal"
+
+- question: "What is the name of the post-apocalyptic game series set in a retro-futuristic world?"
+  answers: 
+    - "Fallout"
+    - "Fallout series"
+  hints:
+    - "It's set in a world after nuclear war"
+    - "You often emerge from a Vault"
+    - "It features a retro-1950s aesthetic"
+  difficulty: "normal"
+
+- question: "Which fighting game series features characters like Ryu and Chun-Li?"
+  answers: 
+    - "Street Fighter"
+    - "Street Fighter series"
+  hints:
+    - "It's a classic fighting game"
+    - "Characters have special moves like Hadouken"
+    - "It's developed by Capcom"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you stack falling blocks?"
+  answers: 
+    - "Tetris"
+    - "Tetris Classic"
+  hints:
+    - "You arrange falling geometric shapes"
+    - "The goal is to create complete lines"
+    - "It was created by a Russian game designer"
+  difficulty: "easy"
+
+- question: "In which game series do you play as Nathan Drake?"
+  answers: 
+    - "Uncharted"
+    - "Uncharted series"
+  hints:
+    - "The main character is a treasure hunter"
+    - "It's often compared to Indiana Jones"
+    - "It's developed by Naughty Dog"
+  difficulty: "normal"
+
+- question: "What is the name of the farming simulation game developed by ConcernedApe?"
+  answers: 
+    - "Stardew Valley"
+    - "Stardew Valley Farm Sim"
+  hints:
+    - "You inherit your grandfather's old farm plot"
+    - "You can farm, fish, mine, and socialize with villagers"
+    - "It's inspired by Harvest Moon"
+  difficulty: "normal"
+
+- question: "Which game series features a character named Samus Aran?"
+  answers: 
+    - "Metroid"
+    - "Metroid series"
+  hints:
+    - "The main character is a female bounty hunter"
+    - "She wears a power suit"
+    - "It's a sci-fi action-adventure series"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you're a goose causing mischief?"
+  answers: 
+    - "Untitled Goose Game"
+    - "Goose Game"
+  hints:
+    - "You play as a troublemaking goose"
+    - "You complete tasks by annoying villagers"
+    - "It has a minimalist art style"
+  difficulty: "normal"
+
+- question: "In which game series do you build and manage a theme park?"
+  answers: 
+    - "RollerCoaster Tycoon"
+    - "RCT"
+  hints:
+    - "You design and manage amusement parks"
+    - "You can create custom roller coasters"
+    - "You need to keep visitors happy"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you play as a yellow circle eating dots?"
+  answers: 
+    - "Pac-Man"
+    - "Pac-Man Classic"
+  hints:
+    - "You navigate mazes"
+    - "You're chased by colorful ghosts"
+    - "It's one of the earliest arcade games"
+  difficulty: "easy"
+
+- question: "Which game series features characters like Cloud Strife and Sephiroth?"
+  answers: 
+    - "Final Fantasy"
+    - "Final Fantasy VII"
+  hints:
+    - "It's a long-running RPG series"
+    - "Each main game has a different story and world"
+    - "It's developed by Square Enix"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you're a bird flying through pipes?"
+  answers: 
+    - "Flappy Bird"
+    - "Flappy Bird Game"
+  hints:
+    - "It was a mobile game phenomenon"
+    - "You tap to make the bird fly"
+    - "It was known for its difficulty"
+  difficulty: "easy"
+
+- question: "In which game series do you play as various cybernetically enhanced soldiers?"
+  answers: 
+    - "Call of Duty"
+    - "CoD"
+  hints:
+    - "It's a first-person shooter series"
+    - "It features multiplayer and zombie modes"
+    - "It has both historical and futuristic settings"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you dig and craft in a 2D world?"
+  answers: 
+    - "Terraria"
+    - "Terraria 2D"
+  hints:
+    - "It's often described as a 2D Minecraft"
+    - "You explore, craft, and fight bosses"
+    - "It has a pixelated art style"
+  difficulty: "normal"
+
+- question: "Which racing game series features blue shells and rainbow roads?"
+  answers: 
+    - "Mario Kart"
+    - "Mario Kart series"
+  hints:
+    - "It features characters from the Mario universe"
+    - "You can use items to hinder other racers"
+    - "It's known for its multiplayer mode"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you control a snake eating pellets?"
+  answers: 
+    - "Snake"
+    - "Snake Game"
+  hints:
+    - "The snake grows longer as you eat"
+    - "You lose if you hit the walls or yourself"
+    - "It was popular on early mobile phones"
+  difficulty: "easy"
+
+- question: "In which game series do you play as various heroes defending plants?"
+  answers: 
+    - "Plants vs. Zombies"
+    - "PvZ"
+  hints:
+    - "You defend your house from zombies"
+    - "You use various plants as defenses"
+    - "It started as a tower defense game"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you manage a team of dwarves in a mountain?"
+  answers: 
+    - "Dwarf Fortress"
+    - "Slaves to Armok: God of Blood Chapter II: Dwarf Fortress"
+  hints:
+    - "It's known for its complex simulation"
+    - "It uses ASCII graphics in its original version"
+    - "You build and manage a dwarven fortress"
+  difficulty: "normal"
+
+- question: "Which game series features a character named Ezio Auditore?"
+  answers: 
+    - "Assassin's Creed"
+    - "AC II"
+  hints:
+    - "The character is an Italian assassin"
+    - "It's set during the Renaissance"
+    - "It's part of a larger historical fiction series"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you play as a lawyer solving cases?"
+  answers: 
+    - "Phoenix Wright: Ace Attorney"
+    - "Ace Attorney"
+  hints:
+    - "You play as a defense attorney"
+    - "You investigate crimes and present evidence in court"
+    - "It's known for its dramatic 'Objection!' moments"
+  difficulty: "normal"
+
+- question: "In which game do you play as a goat causing chaos in an open world?"
+  answers: 
+    - "Goat Simulator"
+    - "Goat Sim"
+  hints:
+    - "You play as a goat with a sticky tongue"
+    - "It's known for its buggy physics"
+    - "It's a parody of simulation games"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you manage a family of virtual people?"
+  answers: 
+    - "The Sims"
+    - "The Sims series"
+  hints:
+    - "You control virtual people's lives"
+    - "You build and furnish houses"
+    - "Characters speak a language called Simlish"
+  difficulty: "easy"
+
+- question: "Which rhythm game series features a character with a parappa on his hat?"
+  answers: 
+    - "PaRappa the Rapper"
+    - "PaRappa"
+  hints:
+    - "You play as a rapping dog"
+    - "You follow on-screen button prompts"
+    - "It's known for its unique paper-like art style"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you play as a boy solving puzzles in a somber world?"
+  answers: 
+    - "Limbo"
+    - "Limbo Game"
+  hints:
+    - "It has a distinctive black and white art style"
+    - "You play as a boy searching for his sister"
+    - "It's known for its atmospheric and eerie setting"
+  difficulty: "normal"
+
+- question: "In which game series do you play as various characters fighting with Nintendo mascots?"
+  answers: 
+    - "Super Smash Bros."
+    - "Smash Bros."
+  hints:
+    - "It's a crossover fighting game"
+    - "It features characters from various Nintendo franchises"
+    - "The goal is to knock opponents off the stage"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you control a submarine exploring an alien ocean?"
+  answers: 
+    - "Subnautica"
+    - "Subnautica Game"
+  hints:
+    - "It's a survival game set underwater"
+    - "You craft equipment and build bases"
+    - "You explore an alien planet's ocean"
+  difficulty: "normal"
+
+- question: "Which strategy game series features civilizations advancing from ancient times to the future?"
+  answers: 
+    - "Civilization"
+    - "Sid Meier's Civilization"
+  hints:
+    - "You lead a civilization from ancient times to the future"
+    - "You can win through various means like science or culture"
+    - "It's a turn-based strategy game"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you play as a night security guard at a pizzeria?"
+  answers: 
+    - "Five Nights at Freddy's"
+    - "FNAF"
+  hints:
+    - "You survive nights with haunted animatronics"
+    - "It's a horror game with jump scares"
+    - "It's set in a Chuck E. Cheese-like restaurant"
+  difficulty: "normal"
+
+- question: "In which game series do you play as various heroes defending the 'Ancient'?"
+  answers: 
+    - "Dota"
+    - "Defense of the Ancients"
+  hints:
+    - "It's a MOBA game"
+    - "It started as a Warcraft III mod"
+    - "Two teams of five players compete"
+  difficulty: "normal"
+
+- question: "What is the name of the game where you solve puzzles with portals?"
+  answers: 
+    - "Portal"
+    - "Portal series"
+  hints:
+    - "You use a portal gun to solve puzzles"
+    - "It's set in the Aperture Science facility"
+    - "It features an AI named GLaDOS"
+  difficulty: "easy"
+
+- question: "Which survival horror game series features zombies in Raccoon City?"
+  answers: 
+    - "Resident Evil"
+    - "Biohazard"
+  hints:
+    - "It's known for its zombies and bioweapons"
+    - "It's developed by Capcom"
+    - "Many games are set in Raccoon City"
+  difficulty: "easy"
+
+- question: "What is the name of the game where you build and launch space rockets?"
+  answers: 
+    - "Kerbal Space Program"
+    - "KSP"
+  hints:
+    - "You design and fly spacecraft"
+    - "It features little green aliens called Kerbals"
+    - "It's known for its realistic physics"
+  difficulty: "normal"
