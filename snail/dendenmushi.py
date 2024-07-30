@@ -184,3 +184,6 @@ class DenDenMushi(commands.Cog):
     async def cog_load(self):
         for guild in self.bot.guilds:
             self.active_connections.update(await self.config.guild(guild).connections())
+
+async def setup(bot):
+    await bot.add_cog(DenDenMushi(bot))
