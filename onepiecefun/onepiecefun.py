@@ -1645,7 +1645,6 @@ class OnePieceFun(commands.Cog):
         await ctx.send(box(poster))
 
     @commands.command()
-    @commands.cooldown(1, 86400, commands.BucketType.user)  # Once per day
     async def berryflip(self, ctx, bet: int, choice: str = None):
         """
         Flip a Berry coin and test your luck! Bet from your current bounty.
@@ -1684,6 +1683,13 @@ class OnePieceFun(commands.Cog):
             if bet > current_bounty:
                 return await ctx.send(f"Ye can't bet more than yer bounty of {current_bounty:,} Berries, ye greedy landlubber!")
             
+            # All checks passed, now we can apply the cooldown
+            if ctx.command.is_on_cooldown(ctx):
+                return
+    
+            ctx.command.reset_cooldown(ctx)
+            ctx.command._buckets.get_bucket(ctx).update_rate_limit()
+    
             flip = random.choice(["heads", "tails"])
             
             if flip == choice:
@@ -1721,6 +1727,8 @@ class OnePieceFun(commands.Cog):
         embed.set_footer(text=f"Current Bounty: {new_bounty:,} Berries")
         
         await ctx.send(embed=embed)
+    
+    berryflip.cooldown = commands.Cooldown(1, 86400, commands.BucketType.user)  # Once per day
         
     @commands.command()
     async def gamblelb(self, ctx):
