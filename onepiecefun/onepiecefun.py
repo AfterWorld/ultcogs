@@ -1645,6 +1645,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(box(poster))
 
     @commands.command()
+    @commands.cooldown(1, 86400, commands.BucketType.user)  # Once per day
     async def berryflip(self, ctx, bet: int, choice: str = None):
         """
         Flip a Berry coin and test your luck! Bet from your current bounty.
@@ -1652,6 +1653,7 @@ class OnePieceFun(commands.Cog):
         If no choice is made, it defaults to heads.
         """
         if bet < 1 or bet > 5000:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send("Ye can only bet between 1 and 5000 Berries, ye greedy sea dog!")
     
         user_id = str(ctx.author.id)
@@ -1661,35 +1663,24 @@ class OnePieceFun(commands.Cog):
         choice = choice.lower()
         
         if choice not in ['heads', 'tails']:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send("Ye must choose 'heads' or 'tails', ye indecisive sea dog!")
     
         async with self.config.guild(ctx.guild).all() as guild_data:
             bounties = guild_data['bounties']
             gambling_stats = guild_data.get('gambling_stats', {})
             double_payout = guild_data.get('double_payout_event', False)
-            last_flip = guild_data.get('last_berryflip', {}).get(user_id)
-    
-            if last_flip:
-                last_flip_time = datetime.fromisoformat(last_flip)
-                if datetime.utcnow() - last_flip_time < timedelta(days=1):
-                    time_left = timedelta(days=1) - (datetime.utcnow() - last_flip_time)
-                    return await ctx.send(f"Ye must wait {time_left.seconds // 3600} hours and {(time_left.seconds // 60) % 60} minutes before ye can flip again!")
     
             if user_id not in bounties:
+                ctx.command.reset_cooldown(ctx)
                 return await ctx.send("Ye don't have a bounty yet, ye rookie! Go cause some trouble first!")
             
             current_bounty = bounties[user_id]['amount']
             
             if bet > current_bounty:
+                ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"Ye can't bet more than yer bounty of {current_bounty:,} Berries, ye greedy landlubber!")
             
-            # All checks passed, now we can apply the cooldown
-            if ctx.command.is_on_cooldown(ctx):
-                return
-    
-            ctx.command.reset_cooldown(ctx)
-            ctx.command._buckets.get_bucket(ctx).update_rate_limit()
-    
             flip = random.choice(["heads", "tails"])
             
             if flip == choice:
@@ -1717,7 +1708,6 @@ class OnePieceFun(commands.Cog):
                 gambling_stats[user_id]["net_gain"] -= bet
     
             guild_data['gambling_stats'] = gambling_stats
-            guild_data['last_berryflip'][user_id] = datetime.utcnow().isoformat()
     
         embed = discord.Embed(title="🪙 Berry Flip 🪙", color=discord.Color.gold())
         embed.add_field(name="The Flip", value=f"The Berry coin flips through the air and lands on... {flip}!", inline=False)
@@ -1727,8 +1717,6 @@ class OnePieceFun(commands.Cog):
         embed.set_footer(text=f"Current Bounty: {new_bounty:,} Berries")
         
         await ctx.send(embed=embed)
-    
-    berryflip.cooldown = commands.Cooldown(1, 86400, commands.BucketType.user)  # Once per day
         
     @commands.command()
     async def gamblelb(self, ctx):
