@@ -956,19 +956,14 @@ class OnePieceFun(commands.Cog):
     @commands.cooldown(1, 600, commands.BucketType.channel)  # 10-minute cooldown
     async def trivia(self, ctx, category: str = "one_piece"):
         """Start a trivia game for a specific category!"""
-        print(f"Trivia command called with category: {category}")  # Debug print
-        print(f"Available categories: {list(self.questions.keys())}")  # Debug print
+        # Convert the input category to the file name format
+        category = f"{category.lower()}_questions"
         
-        if ctx.channel.id in self.trivia_sessions:
-            await ctx.send("A trivia game is already in progress in this channel!")
-            return
-    
-        category = category.lower()
         if category not in self.questions:
-            available_categories = ", ".join(self.questions.keys())
-            await ctx.send(f"Invalid category. Available categories: {available_categories}")
+            available_categories = ", ".join(cat.replace('_questions', '') for cat in self.questions.keys())
+            await ctx.send(f"Avast ye! That be an invalid category. Available categories: {available_categories}")
             return
-    
+
         if not self.questions[category]:
             await ctx.send(f"No questions available for {category}! The trivia game cannot start.")
             return
