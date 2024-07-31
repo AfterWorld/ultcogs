@@ -1128,18 +1128,42 @@ class OnePieceFun(commands.Cog):
             await ctx.send(f"An error occurred: {str(error)}")
 
     @commands.command()
-    @commands.is_owner()
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def trivialist(self, ctx):
-        """List all uploaded trivia files."""
+        """List all available trivia categories."""
         data_folder = cog_data_path(self)
         trivia_files = list(data_folder.glob("*_questions.yaml"))
         
         if not trivia_files:
-            await ctx.send("No trivia files have been uploaded yet.")
+            await ctx.send("Shiver me timbers! There be no trivia categories available, ye scurvy dog!")
             return
     
-        file_list = "\n".join([f"- {file.name}" for file in trivia_files])
-        await ctx.send(f"Uploaded trivia files:\n{file_list}")
+        categories = []
+        for file in trivia_files:
+            category = file.stem.replace('_questions', '')
+            categories.append(category)
+    
+        # Sort categories alphabetically
+        categories.sort()
+    
+        # Create a formatted list of categories
+        category_list = "\n".join([f"• {category}" for category in categories])
+        
+        embed = discord.Embed(
+            title="🏴‍☠️ Available Trivia Categories 🏴‍☠️",
+            description=box(category_list, lang=""),
+            color=discord.Color.gold()
+        )
+        embed.set_footer(text="Use .trivia <category> to start a game!")
+    
+        await ctx.send(embed=embed)
+    
+    @trivialist.error
+    async def trivialist_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            remaining_time = round(error.retry_after)
+            await ctx.send(f"Avast ye, {ctx.author.mention}! Ye be askin' too quick! "
+                           f"Wait another {remaining_time} seconds before checkin' the categories again, ye eager pirate!")
             
     @commands.command()
     async def triviastop(self, ctx):
