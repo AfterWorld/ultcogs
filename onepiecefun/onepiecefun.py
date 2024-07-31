@@ -59,11 +59,6 @@ class OnePieceFun(commands.Cog):
             category = file.stem  # This will be like 'category_questions'
             with file.open('r') as f:
                 self.questions[category] = yaml.safe_load(f)
-                self.questions[category] = questions
-                print(f"Loaded {len(questions)} questions for {category}")
-            except Exception as e:
-                print(f"Error loading questions for {category}: {str(e)}")
-        print(f"Loaded categories: {list(self.questions.keys())}")
     
     async def load_questions(self, category):
         try:
