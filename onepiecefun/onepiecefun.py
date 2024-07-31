@@ -54,27 +54,17 @@ class OnePieceFun(commands.Cog):
         print("Questions loaded. Available categories:", list(self.questions.keys()))
     
     async def initialize_questions(self):
-        self.questions = {}
+        self.questions.clear()  # Clear existing questions
         data_folder = cog_data_path(self)
-        yaml_files = list(data_folder.glob("*_questions.yaml"))
-        
-        if not yaml_files:
-            print("No question files found. Loading default One Piece questions.")
-            # Load the default One Piece questions from the URL
-            one_piece_questions = await self.load_questions("one_piece")
-            if one_piece_questions:
-                self.questions["one_piece"] = one_piece_questions
-        else:
-            for file in yaml_files:
-                category = file.stem.replace('_questions', '')
-                try:
-                    with file.open('r') as f:
-                        questions = yaml.safe_load(f)
-                    self.questions[category] = questions
-                    print(f"Loaded {len(questions)} questions for {category}")
-                except Exception as e:
-                    print(f"Error loading questions for {category}: {str(e)}")
-        
+        for file in data_folder.glob("*_questions.yaml"):
+            category = file.stem  # This will include '_questions'
+            try:
+                with file.open('r') as f:
+                    questions = yaml.safe_load(f)
+                self.questions[category] = questions
+                print(f"Loaded {len(questions)} questions for {category}")
+            except Exception as e:
+                print(f"Error loading questions for {category}: {str(e)}")
         print(f"Loaded categories: {list(self.questions.keys())}")
     
     async def load_questions(self, category):
@@ -954,26 +944,22 @@ class OnePieceFun(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.channel)  # 10-minute cooldown
-    async def trivia(self, ctx, category: str = "one_piece"):
+    async def trivia(self, ctx, category: str = "op"):
         """Start a trivia game for a specific category!"""
         # Convert the input category to the file name format
-        category = f"{category.lower()}_questions"
+        full_category = f"{category.lower()}_questions"
         
-        if category not in self.questions:
+        if full_category not in self.questions:
             available_categories = ", ".join(cat.replace('_questions', '') for cat in self.questions.keys())
             await ctx.send(f"Avast ye! That be an invalid category. Available categories: {available_categories}")
-            return
-
-        if not self.questions[category]:
-            await ctx.send(f"No questions available for {category}! The trivia game cannot start.")
             return
     
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
     
-        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")  # Changed from 10 to 25
+        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")
     
         try:
-            for question in random.sample(self.questions[category], min(len(self.questions[category]), 50)):  # Increased from 20 to 50
+            for question in random.sample(self.questions[full_category], min(len(self.questions[full_category]), 50)):
                 if not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
@@ -981,7 +967,7 @@ class OnePieceFun(commands.Cog):
                 if not await self.ask_question(ctx, question):
                     break
     
-                if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):  # Changed from 10 to 25
+                if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
                     break
     
                 await asyncio.sleep(2)
@@ -1076,14 +1062,14 @@ class OnePieceFun(commands.Cog):
     @commands.command()
     @commands.is_owner()  # Restrict this command to the bot owner
     async def triviaupload(self, ctx):
-        """Upload a custom YAML file for trivia."""
+        """Upload or update a custom YAML file for trivia."""
         if not ctx.message.attachments:
-            await ctx.send("Please attach a YAML file with your trivia questions.")
+            await ctx.send("Arrr! Ye need to attach a YAML file with yer trivia questions, ye scurvy dog!")
             return
     
         attachment = ctx.message.attachments[0]
         if not attachment.filename.endswith(('.yaml', '.yml')):
-            await ctx.send("The attached file must be a YAML file (with .yaml or .yml extension).")
+            await ctx.send("Blimey! The attached file must be a YAML file (with .yaml or .yml extension).")
             return
     
         try:
@@ -1092,27 +1078,35 @@ class OnePieceFun(commands.Cog):
     
             # Validate the structure of the YAML file
             if not isinstance(questions, list):
-                raise ValueError("The YAML file should contain a list of questions.")
+                raise ValueError("Shiver me timbers! The YAML file should contain a list of questions.")
     
             for question in questions:
                 if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
-                    raise ValueError("Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
+                    raise ValueError("Avast! Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
     
             # Get the category name from the filename (without .yaml or .yml extension)
             category = attachment.filename.rsplit('.', 1)[0].lower()
+            category = category.replace('_questions', '')  # Remove '_questions' if present
     
             # Save the questions to the bot's data folder
             file_path = cog_data_path(self) / f"{category}_questions.yaml"
+            
+            action = "updated" if file_path.exists() else "uploaded"
+    
             with file_path.open('wb') as f:
                 f.write(content)
     
             # Load the new questions into memory
-            self.questions[category] = questions
+            self.questions[f"{category}_questions"] = questions
     
-            await ctx.send(f"Successfully uploaded and loaded {len(questions)} questions for the '{category}' category.\n"
+            await ctx.send(f"Ahoy! Successfully {action} and loaded {len(questions)} questions for the '{category}' category.\n"
                            f"File saved at: {file_path}")
+    
+            # Reload trivia questions to ensure all categories are up to date
+            await self.initialize_questions()
+            
         except Exception as e:
-            await ctx.send(f"An error occurred while processing the file: {str(e)}")
+            await ctx.send(f"Blimey! An error occurred while processing the file: {str(e)}")
             return
     
     @triviaupload.error
@@ -1126,22 +1120,13 @@ class OnePieceFun(commands.Cog):
     @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def trivialist(self, ctx):
         """List all available trivia categories."""
-        data_folder = cog_data_path(self)
-        trivia_files = list(data_folder.glob("*_questions.yaml"))
-        
-        if not trivia_files:
+        if not self.questions:
             await ctx.send("Shiver me timbers! There be no trivia categories available, ye scurvy dog!")
             return
     
-        categories = []
-        for file in trivia_files:
-            category = file.stem.replace('_questions', '')
-            categories.append(category)
-    
-        # Sort categories alphabetically
+        categories = [cat.replace('_questions', '') for cat in self.questions.keys()]
         categories.sort()
     
-        # Create a formatted list of categories
         category_list = "\n".join([f"• {category}" for category in categories])
         
         embed = discord.Embed(
