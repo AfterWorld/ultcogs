@@ -936,9 +936,14 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.channel)  # 10-minute cooldown
+    @commands.cooldown(1, 300, commands.BucketType.channel)  # 5-minute cooldown per channel
     async def trivia(self, ctx, category: str = "op"):
         """Start a trivia game for a specific category!"""
+        # Check if a trivia game is already active in this channel
+        if ctx.channel.id in self.trivia_sessions and self.trivia_sessions[ctx.channel.id]["active"]:
+            await ctx.send("Avast ye! There's already a trivia game in progress in this channel. Finish that one first!")
+            return
+    
         # Convert the input category to the file name format
         full_category = f"{category.lower()}_questions"
         
