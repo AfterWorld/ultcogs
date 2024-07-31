@@ -953,7 +953,7 @@ class OnePieceFun(commands.Cog):
         await ctx.send(f"{description}\n{effect}")
 
     @commands.command()
-    @commands.cooldown(1, 600, commands.BucketType.channel)  # 10-minute cooldown
+    @commands.cooldown(1, 300, commands.BucketType.channel)  # 10-minute cooldown
     async def trivia(self, ctx, category: str = "one_piece"):
         """Start a trivia game for a specific category!"""
         # Convert the input category to the file name format
