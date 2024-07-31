@@ -46,7 +46,7 @@ class OnePieceFun(commands.Cog):
         self.last_announcement = {}
         self.trivia_lock = asyncio.Lock()
         self.trivia_sessions = {}
-        self.questions = []
+        self.questions = {}
         self.bot.loop.create_task(self.load_questions_and_print())
 
     async def load_questions_and_print(self):
@@ -54,13 +54,11 @@ class OnePieceFun(commands.Cog):
         print("Questions loaded. Available categories:", list(self.questions.keys()))
     
     async def initialize_questions(self):
-        self.questions.clear()  # Clear existing questions
-        data_folder = cog_data_path(self)
-        for file in data_folder.glob("*_questions.yaml"):
-            category = file.stem  # This will include '_questions'
-            try:
-                with file.open('r') as f:
-                    questions = yaml.safe_load(f)
+        self.questions = {}
+        for file in (cog_data_path(self)).glob('*_questions.yaml'):
+            category = file.stem  # This will be like 'category_questions'
+            with file.open('r') as f:
+                self.questions[category] = yaml.safe_load(f)
                 self.questions[category] = questions
                 print(f"Loaded {len(questions)} questions for {category}")
             except Exception as e:
