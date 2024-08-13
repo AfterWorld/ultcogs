@@ -2,6 +2,7 @@ from redbot.core import commands, Config, bank
 from redbot.core.utils.chat_formatting import humanize_timedelta
 from redbot.core.bot import Red
 import discord
+from discord import app_commands
 from discord.ext import tasks
 import random
 import asyncio
@@ -53,7 +54,7 @@ class EnhancedGacha(commands.Cog):
                         continue
                     await self.config.member(member).scrolled.set(0)
                     await self.config.member(member).cooldownspawn.clear()
-
+                    
     async def _valid_image_url(self, url: str) -> bool:
         try:
             async with aiohttp.ClientSession() as session:
