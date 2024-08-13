@@ -1,0 +1,10 @@
+{
+    "author": ["YourName"],
+    "install_msg": "Thank you for installing the Enhanced Gacha cog! Use `[p]help EnhancedGacha` to see the available commands.",
+    "name": "EnhancedGacha",
+    "short": "An advanced gacha game system for your Discord server.",
+    "description": "This cog provides an enhanced gacha game system with features like character collection, trading, events, and more. It includes UI improvements, a pity system, and customizable settings.",
+    "tags": ["fun", "games", "gacha"],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog stores data about users' collected characters and gacha-related statistics. Users can request deletion of their data via Discord's data deletion request process."
+}
