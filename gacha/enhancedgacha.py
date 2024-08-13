@@ -121,7 +121,7 @@ class EnhancedGacha(commands.Cog):
     @commands.guild_only()
     @commands.hybrid_command(name="roll")
     @app_commands.describe(option="Choose 'M' for male, 'F' for female, or a franchise option like 'opf', 'opm', 'op'")
-    async def roll(self, ctx: commands.Context, option: str):
+    async def groll(self, ctx: commands.Context, option: str):
         """Roll for a character. Costs currency to use. Use 'opf' for One Piece female, 'opm' for One Piece male, 'op' for any One Piece character."""
         option = option.lower()
         if option not in ['m', 'f', 'opf', 'opm', 'op']:
