@@ -120,12 +120,11 @@ class EnhancedGacha(commands.Cog):
 
     @commands.guild_only()
     @commands.hybrid_command(name="groll")
-    @app_commands.describe(option="Choose 'M' for male, 'F' for female, or a franchise option like 'opf', 'opm', 'op'")
-    async def groll(self, ctx: commands.Context, option: str):
-        """Roll for a character. Costs currency to use. Use 'opf' for One Piece female, 'opm' for One Piece male, 'op' for any One Piece character."""
-        option = option.lower()
-        if option not in ['m', 'f', 'opf', 'opm', 'op']:
-            return await ctx.send("Invalid option. Please choose 'M', 'F', 'opf', 'opm', or 'op'.")
+    @app_commands.describe(gender="Choose 'M' for male or 'F' for female characters")
+    async def groll(self, ctx: commands.Context, gender: str):
+        """Roll for a character. Costs currency to use."""
+        if gender.upper() not in ['M', 'F']:
+            return await ctx.send("Invalid gender. Please choose 'M' for male or 'F' for female.")
 
         roll_cost = await self.config.guild(ctx.guild).roll_cost()
         if not await bank.can_spend(ctx.author, roll_cost):
@@ -134,17 +133,11 @@ class EnhancedGacha(commands.Cog):
         await bank.withdraw_credits(ctx.author, roll_cost)
 
         characters = await self.config.guild(ctx.guild).characters()
+        eligible_chars = [char for char in characters.items() if char[1]['gender'] == gender.upper()]
         
-        if option in ['opf', 'opm', 'op']:
-            franchise = "One Piece"
-            gender = 'F' if option == 'opf' else 'M' if option == 'opm' else random.choice(['M', 'F'])
-            eligible_chars = [char for char in characters.items() if char[1]['gender'] == gender and char[1].get('franchise') == franchise]
-        else:
-            eligible_chars = [char for char in characters.items() if char[1]['gender'] == option.upper()]
-
         if not eligible_chars:
             await bank.deposit_credits(ctx.author, roll_cost)  # Refund if no eligible characters
-            return await ctx.send(f"There are no characters available for the chosen option.")
+            return await ctx.send(f"There are no {gender.upper()} characters available.")
 
         spawn_rates = await self.config.guild(ctx.guild).spawn_rates()
         rarity = random.choices(list(spawn_rates.keys()), weights=list(spawn_rates.values()))[0]
@@ -196,62 +189,9 @@ class EnhancedGacha(commands.Cog):
         return False
 
     @commands.guild_only()
-    @commands.command(aliases=["glb"])
-    async def gleaderboard(self, ctx):
-        """Get the leaderboard for card owners."""
-        data = await self.config.all_members(ctx.guild)
-        em = discord.Embed()
-
-        if not data:
-            return await ctx.send("None of the members own a card yet.")
-
-        sort = sorted(data.items(), key=lambda x: len(x[1]["marriedto"]), reverse=True)
-        msg = ""
-        for x in sort:
-            member = ctx.guild.get_member(x[0])
-            if member:
-                msg += f"\n{member.mention} - `{len(x[1]['marriedto'])}` cards"
-
-        em.set_author(
-            name=f"Cards leaderboard for {ctx.guild}", icon_url=ctx.guild.icon_url
-        )
-        em.description = msg
-        await ctx.send(embed=em)
-
-    @commands.command()
-    @commands.guild_only()
-    async def grename(self, ctx, *, name: str):
-        """Rename your harem name."""
-        await self.config.member(ctx.author).haremname.set(name)
-        em = discord.Embed()
-        em.description = (
-            f"{ctx.author.mention} your harem name has been changed to {name}"
-        )
-        await ctx.send(embed=em)
-
-    @commands.guild_only()
-    @commands.command(name="glt")
-    async def _list(self, ctx, member: discord.Member = None):
-        """Get your harem."""
-        member = ctx.author if not member else member
-        em = discord.Embed()
-        data = await self.config.member(member).marriedto()
-        name = await self.config.member(member).haremname()
-        if not data:
-            return await ctx.send(f"{member} has no cards yet.")
-
-        if member.bot:
-            return await ctx.send("Bot can't get cards.")
-
-        n = "\n"
-        em.set_author(name=f"{name if name else member}", icon_url=member.avatar_url)
-        em.description = f"{n.join([x for x in data])}"
-        await ctx.send(embed=em)
-
-    @commands.guild_only()
-    @commands.command(name="gadd")
+    @commands.hybrid_command(name="gadd")
     @commands.has_permissions(manage_guild=True)
-    async def gadd(self, ctx: commands.Context, name: str, gender: str, rarity: str, franchise: str, imgurl: str):
+    async def gadd(self, ctx: commands.Context, name: str, gender: str, rarity: str, imgurl: str):
         """Add a new character to the database."""
         if gender.upper() not in ['M', 'F']:
             return await ctx.send("Invalid gender. Please use 'M' for male or 'F' for female.")
@@ -270,11 +210,10 @@ class EnhancedGacha(commands.Cog):
                 "url": imgurl,
                 "marriedto": None,
                 "gender": gender.upper(),
-                "rarity": rarity.lower(),
-                "franchise": franchise
+                "rarity": rarity.lower()
             }
 
-        await ctx.send(f"{name} has been added to the database as a {rarity} {gender} character from {franchise}.")
+        await ctx.send(f"{name} has been added to the database as a {rarity} {gender} character.")
 
     @commands.guild_only()
     @commands.hybrid_command(name="gprofile")
