@@ -1,8 +1,8 @@
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands
-from redbot.core import Config, bank
+from redbot.core import commands, Config, bank
 from redbot.core.utils.chat_formatting import humanize_timedelta
+from redbot.core.bot import Red
+import discord
+from discord.ext import tasks
 import random
 import asyncio
 from datetime import datetime, timedelta
@@ -10,7 +10,7 @@ import aiohttp
 from io import BytesIO
 
 class EnhancedGacha(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=3498299999912, force_registration=True)
         
