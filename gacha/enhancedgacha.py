@@ -119,7 +119,7 @@ class EnhancedGacha(commands.Cog):
                 break
 
     @commands.guild_only()
-    @commands.hybrid_command(name="roll")
+    @commands.hybrid_command(name="groll")
     @app_commands.describe(option="Choose 'M' for male, 'F' for female, or a franchise option like 'opf', 'opm', 'op'")
     async def groll(self, ctx: commands.Context, option: str):
         """Roll for a character. Costs currency to use. Use 'opf' for One Piece female, 'opm' for One Piece male, 'op' for any One Piece character."""
