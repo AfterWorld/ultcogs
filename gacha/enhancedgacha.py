@@ -119,9 +119,9 @@ class EnhancedGacha(commands.Cog):
                 break
 
     @commands.guild_only()
-    @commands.hybrid_command(name="roll")
+    @commands.hybrid_command(name="groll")
     @app_commands.describe(gender="Choose 'M' for male or 'F' for female characters")
-    async def roll(self, ctx: commands.Context, gender: str):
+    async def groll(self, ctx: commands.Context, gender: str):
         """Roll for a character. Costs currency to use."""
         if gender.upper() not in ['M', 'F']:
             return await ctx.send("Invalid gender. Please choose 'M' for male or 'F' for female.")
