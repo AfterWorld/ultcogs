@@ -1,5 +1,5 @@
 from .application import Application
 
 
-def setup(bot):
+async def setup(bot)
     bot.add_cog(Application(bot))
