@@ -1,190 +1,201 @@
+from redbot.core import commands, Config
 import discord
-from discord.ext import commands
 from discord import app_commands
 from typing import List, Optional
 import asyncio
 import datetime
-import json
-import os
 
 class Application(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.applications = []
-        self.config_file = 'one_piece_config.json'
-        self.load_config()
+        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        default_guild = {
+            "application_channel_id": None,
+            "log_channel_id": None,
+            "questions": [
+                "What position in the crew are you applying for? (e.g., Navigator, Cook, Doctor)",
+                "What's your pirate name?",
+                "What's your age?",
+                "What's your favorite One Piece arc and why?",
+                "How many hours per week can you dedicate to moderating the server?",
+                "Do you have any previous experience as a moderator or in a leadership role?",
+                "If you were a Devil Fruit user, what power would you have and how would you use it to help the crew?",
+                "Why do you want to join our crew as a staff member?"
+            ]
+        }
+        self.config.register_guild(**default_guild)
+        self.applications = {}
 
-    def load_config(self):
-        if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as f:
-                self.config = json.load(f)
-        else:
-            self.config = {
-                'application_channel_id': None,
-                'log_channel_id': None,
-                'questions': [
-                    "What position in the crew are you applying for? (e.g., Navigator, Cook, Doctor)",
-                    "What's your pirate name?",
-                    "What's your age?",
-                    "What's your favorite One Piece arc and why?",
-                    "How many hours per week can you dedicate to moderating the server?",
-                    "Do you have any previous experience as a moderator or in a leadership role?",
-                    "If you were a Devil Fruit user, what power would you have and how would you use it to help the crew?",
-                    "Why do you want to join our crew as a staff member?"
-                ]
-            }
-            self.save_config()
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def set_application_channel(self, ctx, channel: discord.TextChannel):
+        """Set the channel for receiving applications"""
+        await self.config.guild(ctx.guild).application_channel_id.set(channel.id)
+        await ctx.send(f"Application channel set to {channel.mention}")
 
-    def save_config(self):
-        with open(self.config_file, 'w') as f:
-            json.dump(self.config, f, indent=4)
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def set_log_channel(self, ctx, channel: discord.TextChannel):
+        """Set the channel for logging application actions"""
+        await self.config.guild(ctx.guild).log_channel_id.set(channel.id)
+        await ctx.send(f"Log channel set to {channel.mention}")
 
-    @app_commands.command(name="set_application_channel", description="Set the channel for receiving applications")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def set_application_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        self.config['application_channel_id'] = channel.id
-        self.save_config()
-        await interaction.response.send_message(f"Application channel set to {channel.mention}", ephemeral=True)
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def add_question(self, ctx, *, question: str):
+        """Add a new application question"""
+        async with self.config.guild(ctx.guild).questions() as questions:
+            questions.append(question)
+        await ctx.send(f"Added question: {question}")
 
-    @app_commands.command(name="set_log_channel", description="Set the channel for logging application actions")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def set_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        self.config['log_channel_id'] = channel.id
-        self.save_config()
-        await interaction.response.send_message(f"Log channel set to {channel.mention}", ephemeral=True)
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def remove_question(self, ctx, index: int):
+        """Remove an application question"""
+        async with self.config.guild(ctx.guild).questions() as questions:
+            if 0 <= index < len(questions):
+                removed_question = questions.pop(index)
+                await ctx.send(f"Removed question: {removed_question}")
+            else:
+                await ctx.send("Invalid question index")
 
-    @app_commands.command(name="add_question", description="Add a new application question")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def add_question(self, interaction: discord.Interaction, question: str):
-        self.config['questions'].append(question)
-        self.save_config()
-        await interaction.response.send_message(f"Added question: {question}", ephemeral=True)
-
-    @app_commands.command(name="remove_question", description="Remove an application question")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def remove_question(self, interaction: discord.Interaction, index: int):
-        if 0 <= index < len(self.config['questions']):
-            removed_question = self.config['questions'].pop(index)
-            self.save_config()
-            await interaction.response.send_message(f"Removed question: {removed_question}", ephemeral=True)
-        else:
-            await interaction.response.send_message("Invalid question index", ephemeral=True)
-
-    @app_commands.command(name="apply", description="Apply for a staff position")
-    async def apply(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Let's start your application! Check your DMs.", ephemeral=True)
+    @commands.command()
+    async def apply(self, ctx):
+        """Apply for a staff position"""
+        await ctx.send("Let's start your application! Check your DMs.")
         
+        questions = await self.config.guild(ctx.guild).questions()
         answers = []
-        for question in self.config['questions']:
-            await interaction.user.send(question)
+        for question in questions:
+            await ctx.author.send(question)
             try:
                 answer = await self.bot.wait_for(
                     "message",
-                    check=lambda m: m.author == interaction.user and isinstance(m.channel, discord.DMChannel),
+                    check=lambda m: m.author == ctx.author and isinstance(m.channel, discord.DMChannel),
                     timeout=300.0
                 )
                 answers.append(answer.content)
             except asyncio.TimeoutError:
-                await interaction.user.send("You took too long to answer. Please start the application process again.")
+                await ctx.author.send("You took too long to answer. Please start the application process again.")
                 return
 
         embed = discord.Embed(
             title="New Crew Application!",
-            description=f"Application from {interaction.user.mention}",
+            description=f"Application from {ctx.author.mention}",
             color=discord.Color.blue(),
             timestamp=datetime.datetime.now()
         )
 
-        for question, answer in zip(self.config['questions'], answers):
+        for question, answer in zip(questions, answers):
             embed.add_field(name=question, value=answer, inline=False)
 
-        application_channel = self.bot.get_channel(self.config['application_channel_id'])
-        if application_channel:
-            await application_channel.send(embed=embed)
+        application_channel_id = await self.config.guild(ctx.guild).application_channel_id()
+        if application_channel_id:
+            application_channel = self.bot.get_channel(application_channel_id)
+            if application_channel:
+                await application_channel.send(embed=embed)
 
-        self.applications.append({
-            "user": interaction.user,
+        if ctx.guild.id not in self.applications:
+            self.applications[ctx.guild.id] = []
+        self.applications[ctx.guild.id].append({
+            "user": ctx.author,
             "embed": embed,
             "timestamp": datetime.datetime.now()
         })
 
-        await interaction.user.send("Your application has been submitted successfully!")
-        await self.log_action(f"New application submitted by {interaction.user}")
+        await ctx.author.send("Your application has been submitted successfully!")
+        await self.log_action(ctx.guild, f"New application submitted by {ctx.author}")
 
-    @app_commands.command(name="viewapp", description="View all applications")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def viewapp(self, interaction: discord.Interaction):
-        if not self.applications:
-            await interaction.response.send_message("There are no applications to view.", ephemeral=True)
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def viewapp(self, ctx):
+        """View all applications"""
+        if ctx.guild.id not in self.applications or not self.applications[ctx.guild.id]:
+            await ctx.send("There are no applications to view.")
             return
 
         current_page = 0
 
         async def update_embed():
-            embed = self.applications[current_page]["embed"]
-            embed.set_footer(text=f"Application {current_page + 1}/{len(self.applications)}")
+            embed = self.applications[ctx.guild.id][current_page]["embed"]
+            embed.set_footer(text=f"Application {current_page + 1}/{len(self.applications[ctx.guild.id])}")
             return embed
 
-        class ApplicationView(discord.ui.View):
-            def __init__(self, parent):
-                super().__init__(timeout=300)
-                self.parent = parent
+        message = await ctx.send(embed=await update_embed())
+        await message.add_reaction("⬅️")
+        await message.add_reaction("➡️")
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
 
-            @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary)
-            async def previous_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-                nonlocal current_page
-                current_page = (current_page - 1) % len(self.applications)
-                await button_interaction.response.edit_message(embed=await update_embed())
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️", "✅", "❌"]
 
-            @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
-            async def next_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-                nonlocal current_page
-                current_page = (current_page + 1) % len(self.applications)
-                await button_interaction.response.edit_message(embed=await update_embed())
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
 
-            @discord.ui.button(label="Accept", style=discord.ButtonStyle.success)
-            async def accept_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-                await self.parent.accept(button_interaction, self.applications[current_page]["user"])
+                if str(reaction.emoji) == "⬅️":
+                    current_page = (current_page - 1) % len(self.applications[ctx.guild.id])
+                elif str(reaction.emoji) == "➡️":
+                    current_page = (current_page + 1) % len(self.applications[ctx.guild.id])
+                elif str(reaction.emoji) == "✅":
+                    await self.accept(ctx, self.applications[ctx.guild.id][current_page]["user"])
+                    break
+                elif str(reaction.emoji) == "❌":
+                    await self.deny(ctx, self.applications[ctx.guild.id][current_page]["user"])
+                    break
 
-            @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
-            async def deny_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-                await self.parent.deny(button_interaction, self.applications[current_page]["user"])
+                await message.edit(embed=await update_embed())
+                await message.remove_reaction(reaction, user)
 
-        view = ApplicationView(self)
-        await interaction.response.send_message(embed=await update_embed(), view=view)
+            except asyncio.TimeoutError:
+                break
 
-    @app_commands.command(name="accept", description="Accept an application")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def accept(self, interaction: discord.Interaction, user: discord.Member, role: discord.Role):
-        application = next((app for app in self.applications if app["user"] == user), None)
+        await message.clear_reactions()
+
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def accept(self, ctx, user: discord.Member, *, role: discord.Role):
+        """Accept an application"""
+        if ctx.guild.id not in self.applications:
+            await ctx.send("There are no applications for this guild.")
+            return
+
+        application = next((app for app in self.applications[ctx.guild.id] if app["user"] == user), None)
         if not application:
-            await interaction.response.send_message(f"No application found for {user.mention}", ephemeral=True)
+            await ctx.send(f"No application found for {user.mention}")
             return
 
         await user.add_roles(role)
         await user.send(f"Congratulations! Your application has been accepted. You've been given the {role.name} role.")
-        await interaction.response.send_message(f"Accepted {user.mention}'s application and assigned the {role.name} role.", ephemeral=True)
+        await ctx.send(f"Accepted {user.mention}'s application and assigned the {role.name} role.")
 
-        self.applications = [app for app in self.applications if app["user"] != user]
-        await self.log_action(f"Application from {user} accepted by {interaction.user}")
+        self.applications[ctx.guild.id] = [app for app in self.applications[ctx.guild.id] if app["user"] != user]
+        await self.log_action(ctx.guild, f"Application from {user} accepted by {ctx.author}")
 
-    @app_commands.command(name="deny", description="Deny an application")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def deny(self, interaction: discord.Interaction, user: discord.Member, reason: Optional[str] = "No reason provided"):
-        application = next((app for app in self.applications if app["user"] == user), None)
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command()
+    async def deny(self, ctx, user: discord.Member, *, reason: str = "No reason provided"):
+        """Deny an application"""
+        if ctx.guild.id not in self.applications:
+            await ctx.send("There are no applications for this guild.")
+            return
+
+        application = next((app for app in self.applications[ctx.guild.id] if app["user"] == user), None)
         if not application:
-            await interaction.response.send_message(f"No application found for {user.mention}", ephemeral=True)
+            await ctx.send(f"No application found for {user.mention}")
             return
 
         await user.send(f"We're sorry, but your application has been denied. Reason: {reason}")
-        await interaction.response.send_message(f"Denied {user.mention}'s application. Reason: {reason}", ephemeral=True)
+        await ctx.send(f"Denied {user.mention}'s application. Reason: {reason}")
 
-        self.applications = [app for app in self.applications if app["user"] != user]
-        await self.log_action(f"Application from {user} denied by {interaction.user}. Reason: {reason}")
+        self.applications[ctx.guild.id] = [app for app in self.applications[ctx.guild.id] if app["user"] != user]
+        await self.log_action(ctx.guild, f"Application from {user} denied by {ctx.author}. Reason: {reason}")
 
-    async def log_action(self, message: str):
-        if self.config['log_channel_id']:
-            log_channel = self.bot.get_channel(self.config['log_channel_id'])
+    async def log_action(self, guild, message: str):
+        log_channel_id = await self.config.guild(guild).log_channel_id()
+        if log_channel_id:
+            log_channel = self.bot.get_channel(log_channel_id)
             if log_channel:
                 await log_channel.send(f"[{datetime.datetime.now()}] {message}")
 
