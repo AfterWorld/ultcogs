@@ -107,8 +107,8 @@ class Application(commands.Cog):
         await self.log_action(ctx.guild, f"New application submitted by {ctx.author}")
 
     @commands.admin_or_permissions(administrator=True)
-    @commands.command()
-    async def viewapp(self, ctx):
+    @commands.command(name="viewapp")
+    async def view_applications(self, ctx):
         """View all applications"""
         if ctx.guild.id not in self.applications or not self.applications[ctx.guild.id]:
             await ctx.send("There are no applications to view.")
@@ -139,10 +139,33 @@ class Application(commands.Cog):
                 elif str(reaction.emoji) == "➡️":
                     current_page = (current_page + 1) % len(self.applications[ctx.guild.id])
                 elif str(reaction.emoji) == "✅":
-                    await self.accept(ctx, self.applications[ctx.guild.id][current_page]["user"])
+                    await message.clear_reactions()
+                    await message.edit(content="Please mention the role you want to assign to this applicant.", embed=None)
+                    
+                    def role_check(m):
+                        return m.author == ctx.author and m.channel == ctx.channel and m.role_mentions
+
+                    try:
+                        role_message = await self.bot.wait_for("message", check=role_check, timeout=30.0)
+                        role = role_message.role_mentions[0]
+                        await self.accept(ctx, self.applications[ctx.guild.id][current_page]["user"], role=role)
+                    except asyncio.TimeoutError:
+                        await message.edit(content="Role selection timed out. Please run the command again.")
+                    except IndexError:
+                        await message.edit(content="No valid role mentioned. Please run the command again.")
                     break
                 elif str(reaction.emoji) == "❌":
-                    await self.deny(ctx, self.applications[ctx.guild.id][current_page]["user"])
+                    await message.clear_reactions()
+                    await message.edit(content="Please provide a reason for denying the application.", embed=None)
+                    
+                    def reason_check(m):
+                        return m.author == ctx.author and m.channel == ctx.channel
+
+                    try:
+                        reason_message = await self.bot.wait_for("message", check=reason_check, timeout=60.0)
+                        await self.deny(ctx, self.applications[ctx.guild.id][current_page]["user"], reason=reason_message.content)
+                    except asyncio.TimeoutError:
+                        await message.edit(content="Reason input timed out. Please run the command again.")
                     break
 
                 await message.edit(embed=await update_embed())
