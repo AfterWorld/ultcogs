@@ -6,7 +6,7 @@ import asyncio
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with automated actions and a health bar!"""
+    """A One Piece-themed deathmatch game with visual health bars and RNG big hits!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -24,11 +24,11 @@ class Deathmatch(commands.Cog):
         challenger_hp = 100
         opponent_hp = 100
 
-        def generate_health_bar(current_hp: int, max_hp: int = 100, length: int = 20) -> str:
-            """Generate a health bar based on current HP."""
+        def generate_health_bar(current_hp: int, max_hp: int = 100, length: int = 10) -> str:
+            """Generate a health bar using Discord emotes based on current HP."""
             filled_length = int(length * current_hp // max_hp)
-            bar = "█" * filled_length + "░" * (length - filled_length)
-            return f"[{bar}]"
+            bar = "🥩" * filled_length + "🦴" * (length - filled_length)
+            return f"{bar}"
 
         embed = discord.Embed(
             title="⚔️ One Piece Deathmatch",
@@ -53,9 +53,15 @@ class Deathmatch(commands.Cog):
             attacker, attacker_hp = players[turn_index]
             defender, defender_hp = players[1 - turn_index]
 
-            # Simulate attack
-            move = random.choice(["Haki Punch", "Sword Slash", "Devil Fruit Strike"])
-            damage = random.randint(1, 99)
+            # Simulate attack with RNG
+            is_big_hit = random.random() < 0.2  # 20% chance for a big hit
+            if is_big_hit:
+                damage = random.randint(50, 99)
+                move = "⚡ Critical Strike"
+            else:
+                damage = random.randint(1, 50)
+                move = random.choice(["Haki Punch", "Sword Slash", "Devil Fruit Strike"])
+            
             defender_hp = max(0, defender_hp - damage)  # Ensure HP does not go below 0
             players[1 - turn_index] = (defender, defender_hp)
 
