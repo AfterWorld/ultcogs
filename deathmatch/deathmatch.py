@@ -12,25 +12,13 @@ ACHIEVEMENTS = {
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with animations and achievements!"""
+    """A One Piece-themed deathmatch game with achievements!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
         default_member = {"achievements": []}
         self.config.register_member(**default_member)
-
-    async def animate_health_bar(self, current_hp: int, damage: int, max_hp: int = 100, length: int = 10) -> str:
-        """Simulate the health bar shrinking with animation."""
-        updated_hp = max(0, current_hp - damage)  # Ensure HP does not drop below 0
-        steps = 5  # Number of steps to animate
-        step_damage = damage // steps  # Damage to apply in each step
-        for _ in range(steps):
-            current_hp = max(updated_hp, current_hp - step_damage)
-            bar = self.generate_health_bar(current_hp, max_hp, length)
-            yield bar
-            await asyncio.sleep(0.2)  # Short delay between updates
-        yield self.generate_health_bar(updated_hp, max_hp, length)
 
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
@@ -124,22 +112,24 @@ class Deathmatch(commands.Cog):
                 move = f"{defender.display_name} blocked with Haki!"
                 stats["blocks"] += 1
 
-            # Animate health bar
-            defender_bar_gen = self.animate_health_bar(defender_hp, damage)
-            async for bar in defender_bar_gen:
-                embed.set_field_at(
-                    0,
-                    name="Health Bars",
-                    value=(
-                        f"**{players[0][0].display_name}:** {self.generate_health_bar(players[0][1])} {players[0][1]}/100\n"
-                        f"**{players[1][0].display_name}:** {bar} {defender_hp}/100"
-                    ),
-                    inline=False,
-                )
-                await message.edit(embed=embed)
-
             defender_hp = max(0, defender_hp - damage)  # Ensure HP does not go below 0
             players[1 - turn_index] = (defender, defender_hp)
+
+            # Update the embed
+            embed.description = (
+                f"**{attacker.display_name}** used **{move}** and dealt **{damage}** damage to "
+                f"**{defender.display_name}**!"
+            )
+            embed.set_field_at(
+                0,
+                name="Health Bars",
+                value=(
+                    f"**{players[0][0].display_name}:** {self.generate_health_bar(players[0][1])} {players[0][1]}/100\n"
+                    f"**{players[1][0].display_name}:** {self.generate_health_bar(players[1][1])} {players[1][1]}/100"
+                ),
+                inline=False,
+            )
+            await message.edit(embed=embed)
 
             # Wait before next turn for dramatic effect
             await asyncio.sleep(2)
