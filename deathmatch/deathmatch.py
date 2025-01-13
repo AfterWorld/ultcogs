@@ -8,11 +8,30 @@ ACHIEVEMENTS = {
     "first_blood": {"description": "Win your first match!", "condition": "win", "count": 1},
     "block_master": {"description": "Block 5 attacks in a single match.", "condition": "blocks", "count": 5},
     "big_hitter": {"description": "Deal over 50 damage in one hit!", "condition": "big_hit", "count": 1},
+    "iron_wall": {"description": "Block 10 attacks in total.", "condition": "blocks_total", "count": 10},
+    "survivor": {"description": "Win a match with less than 10 HP remaining!", "condition": "close_call", "count": 1},
+    "devil_fruit_user": {"description": "Use 5 devil fruit-based moves in one match.", "condition": "devil_fruit_moves", "count": 5},
+    "perfect_game": {"description": "Win without taking any damage!", "condition": "no_damage", "count": 1},
+    "comeback_king": {"description": "Win a match after your HP drops below 20.", "condition": "comeback", "count": 1},
+    "combo_master": {"description": "Land 3 big hits in one match.", "condition": "big_hit_streak", "count": 3},
 }
+
+MOVES = [
+    {"name": "Rubber Rocket", "base_damage": random.randint(10, 30), "description": "Luffy's stretchy punch!"},
+    {"name": "Santoryu Onigiri", "base_damage": random.randint(20, 40), "description": "Zoro's powerful sword slash!"},
+    {"name": "Diable Jambe", "base_damage": random.randint(15, 35), "description": "Sanji's flaming kick!"},
+    {"name": "Clown Bombs", "base_damage": random.randint(10, 25), "description": "Buggy's comical explosive attack!"},
+    {"name": "Soul King's Song", "base_damage": random.randint(10, 30), "description": "Brook sings a chilling tune to attack!"},
+    {"name": "Pop Green Barrage", "base_damage": random.randint(10, 25), "description": "Usopp's explosive plant attack!"},
+    {"name": "Chopper's Heavy Point", "base_damage": random.randint(20, 40), "description": "Chopper transforms into a powerhouse!"},
+    {"name": "Franky's Coup de Vent", "base_damage": random.randint(15, 35), "description": "Franky unleashes his iconic air cannon!"},
+    {"name": "Robin's Clutch", "base_damage": random.randint(20, 35), "description": "Robin grabs her opponent with extra hands!"},
+    {"name": "Thunder Bagua", "base_damage": random.randint(25, 50), "description": "Kaido delivers a devastating blow!"},
+]
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with achievements!"""
+    """A One Piece-themed deathmatch game with achievements and funny abilities!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -37,7 +56,14 @@ class Deathmatch(commands.Cog):
 
             condition = achievement["condition"]
             required_count = achievement["count"]
-            if stats.get(condition, 0) >= required_count:
+
+            # Handle special cases
+            if condition == "close_call" and stats.get("win", 0) == 1 and stats.get("remaining_hp", 100) < 10:
+                unlocked.append(key)
+                user_achievements.append(key)
+                await self.notify_achievement(user, achievement["description"])
+
+            elif stats.get(condition, 0) >= required_count:
                 unlocked.append(key)
                 user_achievements.append(key)
                 await self.notify_achievement(user, achievement["description"])
@@ -90,34 +116,36 @@ class Deathmatch(commands.Cog):
             attacker, attacker_hp = players[turn_index]
             defender, defender_hp = players[1 - turn_index]
 
-            # Simulate attack with RNG
-            is_big_hit = random.random() < 0.1  # 10% chance for a big hit
+            # Randomly select a move
+            move = random.choice(MOVES)
+            damage = move["base_damage"]
+            description = move["description"]
+
+            # Random chance for special effects
             infused_with_haki = random.random() < 0.25  # 25% chance to infuse attack with haki
             blocked_by_haki = random.random() < 0.2  # 20% chance to block the attack
 
-            if is_big_hit:
-                damage = random.randint(40, 60)
-                move = "⚡ Big Haki Strike"
-                stats["big_hit"] += 1
-            else:
-                damage = random.randint(1, 20)
-                move = random.choice(["Haki Punch", "Sword Slash", "Devil Fruit Strike"])
-
             if infused_with_haki:
                 damage += 10
-                move += " infused with Haki"
+                description += " (Infused with Haki!)"
 
             if blocked_by_haki:
                 damage = 0
-                move = f"{defender.display_name} blocked with Haki!"
+                description = f"{defender.display_name} blocked the attack with Haki!"
                 stats["blocks"] += 1
 
             defender_hp = max(0, defender_hp - damage)  # Ensure HP does not go below 0
             players[1 - turn_index] = (defender, defender_hp)
 
+            # Update stats for achievements
+            if damage >= 50:
+                stats["big_hit"] += 1
+            if description.startswith("Devil Fruit"):
+                stats["devil_fruit_moves"] = stats.get("devil_fruit_moves", 0) + 1
+
             # Update the embed
             embed.description = (
-                f"**{attacker.display_name}** used **{move}** and dealt **{damage}** damage to "
+                f"**{attacker.display_name}** used **{move['name']}**: {description} and dealt **{damage}** damage to "
                 f"**{defender.display_name}**!"
             )
             embed.set_field_at(
@@ -131,7 +159,7 @@ class Deathmatch(commands.Cog):
             )
             await message.edit(embed=embed)
 
-            # Wait before next turn for dramatic effect
+            # Wait before the next turn
             await asyncio.sleep(2)
 
             # Check if the game is over
@@ -161,6 +189,29 @@ class Deathmatch(commands.Cog):
         # Check achievements for both players
         await self.check_achievements(challenger, stats)
         await self.check_achievements(opponent, stats)
+
+    @commands.command(name="achievements")
+    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
+        """View your or another member's unlocked achievements."""
+        member = member or ctx.author
+        achievements = await self.config.member(member).achievements()
+
+        if not achievements:
+            await ctx.send(f"**{member.display_name}** has not unlocked any achievements yet.")
+            return
+
+        embed = discord.Embed(
+            title=f"{member.display_name}'s Achievements",
+            description="Unlocked achievements:",
+            color=0x00FF00,
+        )
+
+        for key in achievements:
+            achievement = ACHIEVEMENTS.get(key)
+            if achievement:
+                embed.add_field(name=achievement["description"], value=f"🔓 {achievement['description']}", inline=False)
+
+        await ctx.send(embed=embed)
 
 
 def setup(bot: Red):
