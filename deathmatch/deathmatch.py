@@ -6,7 +6,7 @@ import asyncio
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with automated actions!"""
+    """A One Piece-themed deathmatch game with automated actions and a health bar!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -24,14 +24,23 @@ class Deathmatch(commands.Cog):
         challenger_hp = 100
         opponent_hp = 100
 
+        def generate_health_bar(current_hp: int, max_hp: int = 100, length: int = 20) -> str:
+            """Generate a health bar based on current HP."""
+            filled_length = int(length * current_hp // max_hp)
+            bar = "█" * filled_length + "░" * (length - filled_length)
+            return f"[{bar}]"
+
         embed = discord.Embed(
-            title="⚔️ One Piece Deathmatch!",
+            title="⚔️ One Piece Deathmatch",
             description=f"The battle between **{challenger.display_name}** and **{opponent.display_name}** begins!",
             color=0x00FF00,
         )
         embed.add_field(
-            name="HP",
-            value=f"**{challenger.display_name}:** {challenger_hp} HP\n**{opponent.display_name}:** {opponent_hp} HP",
+            name="Health Bars",
+            value=(
+                f"**{challenger.display_name}:** {generate_health_bar(challenger_hp)} {challenger_hp}/100\n"
+                f"**{opponent.display_name}:** {generate_health_bar(opponent_hp)} {opponent_hp}/100"
+            ),
             inline=False,
         )
         embed.set_footer(text="Actions will happen automatically!")
@@ -57,9 +66,11 @@ class Deathmatch(commands.Cog):
             )
             embed.set_field_at(
                 0,
-                name="HP",
-                value=f"**{players[0][0].display_name}:** {players[0][1]} HP\n"
-                      f"**{players[1][0].display_name}:** {players[1][1]} HP",
+                name="Health Bars",
+                value=(
+                    f"**{players[0][0].display_name}:** {generate_health_bar(players[0][1])} {players[0][1]}/100\n"
+                    f"**{players[1][0].display_name}:** {generate_health_bar(players[1][1])} {players[1][1]}/100"
+                ),
                 inline=False,
             )
             await message.edit(embed=embed)
@@ -76,9 +87,11 @@ class Deathmatch(commands.Cog):
             color=0xFFD700,
         )
         embed.add_field(
-            name="Final HP",
-            value=f"**{players[0][0].display_name}:** {players[0][1]} HP\n"
-                  f"**{players[1][0].display_name}:** {players[1][1]} HP",
+            name="Final Health Bars",
+            value=(
+                f"**{players[0][0].display_name}:** {generate_health_bar(players[0][1])} {players[0][1]}/100\n"
+                f"**{players[1][0].display_name}:** {generate_health_bar(players[1][1])} {players[1][1]}/100"
+            ),
             inline=False,
         )
         await ctx.send(embed=embed)
