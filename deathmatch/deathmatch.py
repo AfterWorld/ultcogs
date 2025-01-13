@@ -10,7 +10,6 @@ class Deathmatch(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
 
-    @commands.guild_only()
     @commands.hybrid_command(name="deathmatch")
     async def deathmatch(self, ctx: commands.Context, user: discord.Member):
         """Challenge another user to a One Piece deathmatch!"""
@@ -57,13 +56,18 @@ class Deathmatch(commands.Cog):
             battle_log.append(log_entry)
             turn = opponent if turn == challenger else challenger
 
+        # Join the battle log and truncate if necessary
+        log_text = "\n".join(battle_log)
+        if len(log_text) > 1024:
+            log_text = log_text[:1021] + "..."  # Truncate and add ellipsis
+
         winner = challenger if opponent_hp <= 0 else opponent
         embed = discord.Embed(
             title="⚔️ One Piece Deathmatch!",
             description=f"The battle between **{challenger.display_name}** and **{opponent.display_name}** has ended!",
             color=0x00FF00,
         )
-        embed.add_field(name="Battle Log", value="\n".join(battle_log), inline=False)
+        embed.add_field(name="Battle Log", value=log_text, inline=False)
         embed.add_field(name="Winner", value=f"🏆 **{winner.display_name}** is victorious!", inline=False)
         embed.set_footer(text="May the Haki be with you!")
 
