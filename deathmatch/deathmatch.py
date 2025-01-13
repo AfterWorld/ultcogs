@@ -6,7 +6,7 @@ import asyncio
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with visual health bars and RNG big hits!"""
+    """A One Piece-themed deathmatch game with haki mechanics and refined RNG!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -54,14 +54,25 @@ class Deathmatch(commands.Cog):
             defender, defender_hp = players[1 - turn_index]
 
             # Simulate attack with RNG
-            is_big_hit = random.random() < 0.2  # 20% chance for a big hit
+            is_big_hit = random.random() < 0.1  # 10% chance for a big hit
+            infused_with_haki = random.random() < 0.25  # 25% chance to infuse attack with haki
+            blocked_by_haki = random.random() < 0.2  # 20% chance to block the attack
+
             if is_big_hit:
-                damage = random.randint(50, 99)
-                move = "⚡ Critical Strike"
+                damage = random.randint(40, 60)
+                move = "⚡ Big Haki Strike"
             else:
-                damage = random.randint(1, 50)
+                damage = random.randint(1, 20)
                 move = random.choice(["Haki Punch", "Sword Slash", "Devil Fruit Strike"])
-            
+
+            if infused_with_haki:
+                damage += 10
+                move += " infused with Haki"
+
+            if blocked_by_haki:
+                damage = 0
+                move = f"{defender.display_name} blocked with Haki!"
+
             defender_hp = max(0, defender_hp - damage)  # Ensure HP does not go below 0
             players[1 - turn_index] = (defender, defender_hp)
 
@@ -83,6 +94,11 @@ class Deathmatch(commands.Cog):
 
             # Wait before next turn for dramatic effect
             await asyncio.sleep(2)
+
+            # Check if the game is over to avoid unnecessary messages
+            if players[0][1] == 0 or players[1][1] == 0:
+                break
+
             turn_index = 1 - turn_index  # Switch turns
 
         # Determine winner
