@@ -136,13 +136,13 @@ class Deathmatch(commands.Cog):
     
         # Load fonts
         try:
-            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust font size as needed
+            username_font = ImageFont.truetype(FONT_PATH, 25)  # Adjust font size as needed
         except OSError:
             raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
     
         # Avatar dimensions and positions
-        avatar_size = (200, 200)  # Adjust size to fully cover the white box
-        avatar_positions = [(50, 50), (500, 50)]  # Coordinates for avatar placement
+        avatar_size = (400, 400)  # Adjust size to fully cover the white box
+        avatar_positions = [(100, 100), (100, 100)]  # Coordinates for avatar placement
     
         # Username positions (under the avatars in grey boxes)
         username_positions = [(50, 260), (500, 260)]  # Coordinates for username placement
