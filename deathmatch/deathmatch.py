@@ -70,8 +70,8 @@ MOVES = [
 ]
 
 
-class deathbattle(commands.Cog):
-    """A One Piece-themed deathbattle game with unique effects and achievements."""
+class deathmatch(commands.Cog):
+    """A One Piece-themed deathmatch game with unique effects and achievements."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -306,7 +306,7 @@ class deathbattle(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """The main battle logic for the deathbattle."""
+        """The main battle logic for the deathmatch."""
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
@@ -314,7 +314,7 @@ class deathbattle(commands.Cog):
         opponent_status = {"burn": 0, "stun": False}
 
         embed = discord.Embed(
-            title="🏴‍☠️ One Piece deathbattle ⚔️",
+            title="🏴‍☠️ One Piece deathmatch ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
