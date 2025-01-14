@@ -118,36 +118,47 @@ class Deathmatch(commands.Cog):
     def generate_fight_card(self, user1, user2):
         """
         Generates a dynamic fight card image with avatars and usernames.
+        :param user1: (discord.Member) First user in the battle.
+        :param user2: (discord.Member) Second user in the battle.
+        :return: BytesIO object of the generated image.
         """
-        TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"  # Replace with the correct URL
+        TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
+        FONT_PATH = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/arial.ttf"  # Replace with the correct font path
     
-        # Fetch the image from the URL
+        # Download the template
         response = requests.get(TEMPLATE_URL)
         if response.status_code != 200:
-            raise FileNotFoundError(f"Could not retrieve template image. HTTP {response.status_code}")
+            raise FileNotFoundError(f"Could not fetch template from {TEMPLATE_URL}")
     
-        # Open the template
+        # Open the template as an image
         template = Image.open(BytesIO(response.content))
         draw = ImageDraw.Draw(template)
     
-        # Fonts
-        username_font = ImageFont.truetype("arial.ttf", 30)  # Replace with your font path
-        details_font = ImageFont.truetype("arial.ttf", 20)
+        # Load fonts
+        try:
+            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust size as needed
+            details_font = ImageFont.truetype(FONT_PATH, 20)
+        except OSError:
+            raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
     
         # Fetch and resize avatars
         avatars = []
         for user in (user1, user2):
-            avatar_response = requests.get(user.display_avatar.url)  # Fetch avatar
-            avatar = Image.open(BytesIO(avatar_response.content)).resize((100, 100))  # Adjust size
+            avatar_response = requests.get(user.display_avatar.url)
+            avatar = Image.open(BytesIO(avatar_response.content)).resize((100, 100))  # Adjust size as needed
             avatars.append(avatar)
     
         # Paste avatars onto the template
-        template.paste(avatars[0], (50, 50))  # Adjust coordinates for user1 avatar
-        template.paste(avatars[1], (500, 50))  # Adjust coordinates for user2 avatar
+        template.paste(avatars[0], (50, 50))  # Position for user1 avatar (adjust coordinates)
+        template.paste(avatars[1], (500, 50))  # Position for user2 avatar (adjust coordinates)
     
         # Add usernames
-        draw.text((50, 200), user1.display_name, font=username_font, fill="black")  # Adjust position for user1
-        draw.text((500, 200), user2.display_name, font=username_font, fill="black")  # Adjust position for user2
+        draw.text((50, 200), user1.display_name, font=username_font, fill="black")  # Adjust position
+        draw.text((500, 200), user2.display_name, font=username_font, fill="black")  # Adjust position
+    
+        # Add fight details (example: HP, effects)
+        draw.text((50, 300), "HP: 100/100", font=details_font, fill="red")
+        draw.text((500, 300), "HP: 100/100", font=details_font, fill="red")
     
         # Save to BytesIO for Discord
         output = BytesIO()
