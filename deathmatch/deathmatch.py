@@ -17,26 +17,22 @@ ACHIEVEMENTS = {
 }
 
 MOVES = [
-    {"name": "Rubber Rocket", "base_damage": random.randint(10, 30), "description": "Luffy's stretchy punch!"},
-    {"name": "Santoryu Onigiri", "base_damage": random.randint(20, 40), "description": "Zoro's powerful sword slash!"},
-    {"name": "Diable Jambe", "base_damage": random.randint(15, 35), "description": "Sanji's flaming kick!"},
-    {"name": "Clown Bombs", "base_damage": random.randint(10, 25), "description": "Buggy's comical explosive attack!"},
-    {"name": "Soul King's Song", "base_damage": random.randint(10, 30), "description": "Brook sings a chilling tune to attack!"},
-    {"name": "Pop Green Barrage", "base_damage": random.randint(10, 25), "description": "Usopp's explosive plant attack!"},
-    {"name": "Chopper's Heavy Point", "base_damage": random.randint(20, 40), "description": "Chopper transforms into a powerhouse!"},
-    {"name": "Franky's Coup de Vent", "base_damage": random.randint(15, 35), "description": "Franky unleashes his iconic air cannon!"},
-    {"name": "Robin's Clutch", "base_damage": random.randint(20, 35), "description": "Robin grabs her opponent with extra hands!"},
-    {"name": "Thunder Bagua", "base_damage": random.randint(25, 50), "description": "Kaido delivers a devastating blow!"},
+    {"name": "Rubber Rocket", "type": "regular", "description": "Luffy's stretchy punch!", "effect": None},
+    {"name": "Santoryu Onigiri", "type": "strong", "description": "Zoro's sword slash!", "effect": None},
+    {"name": "Diable Jambe", "type": "regular", "description": "Sanji's fiery kick!", "effect": "burn"},
+    {"name": "Clown Bombs", "type": "regular", "description": "Buggy's explosive prank!", "effect": None},
+    {"name": "Heavy Point", "type": "strong", "description": "Chopper smashes his enemy!", "effect": "heal"},
+    {"name": "Thunder Bagua", "type": "critical", "description": "Kaido delivers a devastating blow!", "effect": "stun"},
 ]
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with achievements and funny abilities!"""
+    """A One Piece-themed deathmatch game with humor, mechanics, and leaderboards!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
-        default_member = {"achievements": []}
+        default_member = {"wins": 0, "damage_dealt": 0, "blocks": 0}
         self.config.register_member(**default_member)
 
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
@@ -45,39 +41,23 @@ class Deathmatch(commands.Cog):
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
         return f"{bar}"
 
-    async def check_achievements(self, user, stats):
-        """Check and unlock achievements for the user."""
-        unlocked = []
-        user_achievements = await self.config.member(user).achievements()
+    def calculate_damage(self, move_type: str) -> int:
+        """Determine the damage range based on move type."""
+        if move_type == "regular":
+            return random.randint(1, 10)
+        elif move_type == "strong":
+            return random.randint(5, 15)
+        elif move_type == "critical":
+            return random.randint(20, 30)
 
-        for key, achievement in ACHIEVEMENTS.items():
-            if key in user_achievements:
-                continue  # Skip already unlocked achievements
-
-            condition = achievement["condition"]
-            required_count = achievement["count"]
-
-            # Handle special cases
-            if condition == "close_call" and stats.get("win", 0) == 1 and stats.get("remaining_hp", 100) < 10:
-                unlocked.append(key)
-                user_achievements.append(key)
-                await self.notify_achievement(user, achievement["description"])
-
-            elif stats.get(condition, 0) >= required_count:
-                unlocked.append(key)
-                user_achievements.append(key)
-                await self.notify_achievement(user, achievement["description"])
-
-        await self.config.member(user).achievements.set(user_achievements)
-
-    async def notify_achievement(self, user, description):
-        """Notify a user of an unlocked achievement."""
-        embed = discord.Embed(
-            title="🎉 Achievement Unlocked!",
-            description=description,
-            color=0xFFD700,
-        )
-        await user.send(embed=embed)
+    async def apply_effects(self, effect: str, attacker: dict, defender: dict):
+        """Apply special effects like burn, heal, or stun."""
+        if effect == "burn":
+            defender["status"]["burn"] = 3  # Burn lasts 3 turns
+        elif effect == "heal":
+            attacker["hp"] = min(100, attacker["hp"] + 10)
+        elif effect == "stun":
+            defender["status"]["stun"] = True
 
     @commands.guild_only()
     @commands.hybrid_command(name="deathmatch")
@@ -91,7 +71,9 @@ class Deathmatch(commands.Cog):
 
         challenger_hp = 100
         opponent_hp = 100
-        stats = {"win": 0, "blocks": 0, "big_hit": 0}
+
+        challenger_status = {"burn": 0, "stun": False}
+        opponent_status = {"burn": 0, "stun": False}
 
         embed = discord.Embed(
             title="⚔️ One Piece Deathmatch",
@@ -109,110 +91,101 @@ class Deathmatch(commands.Cog):
         embed.set_footer(text="Actions will happen automatically!")
         message = await ctx.send(embed=embed)
 
-        players = [(challenger, challenger_hp), (opponent, opponent_hp)]
+        players = [
+            {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
+            {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
+        ]
         turn_index = 0
 
-        while players[0][1] > 0 and players[1][1] > 0:
-            attacker, attacker_hp = players[turn_index]
-            defender, defender_hp = players[1 - turn_index]
+        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]
 
-            # Randomly select a move
+            if defender["status"]["stun"]:
+                defender["status"]["stun"] = False  # Stun only lasts 1 turn
+                embed.description = f"**{defender['name']}** is stunned and cannot move!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+                turn_index = 1 - turn_index
+                continue
+
+            # Apply burn damage
+            if defender["status"]["burn"] > 0:
+                burn_damage = 5
+                defender["hp"] = max(0, defender["hp"] - burn_damage)
+                defender["status"]["burn"] -= 1
+                embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+
+            # Select move
             move = random.choice(MOVES)
-            damage = move["base_damage"]
-            description = move["description"]
+            damage = self.calculate_damage(move["type"])
+            await self.apply_effects(move["effect"], attacker, defender)
 
-            # Random chance for special effects
-            infused_with_haki = random.random() < 0.25  # 25% chance to infuse attack with haki
-            blocked_by_haki = random.random() < 0.2  # 20% chance to block the attack
+            defender["hp"] = max(0, defender["hp"] - damage)
 
-            if infused_with_haki:
-                damage += 10
-                description += " (Infused with Haki!)"
-
-            if blocked_by_haki:
-                damage = 0
-                description = f"{defender.display_name} blocked the attack with Haki!"
-                stats["blocks"] += 1
-
-            defender_hp = max(0, defender_hp - damage)  # Ensure HP does not go below 0
-            players[1 - turn_index] = (defender, defender_hp)
-
-            # Update stats for achievements
-            if damage >= 50:
-                stats["big_hit"] += 1
-            if description.startswith("Devil Fruit"):
-                stats["devil_fruit_moves"] = stats.get("devil_fruit_moves", 0) + 1
-
-            # Update the embed
+            # Update embed
             embed.description = (
-                f"**{attacker.display_name}** used **{move['name']}**: {description} and dealt **{damage}** damage to "
-                f"**{defender.display_name}**!"
+                f"**{attacker['name']}** used **{move['name']}**: {move['description']} "
+                f"and dealt **{damage}** damage to **{defender['name']}**!"
             )
             embed.set_field_at(
                 0,
                 name="Health Bars",
                 value=(
-                    f"**{players[0][0].display_name}:** {self.generate_health_bar(players[0][1])} {players[0][1]}/100\n"
-                    f"**{players[1][0].display_name}:** {self.generate_health_bar(players[1][1])} {players[1][1]}/100"
+                    f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
+                    f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
                 ),
                 inline=False,
             )
             await message.edit(embed=embed)
 
-            # Wait before the next turn
+            # Wait for next turn
             await asyncio.sleep(2)
 
-            # Check if the game is over
-            if players[0][1] == 0 or players[1][1] == 0:
-                break
-
-            turn_index = 1 - turn_index  # Switch turns
+            turn_index = 1 - turn_index
 
         # Determine winner
-        winner = players[0][0] if players[0][1] > 0 else players[1][0]
-        stats["win"] += 1
+        winner = players[0] if players[0]["hp"] > 0 else players[1]
         embed = discord.Embed(
-            title="⚔️ One Piece Deathmatch: Game Over!",
-            description=f"The battle is over! **{winner.display_name}** is victorious!",
+            title="🏆 Victory!",
+            description=f"The battle is over! **{winner['name']}** is victorious!",
             color=0xFFD700,
         )
         embed.add_field(
             name="Final Health Bars",
             value=(
-                f"**{players[0][0].display_name}:** {self.generate_health_bar(players[0][1])} {players[0][1]}/100\n"
-                f"**{players[1][0].display_name}:** {self.generate_health_bar(players[1][1])} {players[1][1]}/100"
+                f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
+                f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
             ),
             inline=False,
         )
         await ctx.send(embed=embed)
 
-        # Check achievements for both players
-        await self.check_achievements(challenger, stats)
-        await self.check_achievements(opponent, stats)
+        # Update leaderboard stats
+        winner_data = winner["member"]
+        await self.config.member(winner_data).wins.set(await self.config.member(winner_data).wins() + 1)
 
-    @commands.command(name="achievements")
-    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-        """View your or another member's unlocked achievements."""
-        member = member or ctx.author
-        achievements = await self.config.member(member).achievements()
-
-        if not achievements:
-            await ctx.send(f"**{member.display_name}** has not unlocked any achievements yet.")
-            return
-
-        embed = discord.Embed(
-            title=f"{member.display_name}'s Achievements",
-            description="Unlocked achievements:",
-            color=0x00FF00,
+    @commands.command(name="leaderboard")
+    async def leaderboard(self, ctx: commands.Context):
+        """Show the top players based on wins."""
+        all_members = await self.config.all_members(ctx.guild)
+        sorted_members = sorted(
+            all_members.items(), key=lambda x: x[1]["wins"], reverse=True
         )
 
-        for key in achievements:
-            achievement = ACHIEVEMENTS.get(key)
-            if achievement:
-                embed.add_field(name=achievement["description"], value=f"🔓 {achievement['description']}", inline=False)
+        embed = discord.Embed(title="🏆 Leaderboard", color=0x00FF00)
+        for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
+            member = ctx.guild.get_member(member_id)
+            if member:
+                embed.add_field(
+                    name=f"{i}. {member.display_name}",
+                    value=f"Wins: {data['wins']}",
+                    inline=False,
+                )
 
         await ctx.send(embed=embed)
-
 
 def setup(bot: Red):
     bot.add_cog(Deathmatch(bot))
