@@ -27,7 +27,7 @@ MOVES = [
 
 
 class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with humor, mechanics, and leaderboards!"""
+    """A One Piece-themed deathmatch game with humor, mechanics, and deathboards!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -163,11 +163,11 @@ class Deathmatch(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-        # Update leaderboard stats
+        # Update deathboard stats
         winner_data = winner["member"]
         await self.config.member(winner_data).wins.set(await self.config.member(winner_data).wins() + 1)
 
-    @commands.command(name="leaderboard")
+    @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
         """Show the top players based on wins."""
         all_members = await self.config.all_members(ctx.guild)
@@ -175,7 +175,7 @@ class Deathmatch(commands.Cog):
             all_members.items(), key=lambda x: x[1]["wins"], reverse=True
         )
 
-        embed = discord.Embed(title="🏆 Leaderboard", color=0x00FF00)
+        embed = discord.Embed(title="🏆 Deathboard", color=0x00FF00)
         for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
             member = ctx.guild.get_member(member_id)
             if member:
