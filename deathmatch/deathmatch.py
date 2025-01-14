@@ -13,18 +13,42 @@ ACHIEVEMENTS = {
     "stunning_performance": {"description": "Stun your opponent 3 times in a single match!", "condition": "stuns", "count": 3},
     "overkill": {"description": "Deal over 50 damage in one hit!", "condition": "big_hit", "count": 50},
     "healing_touch": {"description": "Heal yourself for 50 HP in a single match!", "condition": "healing_done", "count": 50},
+    "unstoppable": {"description": "Win 10 matches!", "condition": "win", "count": 10},
+    "burn_victim": {"description": "Take 30 damage from burn in a single match!", "condition": "burn_damage_taken", "count": 30},
+    "lucky_strike": {"description": "Land 3 critical hits in a single match!", "condition": "crit_hits", "count": 3},
+    "combo_master": {"description": "Land 5 hits in a row without missing!", "condition": "combo_hits", "count": 5},
+    "clutch_block": {"description": "Block an attack that would have defeated you!", "condition": "clutch_block", "count": 1},
+    "sea_emperor": {"description": "Win 25 matches!", "condition": "win", "count": 25},
+    "devil_fruit_user": {"description": "Use 5 Devil Fruit moves in a single match!", "condition": "devil_fruit_moves", "count": 5},
+    "flaming_fury": {"description": "Inflict 3 stacks of burn on your opponent!", "condition": "max_burn", "count": 1},
+    "critical_king": {"description": "Land a critical hit in every turn of a match!", "condition": "all_crit_hits", "count": 1},
+    "ultimate_victory": {"description": "Win a match with your HP at 100!", "condition": "full_health_win", "count": 1},
 }
 
 MOVES = [
     {"name": "Rubber Rocket", "type": "regular", "description": "Luffy's stretchy punch!", "effect": None},
+    {"name": "Santoryu Onigiri", "type": "strong", "description": "Zoro's sword slash!", "effect": None},
     {"name": "Diable Jambe", "type": "regular", "description": "Sanji's fiery kick!", "effect": "burn", "burn_chance": 0.30},
-    {"name": "Hiken", "type": "strong", "description": "Ace's fiery punch!", "effect": "burn", "burn_chance": 0.40},
-    {"name": "Thunder Bagua", "type": "critical", "description": "Kaido delivers a devastating blow!", "effect": "crit"},
-    {"name": "Room Shambles", "type": "critical", "description": "Law's surgical strike!", "effect": "stun"},
+    {"name": "Clown Bombs", "type": "regular", "description": "Buggy's explosive prank!", "effect": None},
     {"name": "Heavy Point", "type": "strong", "description": "Chopper smashes his enemy!", "effect": "heal"},
+    {"name": "Thunder Bagua", "type": "critical", "description": "Kaido delivers a devastating blow!", "effect": "crit"},
+    {"name": "Soul Solid", "type": "regular", "description": "Brook plays a chilling tune!", "effect": "burn", "burn_chance": 0.20},
+    {"name": "Pop Green", "type": "regular", "description": "Usopp's plant barrage!", "effect": None},
+    {"name": "Hiken", "type": "strong", "description": "Ace's fiery punch!", "effect": "burn", "burn_chance": 0.40},
+    {"name": "Room Shambles", "type": "critical", "description": "Law's surgical strike!", "effect": "stun"},
+    {"name": "Dark Vortex", "type": "strong", "description": "Blackbeard's gravity attack!", "effect": None},
+    {"name": "Conqueror's Haki", "type": "critical", "description": "Overwhelms your opponent!", "effect": "stun"},
+    {"name": "Red Hawk", "type": "strong", "description": "Luffy's fiery attack!", "effect": "burn", "burn_chance": 0.25},
+    {"name": "Ice Age", "type": "regular", "description": "Aokiji freezes the battlefield!", "effect": "stun"},
+    {"name": "Magma Fist", "type": "strong", "description": "Akainu's devastating magma punch!", "effect": "burn", "burn_chance": 0.45},
+    {"name": "Coup de Vent", "type": "regular", "description": "Franky's air cannon!", "effect": "crit"},
+    {"name": "Clutch", "type": "regular", "description": "Robin's multi-hand grab!", "effect": "stun"},
+    {"name": "Elephant Gun", "type": "strong", "description": "Luffy's giant fist!", "effect": None},
+    {"name": "Enel's Judgement", "type": "critical", "description": "Thunder god's ultimate strike!", "effect": "burn", "burn_chance": 0.15},
+    {"name": "Pirate King's Will", "type": "regular", "description": "A legendary strike filled with willpower!", "effect": None},
 ]
 
-# --- Cog Class ---
+
 class Deathmatch(commands.Cog):
     """A One Piece-themed deathmatch game with unique effects and achievements."""
 
@@ -49,8 +73,10 @@ class Deathmatch(commands.Cog):
             damage = random.randint(5, 15)
         elif move_type == "critical":
             damage = random.randint(20, 30)
-        if random.random() < crit_chance:
+
+        if random.random() < crit_chance:  # Apply critical hit multiplier
             damage *= 2
+
         return damage
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
@@ -80,32 +106,8 @@ class Deathmatch(commands.Cog):
         await self.config.member(member).achievements.set(user_achievements)
         return unlocked
 
-    # --- Main Commands ---
-    @commands.hybrid_command(name="deathmatch")
-    async def deathmatch(self, ctx: commands.Context, opponent: discord.Member):
-        """Challenge another user to a One Piece deathmatch."""
-        await self.fight(ctx, ctx.author, opponent)
-
-    @commands.command(name="leaderboard")
-    async def leaderboard(self, ctx: commands.Context):
-        """Show the leaderboard."""
-        all_members = await self.config.all_members(ctx.guild)
-        sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
-
-        embed = discord.Embed(title="🏆 Leaderboard 🏆", color=0xFFD700)
-        for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
-            member = ctx.guild.get_member(member_id)
-            if member:
-                embed.add_field(
-                    name=f"{i}. {member.display_name}",
-                    value=f"Wins: {data['wins']}",
-                    inline=False,
-                )
-        await ctx.send(embed=embed)
-
-    @commands.command(name="achievements")
-    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-        """Show achievements for a user."""
+    async def display_achievements(self, ctx: commands.Context, member: discord.Member = None):
+        """Show achievements for a user in a stylish embed."""
         member = member or ctx.author
         achievements = await self.config.member(member).achievements()
         if not achievements:
@@ -125,10 +127,39 @@ class Deathmatch(commands.Cog):
                     inline=False,
                 )
         await ctx.send(embed=embed)
+        
+    # --- Main Commands ---
+    @commands.hybrid_command(name="deathmatch")
+    async def deathmatch(self, ctx: commands.Context, opponent: discord.Member):
+        """Challenge another user to a One Piece deathmatch."""
+        await self.fight(ctx, ctx.author, opponent)
+
+    @commands.command(name="deathboard")
+    async def deathboard(self, ctx: commands.Context):
+        """Show the deathboard."""
+        all_members = await self.config.all_members(ctx.guild)
+        sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
+
+        embed = discord.Embed(title="🏆 Deathboard 🏆", color=0xFFD700)
+        for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
+            member = ctx.guild.get_member(member_id)
+            if member:
+                embed.add_field(
+                    name=f"{i}. {member.display_name}",
+                    value=f"Wins: {data['wins']}",
+                    inline=False,
+                )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="achievements")
+    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
+        """Show achievements for a user."""
+        await self.display_achievements(ctx, member)
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
         """The main battle logic for the deathmatch."""
+        # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
         challenger_status = {"burn": 0, "stun": False}
@@ -150,12 +181,14 @@ class Deathmatch(commands.Cog):
         embed.set_footer(text="Actions are automatic!")
         message = await ctx.send(embed=embed)
 
+        # Player data structure
         players = [
             {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
             {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
         ]
         turn_index = 0
 
+        # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
             defender = players[1 - turn_index]
@@ -209,6 +242,14 @@ class Deathmatch(commands.Cog):
             description=f"The battle is over! **{winner['name']}** is victorious!",
             color=0xFFD700,
         )
+        embed.add_field(
+            name="Final Health Bars",
+            value=(
+                f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
+                f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
+            ),
+            inline=False,
+        )
         await ctx.send(embed=embed)
 
         # Update stats for the winner
@@ -216,5 +257,24 @@ class Deathmatch(commands.Cog):
             await self.config.member(winner["member"]).wins() + 1
         )
 
-def setup(bot: Red):
-    bot.add_cog(Deathmatch(bot))
+    async def update_stats(self, attacker, defender, damage, move, stats):
+        """Update the statistics for achievements and overall tracking."""
+        if damage >= 30:  # Big hit condition
+            stats["big_hit"] = stats.get("big_hit", 0) + 1
+        if move.get("effect") == "burn":
+            stats["burns_applied"] = stats.get("burns_applied", 0) + 1
+        if defender["hp"] <= 0 and stats.get("clutch_block", 0) == 0:  # Clutch block logic
+            stats["clutch_block"] = 1
+        stats["damage_dealt"] = stats.get("damage_dealt", 0) + damage
+
+    async def reset_player_stats(self, member):
+        """Reset a player's statistics for testing or fairness."""
+        await self.config.member(member).set({"wins": 0, "damage_dealt": 0, "blocks": 0, "achievements": []})
+
+    async def reset_all_stats(self, guild):
+        """Reset all statistics in the guild."""
+        all_members = await self.config.all_members(guild)
+        for member_id in all_members:
+            member = guild.get_member(member_id)
+            if member:
+                await self.reset_player_stats(member)
