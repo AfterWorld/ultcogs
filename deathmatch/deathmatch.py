@@ -7,8 +7,6 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 
-TEMPLATE_URL = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"
-
 # --- Constants ---
 ACHIEVEMENTS = {
     "first_blood": {"description": "Win your first match!", "condition": "win", "count": 1},
@@ -124,40 +122,34 @@ class Deathmatch(commands.Cog):
         :param user2: (discord.Member) Second user in the battle.
         :return: BytesIO object of the generated image.
         """
-        # Fetch the template image from the URL
-        response = requests.get(TEMPLATE_URL)
-        template = Image.open(BytesIO(response.content))
+        TEMPLATE_PATH = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"  # Replace with your image path
+        template = Image.open(TEMPLATE_PATH).convert("RGBA")
         draw = ImageDraw.Draw(template)
     
-        # Fonts (adjust paths and sizes as needed)
-        username_font = ImageFont.truetype("arial.ttf", 30)  # Update with your font file
+        # Fonts
+        username_font = ImageFont.truetype("arial.ttf", 30)  # Update to your font path
         details_font = ImageFont.truetype("arial.ttf", 20)
     
-        # Fetch and resize avatars
+        # Fetch avatars
         avatars = []
         for user in (user1, user2):
-            avatar_response = requests.get(user.display_avatar.url)
-            avatar = Image.open(BytesIO(avatar_response.content)).resize((100, 100))  # Adjust size as needed
+            response = requests.get(user.display_avatar.url)
+            avatar = Image.open(BytesIO(response.content)).resize((100, 100))  # Adjust size
             avatars.append(avatar)
     
-        # Paste avatars onto the template
+        # Paste avatars
         template.paste(avatars[0], (50, 50))  # Position for user1 avatar
         template.paste(avatars[1], (500, 50))  # Position for user2 avatar
     
         # Add usernames
-        draw.text((50, 200), user1.display_name, font=username_font, fill="black")  # Adjust position
-        draw.text((500, 200), user2.display_name, font=username_font, fill="black")  # Adjust position
+        draw.text((50, 200), user1.display_name, font=username_font, fill="black")
+        draw.text((500, 200), user2.display_name, font=username_font, fill="black")
     
-        # Add fight details (example: HP, effects)
-        draw.text((50, 300), "HP: 100/100", font=details_font, fill="red")
-        draw.text((500, 300), "HP: 100/100", font=details_font, fill="red")
-    
-        # Save to BytesIO for Discord
+        # Save to BytesIO
         output = BytesIO()
         template.save(output, format="PNG")
         output.seek(0)
         return output
-
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
         """Apply special effects like burn, heal, stun, or crit."""
@@ -214,7 +206,6 @@ class Deathmatch(commands.Cog):
         """
         Start a One Piece deathmatch against another user.
         """
-        # Prevent invalid matches
         if ctx.author == opponent:
             await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
             return
@@ -223,7 +214,7 @@ class Deathmatch(commands.Cog):
             return
     
         # Generate fight card
-        fight_card = generate_fight_card(ctx.author, opponent)
+        fight_card = self.generate_fight_card(ctx.author, opponent)
     
         # Create the embed
         embed = discord.Embed(
@@ -231,13 +222,14 @@ class Deathmatch(commands.Cog):
             description=f"**{ctx.author.display_name}** vs **{opponent.display_name}**\nLet the battle begin!",
             color=0xFF5733
         )
-        embed.set_image(url="attachment://fight_card.png")
+        embed.set_image(url="https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png")
     
         # Send the embed with the image
-        await ctx.send(embed=embed, file=discord.File(fp=fight_card, filename="fight_card.png"))
+        await ctx.send(embed=embed, file=discord.File(fp=fight_card, filename="deathbattle.png"))
     
         # Proceed with the fight logic...
         await self.fight(ctx, ctx.author, opponent)
+
 
     @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
