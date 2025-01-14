@@ -3,6 +3,11 @@ from redbot.core import commands, Config
 import discord
 import random
 import asyncio
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
+
+TEMPLATE_URL = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"
 
 # --- Constants ---
 ACHIEVEMENTS = {
@@ -112,6 +117,47 @@ class Deathmatch(commands.Cog):
     
         return base_damage
 
+    def generate_fight_card(user1, user2):
+        """
+        Generates a dynamic fight card image with avatars and usernames.
+        :param user1: (discord.Member) First user in the battle.
+        :param user2: (discord.Member) Second user in the battle.
+        :return: BytesIO object of the generated image.
+        """
+        # Fetch the template image from the URL
+        response = requests.get(TEMPLATE_URL)
+        template = Image.open(BytesIO(response.content))
+        draw = ImageDraw.Draw(template)
+    
+        # Fonts (adjust paths and sizes as needed)
+        username_font = ImageFont.truetype("arial.ttf", 30)  # Update with your font file
+        details_font = ImageFont.truetype("arial.ttf", 20)
+    
+        # Fetch and resize avatars
+        avatars = []
+        for user in (user1, user2):
+            avatar_response = requests.get(user.display_avatar.url)
+            avatar = Image.open(BytesIO(avatar_response.content)).resize((100, 100))  # Adjust size as needed
+            avatars.append(avatar)
+    
+        # Paste avatars onto the template
+        template.paste(avatars[0], (50, 50))  # Position for user1 avatar
+        template.paste(avatars[1], (500, 50))  # Position for user2 avatar
+    
+        # Add usernames
+        draw.text((50, 200), user1.display_name, font=username_font, fill="black")  # Adjust position
+        draw.text((500, 200), user2.display_name, font=username_font, fill="black")  # Adjust position
+    
+        # Add fight details (example: HP, effects)
+        draw.text((50, 300), "HP: 100/100", font=details_font, fill="red")
+        draw.text((500, 300), "HP: 100/100", font=details_font, fill="red")
+    
+        # Save to BytesIO for Discord
+        output = BytesIO()
+        template.save(output, format="PNG")
+        output.seek(0)
+        return output
+
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
         """Apply special effects like burn, heal, stun, or crit."""
@@ -166,32 +212,32 @@ class Deathmatch(commands.Cog):
     @commands.hybrid_command(name="deathbattle")
     async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
         """
-        Start a One Piece deathbattle against another user. One battle per channel.
+        Start a One Piece deathmatch against another user.
         """
-        # Prevent users from battling themselves
+        # Prevent invalid matches
         if ctx.author == opponent:
-            await ctx.send("❌ You cannot challenge yourself to a deathbattle!")
+            await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
             return
-    
-        # Prevent users from battling the bot
         if opponent == ctx.guild.me:
-            await ctx.send("❌ You cannot challenge the bot to a deathbattle!")
+            await ctx.send("❌ You cannot challenge the bot to a deathmatch!")
             return
     
-        # Check if a battle is already active in the channel
-        if ctx.channel.id in self.active_channels:
-            await ctx.send("⚔️ A deathbattle is already active in this channel! Please wait for it to finish.")
-            return
+        # Generate fight card
+        fight_card = generate_fight_card(ctx.author, opponent)
     
-        # Mark this channel as active
-        self.active_channels.add(ctx.channel.id)
+        # Create the embed
+        embed = discord.Embed(
+            title="🏴‍☠️ One Piece Deathmatch ⚔️",
+            description=f"**{ctx.author.display_name}** vs **{opponent.display_name}**\nLet the battle begin!",
+            color=0xFF5733
+        )
+        embed.set_image(url="attachment://fight_card.png")
     
-        try:
-            # Start the fight
-            await self.fight(ctx, ctx.author, opponent)
-        finally:
-            # Remove the channel from active battles after the match ends
-            self.active_channels.remove(ctx.channel.id)
+        # Send the embed with the image
+        await ctx.send(embed=embed, file=discord.File(fp=fight_card, filename="fight_card.png"))
+    
+        # Proceed with the fight logic...
+        await self.fight(ctx, ctx.author, opponent)
 
     @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
