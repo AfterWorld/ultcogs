@@ -123,7 +123,7 @@ class Deathmatch(commands.Cog):
         :return: BytesIO object of the generated image.
         """
         TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Deathmatch/fonts/arial.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Deathmatch/fonts/onepiece.ttf"
     
         # Download the template
         response = requests.get(TEMPLATE_URL)
