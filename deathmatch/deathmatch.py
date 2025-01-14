@@ -210,35 +210,35 @@ class Deathmatch(commands.Cog):
             except asyncio.TimeoutError:
                 await ctx.send("❌ Reset operation timed out. No stats were reset.")
                 
-        @commands.command(name="achievements")
-        async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-            """
-            Show all achievements for a user, including unlocked and locked ones.
-            """
-            member = member or ctx.author
-            unlocked_achievements = await self.config.member(member).achievements()
+    @commands.command(name="achievements")
+    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
+        """
+        Show all achievements for a user, including unlocked and locked ones.
+        """
+        member = member or ctx.author
+        unlocked_achievements = await self.config.member(member).achievements()
 
-            embed = discord.Embed(
-                title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
-                description="Here are the unlocked and locked achievements:",
-                color=0x00FF00,
-            )
+        embed = discord.Embed(
+            title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
+            description="Here are the unlocked and locked achievements:",
+            color=0x00FF00,
+        )
 
-            for key, data in ACHIEVEMENTS.items():
-                if key in unlocked_achievements:
-                    embed.add_field(
-                        name=f"🔓 {data['description']}",
-                        value="**Unlocked!** 🎉",
-                        inline=False,
-                    )
-                else:
-                    embed.add_field(
-                        name=f"🔒 {data['description']}",
-                        value="*Locked* (Use `.achievementinfo [name]` to learn how to unlock)",
-                        inline=False,
-                    )
+        for key, data in ACHIEVEMENTS.items():
+            if key in unlocked_achievements:
+                embed.add_field(
+                    name=f"🔓 {data['description']}",
+                    value="**Unlocked!** 🎉",
+                    inline=False,
+                )
+            else:
+                embed.add_field(
+                    name=f"🔒 {data['description']}",
+                    value="*Locked* (Use `.achievementinfo [name]` to learn how to unlock)",
+                    inline=False,
+                )
 
-            await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
                 
         @commands.command(name="achievementinfo")
         async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
