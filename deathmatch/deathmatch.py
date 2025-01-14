@@ -142,10 +142,10 @@ class Deathmatch(commands.Cog):
     
         # Avatar dimensions and positions
         avatar_size = (250, 250)  # Adjust size to fully cover the white box
-        avatar_positions = [(45, 100), (400, 100)]  # Coordinates for avatar placement
+        avatar_positions = [(35, 250), (350, 250)]  # Coordinates for avatar placement
     
         # Username positions (under the avatars in grey boxes)
-        username_positions = [(50, 300), (500, 300)]  # Coordinates for username placement
+        username_positions = [(50, 500), (500, 500)]  # Coordinates for username placement
     
         # Fetch, resize, and paste avatars
         for i, user in enumerate((user1, user2)):
