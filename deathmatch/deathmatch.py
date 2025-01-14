@@ -182,11 +182,6 @@ class Deathmatch(commands.Cog):
                     inline=False,
                 )
         await ctx.send(embed=embed)
-
-    @commands.command(name="achievements")
-    async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-        """Show achievements for a user."""
-        await self.display_achievements(ctx, member)
         
     @commands.admin_or_permissions(administrator=True)
     @commands.command(name="resetstats")
@@ -214,6 +209,60 @@ class Deathmatch(commands.Cog):
                 await ctx.send("✅ Stats for **all members in this guild** have been reset.")
             except asyncio.TimeoutError:
                 await ctx.send("❌ Reset operation timed out. No stats were reset.")
+                
+        @commands.command(name="achievements")
+        async def achievements(self, ctx: commands.Context, member: discord.Member = None):
+            """
+            Show all achievements for a user, including unlocked and locked ones.
+            """
+            member = member or ctx.author
+            unlocked_achievements = await self.config.member(member).achievements()
+
+            embed = discord.Embed(
+                title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
+                description="Here are the unlocked and locked achievements:",
+                color=0x00FF00,
+            )
+
+            for key, data in ACHIEVEMENTS.items():
+                if key in unlocked_achievements:
+                    embed.add_field(
+                        name=f"🔓 {data['description']}",
+                        value="**Unlocked!** 🎉",
+                        inline=False,
+                    )
+                else:
+                    embed.add_field(
+                        name=f"🔒 {data['description']}",
+                        value="*Locked* (Use `.achievementinfo [name]` to learn how to unlock)",
+                        inline=False,
+                    )
+
+            await ctx.send(embed=embed)
+                
+        @commands.command(name="achievementinfo")
+        async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
+            """
+            Get information about how to unlock a specific achievement.
+            """
+            # Find the achievement by name
+            achievement = next(
+                (data for key, data in ACHIEVEMENTS.items() if achievement_name.lower() in data["description"].lower()),
+                None,
+            )
+
+            if not achievement:
+                await ctx.send(f"❌ No achievement found matching `{achievement_name}`.")
+                return
+
+            # Display unlock details
+            embed = discord.Embed(
+                title=f"🎯 Achievement Info: {achievement['description']}",
+                description=f"**Unlock Requirement:** {achievement['condition']} (x{achievement['count']})",
+                color=0x00FF00,
+            )
+            embed.set_footer(text="Keep battling to achieve greatness!")
+            await ctx.send(embed=embed)
 
 
     # --- Core Battle Logic ---
