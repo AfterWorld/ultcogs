@@ -70,8 +70,8 @@ MOVES = [
 ]
 
 
-class deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with unique effects and achievements."""
+class Deathmatch(commands.Cog):
+    """A One Piece-themed deathbattle game with unique effects and achievements."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -163,24 +163,24 @@ class deathmatch(commands.Cog):
         await ctx.send(embed=embed)
         
     # --- Main Commands ---
-    @commands.hybrid_command(name="deathmatch")
-    async def deathmatch(self, ctx: commands.Context, opponent: discord.Member):
+    @commands.hybrid_command(name="deathbattle")
+    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
         """
-        Start a One Piece deathmatch against another user. One battle per channel.
+        Start a One Piece deathbattle against another user. One battle per channel.
         """
         # Prevent users from battling themselves
         if ctx.author == opponent:
-            await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
+            await ctx.send("❌ You cannot challenge yourself to a deathbattle!")
             return
     
         # Prevent users from battling the bot
         if opponent == ctx.guild.me:
-            await ctx.send("❌ You cannot challenge the bot to a deathmatch!")
+            await ctx.send("❌ You cannot challenge the bot to a deathbattle!")
             return
     
         # Check if a battle is already active in the channel
         if ctx.channel.id in self.active_channels:
-            await ctx.send("⚔️ A deathmatch is already active in this channel! Please wait for it to finish.")
+            await ctx.send("⚔️ A deathbattle is already active in this channel! Please wait for it to finish.")
             return
     
         # Mark this channel as active
@@ -306,7 +306,7 @@ class deathmatch(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """The main battle logic for the deathmatch."""
+        """The main battle logic for the deathbattle."""
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
@@ -314,7 +314,7 @@ class deathmatch(commands.Cog):
         opponent_status = {"burn": 0, "stun": False}
 
         embed = discord.Embed(
-            title="🏴‍☠️ One Piece deathmatch ⚔️",
+            title="🏴‍☠️ One Piece deathbattle ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
