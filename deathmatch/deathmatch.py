@@ -136,7 +136,7 @@ class Deathmatch(commands.Cog):
         embed = discord.Embed(title="🏆 deathboard 🏆", color=0xFFD700)
         for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
             member = ctx.guild.get_member(member_id)
-                        if member:
+                if member:
                 embed.add_field(
                     name=f"{i}. {member.display_name}",
                     value=f"Wins: {data['wins']}",
