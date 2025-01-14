@@ -122,7 +122,7 @@ class Deathmatch(commands.Cog):
         :param user2: (discord.Member) Second user in the battle.
         :return: BytesIO object of the generated image.
         """
-        TEMPLATE_PATH = "/path/to/Ult_template.png"  # Adjust to your template's actual path
+        TEMPLATE_PATH = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"  # Adjust to your template's actual path
     
         # Load the template
         template = Image.open(TEMPLATE_PATH)
