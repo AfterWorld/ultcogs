@@ -115,37 +115,43 @@ class Deathmatch(commands.Cog):
     
         return base_damage
 
-    def generate_fight_card(user1, user2):
+    def generate_fight_card(self, user1, user2):
         """
         Generates a dynamic fight card image with avatars and usernames.
         :param user1: (discord.Member) First user in the battle.
         :param user2: (discord.Member) Second user in the battle.
         :return: BytesIO object of the generated image.
         """
-        TEMPLATE_PATH = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"  # Replace with your image path
-        template = Image.open(TEMPLATE_PATH).convert("RGBA")
+        TEMPLATE_PATH = "/path/to/Ult_template.png"  # Adjust to your template's actual path
+    
+        # Load the template
+        template = Image.open(TEMPLATE_PATH)
         draw = ImageDraw.Draw(template)
     
-        # Fonts
-        username_font = ImageFont.truetype("arial.ttf", 30)  # Update to your font path
+        # Fonts (adjust paths and sizes as needed)
+        username_font = ImageFont.truetype("arial.ttf", 30)  # Update with your font file
         details_font = ImageFont.truetype("arial.ttf", 20)
     
-        # Fetch avatars
+        # Fetch and resize avatars
         avatars = []
         for user in (user1, user2):
-            response = requests.get(user.display_avatar.url)
-            avatar = Image.open(BytesIO(response.content)).resize((100, 100))  # Adjust size
+            response = requests.get(user.display_avatar.url)  # Fetch avatar
+            avatar = Image.open(BytesIO(response.content)).resize((100, 100))  # Adjust size as needed
             avatars.append(avatar)
     
-        # Paste avatars
-        template.paste(avatars[0], (50, 50))  # Position for user1 avatar
-        template.paste(avatars[1], (500, 50))  # Position for user2 avatar
+        # Paste avatars onto the template
+        template.paste(avatars[0], (50, 50))  # Position for user1 avatar (adjust coordinates)
+        template.paste(avatars[1], (500, 50))  # Position for user2 avatar (adjust coordinates)
     
         # Add usernames
-        draw.text((50, 200), user1.display_name, font=username_font, fill="black")
-        draw.text((500, 200), user2.display_name, font=username_font, fill="black")
+        draw.text((50, 200), user1.display_name, font=username_font, fill="black")  # Adjust position
+        draw.text((500, 200), user2.display_name, font=username_font, fill="black")  # Adjust position
     
-        # Save to BytesIO
+        # Add fight details (example: HP, effects)
+        draw.text((50, 300), "HP: 100/100", font=details_font, fill="red")
+        draw.text((500, 300), "HP: 100/100", font=details_font, fill="red")
+    
+        # Save to BytesIO for Discord
         output = BytesIO()
         template.save(output, format="PNG")
         output.seek(0)
