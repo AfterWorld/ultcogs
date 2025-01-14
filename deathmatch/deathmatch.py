@@ -212,15 +212,14 @@ class Deathmatch(commands.Cog):
                 
     @commands.command(name="achievements")
     async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-        """
-        Show all achievements for a user, including unlocked and locked ones.
-        """
+        """Show all achievements for a user, including progress toward locked achievements."""
         member = member or ctx.author
         unlocked_achievements = await self.config.member(member).achievements()
+        stats = await self.config.member(member).all()
 
         embed = discord.Embed(
             title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
-            description="Here are the unlocked and locked achievements:",
+            description="Here are all the unlocked and locked achievements:",
             color=0x00FF00,
         )
 
@@ -232,37 +231,41 @@ class Deathmatch(commands.Cog):
                     inline=False,
                 )
             else:
+                progress = stats.get(data["condition"], 0)
                 embed.add_field(
                     name=f"🔒 {data['description']}",
-                    value="*Locked* (Use `.achievementinfo [name]` to learn how to unlock)",
+                    value=(
+                        f"*Locked* (Progress: {progress}/{data['count']})\n"
+                        f"Use `.achievementinfo {key}` to learn more!"
+                    ),
                     inline=False,
                 )
 
         await ctx.send(embed=embed)
-                
-        @commands.command(name="achievementinfo")
-        async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
-            """
-            Get information about how to unlock a specific achievement.
-            """
-            # Find the achievement by name
-            achievement = next(
-                (data for key, data in ACHIEVEMENTS.items() if achievement_name.lower() in data["description"].lower()),
-                None,
-            )
 
-            if not achievement:
-                await ctx.send(f"❌ No achievement found matching `{achievement_name}`.")
-                return
+    @commands.command(name="achievementinfo")
+    async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
+        """Get detailed information about how to unlock a specific achievement."""
+        achievement = next(
+            (data for key, data in ACHIEVEMENTS.items() if achievement_name.lower() in data["description"].lower()),
+            None,
+        )
 
-            # Display unlock details
-            embed = discord.Embed(
-                title=f"🎯 Achievement Info: {achievement['description']}",
-                description=f"**Unlock Requirement:** {achievement['condition']} (x{achievement['count']})",
-                color=0x00FF00,
-            )
-            embed.set_footer(text="Keep battling to achieve greatness!")
-            await ctx.send(embed=embed)
+        if not achievement:
+            await ctx.send(f"❌ No achievement found matching `{achievement_name}`.")
+            return
+
+        embed = discord.Embed(
+            title=f"🎯 Achievement Info: {achievement['description']}",
+            description=(
+                f"**Unlock Requirement:**\n"
+                f"- **Condition:** {achievement['condition']}\n"
+                f"- **Count Needed:** {achievement['count']}\n\n"
+                f"Keep battling to achieve greatness!"
+            ),
+            color=0x00FF00,
+        )
+        await ctx.send(embed=embed)
 
 
     # --- Core Battle Logic ---
