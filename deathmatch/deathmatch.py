@@ -155,6 +155,34 @@ class Deathmatch(commands.Cog):
     async def achievements(self, ctx: commands.Context, member: discord.Member = None):
         """Show achievements for a user."""
         await self.display_achievements(ctx, member)
+        
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command(name="resetstats")
+    async def resetstats(self, ctx: commands.Context, member: discord.Member = None):
+        """
+        Reset the stats of a specific user, or everyone in the guild if no member is specified.
+        This command can only be used by admins.
+        """
+        if member:
+            # Reset stats for a specific user
+            await self.reset_player_stats(member)
+            await ctx.send(f"✅ Stats for **{member.display_name}** have been reset.")
+        else:
+            # Reset stats for all members in the guild
+            confirmation_msg = await ctx.send(
+                "⚠️ Are you sure you want to reset stats for **everyone in this guild**? Reply with `yes` to confirm."
+            )
+
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() == "yes"
+
+            try:
+                await self.bot.wait_for("message", check=check, timeout=30)
+                await self.reset_all_stats(ctx.guild)
+                await ctx.send("✅ Stats for **all members in this guild** have been reset.")
+            except asyncio.TimeoutError:
+                await ctx.send("❌ Reset operation timed out. No stats were reset.")
+
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
