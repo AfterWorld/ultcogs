@@ -120,7 +120,7 @@ class Deathmatch(commands.Cog):
         Generates a dynamic fight card image with avatars and usernames.
         """
         TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/CogManager/cogs/levelup/data/fonts/arial.ttf"
+        FONT_PATH = "home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Deathmatch/fonts/arial.ttf"
     
         # Download the template
         response = requests.get(TEMPLATE_URL)
