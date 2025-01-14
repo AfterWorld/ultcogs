@@ -352,13 +352,14 @@ class Deathmatch(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """The main battle logic for the deathbattle."""
+        """The main battle logic for the deathmatch."""
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
         challenger_status = {"burn": 0, "stun": False}
         opponent_status = {"burn": 0, "stun": False}
-
+    
+        # Create the initial embed
         embed = discord.Embed(
             title="🏴‍☠️ One Piece deathbattle ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
@@ -374,19 +375,19 @@ class Deathmatch(commands.Cog):
         )
         embed.set_footer(text="Actions are automatic!")
         message = await ctx.send(embed=embed)
-
+    
         # Player data structure
         players = [
             {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
             {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
         ]
         turn_index = 0
-
+    
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
             defender = players[1 - turn_index]
-
+    
             # Burn damage
             if defender["status"]["burn"] > 0:
                 burn_damage = 5 * defender["status"]["burn"]
@@ -395,7 +396,7 @@ class Deathmatch(commands.Cog):
                 embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
-
+    
             # Skip turn if stunned
             if defender["status"]["stun"]:
                 defender["status"]["stun"] = False  # Stun only lasts one turn
@@ -404,12 +405,12 @@ class Deathmatch(commands.Cog):
                 await asyncio.sleep(2)
                 turn_index = 1 - turn_index
                 continue
-
+    
             # Select move
             move = random.choice(MOVES)
             damage = self.calculate_damage(move["type"])
             await self.apply_effects(move, attacker, defender)
-
+    
             # Apply damage
             defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
@@ -428,15 +429,16 @@ class Deathmatch(commands.Cog):
             await message.edit(embed=embed)
             await asyncio.sleep(2)
             turn_index = 1 - turn_index
-
+    
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
-        embed = discord.Embed(
-            title="🏆 Victory!",
-            description=f"The battle is over! **{winner['name']}** is victorious!",
-            color=0xFFD700,
-        )
-        embed.add_field(
+    
+        # Update the embed for victory
+        embed.title = "🏆 Victory!"
+        embed.description = f"The battle is over! **{winner['name']}** is victorious!"
+        embed.color = 0xFFD700  # Change to gold for victory
+        embed.set_field_at(
+            0,
             name="Final Health Bars",
             value=(
                 f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
@@ -444,12 +446,13 @@ class Deathmatch(commands.Cog):
             ),
             inline=False,
         )
-        await ctx.send(embed=embed)
-
+        await message.edit(embed=embed)
+    
         # Update stats for the winner
         await self.config.member(winner["member"]).wins.set(
             await self.config.member(winner["member"]).wins() + 1
         )
+
 
     async def update_stats(self, attacker, defender, damage, move, stats):
         """Update the statistics for achievements and overall tracking."""
