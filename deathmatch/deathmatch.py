@@ -122,7 +122,7 @@ class Deathmatch(commands.Cog):
         :param user2: (discord.Member) Second user in the battle.
         :return: BytesIO object of the generated image.
         """
-        TEMPLATE_PATH = "https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png"  # Adjust to your template's actual path
+        TEMPLATE_PATH = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"  # Adjust to your template's actual path
     
         # Load the template
         template = Image.open(TEMPLATE_PATH)
@@ -228,7 +228,7 @@ class Deathmatch(commands.Cog):
             description=f"**{ctx.author.display_name}** vs **{opponent.display_name}**\nLet the battle begin!",
             color=0xFF5733
         )
-        embed.set_image(url="https://github.com/AfterWorld/ultcogs/blob/main/deathmatch/deathbattle.png")
+        embed.set_image(url="https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png")
     
         # Send the embed with the image
         await ctx.send(embed=embed, file=discord.File(fp=fight_card, filename="deathbattle.png"))
