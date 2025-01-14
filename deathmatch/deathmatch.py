@@ -46,6 +46,26 @@ MOVES = [
     {"name": "Elephant Gun", "type": "strong", "description": "Luffy's giant fist!", "effect": None},
     {"name": "Enel's Judgement", "type": "critical", "description": "Thunder god's ultimate strike!", "effect": "burn", "burn_chance": 0.15},
     {"name": "Pirate King's Will", "type": "regular", "description": "A legendary strike filled with willpower!", "effect": None},
+    {"name": "Gomu Gomu no Bazooka", "type": "strong", "description": "Luffy's iconic double-handed smash!", "effect": None},
+    {"name": "Hiryu Kaen", "type": "critical", "description": "Zoro's flaming dragon slash!", "effect": "burn", "burn_chance": 0.40},
+    {"name": "Hell Memories", "type": "critical", "description": "Sanji unleashes a fiery kick fueled by rage!", "effect": "burn", "burn_chance": 0.50},
+    {"name": "Takt", "type": "regular", "description": "Law telekinetically slams debris onto the opponent!", "effect": None},
+    {"name": "Shigan", "type": "regular", "description": "Lucci's powerful finger pistol technique!", "effect": "crit"},
+    {"name": "Yasakani no Magatama", "type": "strong", "description": "Kizaru rains down a flurry of light-based attacks!", "effect": "crit"},
+    {"name": "Venom Demon: Hell's Judgement", "type": "critical", "description": "Magellan unleashes a devastating poisonous assault!", "effect": "burn", "burn_chance": 0.45},
+    {"name": "King Kong Gun", "type": "critical", "description": "Luffy's massive Gear Fourth punch!", "effect": None},
+    {"name": "Black Hole", "type": "strong", "description": "Blackbeard absorbs everything into darkness!", "effect": None},
+    {"name": "Raging Tiger", "type": "regular", "description": "Jinbei punches with the force of a tidal wave!", "effect": None},
+    {"name": "Rokushiki: Rokuogan", "type": "critical", "description": "Lucci unleashes a devastating shockwave with pure power!", "effect": None},
+    {"name": "Raigo", "type": "critical", "description": "Enel calls down a massive thunder strike!", "effect": "burn", "burn_chance": 0.35},
+    {"name": "Ashura: Ichibugin", "type": "critical", "description": "Zoro's nine-sword style cuts through everything in its path!", "effect": None},
+    {"name": "Divine Departure", "type": "critical", "description": "Gol D. Roger's legendary strike devastates the battlefield!", "effect": "stun"},
+    {"name": "Red Roc", "type": "critical", "description": "Luffy launches a fiery Haki-infused punch!", "effect": "burn", "burn_chance": 0.40},
+    {"name": "Puncture Wille", "type": "critical", "description": "Law pierces his enemy with a massive Haki-enhanced attack!", "effect": "stun"},
+    {"name": "Shin Tenjin", "type": "critical", "description": "Franky's ultimate laser cannon obliterates everything in its path!", "effect": None},
+    {"name": "Meteors of Destruction", "type": "critical", "description": "Fujitora summons a rain of meteors to crush his enemies!", "effect": "burn", "burn_chance": 0.30},
+    {"name": "Dragon Twister: Gale of Destruction", "type": "critical", "description": "Kaido spins in a tornado of destruction!", "effect": None},
+    {"name": "Yoru Strike: Eternal Night", "type": "critical", "description": "Mihawk's ultimate slash creates darkness and devastation!", "effect": "stun"},
 ]
 
 
@@ -65,19 +85,31 @@ class Deathmatch(commands.Cog):
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
         return f"{bar}"
 
-    def calculate_damage(self, move_type: str, crit_chance: float = 0.1) -> int:
-        """Determine the damage range based on move type, with a chance to crit."""
+    def calculate_damage(self, move_type: str, crit_chance: float = 0.2, turn_number: int = 1, stats=None) -> int:
+        """Calculate balanced damage for each move type."""
+        base_damage = 0
+    
         if move_type == "regular":
-            damage = random.randint(1, 10)
+            base_damage = random.randint(5, 10)
         elif move_type == "strong":
-            damage = random.randint(5, 15)
+            base_damage = random.randint(10, 20)
         elif move_type == "critical":
-            damage = random.randint(20, 30)
+            base_damage = random.randint(15, 25)
+    
+            # Apply critical hit chance
+            if random.random() < crit_chance:
+                base_damage *= 2
+    
+            # Scale critical damage by turn number
+            base_damage += turn_number * 2
+    
+            # Scale by player's wins (optional)
+            if stats:
+                wins = stats.get("wins", 0)
+                base_damage += min(wins // 5, 10)  # Max bonus capped at 10
+    
+        return base_damage
 
-        if random.random() < crit_chance:  # Apply critical hit multiplier
-            damage *= 2
-
-        return damage
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
         """Apply special effects like burn, heal, stun, or crit."""
