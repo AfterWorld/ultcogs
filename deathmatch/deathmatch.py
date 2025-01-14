@@ -118,12 +118,9 @@ class Deathmatch(commands.Cog):
     def generate_fight_card(self, user1, user2):
         """
         Generates a dynamic fight card image with avatars and usernames.
-        :param user1: (discord.Member) First user in the battle.
-        :param user2: (discord.Member) Second user in the battle.
-        :return: BytesIO object of the generated image.
         """
         TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
-        FONT_PATH = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/arial.ttf"  # Replace with the correct font path
+        FONT_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/arial.ttf"
     
         # Download the template
         response = requests.get(TEMPLATE_URL)
@@ -134,13 +131,19 @@ class Deathmatch(commands.Cog):
         template = Image.open(BytesIO(response.content))
         draw = ImageDraw.Draw(template)
     
-        # Load fonts
-        try:
-            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust size as needed
-            details_font = ImageFont.truetype(FONT_PATH, 20)
-        except OSError:
-            raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
+        # Download the font dynamically
+        font_response = requests.get(FONT_URL)
+        if font_response.status_code != 200:
+            raise FileNotFoundError(f"Could not fetch font from {FONT_URL}")
+        font_bytes = BytesIO(font_response.content)
     
+        # Load the font
+        try:
+            username_font = ImageFont.truetype(font_bytes, 30)
+            details_font = ImageFont.truetype(font_bytes, 20)
+        except OSError:
+            raise RuntimeError("Failed to load the font dynamically")
+        
         # Fetch and resize avatars
         avatars = []
         for user in (user1, user2):
