@@ -70,8 +70,8 @@ MOVES = [
 ]
 
 
-class Deathmatch(commands.Cog):
-    """A One Piece-themed deathmatch game with unique effects and achievements."""
+class deathbattle(commands.Cog):
+    """A One Piece-themed deathbattle game with unique effects and achievements."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -162,10 +162,23 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
         
     # --- Main Commands ---
-    @commands.hybrid_command(name="deathmatch")
-    async def deathmatch(self, ctx: commands.Context, opponent: discord.Member):
-        """Challenge another user to a One Piece deathmatch."""
-        await self.fight(ctx, ctx.author, opponent)
+    @commands.hybrid_command(name="deathbattle")
+    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
+        """
+        Start a One Piece deathbattle against another user.
+        """
+        # Prevent users from battling themselves
+        if ctx.author == opponent:
+            await ctx.send("❌ You cannot challenge yourself to a deathbattle!")
+            return
+    
+        # Prevent users from battling the bot
+        if opponent == ctx.guild.me:  # ctx.guild.me refers to the bot's member object
+            await ctx.send("❌ You cannot challenge the bot to a deathbattle!")
+            return
+
+    # Proceed with the fight if all conditions are valid
+    await self.fight(ctx, ctx.author, opponent)
 
     @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
@@ -280,7 +293,7 @@ class Deathmatch(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """The main battle logic for the deathmatch."""
+        """The main battle logic for the deathbattle."""
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
@@ -288,7 +301,7 @@ class Deathmatch(commands.Cog):
         opponent_status = {"burn": 0, "stun": False}
 
         embed = discord.Embed(
-            title="🏴‍☠️ One Piece Deathmatch ⚔️",
+            title="🏴‍☠️ One Piece deathbattle ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
