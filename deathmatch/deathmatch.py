@@ -168,7 +168,7 @@ class Deathmatch(commands.Cog):
         await self.config.member(winner_data).wins.set(await self.config.member(winner_data).wins() + 1)
 
     @commands.command(name="leaderboard")
-    async def leaderboard(self, ctx: commands.Context):
+    async def deathboard(self, ctx: commands.Context):
         """Show the top players based on wins."""
         all_members = await self.config.all_members(ctx.guild)
         sorted_members = sorted(
