@@ -78,6 +78,7 @@ class deathbattle(commands.Cog):
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
         default_member = {"wins": 0, "damage_dealt": 0, "blocks": 0, "achievements": []}
         self.config.register_member(**default_member)
+        self.active_channels = set()  # Track active battles by channel ID
 
     # --- Helper Functions ---
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
@@ -162,23 +163,35 @@ class deathbattle(commands.Cog):
         await ctx.send(embed=embed)
         
     # --- Main Commands ---
-    @commands.hybrid_command(name="deathbattle")
-    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
+    @commands.hybrid_command(name="deathmatch")
+    async def deathmatch(self, ctx: commands.Context, opponent: discord.Member):
         """
-        Start a One Piece deathbattle against another user.
+        Start a One Piece deathmatch against another user. One battle per channel.
         """
         # Prevent users from battling themselves
         if ctx.author == opponent:
-            await ctx.send("❌ You cannot challenge yourself to a deathbattle!")
+            await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
             return
     
         # Prevent users from battling the bot
-        if opponent == ctx.guild.me:  # ctx.guild.me refers to the bot's member object
-            await ctx.send("❌ You cannot challenge the bot to a deathbattle!")
+        if opponent == ctx.guild.me:
+            await ctx.send("❌ You cannot challenge the bot to a deathmatch!")
             return
-
-    # Proceed with the fight if all conditions are valid
-    await self.fight(ctx, ctx.author, opponent)
+    
+        # Check if a battle is already active in the channel
+        if ctx.channel.id in self.active_channels:
+            await ctx.send("⚔️ A deathmatch is already active in this channel! Please wait for it to finish.")
+            return
+    
+        # Mark this channel as active
+        self.active_channels.add(ctx.channel.id)
+    
+        try:
+            # Start the fight
+            await self.fight(ctx, ctx.author, opponent)
+        finally:
+            # Remove the channel from active battles after the match ends
+            self.active_channels.remove(ctx.channel.id)
 
     @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
