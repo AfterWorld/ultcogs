@@ -120,7 +120,7 @@ class Deathmatch(commands.Cog):
         Generates a dynamic fight card image with avatars and usernames.
         """
         TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
-        FONT_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/arial.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/CogManager/cogs/levelup/data/fonts/arial.ttf"
     
         # Download the template
         response = requests.get(TEMPLATE_URL)
@@ -131,19 +131,13 @@ class Deathmatch(commands.Cog):
         template = Image.open(BytesIO(response.content))
         draw = ImageDraw.Draw(template)
     
-        # Download the font dynamically
-        font_response = requests.get(FONT_URL)
-        if font_response.status_code != 200:
-            raise FileNotFoundError(f"Could not fetch font from {FONT_URL}")
-        font_bytes = BytesIO(font_response.content)
-    
         # Load the font
         try:
-            username_font = ImageFont.truetype(font_bytes, 30)
-            details_font = ImageFont.truetype(font_bytes, 20)
+            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust size as needed
+            details_font = ImageFont.truetype(FONT_PATH, 20)
         except OSError:
-            raise RuntimeError("Failed to load the font dynamically")
-        
+            raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
+    
         # Fetch and resize avatars
         avatars = []
         for user in (user1, user2):
