@@ -1,3 +1,4 @@
+from redbot.core.utils.menus import menu, commands, DEFAULT_CONTROLS
 from redbot.core import commands, Config
 import discord
 import random
@@ -212,36 +213,45 @@ class Deathmatch(commands.Cog):
                 
     @commands.command(name="achievements")
     async def achievements(self, ctx: commands.Context, member: discord.Member = None):
-        """Show all achievements for a user, including progress toward locked achievements."""
+        """
+        Show all achievements for a user in a paginated format.
+        """
         member = member or ctx.author
         unlocked_achievements = await self.config.member(member).achievements()
         stats = await self.config.member(member).all()
-
-        embed = discord.Embed(
-            title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
-            description="Here are all the unlocked and locked achievements:",
-            color=0x00FF00,
-        )
-
+    
+        # Build the list of achievements
+        pages = []
         for key, data in ACHIEVEMENTS.items():
             if key in unlocked_achievements:
-                embed.add_field(
-                    name=f"🔓 {data['description']}",
-                    value="**Unlocked!** 🎉",
-                    inline=False,
-                )
+                status = f"🔓 **Unlocked!** 🎉"
             else:
                 progress = stats.get(data["condition"], 0)
-                embed.add_field(
-                    name=f"🔒 {data['description']}",
-                    value=(
-                        f"*Locked* (Progress: {progress}/{data['count']})\n"
-                        f"Use `.achievementinfo {key}` to learn more!"
-                    ),
-                    inline=False,
-                )
-
-        await ctx.send(embed=embed)
+                status = f"🔒 *Locked* (Progress: {progress}/{data['count']})"
+    
+            achievement_text = (
+                f"🎯 **{data['description']}**\n"
+                f"- **Status:** {status}\n"
+                f"- Use `.achievementinfo {key}` to learn more!\n"
+            )
+            pages.append(achievement_text)
+    
+        # Chunk achievements into groups of 5 per page
+        chunk_size = 5
+        paginated_pages = [pages[i:i + chunk_size] for i in range(0, len(pages), chunk_size)]
+    
+        embeds = []
+        for page_number, chunk in enumerate(paginated_pages, start=1):
+            embed = discord.Embed(
+                title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
+                description="\n".join(chunk),
+                color=0x00FF00,
+            )
+            embed.set_footer(text=f"Page {page_number}/{len(paginated_pages)}")
+            embeds.append(embed)
+    
+        # Use Redbot's pagination utility
+        await menu(ctx, embeds, DEFAULT_CONTROLS)
 
     @commands.command(name="achievementinfo")
     async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
