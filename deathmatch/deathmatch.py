@@ -122,47 +122,49 @@ class Deathmatch(commands.Cog):
         :param user2: (discord.Member) Second user in the battle.
         :return: BytesIO object of the generated image.
         """
-        TEMPLATE_PATH = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"  # Replace with your local file path
+        TEMPLATE_URL = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/deathmatch/deathbattle.png"
         FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Deathmatch/fonts/arial.ttf"
     
-        # Open the template
-        template = Image.open(TEMPLATE_PATH)
+        # Download the template
+        response = requests.get(TEMPLATE_URL)
+        if response.status_code != 200:
+            raise FileNotFoundError(f"Could not fetch template from {TEMPLATE_URL}")
+    
+        # Open the template as an image
+        template = Image.open(BytesIO(response.content))
         draw = ImageDraw.Draw(template)
     
         # Load fonts
         try:
-            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust size
+            username_font = ImageFont.truetype(FONT_PATH, 30)  # Adjust font size as needed
         except OSError:
             raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
     
-        # White box coordinates for avatars (adjust based on template dimensions)
-        avatar_positions = [(50, 50, 250, 250), (500, 50, 700, 250)]  # (x1, y1, x2, y2)
+        # Avatar dimensions and positions
+        avatar_size = (200, 200)  # Adjust size to fully cover the white box
+        avatar_positions = [(50, 50), (500, 50)]  # Coordinates for avatar placement
     
-        # Grey box coordinates for usernames
-        username_positions = [(50, 260), (500, 260)]  # (x, y)
+        # Username positions (under the avatars in grey boxes)
+        username_positions = [(50, 260), (500, 260)]  # Coordinates for username placement
     
-        # Fetch and place avatars
-        for index, user in enumerate([user1, user2]):
+        # Fetch, resize, and paste avatars
+        for i, user in enumerate((user1, user2)):
             # Fetch avatar
-            response = requests.get(user.display_avatar.url)
-            avatar = Image.open(BytesIO(response.content)).convert("RGBA")
+            avatar_response = requests.get(user.display_avatar.url)
+            avatar = Image.open(BytesIO(avatar_response.content)).convert("RGBA")
+            avatar = avatar.resize(avatar_size)  # Resize to match white box size
     
-            # Resize and center avatar in white box
-            avatar_box = avatar_positions[index]
-            avatar_size = (avatar_box[2] - avatar_box[0], avatar_box[3] - avatar_box[1])  # Width, Height
-            avatar = avatar.resize(avatar_size)
-            template.paste(avatar, (avatar_box[0], avatar_box[1]), avatar)  # Paste with transparency
+            # Paste avatar onto the template
+            template.paste(avatar, avatar_positions[i], avatar)  # Supports transparency
     
-            # Add username below avatar
-            username_position = username_positions[index]
-            draw.text(username_position, user.display_name, font=username_font, fill="black")
+            # Draw username in the grey box below the avatar
+            draw.text(username_positions[i], user.display_name, font=username_font, fill="black")
     
         # Save to BytesIO for Discord
         output = BytesIO()
         template.save(output, format="PNG")
         output.seek(0)
         return output
-
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
         """Apply special effects like burn, heal, stun, or crit."""
