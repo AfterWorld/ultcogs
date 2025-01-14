@@ -141,11 +141,11 @@ class Deathmatch(commands.Cog):
             raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
     
         # Avatar dimensions and positions
-        avatar_size = (250, 250)  # Adjust size to fully cover the white box
-        avatar_positions = [(15, 130), (360, 130)]  # Coordinates for avatar placement
+        avatar_size = (250, 255)  # Adjust size to fully cover the white box
+        avatar_positions = [(15, 130), (358, 130)]  # Coordinates for avatar placement
     
         # Username positions (under the avatars in grey boxes)
-        username_positions = [(50, 390), (500, 400)]  # Coordinates for username placement
+        username_positions = [(50, 420), (350, 400)]  # Coordinates for username placement
     
         # Fetch, resize, and paste avatars
         for i, user in enumerate((user1, user2)):
