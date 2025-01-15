@@ -531,6 +531,12 @@ class Deathmatch(commands.Cog):
         await self.config.member(loser["member"]).losses.set(
             await self.config.member(loser["member"]).losses() + 1
         )
+        await self.config.member(winner["member"]).damage_dealt.set(
+            await self.config.member(winner["member"]).damage_dealt() + damage
+        )
+        await self.config.member(loser["member"]).blocks.set(
+            await self.config.member(loser["member"]).blocks() + 1
+        )
 
     async def apply_burn_damage(self, player):
         """Apply burn damage to a player if they have burn stacks."""
