@@ -313,15 +313,24 @@ class Deathmatch(commands.Cog):
         if opponent == ctx.guild.me:
             await ctx.send("❌ You cannot challenge the bot to a deathmatch!")
             return
-    
+        if ctx.channel.id in self.active_channels:
+            await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
+            return
+
+        # Mark the channel as active
+        self.active_channels.add(ctx.channel.id)
+
         # Generate fight card
         fight_card = self.generate_fight_card(ctx.author, opponent)
-    
+
         # Send the dynamically generated fight card image
         await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
-    
+
         # Proceed with fight logic if applicable...
         await self.fight(ctx, ctx.author, opponent)
+
+        # Mark the channel as inactive
+        self.active_channels.remove(ctx.channel.id)
 
 
     @commands.command(name="deathboard")
@@ -742,6 +751,13 @@ class Deathmatch(commands.Cog):
 
     async def run_tournament(self, channel: discord.TextChannel, name: str):
         """Run the tournament matches."""
+        if channel.id in self.active_channels:
+            await channel.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
+            return
+
+        # Mark the channel as active
+        self.active_channels.add(channel.id)
+
         tournament = self.tournaments[name]
         participants = tournament["participants"]
         team_size = tournament["team_size"]
@@ -786,6 +802,9 @@ class Deathmatch(commands.Cog):
         winner = channel.guild.get_member(participants[0])
         await channel.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
         del self.tournaments[name]
+
+        # Mark the channel as inactive
+        self.active_channels.remove(channel.id)
 
     def create_bracket(self, participants, team_size):
         """Create the initial tournament bracket."""
