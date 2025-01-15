@@ -120,7 +120,7 @@ class Deathmatch(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
-        default_member = {"wins": 0, "damage_dealt": 0, "blocks": 0, "achievements": []}
+        default_member = {"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": []}
         self.config.register_member(**default_member)
         self.active_channels = set()  # Track active battles by channel ID
 
@@ -402,11 +402,17 @@ class Deathmatch(commands.Cog):
         sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
         rank = next((i for i, (m_id, _) in enumerate(sorted_members, start=1) if m_id == member.id), None)
 
+        wins = stats["wins"]
+        losses = stats["losses"]
+        kdr = (wins / losses) if losses > 0 else wins
+
         embed = discord.Embed(
             title=f"🏴‍☠️ {member.display_name}'s Stats 🏴‍☠️",
             color=0x00FF00,
         )
-        embed.add_field(name="Wins", value=stats["wins"], inline=True)
+        embed.add_field(name="Wins", value=wins, inline=True)
+        embed.add_field(name="Losses", value=losses, inline=True)
+        embed.add_field(name="KDR", value=f"{kdr:.2f}", inline=True)
         embed.add_field(name="Damage Dealt", value=stats["damage_dealt"], inline=True)
         embed.add_field(name="Blocks", value=stats["blocks"], inline=True)
         embed.add_field(name="Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
@@ -501,6 +507,7 @@ class Deathmatch(commands.Cog):
     
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
+        loser = players[1] if players[0]["hp"] > 0 else players[0]
     
         # Update the embed for victory
         embed.title = "🏆 Victory!"
@@ -517,9 +524,12 @@ class Deathmatch(commands.Cog):
         )
         await message.edit(embed=embed)
     
-        # Update stats for the winner
+        # Update stats for the winner and loser
         await self.config.member(winner["member"]).wins.set(
             await self.config.member(winner["member"]).wins() + 1
+        )
+        await self.config.member(loser["member"]).losses.set(
+            await self.config.member(loser["member"]).losses() + 1
         )
 
     async def apply_burn_damage(self, player):
@@ -544,7 +554,7 @@ class Deathmatch(commands.Cog):
 
     async def reset_player_stats(self, member):
         """Reset a player's statistics for testing or fairness."""
-        await self.config.member(member).set({"wins": 0, "damage_dealt": 0, "blocks": 0, "achievements": []})
+        await self.config.member(member).set({"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": []})
 
     async def reset_all_stats(self, guild):
         """Reset all statistics in the guild."""
