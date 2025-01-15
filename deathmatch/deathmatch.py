@@ -446,6 +446,10 @@ class Deathmatch(commands.Cog):
         ]
         turn_index = 0
     
+        # Initialize stats
+        attacker_stats = await self.config.member(challenger).all()
+        defender_stats = await self.config.member(opponent).all()
+    
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
