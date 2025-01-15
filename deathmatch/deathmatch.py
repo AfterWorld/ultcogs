@@ -145,7 +145,7 @@ class Deathmatch(commands.Cog):
         avatar_positions = [(15, 130), (358, 130)]  # Coordinates for avatar placement
     
         # Username positions (under the avatars in grey boxes)
-        username_positions = [(50, 410), (430, 410)]  # Coordinates for username placement
+        username_positions = [(100, 410), (430, 410)]  # Coordinates for username placement
     
         # Fetch, resize, and paste avatars
         for i, user in enumerate((user1, user2)):
