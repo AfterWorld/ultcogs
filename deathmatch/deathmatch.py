@@ -115,6 +115,48 @@ MOVES = [
 
 SEAS = ["West Blue", "East Blue", "North Blue", "Grand Line", "South Blue"]
 
+class JoinButton(discord.ui.Button):
+    def __init__(self, tournament_name, cog):
+        super().__init__(label="Join Tournament", style=discord.ButtonStyle.primary)
+        self.tournament_name = tournament_name
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        tournament = self.cog.tournaments[self.tournament_name]
+        if interaction.user.id in tournament["participants"]:
+            await interaction.response.send_message("❌ You are already in the tournament.", ephemeral=True)
+            return
+
+        tournament["participants"].append(interaction.user.id)
+        await interaction.response.send_message(f"✅ You have joined the tournament `{self.tournament_name}`!", ephemeral=True)
+        await self.cog.update_tournament_message(interaction.message, self.tournament_name)
+
+class StartButton(discord.ui.Button):
+    def __init__(self, tournament_name, cog):
+        super().__init__(label="Start Tournament", style=discord.ButtonStyle.success)
+        self.tournament_name = tournament_name
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        tournament = self.cog.tournaments[self.tournament_name]
+        if tournament["creator"] != interaction.user.id:
+            await interaction.response.send_message("❌ Only the creator of the tournament can start it.", ephemeral=True)
+            return
+
+        if len(tournament["participants"]) < 2:
+            await interaction.response.send_message("❌ Tournament needs at least 2 participants to start.", ephemeral=True)
+            return
+
+        tournament["started"] = True
+        await interaction.response.send_message(f"✅ Tournament `{self.tournament_name}` has started!", ephemeral=True)
+        await self.cog.run_tournament(interaction.message.channel, self.tournament_name)
+
+class TournamentView(discord.ui.View):
+    def __init__(self, tournament_name, cog):
+        super().__init__(timeout=None)
+        self.add_item(JoinButton(tournament_name, cog))
+        self.add_item(StartButton(tournament_name, cog))
+
 class Deathmatch(commands.Cog):
     """A One Piece-themed deathbattle game with unique effects and achievements."""
 
@@ -596,50 +638,31 @@ class Deathmatch(commands.Cog):
             "participants": [],
             "started": False,
         }
-        await ctx.send(f"✅ Tournament `{name}` has been created!")
+        await self.send_tournament_message(ctx, name)
 
-    @tournament.command(name="join")
-    async def tournament_join(self, ctx: commands.Context, name: str):
-        """Join an existing tournament."""
-        if name not in self.tournaments:
-            await ctx.send(f"❌ No tournament found with the name `{name}`.")
-            return
+    async def send_tournament_message(self, ctx: commands.Context, name: str):
+        """Send a message with buttons to join and start the tournament."""
+        embed = discord.Embed(
+            title=f"Tournament: {name}",
+            description=f"Creator: {ctx.author.display_name}\nParticipants: 0/0",
+            color=0x00FF00,
+        )
+        view = TournamentView(name, self)
+        await ctx.send(embed=embed, view=view)
 
+    async def update_tournament_message(self, message: discord.Message, name: str):
+        """Update the tournament message with the current number of participants."""
         tournament = self.tournaments[name]
-        if tournament["started"]:
-            await ctx.send(f"❌ Tournament `{name}` has already started.")
-            return
+        creator = message.guild.get_member(tournament["creator"])
+        participants = [message.guild.get_member(pid) for pid in tournament["participants"]]
 
-        if ctx.author.id in tournament["participants"]:
-            await ctx.send(f"❌ You are already in the tournament `{name}`.")
-            return
-
-        tournament["participants"].append(ctx.author.id)
-        await ctx.send(f"✅ You have joined the tournament `{name}`!")
-
-    @tournament.command(name="start")
-    async def tournament_start(self, ctx: commands.Context, name: str):
-        """Start a tournament."""
-        if name not in self.tournaments:
-            await ctx.send(f"❌ No tournament found with the name `{name}`.")
-            return
-
-        tournament = self.tournaments[name]
-        if tournament["creator"] != ctx.author.id:
-            await ctx.send(f"❌ Only the creator of the tournament can start it.")
-            return
-
-        if tournament["started"]:
-            await ctx.send(f"❌ Tournament `{name}` has already started.")
-            return
-
-        if len(tournament["participants"]) < 2:
-            await ctx.send(f"❌ Tournament `{name}` needs at least 2 participants to start.")
-            return
-
-        tournament["started"] = True
-        await ctx.send(f"✅ Tournament `{name}` has started!")
-        await self.run_tournament(ctx, name)
+        embed = discord.Embed(
+            title=f"Tournament: {name}",
+            description=f"Creator: {creator.display_name if creator else 'Unknown'}\nParticipants: {len(participants)}/{len(participants)}",
+            color=0x00FF00,
+        )
+        embed.add_field(name="Participants", value="\n".join([p.display_name for p in participants if p]), inline=False)
+        await message.edit(embed=embed)
 
     @tournament.command(name="view")
     async def tournament_view(self, ctx: commands.Context, name: str):
@@ -654,21 +677,21 @@ class Deathmatch(commands.Cog):
 
         embed = discord.Embed(
             title=f"Tournament: {name}",
-            description=f"Creator: {creator.display_name if creator else 'Unknown'}",
+            description=f"Creator: {creator.display_name if creator else 'Unknown'}\nParticipants: {len(participants)}/{len(participants)}",
             color=0x00FF00,
         )
-        embed.add_field(name="Status", value="Started" if tournament["started"] else "Not Started", inline=False)
         embed.add_field(name="Participants", value="\n".join([p.display_name for p in participants if p]), inline=False)
-        await ctx.send(embed=embed)
+        view = TournamentView(name, self)
+        await ctx.send(embed=embed, view=view)
 
-    async def run_tournament(self, ctx: commands.Context, name: str):
+    async def run_tournament(self, channel: discord.TextChannel, name: str):
         """Run the tournament matches."""
         tournament = self.tournaments[name]
         participants = tournament["participants"]
 
         sea_groups = {sea: [] for sea in SEAS}
         for pid in participants:
-            member = ctx.guild.get_member(pid)
+            member = channel.guild.get_member(pid)
             sea = self.get_sea(member)
             if sea:
                 sea_groups[sea].append(member)
@@ -678,26 +701,26 @@ class Deathmatch(commands.Cog):
             for i in range(0, len(participants), 2):
                 if i + 1 >= len(participants):
                     break
-                player1 = ctx.guild.get_member(participants[i])
-                player2 = ctx.guild.get_member(participants[i + 1])
+                player1 = channel.guild.get_member(participants[i])
+                player2 = channel.guild.get_member(participants[i + 1])
                 sea1 = self.get_sea(player1)
                 sea2 = self.get_sea(player2)
 
                 if sea1 == sea2:
-                    await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
-                    winner = await self.run_match(ctx, player1, None)
+                    await channel.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
+                    winner = await self.run_match(channel, player1, None)
                 else:
-                    await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
-                    winner = await self.run_match(ctx, player1, player2)
+                    await channel.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
+                    winner = await self.run_match(channel, player1, player2)
 
-                await ctx.send(f"🏆 Winner: **{winner.display_name}**")
+                await channel.send(f"🏆 Winner: **{winner.display_name}**")
                 participants.remove(player1.id if winner == player2 else player2.id)
 
-        winner = ctx.guild.get_member(participants[0])
-        await ctx.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
+        winner = channel.guild.get_member(participants[0])
+        await channel.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
         del self.tournaments[name]
 
-    async def run_match(self, ctx: commands.Context, player1: discord.Member, player2: discord.Member):
+    async def run_match(self, channel: discord.TextChannel, player1: discord.Member, player2: discord.Member):
         """Run a single match between two players or a player and an AI opponent."""
         # Initialize player data
         player1_hp = 100
@@ -720,7 +743,7 @@ class Deathmatch(commands.Cog):
             inline=False,
         )
         embed.set_footer(text="Actions are automatic!")
-        message = await ctx.send(embed=embed)
+        message = await channel.send(embed=embed)
 
         # Player data structure
         players = [
