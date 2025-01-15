@@ -47,6 +47,7 @@ ACHIEVEMENTS = {
     "legendary_warrior": {"description": "Win 50 matches to cement your legacy!", "condition": "win", "count": 50},
     "iron_wall": {"description": "Block 20 attacks across all matches!", "condition": "total_blocks", "count": 20},
     "burning_legacy": {"description": "Inflict 100 burns across all matches!", "condition": "total_burns_applied", "count": 100},
+    "damage_master": {"description": "Deal a total of 1000 damage across all matches!", "condition": "total_damage_dealt", "count": 1000},
 }
 
 MOVES = [
@@ -390,7 +391,7 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
 
 
-    @commands.command(name="deathstat")
+    @commands.command(name="deathstats")
     async def deathstat(self, ctx: commands.Context, member: discord.Member = None):
         """
         Display the stats and rank of a user.
@@ -450,11 +451,9 @@ class Deathmatch(commands.Cog):
             attacker = players[turn_index]
             defender = players[1 - turn_index]
     
-            # Burn damage
-            if defender["status"]["burn"] > 0:
-                burn_damage = 5 * defender["status"]["burn"]
-                defender["hp"] = max(0, defender["hp"] - burn_damage)
-                defender["status"]["burn"] -= 1
+            # Apply burn damage
+            burn_damage = await self.apply_burn_damage(defender)
+            if burn_damage > 0:
                 embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
@@ -492,6 +491,10 @@ class Deathmatch(commands.Cog):
             await asyncio.sleep(2)
             turn_index = 1 - turn_index
     
+            # Update stats for the attacker
+            await self.update_stats(attacker, defender, damage, move, attacker_stats)
+            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
+    
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
     
@@ -515,6 +518,14 @@ class Deathmatch(commands.Cog):
             await self.config.member(winner["member"]).wins() + 1
         )
 
+    async def apply_burn_damage(self, player):
+        """Apply burn damage to a player if they have burn stacks."""
+        if player["status"]["burn"] > 0:
+            burn_damage = 5 * player["status"]["burn"]
+            player["hp"] = max(0, player["hp"] - burn_damage)
+            player["status"]["burn"] -= 1
+            return burn_damage
+        return 0
 
     async def update_stats(self, attacker, defender, damage, move, stats):
         """Update the statistics for achievements and overall tracking."""
@@ -525,6 +536,7 @@ class Deathmatch(commands.Cog):
         if defender["hp"] <= 0 and stats.get("clutch_block", 0) == 0:  # Clutch block logic
             stats["clutch_block"] = 1
         stats["damage_dealt"] = stats.get("damage_dealt", 0) + damage
+        stats["total_damage_dealt"] = stats.get("total_damage_dealt", 0) + damage
 
     async def reset_player_stats(self, member):
         """Reset a player's statistics for testing or fairness."""
