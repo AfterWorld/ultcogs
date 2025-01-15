@@ -627,7 +627,7 @@ class Deathmatch(commands.Cog):
         return None
 
     @tournament.command(name="create")
-    async def tournament_create(self, ctx: commands.Context, name: str):
+    async def tournament_create(self, ctx: commands.Context, name: str, team_size: int = 1, double_elimination: bool = False):
         """Create a new tournament."""
         if name in self.tournaments:
             await ctx.send(f"❌ A tournament with the name `{name}` already exists.")
@@ -637,6 +637,15 @@ class Deathmatch(commands.Cog):
             "creator": ctx.author.id,
             "participants": [],
             "started": False,
+            "team_size": team_size,
+            "double_elimination": double_elimination,
+            "bracket": [],
+            "losers_bracket": [],
+            "statistics": {
+                "total_matches": 0,
+                "average_match_duration": 0,
+                "most_used_moves": {},
+            },
         }
         await self.send_tournament_message(ctx, name)
 
@@ -684,10 +693,59 @@ class Deathmatch(commands.Cog):
         view = TournamentView(name, self)
         await ctx.send(embed=embed, view=view)
 
+    @tournament.command(name="bracket")
+    async def tournament_bracket(self, ctx: commands.Context, name: str):
+        """View the tournament bracket."""
+        if name not in self.tournaments:
+            await ctx.send(f"❌ No tournament found with the name `{name}`.")
+            return
+
+        tournament = self.tournaments[name]
+        bracket = tournament["bracket"]
+        losers_bracket = tournament["losers_bracket"]
+
+        embed = discord.Embed(
+            title=f"Tournament Bracket: {name}",
+            color=0x00FF00,
+        )
+        for round_num, matches in enumerate(bracket, start=1):
+            match_list = "\n".join([f"{match[0]} vs {match[1]}" for match in matches])
+            embed.add_field(name=f"Round {round_num}", value=match_list, inline=False)
+
+        if tournament["double_elimination"]:
+            for round_num, matches in enumerate(losers_bracket, start=1):
+                match_list = "\n".join([f"{match[0]} vs {match[1]}" for match in matches])
+                embed.add_field(name=f"Losers Round {round_num}", value=match_list, inline=False)
+
+        await ctx.send(embed=embed)
+
+    @tournament.command(name="stats")
+    async def tournament_stats(self, ctx: commands.Context, name: str):
+        """View the tournament statistics."""
+        if name not in self.tournaments:
+            await ctx.send(f"❌ No tournament found with the name `{name}`.")
+            return
+
+        tournament = self.tournaments[name]
+        stats = tournament["statistics"]
+
+        embed = discord.Embed(
+            title=f"Tournament Statistics: {name}",
+            color=0x00FF00,
+        )
+        embed.add_field(name="Total Matches", value=stats["total_matches"], inline=True)
+        embed.add_field(name="Average Match Duration", value=f"{stats['average_match_duration']:.2f} seconds", inline=True)
+        most_used_moves = "\n".join([f"{move}: {count}" for move, count in stats["most_used_moves"].items()])
+        embed.add_field(name="Most Used Moves", value=most_used_moves if most_used_moves else "None", inline=False)
+
+        await ctx.send(embed=embed)
+
     async def run_tournament(self, channel: discord.TextChannel, name: str):
         """Run the tournament matches."""
         tournament = self.tournaments[name]
         participants = tournament["participants"]
+        team_size = tournament["team_size"]
+        double_elimination = tournament["double_elimination"]
 
         sea_groups = {sea: [] for sea in SEAS}
         for pid in participants:
@@ -696,29 +754,48 @@ class Deathmatch(commands.Cog):
             if sea:
                 sea_groups[sea].append(member)
 
+        # Create initial bracket
+        bracket = self.create_bracket(participants, team_size)
+        tournament["bracket"] = bracket
+
+        if double_elimination:
+            losers_bracket = []
+            tournament["losers_bracket"] = losers_bracket
+
         while len(participants) > 1:
-            random.shuffle(participants)
-            for i in range(0, len(participants), 2):
-                if i + 1 >= len(participants):
-                    break
-                player1 = channel.guild.get_member(participants[i])
-                player2 = channel.guild.get_member(participants[i + 1])
-                sea1 = self.get_sea(player1)
-                sea2 = self.get_sea(player2)
+            for round_num, matches in enumerate(bracket):
+                for match in matches:
+                    player1 = channel.guild.get_member(match[0])
+                    player2 = channel.guild.get_member(match[1])
+                    sea1 = self.get_sea(player1)
+                    sea2 = self.get_sea(player2)
 
-                if sea1 == sea2:
-                    await channel.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
-                    winner = await self.run_match(channel, player1, None)
-                else:
-                    await channel.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
-                    winner = await self.run_match(channel, player1, player2)
+                    if sea1 == sea2:
+                        await channel.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
+                        winner = await self.run_ai_match(channel, player1)
+                    else:
+                        await channel.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
+                        winner = await self.run_match(channel, player1, player2)
 
-                await channel.send(f"🏆 Winner: **{winner.display_name}**")
-                participants.remove(player1.id if winner == player2 else player2.id)
+                    await channel.send(f"🏆 Winner: **{winner.display_name}**")
+                    participants.remove(player1.id if winner == player2 else player2.id)
+
+                    if double_elimination:
+                        losers_bracket.append((player1.id if winner == player2 else player2.id,))
 
         winner = channel.guild.get_member(participants[0])
         await channel.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
         del self.tournaments[name]
+
+    def create_bracket(self, participants, team_size):
+        """Create the initial tournament bracket."""
+        random.shuffle(participants)
+        bracket = []
+        for i in range(0, len(participants), team_size * 2):
+            match = participants[i:i + team_size * 2]
+            if len(match) == team_size * 2:
+                bracket.append((match[:team_size], match[team_size:]))
+        return bracket
 
     async def run_match(self, channel: discord.TextChannel, player1: discord.Member, player2: discord.Member):
         """Run a single match between two players or a player and an AI opponent."""
@@ -790,6 +867,87 @@ class Deathmatch(commands.Cog):
                 value=(
                     f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
                     f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
+                ),
+                inline=False,
+            )
+            await message.edit(embed=embed)
+            await asyncio.sleep(2)
+            turn_index = 1 - turn_index
+
+        # Determine winner
+        winner = players[0] if players[0]["hp"] > 0 else players[1]
+        return winner["member"]
+
+    async def run_ai_match(self, channel: discord.TextChannel, player: discord.Member):
+        """Run a single match between a player and an AI opponent."""
+        # Initialize player data
+        player_hp = 100
+        ai_hp = 50  # AI opponent has less HP
+        player_status = {"burn": 0, "stun": False}
+        ai_status = {"burn": 0, "stun": False}
+
+        # Create the initial embed
+        embed = discord.Embed(
+            title="🏴‍☠️ One Piece deathbattle ⚔️",
+            description=f"Battle begins between **{player.display_name}** and **AI Opponent**!",
+            color=0x00FF00,
+        )
+        embed.add_field(
+            name="Health Bars",
+            value=(
+                f"**{player.display_name}:** {self.generate_health_bar(player_hp)} {player_hp}/100\n"
+                f"**AI Opponent:** {self.generate_health_bar(ai_hp)} {ai_hp}/50"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Actions are automatic!")
+        message = await channel.send(embed=embed)
+
+        # Player data structure
+        players = [
+            {"name": player.display_name, "hp": player_hp, "status": player_status, "member": player},
+            {"name": "AI Opponent", "hp": ai_hp, "status": ai_status, "member": None},
+        ]
+        turn_index = 0
+
+        # Battle loop
+        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]
+
+            # Apply burn damage
+            burn_damage = await self.apply_burn_damage(defender)
+            if burn_damage > 0:
+                embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+
+            # Skip turn if stunned
+            if defender["status"].get("stun"):
+                defender["status"]["stun"] = False  # Stun only lasts one turn
+                embed.description = f"⚡ **{defender['name']}** is stunned and cannot act!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+                turn_index = 1 - turn_index
+                continue
+
+            # Select move
+            move = random.choice(MOVES)
+            damage = self.calculate_damage(move["type"])
+            await self.apply_effects(move, attacker, defender)
+
+            # Apply damage
+            defender["hp"] = max(0, defender["hp"] - damage)
+            embed.description = (
+                f"**{attacker['name']}** used **{move['name']}**: {move['description']} "
+                f"and dealt **{damage}** damage to **{defender['name']}**!"
+            )
+            embed.set_field_at(
+                0,
+                name="Health Bars",
+                value=(
+                    f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
+                    f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/50"
                 ),
                 inline=False,
             )
