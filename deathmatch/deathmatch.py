@@ -113,6 +113,7 @@ MOVES = [
     {"name": "Vitality Blossom", "type": "strong", "description": "A rare flower emits healing energy to restore health!", "effect": "heal"},
 ]
 
+SEAS = ["West Blue", "East Blue", "North Blue", "Grand Line", "South Blue"]
 
 class Deathmatch(commands.Cog):
     """A One Piece-themed deathbattle game with unique effects and achievements."""
@@ -120,7 +121,7 @@ class Deathmatch(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
-        default_member = {"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": []}
+        default_member = {"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": [], "sea": None}
         self.config.register_member(**default_member)
         self.active_channels = set()  # Track active battles by channel ID
         self.tournaments = {}  # Track active tournaments
@@ -576,6 +577,13 @@ class Deathmatch(commands.Cog):
         """Manage tournaments."""
         await ctx.send_help(ctx.command)
 
+    def get_sea(self, member: discord.Member) -> str:
+        """Get the sea of a member based on their roles."""
+        for role in member.roles:
+            if role.name in SEAS:
+                return role.name
+        return None
+
     @tournament.command(name="create")
     async def tournament_create(self, ctx: commands.Context, name: str):
         """Create a new tournament."""
@@ -658,6 +666,13 @@ class Deathmatch(commands.Cog):
         tournament = self.tournaments[name]
         participants = tournament["participants"]
 
+        sea_groups = {sea: [] for sea in SEAS}
+        for pid in participants:
+            member = ctx.guild.get_member(pid)
+            sea = self.get_sea(member)
+            if sea:
+                sea_groups[sea].append(member)
+
         while len(participants) > 1:
             random.shuffle(participants)
             for i in range(0, len(participants), 2):
@@ -665,8 +680,16 @@ class Deathmatch(commands.Cog):
                     break
                 player1 = ctx.guild.get_member(participants[i])
                 player2 = ctx.guild.get_member(participants[i + 1])
-                await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
-                winner = await self.run_match(ctx, player1, player2)
+                sea1 = self.get_sea(player1)
+                sea2 = self.get_sea(player2)
+
+                if sea1 == sea2:
+                    await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
+                    winner = await self.run_match(ctx, player1, None)
+                else:
+                    await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
+                    winner = await self.run_match(ctx, player1, player2)
+
                 await ctx.send(f"🏆 Winner: **{winner.display_name}**")
                 participants.remove(player1.id if winner == player2 else player2.id)
 
@@ -675,63 +698,63 @@ class Deathmatch(commands.Cog):
         del self.tournaments[name]
 
     async def run_match(self, ctx: commands.Context, player1: discord.Member, player2: discord.Member):
-        """Run a single match between two players."""
+        """Run a single match between two players or a player and an AI opponent."""
         # Initialize player data
         player1_hp = 100
-        player2_hp = 100
+        player2_hp = 100 if player2 else 50  # AI opponent has less HP
         player1_status = {"burn": 0, "stun": False}
-        player2_status = {"burn": 0, "stun": False}
-    
+        player2_status = {"burn": 0, "stun": False} if player2 else {}
+
         # Create the initial embed
         embed = discord.Embed(
             title="🏴‍☠️ One Piece deathbattle ⚔️",
-            description=f"Battle begins between **{player1.display_name}** and **{player2.display_name}**!",
+            description=f"Battle begins between **{player1.display_name}** and **{player2.display_name if player2 else 'AI Opponent'}**!",
             color=0x00FF00,
         )
         embed.add_field(
             name="Health Bars",
             value=(
                 f"**{player1.display_name}:** {self.generate_health_bar(player1_hp)} {player1_hp}/100\n"
-                f"**{player2.display_name}:** {self.generate_health_bar(player2_hp)} {player2_hp}/100"
+                f"**{player2.display_name if player2 else 'AI Opponent'}:** {self.generate_health_bar(player2_hp)} {player2_hp}/100"
             ),
             inline=False,
         )
         embed.set_footer(text="Actions are automatic!")
         message = await ctx.send(embed=embed)
-    
+
         # Player data structure
         players = [
             {"name": player1.display_name, "hp": player1_hp, "status": player1_status, "member": player1},
-            {"name": player2.display_name, "hp": player2_hp, "status": player2_status, "member": player2},
+            {"name": player2.display_name if player2 else "AI Opponent", "hp": player2_hp, "status": player2_status, "member": player2},
         ]
         turn_index = 0
-    
+
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
             defender = players[1 - turn_index]
-    
+
             # Apply burn damage
             burn_damage = await self.apply_burn_damage(defender)
             if burn_damage > 0:
                 embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
-    
+
             # Skip turn if stunned
-            if defender["status"]["stun"]:
+            if defender["status"].get("stun"):
                 defender["status"]["stun"] = False  # Stun only lasts one turn
                 embed.description = f"⚡ **{defender['name']}** is stunned and cannot act!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
                 turn_index = 1 - turn_index
                 continue
-    
+
             # Select move
             move = random.choice(MOVES)
             damage = self.calculate_damage(move["type"])
             await self.apply_effects(move, attacker, defender)
-    
+
             # Apply damage
             defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
@@ -750,7 +773,7 @@ class Deathmatch(commands.Cog):
             await message.edit(embed=embed)
             await asyncio.sleep(2)
             turn_index = 1 - turn_index
-    
+
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         return winner["member"]
