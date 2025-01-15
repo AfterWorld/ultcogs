@@ -390,6 +390,28 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
 
 
+    @commands.command(name="deathstat")
+    async def deathstat(self, ctx: commands.Context, member: discord.Member = None):
+        """
+        Display the stats and rank of a user.
+        """
+        member = member or ctx.author
+        stats = await self.config.member(member).all()
+        all_members = await self.config.all_members(ctx.guild)
+        sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
+        rank = next((i for i, (m_id, _) in enumerate(sorted_members, start=1) if m_id == member.id), None)
+
+        embed = discord.Embed(
+            title=f"🏴‍☠️ {member.display_name}'s Stats 🏴‍☠️",
+            color=0x00FF00,
+        )
+        embed.add_field(name="Wins", value=stats["wins"], inline=True)
+        embed.add_field(name="Damage Dealt", value=stats["damage_dealt"], inline=True)
+        embed.add_field(name="Blocks", value=stats["blocks"], inline=True)
+        embed.add_field(name="Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
+
+        await ctx.send(embed=embed)
+
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
         """The main battle logic for the deathmatch."""
