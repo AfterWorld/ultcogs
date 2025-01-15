@@ -123,6 +123,7 @@ class Deathmatch(commands.Cog):
         default_member = {"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": []}
         self.config.register_member(**default_member)
         self.active_channels = set()  # Track active battles by channel ID
+        self.tournaments = {}  # Track active tournaments
 
     # --- Helper Functions ---
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
@@ -569,3 +570,187 @@ class Deathmatch(commands.Cog):
             member = guild.get_member(member_id)
             if member:
                 await self.reset_player_stats(member)
+
+    @commands.group(name="tournament", invoke_without_command=True)
+    async def tournament(self, ctx: commands.Context):
+        """Manage tournaments."""
+        await ctx.send_help(ctx.command)
+
+    @tournament.command(name="create")
+    async def tournament_create(self, ctx: commands.Context, name: str):
+        """Create a new tournament."""
+        if name in self.tournaments:
+            await ctx.send(f"❌ A tournament with the name `{name}` already exists.")
+            return
+
+        self.tournaments[name] = {
+            "creator": ctx.author.id,
+            "participants": [],
+            "started": False,
+        }
+        await ctx.send(f"✅ Tournament `{name}` has been created!")
+
+    @tournament.command(name="join")
+    async def tournament_join(self, ctx: commands.Context, name: str):
+        """Join an existing tournament."""
+        if name not in self.tournaments:
+            await ctx.send(f"❌ No tournament found with the name `{name}`.")
+            return
+
+        tournament = self.tournaments[name]
+        if tournament["started"]:
+            await ctx.send(f"❌ Tournament `{name}` has already started.")
+            return
+
+        if ctx.author.id in tournament["participants"]:
+            await ctx.send(f"❌ You are already in the tournament `{name}`.")
+            return
+
+        tournament["participants"].append(ctx.author.id)
+        await ctx.send(f"✅ You have joined the tournament `{name}`!")
+
+    @tournament.command(name="start")
+    async def tournament_start(self, ctx: commands.Context, name: str):
+        """Start a tournament."""
+        if name not in self.tournaments:
+            await ctx.send(f"❌ No tournament found with the name `{name}`.")
+            return
+
+        tournament = self.tournaments[name]
+        if tournament["creator"] != ctx.author.id:
+            await ctx.send(f"❌ Only the creator of the tournament can start it.")
+            return
+
+        if tournament["started"]:
+            await ctx.send(f"❌ Tournament `{name}` has already started.")
+            return
+
+        if len(tournament["participants"]) < 2:
+            await ctx.send(f"❌ Tournament `{name}` needs at least 2 participants to start.")
+            return
+
+        tournament["started"] = True
+        await ctx.send(f"✅ Tournament `{name}` has started!")
+        await self.run_tournament(ctx, name)
+
+    @tournament.command(name="view")
+    async def tournament_view(self, ctx: commands.Context, name: str):
+        """View the details of a tournament."""
+        if name not in self.tournaments:
+            await ctx.send(f"❌ No tournament found with the name `{name}`.")
+            return
+
+        tournament = self.tournaments[name]
+        creator = ctx.guild.get_member(tournament["creator"])
+        participants = [ctx.guild.get_member(pid) for pid in tournament["participants"]]
+
+        embed = discord.Embed(
+            title=f"Tournament: {name}",
+            description=f"Creator: {creator.display_name if creator else 'Unknown'}",
+            color=0x00FF00,
+        )
+        embed.add_field(name="Status", value="Started" if tournament["started"] else "Not Started", inline=False)
+        embed.add_field(name="Participants", value="\n".join([p.display_name for p in participants if p]), inline=False)
+        await ctx.send(embed=embed)
+
+    async def run_tournament(self, ctx: commands.Context, name: str):
+        """Run the tournament matches."""
+        tournament = self.tournaments[name]
+        participants = tournament["participants"]
+
+        while len(participants) > 1:
+            random.shuffle(participants)
+            for i in range(0, len(participants), 2):
+                if i + 1 >= len(participants):
+                    break
+                player1 = ctx.guild.get_member(participants[i])
+                player2 = ctx.guild.get_member(participants[i + 1])
+                await ctx.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
+                winner = await self.run_match(ctx, player1, player2)
+                await ctx.send(f"🏆 Winner: **{winner.display_name}**")
+                participants.remove(player1.id if winner == player2 else player2.id)
+
+        winner = ctx.guild.get_member(participants[0])
+        await ctx.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
+        del self.tournaments[name]
+
+    async def run_match(self, ctx: commands.Context, player1: discord.Member, player2: discord.Member):
+        """Run a single match between two players."""
+        # Initialize player data
+        player1_hp = 100
+        player2_hp = 100
+        player1_status = {"burn": 0, "stun": False}
+        player2_status = {"burn": 0, "stun": False}
+    
+        # Create the initial embed
+        embed = discord.Embed(
+            title="🏴‍☠️ One Piece deathbattle ⚔️",
+            description=f"Battle begins between **{player1.display_name}** and **{player2.display_name}**!",
+            color=0x00FF00,
+        )
+        embed.add_field(
+            name="Health Bars",
+            value=(
+                f"**{player1.display_name}:** {self.generate_health_bar(player1_hp)} {player1_hp}/100\n"
+                f"**{player2.display_name}:** {self.generate_health_bar(player2_hp)} {player2_hp}/100"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Actions are automatic!")
+        message = await ctx.send(embed=embed)
+    
+        # Player data structure
+        players = [
+            {"name": player1.display_name, "hp": player1_hp, "status": player1_status, "member": player1},
+            {"name": player2.display_name, "hp": player2_hp, "status": player2_status, "member": player2},
+        ]
+        turn_index = 0
+    
+        # Battle loop
+        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]
+    
+            # Apply burn damage
+            burn_damage = await self.apply_burn_damage(defender)
+            if burn_damage > 0:
+                embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+    
+            # Skip turn if stunned
+            if defender["status"]["stun"]:
+                defender["status"]["stun"] = False  # Stun only lasts one turn
+                embed.description = f"⚡ **{defender['name']}** is stunned and cannot act!"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
+                turn_index = 1 - turn_index
+                continue
+    
+            # Select move
+            move = random.choice(MOVES)
+            damage = self.calculate_damage(move["type"])
+            await self.apply_effects(move, attacker, defender)
+    
+            # Apply damage
+            defender["hp"] = max(0, defender["hp"] - damage)
+            embed.description = (
+                f"**{attacker['name']}** used **{move['name']}**: {move['description']} "
+                f"and dealt **{damage}** damage to **{defender['name']}**!"
+            )
+            embed.set_field_at(
+                0,
+                name="Health Bars",
+                value=(
+                    f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
+                    f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
+                ),
+                inline=False,
+            )
+            await message.edit(embed=embed)
+            await asyncio.sleep(2)
+            turn_index = 1 - turn_index
+    
+        # Determine winner
+        winner = players[0] if players[0]["hp"] > 0 else players[1]
+        return winner["member"]
