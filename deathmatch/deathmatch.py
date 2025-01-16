@@ -1,4 +1,4 @@
-from redbot.core.utils.menus import menu, commands, DEFAULT_CONTROLS
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core import commands, Config
 import discord
 import random
@@ -275,6 +275,11 @@ class Deathmatch(commands.Cog):
             if stats.get(data["condition"], 0) >= data["count"]:
                 user_achievements.append(key)
                 unlocked.append(data["description"])
+                # Send a DM to the user
+                try:
+                    await member.send(f"🎉 Congratulations! You've unlocked the achievement: **{data['description']}**")
+                except discord.Forbidden:
+                    pass  # User has DMs disabled or blocked the bot
         await self.config.member(member).achievements.set(user_achievements)
         return unlocked
 
