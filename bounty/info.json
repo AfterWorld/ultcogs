@@ -1,0 +1,9 @@
+{
+    "author": ["UltPanda"],
+    "description": "A One Piece-themed CrewBattle game with HP system and random moves.",
+    "install_msg": "Thank you for installing CrewBattle! Let the battles begin!",
+    "short": "One Piece CrewBattle game.",
+    "tags": ["game", "fun", "One Piece"],
+    "type": "COG",
+    "end_user_data_statement": "This cog does not store any end-user data."
+}
