@@ -134,7 +134,7 @@ class Trivia(commands.Cog):
                     if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                         scores = self.trivia_sessions[ctx.channel.id]["scores"]
                         scores[msg.author] = scores.get(msg.author, 0) + 1 + extra_points
-                        await ctx.send(f"Correct, {msg.author.display_name}! You know your {category.capitalize()} trivia!")
+                        await ctx.send(f"Correct, {msg.author.display_name}! You know your {category.capitalize()} trivia! (Current score: {scores[msg.author]})")
                         answered = True
                         if scores[msg.author] >= 25:
                             await ctx.send(f"Congratulations, {msg.author.display_name}! You've reached 25 points and won the game!")
