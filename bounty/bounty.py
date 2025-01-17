@@ -14,7 +14,7 @@ class BountyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
-        default_member = {"last_daily_claim": None}
+        default_member = {"last_daily_claim": None, "bounty": 0}
         default_guild = {"bounties": {}}
         self.config.register_member(**default_member)
         self.config.register_guild(**default_guild)
@@ -31,6 +31,7 @@ class BountyCog(commands.Cog):
 
         bounties[user_id] = {"amount": random.randint(50, 100)}
         await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
         await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
 
     @commands.command()
@@ -68,6 +69,7 @@ class BountyCog(commands.Cog):
         if msg.content.lower() == "yes":
             bounties[user_id]["amount"] += increase
             await self.config.guild(ctx.guild).bounties.set(bounties)
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
             new_bounty = bounties[user_id]["amount"]
             new_title = self.get_bounty_title(new_bounty)
             await self.config.member(user).last_daily_claim.set(now.isoformat())
@@ -90,7 +92,7 @@ class BountyCog(commands.Cog):
         if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
-        bounty_amount = bounties[user_id]["amount"]
+        bounty_amount = await self.config.member(user).bounty()
         avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
 
         async with aiohttp.ClientSession() as session:
