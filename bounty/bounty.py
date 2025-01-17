@@ -116,10 +116,10 @@ class BountyCog(commands.Cog):
         except OSError:
             return "Failed to load font. Please ensure the font file exists and is accessible."
 
-        poster_image.paste(avatar_image, (65, 230))
+        poster_image.paste(avatar_image, (65, 235))
 
         draw.text((150, 800), username, font=font, fill="black")
-        draw.text((150, 800), f"{bounty_amount:,}", font=font, fill="black")
+        draw.text((150, 850), f"{bounty_amount:,}", font=font, fill="black")
 
         output = io.BytesIO()
         poster_image.save(output, format="PNG")
