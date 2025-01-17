@@ -183,7 +183,7 @@ class Trivia(commands.Cog):
             await self.display_leaderboard(ctx, category)
 
     @commands.command()
-    async def display_leaderboard(self, ctx, category: str):
+    async def trivialb(self, ctx, category: str):
         """Display the leaderboard for a specific category."""
         async with self.config.guild(ctx.guild).trivia_scores() as scores:
             if category not in scores:
