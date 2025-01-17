@@ -193,11 +193,6 @@ class Deathmatch(commands.Cog):
             # Scale critical damage by turn number
             base_damage += turn_number * 2
     
-            # Scale by player's wins (optional)
-            if stats:
-                wins = stats.get("wins", 0)
-                base_damage += min(wins // 5, 10)  # Max bonus capped at 10
-    
         return base_damage
 
     def generate_fight_card(self, user1, user2):
