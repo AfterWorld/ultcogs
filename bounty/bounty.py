@@ -107,7 +107,7 @@ class BountyCog(commands.Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(wanted_poster_url) as response:
-                if response.status != 200):
+                if response.status != 200:
                     raise Exception("Failed to retrieve wanted poster template.")
                 poster_data = await response.read()
 
