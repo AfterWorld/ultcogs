@@ -99,7 +99,7 @@ class BountyCog(commands.Cog):
     async def create_wanted_poster(self, username, bounty_amount, avatar_data):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         wanted_poster_url = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/bounty/wanted.png"
-        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Bounty/fonts/onepiece.ttf"
+        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(wanted_poster_url) as response:
