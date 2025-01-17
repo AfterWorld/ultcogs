@@ -6,6 +6,7 @@ import asyncio
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
+import logging
 
 # --- Constants ---
 ACHIEVEMENTS = {
@@ -230,6 +231,8 @@ class Deathmatch(commands.Cog):
         self.config.register_member(**default_member)
         self.active_channels = set()  # Track active battles by channel ID
         self.tournaments = {}  # Track active tournaments
+        self.log = logging.getLogger("red.deathmatch")  # Log under the cog name
+        self.log.setLevel(logging.INFO)  # Set the log level
 
     # --- Helper Functions ---
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
@@ -333,8 +336,8 @@ class Deathmatch(commands.Cog):
             if key in user_achievements:
                 continue  # Already unlocked
     
-            # Debug logging: Log the condition and current stats
-            self.bot.logger.info(
+            # Use the cog's logger to log debugging info
+            self.log.info(
                 f"Checking achievement {key} for {member.display_name}: "
                 f"Condition = {data['condition']}, Count Needed = {data['count']}, "
                 f"Current Stat = {stats.get(data['condition'], 0)}"
