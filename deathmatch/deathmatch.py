@@ -332,6 +332,14 @@ class Deathmatch(commands.Cog):
         for key, data in ACHIEVEMENTS.items():
             if key in user_achievements:
                 continue  # Already unlocked
+    
+            # Debug logging: Log the condition and current stats
+            self.bot.logger.info(
+                f"Checking achievement {key} for {member.display_name}: "
+                f"Condition = {data['condition']}, Count Needed = {data['count']}, "
+                f"Current Stat = {stats.get(data['condition'], 0)}"
+            )
+    
             if stats.get(data["condition"], 0) >= data["count"]:
                 # Unlock achievement
                 user_achievements.append(key)
@@ -347,9 +355,12 @@ class Deathmatch(commands.Cog):
                     except discord.Forbidden:
                         pass  # User has DMs disabled or blocked the bot
     
+        # Save updated achievements and titles
         await self.config.member(member).achievements.set(user_achievements)
         await self.config.member(member).titles.set(unlocked_titles)
+    
         return unlocked
+
 
     async def display_achievements(self, ctx: commands.Context, member: discord.Member = None):
         """Show achievements for a user in a stylish embed."""
