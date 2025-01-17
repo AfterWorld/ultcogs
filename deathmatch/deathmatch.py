@@ -163,7 +163,24 @@ class Deathmatch(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=9876543210, force_registration=True)
-        default_member = {"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": [], "sea": None}
+        default_member = {
+            "wins": 0,
+            "losses": 0,
+            "damage_dealt": 0,
+            "blocks": 0,
+            "achievements": [],
+            "seasonal_wins": 0,
+            "seasonal_losses": 0,
+            "seasonal_damage_dealt": 0,
+            "titles": [],
+            "current_title": None,
+        }
+        self.config.register_member(**default_member)
+        
+        default_guild = {
+            "season_end_date": None,  # To track when the season ends
+        }
+        self.config.register_guild(**default_guild)
         self.config.register_member(**default_member)
         self.active_channels = set()  # Track active battles by channel ID
         self.tournaments = {}  # Track active tournaments
@@ -405,6 +422,34 @@ class Deathmatch(commands.Cog):
         
         await ctx.send(embed=embed)
 
+    @commands.command(name="seasonboard")
+    async def seasonboard(self, ctx: commands.Context):
+        """Show the seasonal leaderboard."""
+        all_members = await self.config.all_members(ctx.guild)
+    
+        # Sort by Seasonal Wins
+        sorted_by_seasonal_wins = sorted(
+            all_members.items(), key=lambda x: x[1]["seasonal_wins"], reverse=True
+        )
+    
+        embed = discord.Embed(
+            title="🏆 Seasonal Leaderboard 🏆",
+            description="Top players of the current season!",
+            color=0xFFD700,
+        )
+        for i, (member_id, data) in enumerate(sorted_by_seasonal_wins[:10], start=1):
+            member = ctx.guild.get_member(member_id)
+            if member:
+                embed.add_field(
+                    name=f"{i}. {member.display_name}",
+                    value=(
+                        f"Seasonal Wins: {data['seasonal_wins']}\n"
+                        f"Seasonal Losses: {data['seasonal_losses']}\n"
+                        f"Seasonal Damage: {data['seasonal_damage_dealt']}"
+                    ),
+                    inline=False,
+                )
+        await ctx.send(embed=embed)
     
     @commands.admin_or_permissions(administrator=True)
     @commands.command(name="resetstats")
@@ -432,6 +477,34 @@ class Deathmatch(commands.Cog):
                 await ctx.send("✅ Stats for **all members in this guild** have been reset.")
             except asyncio.TimeoutError:
                 await ctx.send("❌ Reset operation timed out. No stats were reset.")
+
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command(name="resetseason")
+    async def reset_season(self, ctx: commands.Context):
+        """Reset seasonal stats and prepare for the next season."""
+        all_members = await self.config.all_members(ctx.guild)
+    
+        # Distribute rewards (Example: Top Title)
+        sorted_by_wins = sorted(
+            all_members.items(), key=lambda x: x[1]["seasonal_wins"], reverse=True
+        )
+        if sorted_by_wins:
+            top_player_id, _ = sorted_by_wins[0]
+            top_player = ctx.guild.get_member(top_player_id)
+            if top_player:
+                await self.config.member(top_player).titles.append("Season Champion")
+    
+        # Reset seasonal stats
+        for member_id in all_members.keys():
+            member = ctx.guild.get_member(member_id)
+            if member:
+                await self.config.member(member).seasonal_wins.set(0)
+                await self.config.member(member).seasonal_losses.set(0)
+                await self.config.member(member).seasonal_damage_dealt.set(0)
+    
+        # Update season end date
+        await self.config.guild(ctx.guild).season_end_date.set(discord.utils.utcnow())
+        await ctx.send("✅ Seasonal stats have been reset, and rewards distributed!")
                 
     @commands.command(name="achievements")
     async def achievements(self, ctx: commands.Context, member: discord.Member = None):
@@ -501,20 +574,22 @@ class Deathmatch(commands.Cog):
 
 
     @commands.command(name="deathstats")
-    async def deathstat(self, ctx: commands.Context, member: discord.Member = None):
+    async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
         """
-        Display the stats and rank of a user.
+        Display the stats, titles, and rank of a user.
         """
         member = member or ctx.author
         stats = await self.config.member(member).all()
         all_members = await self.config.all_members(ctx.guild)
+    
+        # Sort members by wins for ranking
         sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
         rank = next((i for i, (m_id, _) in enumerate(sorted_members, start=1) if m_id == member.id), None)
-
+    
         wins = stats["wins"]
         losses = stats["losses"]
-        kdr = (wins / losses) if losses > 0 else wins
-
+        kdr = (wins / losses) if losses > 0 else wins  # Avoid division by zero
+    
         embed = discord.Embed(
             title=f"🏴‍☠️ {member.display_name}'s Stats 🏴‍☠️",
             color=0x00FF00,
@@ -522,10 +597,19 @@ class Deathmatch(commands.Cog):
         embed.add_field(name="Wins", value=wins, inline=True)
         embed.add_field(name="Losses", value=losses, inline=True)
         embed.add_field(name="KDR", value=f"{kdr:.2f}", inline=True)
-        embed.add_field(name="Damage Dealt", value=stats["damage_dealt"], inline=True)
-        embed.add_field(name="Blocks", value=stats["blocks"], inline=True)
+        embed.add_field(name="Seasonal Wins", value=stats["seasonal_wins"], inline=True)
+        embed.add_field(
+            name="Titles",
+            value=", ".join(stats["titles"]) if stats["titles"] else "None",
+            inline=False,
+        )
+        embed.add_field(
+            name="Current Title",
+            value=stats["current_title"] if stats["current_title"] else "None",
+            inline=False,
+        )
         embed.add_field(name="Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
-
+    
         await ctx.send(embed=embed)
 
     # --- Core Battle Logic ---
@@ -656,6 +740,16 @@ class Deathmatch(commands.Cog):
         await self.config.member(loser["member"]).losses.set(
             await self.config.member(loser["member"]).losses() + 1
         )
+        # Update stats for the winner and loser (Seasonal)
+        await self.config.member(winner["member"]).seasonal_wins.set(
+            await self.config.member(winner["member"]).seasonal_wins() + 1
+        )
+        await self.config.member(loser["member"]).seasonal_losses.set(
+            await self.config.member(loser["member"]).seasonal_losses() + 1
+        )
+        await self.config.member(winner["member"]).seasonal_damage_dealt.set(
+            await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
+        )
 
 
     async def apply_burn_damage(self, player):
@@ -703,33 +797,29 @@ class Deathmatch(commands.Cog):
         return None
 
     @tournament.command(name="create")
-    async def tournament_create(self, ctx: commands.Context, name: str, team_size: int = 1, double_elimination: bool = False):
-        """Create a new tournament."""
+    async def tournament_create(self, ctx: commands.Context, name: str, team_size: int = 1):
+        """
+        Create a new player-based tournament.
+        """
         if name in self.tournaments:
             await ctx.send(f"❌ A tournament with the name `{name}` already exists.")
             return
-
+    
         self.tournaments[name] = {
             "creator": ctx.author.id,
             "participants": [],
             "started": False,
             "team_size": team_size,
-            "double_elimination": double_elimination,
             "bracket": [],
-            "losers_bracket": [],
-            "statistics": {
-                "total_matches": 0,
-                "average_match_duration": 0,
-                "most_used_moves": {},
-            },
         }
+    
         await self.send_tournament_message(ctx, name)
 
     async def send_tournament_message(self, ctx: commands.Context, name: str):
         """Send a message with buttons to join and start the tournament."""
         embed = discord.Embed(
             title=f"Tournament: {name}",
-            description=f"Creator: {ctx.author.display_name}\nParticipants: 0/0",
+            description=f"Creator: {ctx.author.display_name}\nParticipants: 0",
             color=0x00FF00,
         )
         view = TournamentView(name, self)
