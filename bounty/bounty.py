@@ -125,16 +125,19 @@ class BountyCog(commands.Cog):
         # Round the avatar corners
         avatar_image = self.round_image_corners(avatar_image)
 
+        # Ensure avatar image is in RGBA mode
+        avatar_image = avatar_image.convert("RGBA")
+
         draw = ImageDraw.Draw(poster_image)
         try:
             font = ImageFont.truetype(font_path, 100)
         except OSError:
             return "Failed to load font. Please ensure the font file exists and is accessible."
 
-        poster_image.paste(avatar_image, (65, 223), avatar_image.convert("RGBA"))
+        poster_image.paste(avatar_image, (65, 223), avatar_image)
 
         draw.text((150, 750), username, font=font, fill="black")
-        draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
+        draw.text((150, 870), f"{bounty_amount:,} Berries", font=font, fill="black")
 
         output = io.BytesIO()
         poster_image.save(output, format="PNG")
