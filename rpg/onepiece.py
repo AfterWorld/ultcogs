@@ -441,7 +441,7 @@ class OnePieceRPG(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.command()
-    async def achievements(self, ctx):
+    async def pachievements(self, ctx):
         """View your achievements."""
         if ctx.author.id not in self.players:
             await ctx.send("You need to start your journey with `.beginsail` first.")
@@ -455,7 +455,7 @@ class OnePieceRPG(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def leaderboard(self, ctx):
+    async def pleaderboard(self, ctx):
         """View the leaderboard."""
         leaderboard = sorted(self.players.items(), key=lambda x: x[1]["exp"], reverse=True)
         embed = Embed(title="Leaderboard")
@@ -466,7 +466,7 @@ class OnePieceRPG(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def daily(self, ctx):
+    async def pdaily(self, ctx):
         """Claim your daily reward."""
         if ctx.author.id not in self.players:
             await ctx.send("You need to start your journey with `.beginsail` first.")
