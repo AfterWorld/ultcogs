@@ -1,8 +1,8 @@
 from redbot.core.bot import Red
-from .onepiece import OnePiece
+from .onepiece import OnePieceRPG
 
 
 async def setup(bot: Red):
-    """Load the Deathmatch cog."""
+    """Load the RPG cog."""
     cog = OnePieceRPG(bot)
     await bot.add_cog(cog)
