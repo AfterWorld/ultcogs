@@ -98,6 +98,8 @@ class BountyCog(commands.Cog):
                 avatar_data = await response.read()
 
         wanted_poster = await self.create_wanted_poster(user.display_name, bounty_amount, avatar_data)
+        if isinstance(wanted_poster, str):
+            return await ctx.send(wanted_poster)
         await ctx.send(file=discord.File(wanted_poster, "wanted.png"))
 
     async def create_wanted_poster(self, username, bounty_amount, avatar_data):
@@ -123,7 +125,7 @@ class BountyCog(commands.Cog):
         except OSError:
             return "Failed to load font. Please ensure the font file exists and is accessible."
 
-        poster_image.paste(avatar_image, (65, 223), avatar_image)
+        poster_image.paste(avatar_image, (65, 223), avatar_image.convert("RGBA"))
 
         draw.text((150, 750), username, font=font, fill="black")
         draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
