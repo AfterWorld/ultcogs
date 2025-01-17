@@ -191,7 +191,7 @@ class OnePieceRPG(commands.Cog):
         await ctx.send(f"You have found a {fruit}!")
 
     @commands.command()
-    async def stats(self, ctx):
+    async def pstats(self, ctx):
         """View and allocate stats."""
         if ctx.author.id not in self.players:
             await ctx.send("You need to start your journey with `.beginsail` first.")
