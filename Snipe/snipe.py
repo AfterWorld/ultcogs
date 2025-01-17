@@ -69,7 +69,7 @@ class Snipe(commands.Cog):
         if author:
             embed.set_author(name=f"Message from {author.name}#{author.discriminator}", icon_url=author.display_avatar.url)
         else:
-            embed.set_author(name="Message from Unknown User", icon_url=ctx.guild.icon_url)
+            embed.set_author(name="Message from Unknown User", icon_url=ctx.guild.icon.url)
         
         embed.set_footer(text=f"Message sniped by {ctx.author.name}#{ctx.author.discriminator}")
     
