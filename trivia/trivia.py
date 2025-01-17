@@ -29,7 +29,7 @@ class Trivia(commands.Cog):
     async def load_questions(self, category):
         try:
             async with aiohttp.ClientSession() as session:
-                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/onepiecefun/categories/{category}_questions.yaml'
+                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/trivia/categories/{category}_questions.yaml'
                 print(f"Attempting to load questions from: {url}")
                 async with session.get(url) as resp:
                     print(f"Response status: {resp.status}")
