@@ -1,5 +1,5 @@
 from redbot.core.bot import Red
-from .rpg import OnePieceRPG
+from .onepiece import OnePiece
 
 
 async def setup(bot: Red):
