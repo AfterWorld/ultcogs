@@ -7,6 +7,7 @@ import random
 import time
 from redbot.core.data_manager import cog_data_path
 from redbot.core.utils.chat_formatting import box
+from pathlib import Path  # Add this import
 
 class Trivia(commands.Cog):
     def __init__(self, bot):
