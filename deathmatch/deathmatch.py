@@ -506,6 +506,34 @@ class Deathmatch(commands.Cog):
                     inline=False,
                 )
         await ctx.send(embed=embed)
+
+    @commands.admin_or_permissions(administrator=True)
+    @commands.command(name="retroachieve")
+    async def retroachieve(self, ctx: commands.Context):
+        """
+        Retroactively check achievements for all users and unlock missing ones.
+        """
+        all_members = await self.config.all_members(ctx.guild)
+        total_checked = 0
+        total_unlocked = 0
+    
+        for member_id, stats in all_members.items():
+            member = ctx.guild.get_member(member_id)
+            if not member:
+                continue
+    
+            # Check achievements for the member
+            unlocked = await self.check_achievements(member, stats)
+            if unlocked:
+                total_unlocked += len(unlocked)
+            total_checked += 1
+    
+        await ctx.send(
+            f"✅ Retroactive achievement check completed!\n"
+            f"- Members Checked: {total_checked}\n"
+            f"- Achievements Unlocked: {total_unlocked}"
+        )
+
     
     @commands.admin_or_permissions(administrator=True)
     @commands.command(name="resetstats")
