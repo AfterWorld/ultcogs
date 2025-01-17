@@ -2,6 +2,7 @@ from redbot.core import commands, Config
 import discord
 import random
 import asyncio
+import aiohttp
 
 # --- Helper Classes ---
 class CrewButton(discord.ui.Button):
@@ -45,17 +46,13 @@ class JoinTournamentButton(discord.ui.Button):
         tournament = self.cog.tournaments[self.tournament_name]
 
         for crew in self.cog.crews.values():
-            if member.id in crew["members"]:
-                if crew["name"] in tournament["crews"]:
-                    await interaction.response.send_message("❌ Your crew is already in this tournament.", ephemeral=True)
-                    return
-
+            if member.id in crew["members"] and crew["name"] not in tournament["crews"]:
                 tournament["crews"].append(crew["name"])
                 await interaction.response.send_message(f"✅ Your crew `{crew['name']}` has joined the tournament `{self.tournament_name}`!", ephemeral=True)
                 await self.cog.update_tournament_message(interaction.message, self.tournament_name)
                 return
 
-        await interaction.response.send_message("❌ You are not in any crew.", ephemeral=True)
+        await interaction.response.send_message("❌ You are not in any crew or your crew is already in the tournament.", ephemeral=True)
 
 class StartTournamentButton(discord.ui.Button):
     def __init__(self, tournament_name, cog):
@@ -100,7 +97,7 @@ class CrewTournament(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     @commands.guild_only()
     @commands.command(name="createcrew")
-    async def create_crew(self, ctx: commands.Context, crew_name: str, crew_emoji: str):
+    async def create_crew(self, ctx: commands.Context, crew_name: str, crew_emoji: str, captain: discord.Member):
         """Create a new crew. Only admins can use this command."""
         if crew_name in self.crews:
             await ctx.send(f"❌ A crew with the name `{crew_name}` already exists.")
@@ -112,12 +109,12 @@ class CrewTournament(commands.Cog):
 
         self.crews[crew_name] = {
             "emoji": crew_emoji,
-            "members": [],
+            "members": [captain.id],
             "captain_role": captain_role.id,
             "vice_captain_role": vice_captain_role.id,
         }
         await self.config.guild(ctx.guild).crews.set(self.crews)
-        await ctx.author.add_roles(captain_role)
+        await captain.add_roles(captain_role)
         await ctx.send(f"✅ Crew `{crew_name}` created with {captain_role.mention} and {vice_captain_role.mention} roles.")
 
     async def send_crew_message(self, ctx: commands.Context, crew_name: str, crew_emoji: str):
@@ -153,13 +150,19 @@ class CrewTournament(commands.Cog):
 
         crew = self.crews[crew_name]
         members = [ctx.guild.get_member(mid) for mid in crew["members"]]
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+        captain = next((m for m in members if captain_role in m.roles), None)
+        vice_captain = next((m for m in members if vice_captain_role in m.roles), None)
 
         embed = discord.Embed(
             title=f"Crew: {crew_name}",
             description=f"Members: {len(members)}",
             color=0x00FF00,
         )
-        embed.add_field(name="Members", value="\n".join([m.display_name for m in members if m]), inline=False)
+        embed.add_field(name="Captain", value=captain.display_name if captain else "None", inline=False)
+        embed.add_field(name="Vice Captain", value=vice_captain.display_name if vice_captain else "None", inline=False)
+        embed.add_field(name="Members", value="\n".join([m.display_name for m in members if m not in [captain, vice_captain]]), inline=False)
         view = CrewView(crew_name, crew["emoji"], self)
         await ctx.send(embed=embed, view=view)
 
@@ -185,6 +188,60 @@ class CrewTournament(commands.Cog):
             view.add_item(CrewButton(crew_name, crew_data["emoji"], self))
 
         await ctx.send(embed=embed, view=view)
+
+    @commands.guild_only()
+    @commands.command(name="assignvicecaptain")
+    async def assign_vice_captain(self, ctx: commands.Context, crew_name: str, member: discord.Member):
+        """Assign a vice-captain to the crew. Only the captain can use this command."""
+        if crew_name not in self.crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+
+        crew = self.crews[crew_name]
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+
+        if captain_role not in ctx.author.roles:
+            await ctx.send("❌ Only the captain can assign a vice-captain.")
+            return
+
+        await member.add_roles(vice_captain_role)
+        await ctx.send(f"✅ {member.display_name} has been assigned as the vice-captain of `{crew_name}`.")
+
+    @commands.guild_only()
+    @commands.command(name="kickmember")
+    async def kick_member(self, ctx: commands.Context, crew_name: str, member: discord.Member):
+        """Kick a member from the crew. Only the captain or vice-captain can use this command."""
+        if crew_name not in self.crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+
+        crew = self.crews[crew_name]
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+
+        if captain_role not in ctx.author.roles and vice_captain_role not in ctx.author.roles:
+            await ctx.send("❌ Only the captain or vice-captain can kick members.")
+            return
+
+        if member.id not in crew["members"]:
+            await ctx.send(f"❌ {member.display_name} is not a member of `{crew_name}`.")
+            return
+
+        crew["members"].remove(member.id)
+        await self.config.guild(ctx.guild).crews.set(self.crews)
+        await member.edit(nick=member.display_name.replace(f"{crew['emoji']} ", ""))
+        await ctx.send(f"✅ {member.display_name} has been kicked from `{crew_name}`.")
+
+    async def fetch_custom_emoji(self, emoji_url: str, guild: discord.Guild):
+        """Fetch and upload a custom emoji to the guild."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(emoji_url) as response:
+                if response.status == 200:
+                    image_data = await response.read()
+                    emoji = await guild.create_custom_emoji(name="custom_emoji", image=image_data)
+                    return str(emoji)
+        return None
 
     # --- Tournament Commands ---
     @commands.admin_or_permissions(administrator=True)
