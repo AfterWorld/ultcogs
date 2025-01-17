@@ -333,34 +333,79 @@ class Deathmatch(commands.Cog):
         self.active_channels.remove(ctx.channel.id)
 
 
-    @commands.command(name="deathboard")
+    @commands.group(name="deathboard", invoke_without_command=True)
     async def deathboard(self, ctx: commands.Context):
-        """Show the deathboard with top players by wins and KDR."""
+        """
+        Show the leaderboard for the deathmatch game.
+        Use `.deathboard wins` to view the top players by wins.
+        Use `.deathboard kdr` to view the top players by Kill/Death Ratio (KDR).
+        """
+        embed = discord.Embed(
+            title="Deathboard Help",
+            description=(
+                "Use one of the following subcommands to view rankings:\n"
+                "- **`wins`**: Show the top players by wins.\n"
+                "- **`kdr`**: Show the top players by Kill/Death Ratio (KDR).\n"
+            ),
+            color=0x00FF00,
+        )
+        await ctx.send(embed=embed)
+
+    @deathboard.command(name="wins")
+    async def deathboard_wins(self, ctx: commands.Context):
+        """Show the top 10 players by wins."""
         all_members = await self.config.all_members(ctx.guild)
         
         # Sort by Wins
         sorted_by_wins = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
         
-        # Sort by KDR
-        sorted_by_kdr = sorted(
-            all_members.items(),
-            key=lambda x: (x[1]["wins"] / x[1]["losses"]) if x[1]["losses"] > 0 else x[1]["wins"],
-            reverse=True,
+        embed = discord.Embed(
+            title="🏆 Top 10 Players by Wins 🏆",
+            color=0xFFD700,
         )
+        for i, (member_id, data) in enumerate(sorted_by_wins[:10], start=1):
+            member = ctx.guild.get_member(member_id)
+            if member:
+                embed.add_field(
+                    name=f"{i}. {member.display_name}",
+                    value=f"Wins: {data['wins']}\nLosses: {data['losses']}",
+                    inline=False,
+                )
         
-        embed = discord.Embed(title="🏆 Deathboard 🏆", color=0xFFD700)
-        embed.add_field(name="Top 10 by Wins", value="\n".join(
-            [f"{i+1}. {ctx.guild.get_member(m_id).display_name} - Wins: {data['wins']}" 
-             for i, (m_id, data) in enumerate(sorted_by_wins[:10])]
-        ), inline=False)
-        embed.add_field(name="Top 10 by KDR", value="\n".join(
-            [f"{i+1}. {ctx.guild.get_member(m_id).display_name} - KDR: {data['wins'] / data['losses']:.2f}" 
-             if data['losses'] > 0 else f"{ctx.guild.get_member(m_id).display_name} - KDR: {data['wins']:.2f}" 
-             for i, (m_id, data) in enumerate(sorted_by_kdr[:10])]
-        ), inline=False)
-    
         await ctx.send(embed=embed)
+
+    @deathboard.command(name="kdr")
+    async def deathboard_kdr(self, ctx: commands.Context):
+        """Show the top 10 players by Kill/Death Ratio (KDR)."""
+        all_members = await self.config.all_members(ctx.guild)
+    
+        # Calculate KDR
+        kdr_list = []
+        for member_id, data in all_members.items():
+            wins = data["wins"]
+            losses = data["losses"]
+            kdr = wins / losses if losses > 0 else wins  # Avoid division by zero
+            member = ctx.guild.get_member(member_id)
+            if member:
+                kdr_list.append((member, kdr, wins, losses))
         
+        # Sort by KDR
+        sorted_by_kdr = sorted(kdr_list, key=lambda x: x[1], reverse=True)
+        
+        embed = discord.Embed(
+            title="🏅 Top 10 Players by KDR 🏅",
+            color=0x00FF00,
+        )
+        for i, (member, kdr, wins, losses) in enumerate(sorted_by_kdr[:10], start=1):
+            embed.add_field(
+                name=f"{i}. {member.display_name}",
+                value=f"KDR: {kdr:.2f}\nWins: {wins}\nLosses: {losses}",
+                inline=False,
+            )
+        
+        await ctx.send(embed=embed)
+
+    
     @commands.admin_or_permissions(administrator=True)
     @commands.command(name="resetstats")
     async def resetstats(self, ctx: commands.Context, member: discord.Member = None):
