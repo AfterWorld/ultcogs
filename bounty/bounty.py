@@ -108,7 +108,7 @@ class BountyCog(commands.Cog):
                 poster_data = await response.read()
 
         poster_image = Image.open(io.BytesIO(poster_data))
-        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((600, 600))
+        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((500, 500))
 
         draw = ImageDraw.Draw(poster_image)
         try:
