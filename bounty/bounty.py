@@ -108,7 +108,7 @@ class BountyCog(commands.Cog):
                 poster_data = await response.read()
 
         poster_image = Image.open(io.BytesIO(poster_data))
-        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((635, 430))
+        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((625, 440))
 
         draw = ImageDraw.Draw(poster_image)
         try:
@@ -119,7 +119,7 @@ class BountyCog(commands.Cog):
         poster_image.paste(avatar_image, (65, 235))
 
         draw.text((150, 800), username, font=font, fill="black")
-        draw.text((150, 850), f"{bounty_amount:,}", font=font, fill="black")
+        draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
 
         output = io.BytesIO()
         poster_image.save(output, format="PNG")
