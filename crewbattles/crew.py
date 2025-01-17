@@ -106,9 +106,19 @@ class CrewTournament(commands.Cog):
             await ctx.send(f"❌ A crew with the name `{crew_name}` already exists.")
             return
 
-        self.crews[crew_name] = {"emoji": crew_emoji, "members": []}
+        guild = ctx.guild
+        captain_role = await guild.create_role(name=f"{crew_name} Captain")
+        vice_captain_role = await guild.create_role(name=f"{crew_name} Vice Captain")
+
+        self.crews[crew_name] = {
+            "emoji": crew_emoji,
+            "members": [],
+            "captain_role": captain_role.id,
+            "vice_captain_role": vice_captain_role.id,
+        }
         await self.config.guild(ctx.guild).crews.set(self.crews)
-        await self.send_crew_message(ctx, crew_name, crew_emoji)
+        await ctx.author.add_roles(captain_role)
+        await ctx.send(f"✅ Crew `{crew_name}` created with {captain_role.mention} and {vice_captain_role.mention} roles.")
 
     async def send_crew_message(self, ctx: commands.Context, crew_name: str, crew_emoji: str):
         """Send a message with a button to join the crew."""
@@ -151,6 +161,29 @@ class CrewTournament(commands.Cog):
         )
         embed.add_field(name="Members", value="\n".join([m.display_name for m in members if m]), inline=False)
         view = CrewView(crew_name, crew["emoji"], self)
+        await ctx.send(embed=embed, view=view)
+
+    @commands.admin_or_permissions(administrator=True)
+    @commands.guild_only()
+    @commands.command(name="crews")
+    async def list_crews(self, ctx: commands.Context):
+        """List all available crews for users to join."""
+        if not self.crews:
+            await ctx.send("❌ No crews available.")
+            return
+
+        embed = discord.Embed(
+            title="Available Crews",
+            description="Click the button below to join a crew.",
+            color=0x00FF00,
+        )
+        for crew_name, crew_data in self.crews.items():
+            embed.add_field(name=crew_name, value=f"Emoji: {crew_data['emoji']}", inline=False)
+
+        view = discord.ui.View()
+        for crew_name, crew_data in self.crews.items():
+            view.add_item(CrewButton(crew_name, crew_data["emoji"], self))
+
         await ctx.send(embed=embed, view=view)
 
     # --- Tournament Commands ---
