@@ -213,16 +213,20 @@ class Trivia(commands.Cog):
                 title=f"🏆 {category.capitalize()} Trivia Leaderboard 🏆",
                 color=discord.Color.gold()
             )
-            for player_id, data in leaderboard[:10]:
-                player = self.bot.get_user(int(player_id))
-                if player:
-                    embed.add_field(
-                        name=player.display_name,
-                        value=(f"Total Points: {data['total_score']}\n"
-                               f"Games Played: {data['games_played']}\n"
-                               f"Points This Week: {data['weekly_score']}"),
-                        inline=False
-                    )
+
+            if not leaderboard:
+                embed.description = "No players have participated in this category yet."
+            else:
+                for player_id, data in leaderboard[:10]:
+                    player = self.bot.get_user(int(player_id))
+                    if player:
+                        embed.add_field(
+                            name=player.display_name,
+                            value=(f"Total Points: {data['total_score']}\n"
+                                   f"Games Played: {data['games_played']}\n"
+                                   f"Points This Week: {data['weekly_score']}"),
+                            inline=False
+                        )
 
             await ctx.send(embed=embed)
 
