@@ -60,7 +60,7 @@ class Trivia(commands.Cog):
                 await ctx.send("No trivia categories available for the challenge.")
                 return
             category = random.choice(available_categories).replace('_questions', '')
-            await ctx.send(f"Starting a {category.capitalize()} Trivia game with extra points for {category.lower()} challenge!")
+            await ctx.send(f"Starting a {category.capitalize()} Trivia game with extra points for the {category.lower()} challenge!")
         else:
             extra_points = 0
 
@@ -180,7 +180,7 @@ class Trivia(commands.Cog):
                     scores[category][str(player.id)]["games_played"] += 1
                     scores[category][str(player.id)]["weekly_score"] += score
 
-            await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
+            await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing!")
             await self.display_leaderboard(ctx, category)
 
     @commands.command()
@@ -209,15 +209,22 @@ class Trivia(commands.Cog):
                 return
 
             leaderboard = sorted(scores[category].items(), key=lambda x: x[1]["total_score"], reverse=True)
-            leaderboard_message = f"🏴‍☠️ **{category.capitalize()} Trivia Leaderboard** 🏴‍☠️\n\n"
+            embed = discord.Embed(
+                title=f"🏆 {category.capitalize()} Trivia Leaderboard 🏆",
+                color=discord.Color.gold()
+            )
             for player_id, data in leaderboard[:10]:
                 player = self.bot.get_user(int(player_id))
                 if player:
-                    leaderboard_message += (f"{player.display_name}: {data['total_score']} points, "
-                                            f"{data['games_played']} games played, "
-                                            f"{data['weekly_score']} points this week\n")
+                    embed.add_field(
+                        name=player.display_name,
+                        value=(f"Total Points: {data['total_score']}\n"
+                               f"Games Played: {data['games_played']}\n"
+                               f"Points This Week: {data['weekly_score']}"),
+                        inline=False
+                    )
 
-            await ctx.send(box(leaderboard_message, lang=""))
+            await ctx.send(embed=embed)
 
     @commands.command()
     @commands.is_owner()  # Restrict this command to the bot owner
