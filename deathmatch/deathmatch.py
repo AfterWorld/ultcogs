@@ -172,8 +172,8 @@ class Deathmatch(commands.Cog):
             "seasonal_wins": 0,
             "seasonal_losses": 0,
             "seasonal_damage_dealt": 0,
-            "titles": [],
-            "current_title": None,
+            "titles": [],  # List of unlocked titles
+            "current_title": None,  # Equipped title
         }
         self.config.register_member(**default_member)
         
@@ -547,7 +547,7 @@ class Deathmatch(commands.Cog):
     
         # Use Redbot's pagination utility
         await menu(ctx, embeds, DEFAULT_CONTROLS)
-
+    
     @commands.command(name="achievementinfo")
     async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
         """Get detailed information about how to unlock a specific achievement."""
@@ -555,11 +555,11 @@ class Deathmatch(commands.Cog):
             (data for key, data in ACHIEVEMENTS.items() if achievement_name.lower() in data["description"].lower()),
             None,
         )
-
+    
         if not achievement:
             await ctx.send(f"❌ No achievement found matching `{achievement_name}`.")
             return
-
+    
         embed = discord.Embed(
             title=f"🎯 Achievement Info: {achievement['description']}",
             description=(
@@ -572,6 +572,33 @@ class Deathmatch(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @commands.command(name="titles")
+    async def titles(self, ctx: commands.Context, member: discord.Member = None):
+        """Display a list of unlocked titles for a user."""
+        member = member or ctx.author
+        titles = await self.config.member(member).titles()
+        current_title = await self.config.member(member).current_title()
+    
+        embed = discord.Embed(
+            title=f"🏅 {member.display_name}'s Titles",
+            description=(
+                f"**Current Title:** {current_title if current_title else 'None'}\n\n"
+                f"**Unlocked Titles:**\n" + "\n".join(titles) if titles else "None"
+            ),
+            color=0x00FF00,
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="equiptitle")
+    async def equiptitle(self, ctx: commands.Context, title: str):
+        """Equip a title for yourself."""
+        titles = await self.config.member(ctx.author).titles()
+        if title not in titles:
+            await ctx.send(f"❌ You have not unlocked the title `{title}`.")
+            return
+    
+        await self.config.member(ctx.author).current_title.set(title)
+        await ctx.send(f"✅ You have equipped the title `{title}`!")
 
     @commands.command(name="deathstats")
     async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
@@ -732,7 +759,11 @@ class Deathmatch(commands.Cog):
             inline=False,
         )
         await message.edit(embed=embed)
-    
+
+        # Update stats for the winner
+        await self.check_achievements(winner["member"], attacker_stats)
+        # Update stats for the loser
+        await self.check_achievements(loser["member"], defender_stats)
         # Update stats for the winner and loser
         await self.config.member(winner["member"]).wins.set(
             await self.config.member(winner["member"]).wins() + 1
