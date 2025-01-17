@@ -954,8 +954,9 @@ class Deathmatch(commands.Cog):
         await channel.send(
             f"🏅 Team 1 Score: {team1_score}\n🏅 Team 2 Score: {team2_score}"
         )
-
-    return team1 if team1_score > team2_score else team2
+    
+        # Ensure the return is correctly placed inside the function
+        return team1 if team1_score > team2_score else team2
     
     def create_bracket(self, participants, team_size):
         """Create player-based tournament brackets."""
