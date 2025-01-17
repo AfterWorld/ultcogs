@@ -64,6 +64,7 @@ class BountyCog(commands.Cog):
                 return m.author == user and m.channel == ctx.channel and m.content.lower() in ["yes", "no"]
             msg = await self.bot.wait_for("message", check=check, timeout=30)
         except asyncio.TimeoutError:
+            await self.config.member(user).last_daily_claim.set(None)
             return await ctx.send("Ye let the treasure slip through yer fingers! Try again tomorrow, ye landlubber!")
 
         if msg.content.lower() == "yes":
@@ -80,6 +81,7 @@ class BountyCog(commands.Cog):
             if new_bounty >= 900000000:
                 await self.announce_rank(ctx.guild, user, new_title)
         else:
+            await self.config.member(user).last_daily_claim.set(None)
             await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
 
     @commands.command()
