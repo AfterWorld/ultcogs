@@ -108,11 +108,11 @@ class BountyCog(commands.Cog):
                 poster_data = await response.read()
 
         poster_image = Image.open(io.BytesIO(poster_data))
-        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((600, 400))
+        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((620, 450))
 
         draw = ImageDraw.Draw(poster_image)
         try:
-            font = ImageFont.truetype(font_path, 40)
+            font = ImageFont.truetype(font_path, 80)
         except OSError:
             return "Failed to load font. Please ensure the font file exists and is accessible."
 
