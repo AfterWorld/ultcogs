@@ -21,7 +21,8 @@ class Trivia(commands.Cog):
 
     async def initialize_questions(self):
         self.questions = {}
-        for file in (cog_data_path(self)).glob('*_questions.yaml'):
+        trivia_path = Path("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/")
+        for file in trivia_path.glob('*_questions.yaml'):
             category = file.stem  # This will be like 'category_questions'
             with file.open('r') as f:
                 self.questions[category] = yaml.safe_load(f)
