@@ -53,6 +53,17 @@ class Trivia(commands.Cog):
     @commands.command()
     async def trivia(self, ctx, category: str = "op"):
         """Start a trivia game for a specific category!"""
+        if category.lower() in ["daily", "weekly"]:
+            extra_points = 5 if category.lower() == "daily" else 10
+            available_categories = list(self.questions.keys())
+            if not available_categories:
+                await ctx.send("No trivia categories available for the challenge.")
+                return
+            category = random.choice(available_categories).replace('_questions', '')
+            await ctx.send(f"Starting a {category.capitalize()} Trivia game with extra points for {category.lower()} challenge!")
+        else:
+            extra_points = 0
+
         # Check if a trivia game is already active in this channel
         if ctx.channel.id in self.trivia_sessions and self.trivia_sessions[ctx.channel.id]["active"]:
             await ctx.send("Avast ye! There's already a trivia game in progress in this channel. Finish that one first!")
@@ -76,7 +87,7 @@ class Trivia(commands.Cog):
                     await ctx.send("The trivia game has been stopped!")
                     break
 
-                if not await self.ask_question(ctx, question):
+                if not await self.ask_question(ctx, question, extra_points):
                     break
 
                 if any(score >= 25 for score in self.trivia_sessions[ctx.channel.id]["scores"].values()):
@@ -89,7 +100,7 @@ class Trivia(commands.Cog):
         finally:
             await self.end_game(ctx)
 
-    async def ask_question(self, ctx, question):
+    async def ask_question(self, ctx, question, extra_points=0):
         category = self.trivia_sessions[ctx.channel.id]["category"]
         await ctx.send(f"🏴‍☠️ **{category.capitalize()} Trivia** 🏴‍☠️\n\n{question['question']}")
 
@@ -122,7 +133,7 @@ class Trivia(commands.Cog):
 
                     if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                         scores = self.trivia_sessions[ctx.channel.id]["scores"]
-                        scores[msg.author] = scores.get(msg.author, 0) + 1
+                        scores[msg.author] = scores.get(msg.author, 0) + 1 + extra_points
                         await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
                         answered = True
                         if scores[msg.author] >= 25:
@@ -170,6 +181,23 @@ class Trivia(commands.Cog):
 
             await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
             await self.display_leaderboard(ctx, category)
+
+    @commands.command()
+    async def display_leaderboard(self, ctx, category: str):
+        """Display the leaderboard for a specific category."""
+        async with self.config.guild(ctx.guild).trivia_scores() as scores:
+            if category not in scores:
+                await ctx.send(f"No scores available for the {category} category.")
+                return
+
+            leaderboard = sorted(scores[category].items(), key=lambda x: x[1]["total_score"], reverse=True)
+            leaderboard_message = f"🏴‍☠️ **{category.capitalize()} Trivia Leaderboard** 🏴‍☠️\n\n"
+            for player_id, data in leaderboard[:10]:
+                player = self.bot.get_user(int(player_id))
+                if player:
+                    leaderboard_message += f"{player.display_name}: {data['total_score']} points, {data['games_played']} games played\n"
+
+            await ctx.send(box(leaderboard_message, lang=""))
 
     @commands.command()
     @commands.is_owner()  # Restrict this command to the bot owner
@@ -268,39 +296,6 @@ class Trivia(commands.Cog):
         await self.end_game(ctx)
 
     @commands.command()
-    async def trivialeaderboard(self, ctx, category: str = "one_piece"):
-        """Display the trivia leaderboard for a specific category."""
-        await self.display_leaderboard(ctx, category.lower())
-
-    async def display_leaderboard(self, ctx, category=None):
-        if category is None:
-            # If no category is provided, use the category from the active session
-            if ctx.channel.id in self.trivia_sessions:
-                category = self.trivia_sessions[ctx.channel.id]["category"]
-            else:
-                # Default to 'one_piece' if there's no active session
-                category = "one_piece"
-
-        async with self.config.guild(ctx.guild).trivia_scores() as scores:
-            if category not in scores:
-                await ctx.send(f"No leaderboard available for {category.capitalize()} trivia.")
-                return
-
-            sorted_scores = sorted(scores[category].items(), key=lambda x: x[1]['total_score'], reverse=True)[:10]
-
-            embed = discord.Embed(title=f"🏆 {category.capitalize()} Trivia Leaderboard 🏆", color=discord.Color.gold())
-            for i, (player_id, data) in enumerate(sorted_scores, 1):
-                player = ctx.guild.get_member(int(player_id))
-                if player:
-                    embed.add_field(
-                        name=f"{i}. {player.display_name}",
-                        value=f"Total Score: {data['total_score']}\nGames Played: {data['games_played']}",
-                        inline=False
-                    )
-
-            await ctx.send(embed=embed)
-
-    @commands.command()
     @commands.is_owner()
     async def reload_trivia(self, ctx):
         """Manually reload trivia questions."""
@@ -312,9 +307,9 @@ class Trivia(commands.Cog):
     @commands.command()
     async def daily_challenge(self, ctx):
         """Start a daily trivia challenge."""
-        await self.trivia(ctx, category=random.choice(list(self.questions.keys())).replace('_questions', ''))
+        await self.trivia(ctx, category="daily")
 
     @commands.command()
     async def weekly_challenge(self, ctx):
         """Start a weekly trivia challenge."""
-        await self.trivia(ctx, category=random.choice(list(self.questions.keys())).replace('_questions', ''))
+        await self.trivia(ctx, category="weekly")
