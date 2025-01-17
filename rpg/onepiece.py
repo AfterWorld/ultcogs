@@ -78,52 +78,33 @@ class OnePieceRPG(commands.Cog):
         self.housing_items = ["Bed", "Table", "Chair", "Lamp", "Bookshelf", "Carpet", "Painting", "Plant"]
 
     @commands.command()
-    async def beginsail(self, ctx):
-        """Begin your journey as a Marine or Pirate."""
-        view = View()
-    
-        # Create buttons with callbacks directly
-        marine_button = Button(label="Marine", style=ButtonStyle.primary, custom_id="marine")
-        pirate_button = Button(label="Pirate", style=ButtonStyle.danger, custom_id="pirate")
-    
-        async def button_callback(interaction: Interaction):
-            if interaction.user != ctx.author:
-                await interaction.response.send_message("This is not your journey!", ephemeral=True)
-                return
-    
-            path = interaction.custom_id
-            self.players[ctx.author.id] = {
-                "path": path,
-                "level": 5,
-                "exp": 0,
-                "stats": {"Sword": 0, "Gun": 0, "Devil Fruit": 0, "Haki": 0},
-                "inventory": [],
-                "last_trained": None,
-                "quests": [],
-                "currency": 0,
-                "skills": {},
-                "guild": None,
-                "daily_login": None,
-                "titles": [],
-                "badges": [],
-                "companions": [],
-                "housing": []
-            }
-            if path == "marine":
-                await interaction.response.send_message("You have chosen the path of a Marine! Your goal is to become Fleet Admiral and stop the pirates.")
-            else:
-                await interaction.response.send_message("You have chosen the path of a Pirate! Your goal is to become the King of the Pirates.")
-    
-        # Bind callbacks to the buttons
-        marine_button.callback = button_callback
-        pirate_button.callback = button_callback
-    
-        # Add buttons to the view
-        view.add_item(marine_button)
-        view.add_item(pirate_button)
-    
-        await ctx.send("Choose your path:", view=view)
+    async def beginsail(self, ctx, path: str):
+        """Begin your journey as a Marine or Pirate. Usage: .beginsail <marine|pirate>"""
+        if path.lower() not in ["marine", "pirate"]:
+            await ctx.send("Invalid path. Please choose 'marine' or 'pirate'.")
+            return
 
+        self.players[ctx.author.id] = {
+            "path": path.lower(),
+            "level": 5,
+            "exp": 0,
+            "stats": {"Sword": 0, "Gun": 0, "Devil Fruit": 0, "Haki": 0},
+            "inventory": [],
+            "last_trained": None,
+            "quests": [],
+            "currency": 0,
+            "skills": {},
+            "guild": None,
+            "daily_login": None,
+            "titles": [],
+            "badges": [],
+            "companions": [],
+            "housing": []
+        }
+        if path.lower() == "marine":
+            await ctx.send("You have chosen the path of a Marine! Your goal is to become Fleet Admiral and stop the pirates.")
+        else:
+            await ctx.send("You have chosen the path of a Pirate! Your goal is to become the King of the Pirates.")
 
     @commands.command()
     async def sail(self, ctx):
