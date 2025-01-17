@@ -3,7 +3,7 @@ import discord
 import random
 import asyncio
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import aiohttp
 import io
 import os
@@ -53,7 +53,7 @@ class BountyCog(commands.Cog):
         if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
-        increase = random.randint(10000, 50000)
+        increase = random.randint(1000, 5000)
         
         await ctx.send(f"Ahoy, {user.display_name}! Ye found a treasure chest! Do ye want to open it? (yes/no)")
         try:
@@ -71,6 +71,10 @@ class BountyCog(commands.Cog):
             await self.config.member(user).last_daily_claim.set(now.isoformat())
             await ctx.send(f"💰 Ye claimed {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
                            f"Current Title: {new_title}")
+
+            # Announce if the user reaches a significant rank
+            if new_bounty >= 900000000:
+                await self.announce_rank(ctx.guild, user, new_title)
         else:
             await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
 
@@ -103,12 +107,15 @@ class BountyCog(commands.Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(wanted_poster_url) as response:
-                if response.status != 200:
+                if response.status != 200):
                     raise Exception("Failed to retrieve wanted poster template.")
                 poster_data = await response.read()
 
         poster_image = Image.open(io.BytesIO(poster_data))
         avatar_image = Image.open(io.BytesIO(avatar_data)).resize((625, 455))
+
+        # Round the avatar corners
+        avatar_image = self.round_image_corners(avatar_image)
 
         draw = ImageDraw.Draw(poster_image)
         try:
@@ -116,7 +123,7 @@ class BountyCog(commands.Cog):
         except OSError:
             return "Failed to load font. Please ensure the font file exists and is accessible."
 
-        poster_image.paste(avatar_image, (65, 223))
+        poster_image.paste(avatar_image, (65, 223), avatar_image)
 
         draw.text((150, 750), username, font=font, fill="black")
         draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
@@ -126,6 +133,21 @@ class BountyCog(commands.Cog):
         output.seek(0)
 
         return output
+
+    def round_image_corners(self, image):
+        """Round the corners of an image."""
+        mask = Image.new("L", image.size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rounded_rectangle((0, 0) + image.size, radius=50, fill=255)
+        rounded_image = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
+        rounded_image.putalpha(mask)
+        return rounded_image
+
+    async def announce_rank(self, guild, user, title):
+        """Announce when a user reaches a significant rank."""
+        channel = discord.utils.get(guild.text_channels, name="general")
+        if channel:
+            await channel.send(f"🎉 Congratulations to {user.mention} for reaching the rank of **{title}** with a bounty of {user.display_name}'s bounty!")
 
     def get_bounty_title(self, bounty_amount):
         """Get the bounty title based on the bounty amount."""
