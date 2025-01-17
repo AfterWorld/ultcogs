@@ -29,24 +29,17 @@ class Trivia(commands.Cog):
 
     async def load_questions(self, category):
         try:
-            async with aiohttp.ClientSession() as session:
-                url = f'https://raw.githubusercontent.com/AfterWorld/ultcogs/main/trivia/categories/{category}_questions.yaml'
-                print(f"Attempting to load questions from: {url}")
-                async with session.get(url) as resp:
-                    print(f"Response status: {resp.status}")
-                    print(f"Response headers: {resp.headers}")
-                    if resp.status == 200:
-                        raw_content = await resp.text()
-                        print(f"Raw content (first 500 chars): {raw_content[:500]}")
-                        questions = yaml.safe_load(raw_content)
-                        print(f"Successfully loaded {len(questions)} questions for {category}")
-                        return questions
-                    else:
-                        print(f"Failed to fetch questions for {category}. Status code: {resp.status}")
-                        return None
+            file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/{category}_questions.yaml")
+            if file_path.exists():
+                with file_path.open('r') as f:
+                    questions = yaml.safe_load(f)
+                    print(f"Successfully loaded {len(questions)} questions for {category}")
+                    return questions
+            else:
+                print(f"Failed to fetch questions for {category}. File does not exist: {file_path}")
+                return None
         except yaml.YAMLError as e:
             print(f"YAML parsing error for {category}: {str(e)}")
-            print(f"Problematic content: {raw_content}")
             return None
         except Exception as e:
             print(f"An error occurred while loading questions for {category}: {str(e)}")
