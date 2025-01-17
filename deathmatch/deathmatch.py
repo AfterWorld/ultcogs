@@ -280,19 +280,29 @@ class Deathmatch(commands.Cog):
     async def check_achievements(self, member, stats):
         """Check and unlock achievements for the member."""
         user_achievements = await self.config.member(member).achievements()
+        unlocked_titles = await self.config.member(member).titles()
         unlocked = []
+    
         for key, data in ACHIEVEMENTS.items():
             if key in user_achievements:
                 continue  # Already unlocked
             if stats.get(data["condition"], 0) >= data["count"]:
+                # Unlock achievement
                 user_achievements.append(key)
                 unlocked.append(data["description"])
-                # Send a DM to the user
-                try:
-                    await member.send(f"🎉 Congratulations! You've unlocked the achievement: **{data['description']}**")
-                except discord.Forbidden:
-                    pass  # User has DMs disabled or blocked the bot
+    
+                # Unlock title if specified
+                if "title" in data and data["title"] not in unlocked_titles:
+                    unlocked_titles.append(data["title"])
+                    try:
+                        await member.send(
+                            f"🎉 Congratulations! You've unlocked the title: **{data['title']}**"
+                        )
+                    except discord.Forbidden:
+                        pass  # User has DMs disabled or blocked the bot
+    
         await self.config.member(member).achievements.set(user_achievements)
+        await self.config.member(member).titles.set(unlocked_titles)
         return unlocked
 
     async def display_achievements(self, ctx: commands.Context, member: discord.Member = None):
@@ -602,9 +612,7 @@ class Deathmatch(commands.Cog):
 
     @commands.command(name="deathstats")
     async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
-        """
-        Display the stats, titles, and rank of a user.
-        """
+        """Display the stats, titles, and rank of a user."""
         member = member or ctx.author
         stats = await self.config.member(member).all()
         all_members = await self.config.all_members(ctx.guild)
@@ -616,6 +624,7 @@ class Deathmatch(commands.Cog):
         wins = stats["wins"]
         losses = stats["losses"]
         kdr = (wins / losses) if losses > 0 else wins  # Avoid division by zero
+        current_title = stats["current_title"]
     
         embed = discord.Embed(
             title=f"🏴‍☠️ {member.display_name}'s Stats 🏴‍☠️",
@@ -624,20 +633,11 @@ class Deathmatch(commands.Cog):
         embed.add_field(name="Wins", value=wins, inline=True)
         embed.add_field(name="Losses", value=losses, inline=True)
         embed.add_field(name="KDR", value=f"{kdr:.2f}", inline=True)
-        embed.add_field(name="Seasonal Wins", value=stats["seasonal_wins"], inline=True)
-        embed.add_field(
-            name="Titles",
-            value=", ".join(stats["titles"]) if stats["titles"] else "None",
-            inline=False,
-        )
-        embed.add_field(
-            name="Current Title",
-            value=stats["current_title"] if stats["current_title"] else "None",
-            inline=False,
-        )
         embed.add_field(name="Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
+        embed.add_field(name="Current Title", value=current_title if current_title else "None", inline=False)
     
         await ctx.send(embed=embed)
+
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
