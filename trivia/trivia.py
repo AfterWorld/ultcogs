@@ -18,6 +18,7 @@ class Trivia(commands.Cog):
         self.config = Config.get_conf(self, identifier=1234567890)
         self.trivia_sessions = {}
         self.questions = {}
+        self.bot.loop.create_task(self.initialize_questions())  # Initialize questions on cog load
 
     async def load_questions_and_print(self):
         await self.initialize_questions()
@@ -50,7 +51,6 @@ class Trivia(commands.Cog):
             return None
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.channel)  # 5-minute cooldown per channel
     async def trivia(self, ctx, category: str = "op"):
         """Start a trivia game for a specific category!"""
         # Check if a trivia game is already active in this channel
@@ -229,7 +229,6 @@ class Trivia(commands.Cog):
             await ctx.send(f"An error occurred: {str(error)}")
 
     @commands.command()
-    @commands.cooldown(1, 300, commands.BucketType.user)  # 5-minute cooldown per user
     async def trivialist(self, ctx):
         """List all available trivia categories."""
         if not self.questions:
