@@ -66,7 +66,7 @@ class Trivia(commands.Cog):
 
         # Check if a trivia game is already active in this channel
         if ctx.channel.id in self.trivia_sessions and self.trivia_sessions[ctx.channel.id]["active"]:
-            await ctx.send("Avast ye! There's already a trivia game in progress in this channel. Finish that one first!")
+            await ctx.send("There's already a trivia game in progress in this channel. Finish that one first!")
             return
 
         # Convert the input category to the file name format
@@ -74,12 +74,12 @@ class Trivia(commands.Cog):
 
         if full_category not in self.questions:
             available_categories = ", ".join(cat.replace('_questions', '') for cat in self.questions.keys())
-            await ctx.send(f"Avast ye! That be an invalid category. Available categories: {available_categories}")
+            await ctx.send(f"That is an invalid category. Available categories: {available_categories}")
             return
 
         self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
 
-        await ctx.send(f"🏴‍☠️ A new {category.capitalize()} Trivia game has begun! First to 25 points wins! 🏆")
+        await ctx.send(f"A new {category.capitalize()} Trivia game has begun! First to 25 points wins!")
 
         try:
             for question in random.sample(self.questions[full_category], min(len(self.questions[full_category]), 50)):
@@ -102,7 +102,7 @@ class Trivia(commands.Cog):
 
     async def ask_question(self, ctx, question, extra_points=0):
         category = self.trivia_sessions[ctx.channel.id]["category"]
-        await ctx.send(f"🏴‍☠️ **{category.capitalize()} Trivia** 🏴‍☠️\n\n{question['question']}")
+        await ctx.send(f"**{category.capitalize()} Trivia**\n\n{question['question']}")
 
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
@@ -134,10 +134,10 @@ class Trivia(commands.Cog):
                     if msg.content.lower() in [answer.lower() for answer in question['answers']]:
                         scores = self.trivia_sessions[ctx.channel.id]["scores"]
                         scores[msg.author] = scores.get(msg.author, 0) + 1 + extra_points
-                        await ctx.send(f"Aye, that be correct, {msg.author.display_name}! Ye know yer {category.capitalize()} lore!")
+                        await ctx.send(f"Correct, {msg.author.display_name}! You know your {category.capitalize()} trivia!")
                         answered = True
                         if scores[msg.author] >= 25:
-                            await ctx.send(f"🎉 Congratulations, {msg.author.display_name}! Ye've reached 25 points and won the game! 🏴‍☠️")
+                            await ctx.send(f"Congratulations, {msg.author.display_name}! You've reached 25 points and won the game!")
                             return False  # End the game
 
                 except asyncio.TimeoutError:
@@ -148,7 +148,7 @@ class Trivia(commands.Cog):
             hint_task.cancel()  # Ensure the hint task is cancelled when the question ends
 
         if not answered:
-            await ctx.send(f"Time's up, ye slow sea slugs! The correct answers were: {', '.join(question['answers'])}")
+            await ctx.send(f"Time's up! The correct answers were: {', '.join(question['answers'])}")
 
         await asyncio.sleep(2)  # Add a short pause between questions
         return True  # Continue the game
@@ -201,21 +201,26 @@ class Trivia(commands.Cog):
             await ctx.send(box(leaderboard_message, lang=""))
 
     @commands.command()
-    async def trivialb(self, ctx, category: str):
-        """Display the leaderboard for a specific category."""
+    async def trivialb(self, ctx):
+        """Display the overall leaderboard."""
         async with self.config.guild(ctx.guild).trivia_scores() as scores:
-            if category not in scores:
-                await ctx.send(f"No scores available for the {category} category.")
-                return
+            overall_scores = {}
+            for category_scores in scores.values():
+                for player_id, data in category_scores.items():
+                    if player_id not in overall_scores:
+                        overall_scores[player_id] = {"total_score": 0, "games_played": 0, "weekly_score": 0}
+                    overall_scores[player_id]["total_score"] += data["total_score"]
+                    overall_scores[player_id]["games_played"] += data["games_played"]
+                    overall_scores[player_id]["weekly_score"] += data["weekly_score"]
 
-            leaderboard = sorted(scores[category].items(), key=lambda x: x[1]["total_score"], reverse=True)
+            leaderboard = sorted(overall_scores.items(), key=lambda x: x[1]["total_score"], reverse=True)
             embed = discord.Embed(
-                title=f"🏆 {category.capitalize()} Trivia Leaderboard 🏆",
+                title="🏆 Overall Trivia Leaderboard 🏆",
                 color=discord.Color.gold()
             )
 
             if not leaderboard:
-                embed.description = "No players have participated in this category yet."
+                embed.description = "No players have participated in trivia yet."
             else:
                 for player_id, data in leaderboard[:10]:
                     player = self.bot.get_user(int(player_id))
