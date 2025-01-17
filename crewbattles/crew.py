@@ -117,6 +117,27 @@ class CrewTournament(commands.Cog):
         await captain.add_roles(captain_role)
         await ctx.send(f"✅ Crew `{crew_name}` created with {captain_role.mention} and {vice_captain_role.mention} roles.")
 
+    @commands.admin_or_permissions(administrator=True)
+    @commands.guild_only()
+    @commands.command(name="deletecrew")
+    async def delete_crew(self, ctx: commands.Context, crew_name: str):
+        """Delete a crew. Only admins can use this command."""
+        if crew_name not in self.crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+
+        crew = self.crews.pop(crew_name)
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+
+        if captain_role:
+            await captain_role.delete()
+        if vice_captain_role:
+            await vice_captain_role.delete()
+
+        await self.config.guild(ctx.guild).crews.set(self.crews)
+        await ctx.send(f"✅ Crew `{crew_name}` has been deleted.")
+
     async def send_crew_message(self, ctx: commands.Context, crew_name: str, crew_emoji: str):
         """Send a message with a button to join the crew."""
         embed = discord.Embed(
