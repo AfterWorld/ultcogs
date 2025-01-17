@@ -45,7 +45,9 @@ class BountyCog(commands.Cog):
             last_claim = datetime.fromisoformat(last_claim)
             if now - last_claim < timedelta(days=1):
                 time_left = timedelta(days=1) - (now - last_claim)
-                return await ctx.send(f"Ye can't claim yer daily bounty yet! Come back in {time_left.seconds // 3600} hours and {(time_left.seconds // 60) % 60} minutes, ye greedy sea dog!")
+                hours, remainder = divmod(time_left.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                return await ctx.send(f"Ye can't claim yer daily bounty yet! Come back in {hours} hours and {minutes} minutes, ye greedy sea dog!")
 
         bounties = await self.config.guild(ctx.guild).bounties()
         user_id = str(user.id)
