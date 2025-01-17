@@ -466,7 +466,7 @@ class OnePieceRPG(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def pdaily(self, ctx):
+    async def daily(self, ctx):
         """Claim your daily reward."""
         if ctx.author.id not in self.players:
             await ctx.send("You need to start your journey with `.beginsail` first.")
