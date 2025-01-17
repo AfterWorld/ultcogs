@@ -335,19 +335,30 @@ class Deathmatch(commands.Cog):
 
     @commands.command(name="deathboard")
     async def deathboard(self, ctx: commands.Context):
-        """Show the deathboard."""
+        """Show the deathboard with top players by wins and KDR."""
         all_members = await self.config.all_members(ctx.guild)
-        sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
-
+        
+        # Sort by Wins
+        sorted_by_wins = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
+        
+        # Sort by KDR
+        sorted_by_kdr = sorted(
+            all_members.items(),
+            key=lambda x: (x[1]["wins"] / x[1]["losses"]) if x[1]["losses"] > 0 else x[1]["wins"],
+            reverse=True,
+        )
+        
         embed = discord.Embed(title="🏆 Deathboard 🏆", color=0xFFD700)
-        for i, (member_id, data) in enumerate(sorted_members[:10], start=1):
-            member = ctx.guild.get_member(member_id)
-            if member:
-                embed.add_field(
-                    name=f"{i}. {member.display_name}",
-                    value=f"Wins: {data['wins']}",
-                    inline=False,
-                )
+        embed.add_field(name="Top 10 by Wins", value="\n".join(
+            [f"{i+1}. {ctx.guild.get_member(m_id).display_name} - Wins: {data['wins']}" 
+             for i, (m_id, data) in enumerate(sorted_by_wins[:10])]
+        ), inline=False)
+        embed.add_field(name="Top 10 by KDR", value="\n".join(
+            [f"{i+1}. {ctx.guild.get_member(m_id).display_name} - KDR: {data['wins'] / data['losses']:.2f}" 
+             if data['losses'] > 0 else f"{ctx.guild.get_member(m_id).display_name} - KDR: {data['wins']:.2f}" 
+             for i, (m_id, data) in enumerate(sorted_by_kdr[:10])]
+        ), inline=False)
+    
         await ctx.send(embed=embed)
         
     @commands.admin_or_permissions(administrator=True)
@@ -478,8 +489,8 @@ class Deathmatch(commands.Cog):
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
-        challenger_status = {"burn": 0, "stun": False}
-        opponent_status = {"burn": 0, "stun": False}
+        challenger_status = {"burn": 0, "stun": False, "block_active": False}
+        opponent_status = {"burn": 0, "stun": False, "block_active": False}
     
         # Create the initial embed
         embed = discord.Embed(
@@ -533,9 +544,18 @@ class Deathmatch(commands.Cog):
             # Select move
             move = random.choice(MOVES)
             damage = self.calculate_damage(move["type"])
+    
+            # Apply block logic
+            if defender["status"].get("block_active", False):  # Example condition for a block
+                damage = max(0, damage - 10)  # Reduce damage by block amount
+                await self.config.member(defender["member"]).blocks.set(
+                    await self.config.member(defender["member"]).blocks() + 1
+                )
+    
+            # Apply effects
             await self.apply_effects(move, attacker, defender)
     
-            # Apply damage
+            # Apply damage and update stats
             defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
                 f"**{attacker['name']}** used **{move['name']}**: {move['description']} "
@@ -552,11 +572,18 @@ class Deathmatch(commands.Cog):
             )
             await message.edit(embed=embed)
             await asyncio.sleep(2)
-            turn_index = 1 - turn_index
     
-            # Update stats for the attacker
+            # Update damage stats for the attacker
+            await self.config.member(attacker["member"]).damage_dealt.set(
+                await self.config.member(attacker["member"]).damage_dealt() + damage
+            )
+    
+            # Update stats for both players
             await self.update_stats(attacker, defender, damage, move, attacker_stats)
             await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
+    
+            # Switch turn
+            turn_index = 1 - turn_index
     
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
@@ -584,12 +611,7 @@ class Deathmatch(commands.Cog):
         await self.config.member(loser["member"]).losses.set(
             await self.config.member(loser["member"]).losses() + 1
         )
-        await self.config.member(winner["member"]).damage_dealt.set(
-            await self.config.member(winner["member"]).damage_dealt() + damage
-        )
-        await self.config.member(loser["member"]).blocks.set(
-            await self.config.member(loser["member"]).blocks() + 1
-        )
+
 
     async def apply_burn_damage(self, player):
         """Apply burn damage to a player if they have burn stacks."""
