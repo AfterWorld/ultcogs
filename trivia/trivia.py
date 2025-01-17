@@ -312,9 +312,9 @@ class Trivia(commands.Cog):
     @commands.command()
     async def daily_challenge(self, ctx):
         """Start a daily trivia challenge."""
-        await self.trivia(ctx, category="daily")
+        await self.trivia(ctx, category=random.choice(list(self.questions.keys())).replace('_questions', ''))
 
     @commands.command()
     async def weekly_challenge(self, ctx):
         """Start a weekly trivia challenge."""
-        await self.trivia(ctx, category="weekly")
+        await self.trivia(ctx, category=random.choice(list(self.questions.keys())).replace('_questions', ''))
