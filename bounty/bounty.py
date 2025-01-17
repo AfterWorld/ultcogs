@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
 import io
+import os
 
 class BountyCog(commands.Cog):
     """A cog for managing bounties."""
@@ -98,7 +99,7 @@ class BountyCog(commands.Cog):
     async def create_wanted_poster(self, username, bounty_amount, avatar_data):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         wanted_poster_url = "https://raw.githubusercontent.com/AfterWorld/ultcogs/refs/heads/main/bounty/wanted.png"
-        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
+        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Bounty/fonts/onepiece.ttf"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(wanted_poster_url) as response:
@@ -110,7 +111,10 @@ class BountyCog(commands.Cog):
         avatar_image = Image.open(io.BytesIO(avatar_data)).resize((200, 200))
 
         draw = ImageDraw.Draw(poster_image)
-        font = ImageFont.truetype(font_path, 40)
+        try:
+            font = ImageFont.truetype(font_path, 40)
+        except OSError:
+            return "Failed to load font. Please ensure the font file exists and is accessible."
 
         poster_image.paste(avatar_image, (150, 200))
 
