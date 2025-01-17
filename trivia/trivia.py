@@ -72,7 +72,7 @@ class Trivia(commands.Cog):
 
         try:
             for question in random.sample(self.questions[full_category], min(len(self.questions[full_category]), 50)):
-                if not self.trivia_sessions[ctx.channel.id]["active"]:
+                if ctx.channel.id not in self.trivia_sessions or not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
 
