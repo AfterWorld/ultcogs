@@ -81,14 +81,16 @@ class OnePieceRPG(commands.Cog):
     async def beginsail(self, ctx):
         """Begin your journey as a Marine or Pirate."""
         view = View()
-        view.add_item(Button(label="Marine", style=ButtonStyle.primary, custom_id="marine"))
-        view.add_item(Button(label="Pirate", style=ButtonStyle.danger, custom_id="pirate"))
-
+    
+        # Create buttons with callbacks directly
+        marine_button = Button(label="Marine", style=ButtonStyle.primary, custom_id="marine")
+        pirate_button = Button(label="Pirate", style=ButtonStyle.danger, custom_id="pirate")
+    
         async def button_callback(interaction: Interaction):
             if interaction.user != ctx.author:
                 await interaction.response.send_message("This is not your journey!", ephemeral=True)
                 return
-
+    
             path = interaction.custom_id
             self.players[ctx.author.id] = {
                 "path": path,
@@ -111,11 +113,17 @@ class OnePieceRPG(commands.Cog):
                 await interaction.response.send_message("You have chosen the path of a Marine! Your goal is to become Fleet Admiral and stop the pirates.")
             else:
                 await interaction.response.send_message("You have chosen the path of a Pirate! Your goal is to become the King of the Pirates.")
-
-        for item in view.children:
-            item.callback = button_callback
-
+    
+        # Bind callbacks to the buttons
+        marine_button.callback = button_callback
+        pirate_button.callback = button_callback
+    
+        # Add buttons to the view
+        view.add_item(marine_button)
+        view.add_item(pirate_button)
+    
         await ctx.send("Choose your path:", view=view)
+
 
     @commands.command()
     async def sail(self, ctx):
