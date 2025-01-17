@@ -830,15 +830,18 @@ class Deathmatch(commands.Cog):
         tournament = self.tournaments[name]
         creator = message.guild.get_member(tournament["creator"])
         participants = [message.guild.get_member(pid) for pid in tournament["participants"]]
-
+    
         embed = discord.Embed(
             title=f"Tournament: {name}",
-            description=f"Creator: {creator.display_name if creator else 'Unknown'}\nParticipants: {len(participants)}/{len(participants)}",
+            description=(
+                f"Creator: {creator.display_name if creator else 'Unknown'}\n"
+                f"Participants: {len(participants)}/{len(participants)}"
+            ),
             color=0x00FF00,
         )
         embed.add_field(name="Participants", value="\n".join([p.display_name for p in participants if p]), inline=False)
         await message.edit(embed=embed)
-
+    
     @tournament.command(name="view")
     async def tournament_view(self, ctx: commands.Context, name: str):
         """View the details of a tournament."""
@@ -907,64 +910,55 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
 
     async def run_tournament(self, channel: discord.TextChannel, name: str):
-        """Run the tournament matches."""
+        """Run the matches of the tournament."""
         if channel.id in self.active_channels:
             await channel.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
             return
-
-        # Mark the channel as active
+    
         self.active_channels.add(channel.id)
-
         tournament = self.tournaments[name]
         participants = tournament["participants"]
         team_size = tournament["team_size"]
-        double_elimination = tournament["double_elimination"]
-
-        sea_groups = {sea: [] for sea in SEAS}
-        for pid in participants:
-            member = channel.guild.get_member(pid)
-            sea = self.get_sea(member)
-            if sea:
-                sea_groups[sea].append(member)
-
-        # Create initial bracket
+    
+        # Generate brackets
         bracket = self.create_bracket(participants, team_size)
         tournament["bracket"] = bracket
-
-        if double_elimination:
-            losers_bracket = []
-            tournament["losers_bracket"] = losers_bracket
-
-        while len(participants) > 1:
-            for round_num, matches in enumerate(bracket):
-                for match in matches:
-                    player1 = channel.guild.get_member(match[0])
-                    player2 = channel.guild.get_member(match[1])
-                    sea1 = self.get_sea(player1)
-                    sea2 = self.get_sea(player2)
-
-                    if sea1 == sea2:
-                        await channel.send(f"⚔️ Match: **{player1.display_name}** vs **AI Opponent**")
-                        winner = await self.run_ai_match(channel, player1)
-                    else:
-                        await channel.send(f"⚔️ Match: **{player1.display_name}** vs **{player2.display_name}**")
-                        winner = await self.run_match(channel, player1, player2)
-
-                    await channel.send(f"🏆 Winner: **{winner.display_name}**")
-                    participants.remove(player1.id if winner == player2 else player2.id)
-
-                    if double_elimination:
-                        losers_bracket.append((player1.id if winner == player2 else player2.id,))
-
-        winner = channel.guild.get_member(participants[0])
-        await channel.send(f"🎉 The winner of the tournament `{name}` is **{winner.display_name}**!")
+    
+        while len(bracket) > 1:
+            next_round = []
+            for match in bracket:
+                team1 = [channel.guild.get_member(pid) for pid in match[0]]
+                team2 = [channel.guild.get_member(pid) for pid in match[1]]
+    
+                await channel.send(
+                    f"⚔️ Match: {', '.join([m.display_name for m in team1])} vs {', '.join([m.display_name for m in team2])}"
+                )
+    
+                winner = await self.run_team_match(channel, team1, team2)
+                next_round.append(winner)
+    
+            bracket = self.create_bracket([pid for team in next_round for pid in team], team_size)
+    
+        # Announce final winners
+        final_team = bracket[0]
+        winning_team = [channel.guild.get_member(pid) for pid in final_team]
+        await channel.send(f"🎉 The winners of the tournament `{name}` are {', '.join([m.display_name for m in winning_team])}!")
         del self.tournaments[name]
-
-        # Mark the channel as inactive
         self.active_channels.remove(channel.id)
 
+    async def run_team_match(self, channel: discord.TextChannel, team1, team2):
+        """Run a match between two teams."""
+        team1_score = sum(random.randint(10, 100) for _ in team1)  # Example scoring logic
+        team2_score = sum(random.randint(10, 100) for _ in team2)
+    
+        await channel.send(
+            f"🏅 Team 1 Score: {team1_score}\n🏅 Team 2 Score: {team2_score}"
+        )
+
+    return team1 if team1_score > team2_score else team2
+    
     def create_bracket(self, participants, team_size):
-        """Create the initial tournament bracket."""
+        """Create player-based tournament brackets."""
         random.shuffle(participants)
         bracket = []
         for i in range(0, len(participants), team_size * 2):
