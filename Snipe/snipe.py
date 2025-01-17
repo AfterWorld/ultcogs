@@ -1,4 +1,5 @@
 import discord
+from discord.ui import Button, View
 from redbot.core import commands, Config
 from datetime import datetime
 
@@ -81,9 +82,15 @@ class Snipe(commands.Cog):
     
         await ctx.send(embed=embed)
         
-        # Directly send attachment URLs
-        for attachment in attachments:
-            await ctx.send(f"Attachment: {attachment['filename']}\n{attachment['url']}")
+        # Create a button to view attachments
+        class AttachmentView(View):
+            def __init__(self, attachments):
+                super().__init__()
+                for attachment in attachments:
+                    self.add_item(Button(label=attachment['filename'], url=attachment['url']))
+
+        view = AttachmentView(attachments)
+        await ctx.send("Click the buttons below to view attachments:", view=view)
     
         # Recreate and send additional embeds
         for embed_data in embeds:
