@@ -175,12 +175,30 @@ class Trivia(commands.Cog):
                     scores[category] = {}
                 for player, score in final_scores.items():
                     if str(player.id) not in scores[category]:
-                        scores[category][str(player.id)] = {"total_score": 0, "games_played": 0}
+                        scores[category][str(player.id)] = {"total_score": 0, "games_played": 0, "weekly_score": 0}
                     scores[category][str(player.id)]["total_score"] += score
                     scores[category][str(player.id)]["games_played"] += 1
+                    scores[category][str(player.id)]["weekly_score"] += score
 
             await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing, ye scurvy dogs!")
             await self.display_leaderboard(ctx, category)
+
+    @commands.command()
+    async def display_leaderboard(self, ctx, category: str):
+        """Display the leaderboard for a specific category."""
+        async with self.config.guild(ctx.guild).trivia_scores() as scores:
+            if category not in scores:
+                await ctx.send(f"No scores available for the {category} category.")
+                return
+
+            leaderboard = sorted(scores[category].items(), key=lambda x: x[1]["total_score"], reverse=True)
+            leaderboard_message = f"🏴‍☠️ **{category.capitalize()} Trivia Leaderboard** 🏴‍☠️\n\n"
+            for player_id, data in leaderboard[:10]:
+                player = self.bot.get_user(int(player_id))
+                if player:
+                    leaderboard_message += f"{player.display_name}: {data['total_score']} points, {data['games_played']} games played\n"
+
+            await ctx.send(box(leaderboard_message, lang=""))
 
     @commands.command()
     async def trivialb(self, ctx, category: str):
@@ -195,7 +213,9 @@ class Trivia(commands.Cog):
             for player_id, data in leaderboard[:10]:
                 player = self.bot.get_user(int(player_id))
                 if player:
-                    leaderboard_message += f"{player.display_name}: {data['total_score']} points, {data['games_played']} games played\n"
+                    leaderboard_message += (f"{player.display_name}: {data['total_score']} points, "
+                                            f"{data['games_played']} games played, "
+                                            f"{data['weekly_score']} points this week\n")
 
             await ctx.send(box(leaderboard_message, lang=""))
 
