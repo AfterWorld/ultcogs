@@ -1,6 +1,6 @@
 from redbot.core import commands
 from discord.ext import commands as discord_commands
-from discord import ButtonStyle, Interaction, Embed
+from discord import ButtonStyle, Interaction, Embed, Member
 from discord.ui import Button, View
 import random
 from datetime import datetime, timedelta
@@ -61,6 +61,21 @@ class OnePieceRPG(commands.Cog):
             {"name": "Find 3 Devil Fruits", "reward": 150, "type": "df", "count": 3},
         ]
         self.guilds = {}
+        self.daily_rewards = [
+            {"day": 1, "reward": "100 currency"},
+            {"day": 2, "reward": "1 random weapon"},
+            {"day": 3, "reward": "1 random devil fruit"},
+            {"day": 4, "reward": "200 currency"},
+            {"day": 5, "reward": "1 rare item"},
+        ]
+        self.crafting_recipes = {
+            "Ultimate Sword": {"ingredients": ["Katana", "Saber", "Haki Essence"], "stats": {"Sword": 50}},
+            "Ultimate Gun": {"ingredients": ["Pistol", "Rifle", "Gunpowder"], "stats": {"Gun": 50}},
+        }
+        self.titles = ["Pirate King", "Fleet Admiral", "Sword Master", "Gun Master", "Devil Fruit Master", "Haki Master"]
+        self.badges = ["First Blood", "Treasure Hunter", "Boss Slayer", "PvP Champion", "Quest Master"]
+        self.companions = ["Chopper", "Zoro", "Sanji", "Nami", "Robin", "Franky", "Brook", "Jinbe"]
+        self.housing_items = ["Bed", "Table", "Chair", "Lamp", "Bookshelf", "Carpet", "Painting", "Plant"]
 
     @commands.command()
     async def beginsail(self, ctx):
@@ -85,7 +100,12 @@ class OnePieceRPG(commands.Cog):
                 "quests": [],
                 "currency": 0,
                 "skills": {},
-                "guild": None
+                "guild": None,
+                "daily_login": None,
+                "titles": [],
+                "badges": [],
+                "companions": [],
+                "housing": []
             }
             if path == "marine":
                 await interaction.response.send_message("You have chosen the path of a Marine! Your goal is to become Fleet Admiral and stop the pirates.")
@@ -345,7 +365,7 @@ class OnePieceRPG(commands.Cog):
             await ctx.send("Invalid action. Use `create`, `join`, or `leave`.")
 
     @commands.command()
-    async def pvp(self, ctx, opponent: discord_commands.Member):
+    async def pvp(self, ctx, opponent: Member):
         """Challenge another player to a PvP battle."""
         if ctx.author.id not in self.players or opponent.id not in self.players:
             await ctx.send("Both players need to start their journey with `.beginsail` first.")
@@ -444,3 +464,30 @@ class OnePieceRPG(commands.Cog):
             embed.add_field(name=f"{i}. {user.name}", value=f"Level: {player_data['level']} - EXP: {player_data['exp']}")
 
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def daily(self, ctx):
+        """Claim your daily reward."""
+        if ctx.author.id not in self.players:
+            await ctx.send("You need to start your journey with `.beginsail` first.")
+            return
+
+        player = self.players[ctx.author.id]
+        now = datetime.now()
+        if player["daily_login"] and now - player["daily_login"] < timedelta(days=1):
+            await ctx.send("You have already claimed your daily reward. Try again tomorrow.")
+            return
+
+        player["daily_login"] = now
+        day = (now - player["daily_login"]).days % len(self.daily_rewards) + 1
+        reward = self.daily_rewards[day - 1]["reward"]
+        if "currency" in reward:
+            player["currency"] += int(reward.split()[0])
+        elif "weapon" in reward:
+            player["inventory"].append(random.choice(self.weapons))
+        elif "devil fruit" in reward:
+            player["inventory"].append(random.choice(self.devil_fruits))
+        else:
+            player["inventory"].append(reward)
+
+        await ctx.send(f"You have claimed your daily reward: {reward}!")
