@@ -137,7 +137,7 @@ class BountyCog(commands.Cog):
         poster_image.paste(avatar_image, (65, 223), avatar_image)
 
         draw.text((150, 750), username, font=font, fill="black")
-        draw.text((150, 870), f"{bounty_amount:,} Berries", font=font, fill="black")
+        draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
 
         output = io.BytesIO()
         poster_image.save(output, format="PNG")
