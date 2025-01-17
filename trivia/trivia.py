@@ -308,3 +308,13 @@ class Trivia(commands.Cog):
         await self.initialize_questions()
         categories = ", ".join(self.questions.keys())
         await ctx.send(f"Trivia questions reloaded. Available categories: {categories}")
+
+    @commands.command()
+    async def daily_challenge(self, ctx):
+        """Start a daily trivia challenge."""
+        await self.trivia(ctx, category="daily")
+
+    @commands.command()
+    async def weekly_challenge(self, ctx):
+        """Start a weekly trivia challenge."""
+        await self.trivia(ctx, category="weekly")
