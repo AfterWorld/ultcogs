@@ -104,8 +104,20 @@ class CrewTournament(commands.Cog):
             return
 
         guild = ctx.guild
-        captain_role = await guild.create_role(name=f"{crew_name} Captain")
-        vice_captain_role = await guild.create_role(name=f"{crew_name} Vice Captain")
+
+        # Check if the emoji is a custom emoji
+        if crew_emoji.startswith("<:") and crew_emoji.endswith(">"):
+            emoji_id = crew_emoji.split(":")[-1][:-1]
+            emoji = self.bot.get_emoji(int(emoji_id))
+            if not emoji:
+                # Fetch and upload the custom emoji to the guild
+                emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.png"
+                crew_emoji = await self.fetch_custom_emoji(emoji_url, guild)
+            else:
+                crew_emoji = str(emoji)
+
+        captain_role = await guild.create_role(name=f"{crew_emoji} {crew_name} Captain")
+        vice_captain_role = await guild.create_role(name=f"{crew_emoji} {crew_name} Vice Captain")
 
         self.crews[crew_name] = {
             "emoji": crew_emoji,
