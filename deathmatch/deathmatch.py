@@ -519,44 +519,26 @@ class Deathmatch(commands.Cog):
     @commands.command(name="achievements")
     async def achievements(self, ctx: commands.Context, member: discord.Member = None):
         """
-        Show all achievements for a user in a paginated format.
+        Show all achievements for a user.
         """
         member = member or ctx.author
         unlocked_achievements = await self.config.member(member).achievements()
         stats = await self.config.member(member).all()
     
-        # Build the list of achievements
-        pages = []
+        embed = discord.Embed(
+            title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
+            color=0x00FF00,
+        )
         for key, data in ACHIEVEMENTS.items():
-            if key in unlocked_achievements:
-                status = f"🔓 **Unlocked!** 🎉"
-            else:
-                progress = stats.get(data["condition"], 0)
-                status = f"🔒 *Locked* (Progress: {progress}/{data['count']})"
+            status = "🔓 **Unlocked!** 🎉" if key in unlocked_achievements else f"🔒 *Locked* (Progress: {stats.get(data['condition'], 0)}/{data['count']})"
+            title = f"🏅 **Title Unlocked:** {data['title']}" if "title" in data else ""
     
-            achievement_text = (
-                f"🎯 **{data['description']}**\n"
-                f"- **Status:** {status}\n"
-                f"- Use `.achievementinfo {key}` to learn more!\n"
+            embed.add_field(
+                name=data["description"],
+                value=f"**Status:** {status}\n{title}",
+                inline=False,
             )
-            pages.append(achievement_text)
-    
-        # Chunk achievements into groups of 5 per page
-        chunk_size = 5
-        paginated_pages = [pages[i:i + chunk_size] for i in range(0, len(pages), chunk_size)]
-    
-        embeds = []
-        for page_number, chunk in enumerate(paginated_pages, start=1):
-            embed = discord.Embed(
-                title=f"🏴‍☠️ {member.display_name}'s Achievements 🏴‍☠️",
-                description="\n".join(chunk),
-                color=0x00FF00,
-            )
-            embed.set_footer(text=f"Page {page_number}/{len(paginated_pages)}")
-            embeds.append(embed)
-    
-        # Use Redbot's pagination utility
-        await menu(ctx, embeds, DEFAULT_CONTROLS)
+        await ctx.send(embed=embed)
     
     @commands.command(name="achievementinfo")
     async def achievementinfo(self, ctx: commands.Context, achievement_name: str):
