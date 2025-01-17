@@ -99,4 +99,4 @@ class Snipe(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Snipe(bot))
-    print("Loading Snipe cog...")  # Debug print statement
+    print("Loading Snipe cog...") 
