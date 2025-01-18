@@ -12,7 +12,7 @@ import logging
 ACHIEVEMENTS = {
     "first_blood": {
         "description": "Claim your first victory in the arena!",
-        "condition": "win",
+        "condition": "wins",
         "count": 1,
         "title": "Rookie Gladiator",
     },
