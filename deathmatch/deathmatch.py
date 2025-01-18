@@ -445,10 +445,11 @@ class Deathmatch(commands.Cog):
             if key in user_achievements:
                 continue  # Already unlocked
 
-            # Safely get the stat as an integer
-            current_stat = int(stats.get(data["condition"], 0))
+            # Safely get the stat and required count as integers
+            current_stat = int(stats.get(data["condition"], 0) or 0)
+            required_count = int(data["count"])
 
-            if current_stat >= data["count"]:
+            if current_stat >= required_count:
                 # Unlock achievement
                 user_achievements.append(key)
                 unlocked.append(data["description"])
