@@ -542,7 +542,7 @@ class Deathmatch(commands.Cog):
             for player in players:
                 player["status"]["crit_chance_boost"] = 0.1
                 player["status"]["boost_turns"] = 3
-        elif environment == "Whole Cake Island" and random.random() < 0.1:  # 10% chance
+        elif environment == "Whole Cake Island" and random.random() < 0.3:  # 30% chance
             hazard_message = "🍰 The sweetness restores 15 HP for both players!"
             for player in players:
                 player["hp"] = min(100, player["hp"] + 15)
@@ -938,6 +938,10 @@ class Deathmatch(commands.Cog):
         ]
         turn_index = 0
 
+        # Initialize stats
+        attacker_stats = await self.config.member(challenger).all()
+        defender_stats = await self.config.member(opponent).all()
+
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
@@ -1023,8 +1027,8 @@ class Deathmatch(commands.Cog):
             )
 
             # Update stats for both players
-            await self.update_stats(attacker, defender, damage, move, {})
-            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, {})
+            await self.update_stats(attacker, defender, damage, move, attacker_stats)
+            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
 
             # Switch turn
             turn_index = 1 - turn_index
@@ -1069,8 +1073,6 @@ class Deathmatch(commands.Cog):
         await self.config.member(winner["member"]).seasonal_damage_dealt.set(
             await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
         )
-
-
 
     async def apply_burn_damage(self, player):
         """Apply burn damage to a player if they have burn stacks."""
