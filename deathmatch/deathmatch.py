@@ -832,14 +832,14 @@ class Deathmatch(commands.Cog):
             # Apply burn damage
             burn_damage = await self.apply_burn_damage(defender)
             if burn_damage > 0:
-                embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
+                embed.description = f"🔥 **{defender['name']}** takes `{burn_damage}` burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
 
             # Skip turn if stunned
             if defender["status"].get("stun"):
                 defender["status"]["stun"] = False  # Stun only lasts one turn
-                embed.description = f"⚡ **{defender['name']}** is stunned and cannot act!"
+                embed.description = f"⚡ **{defender['name']}** is `stunned` and cannot act!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
                 turn_index = 1 - turn_index
@@ -864,11 +864,25 @@ class Deathmatch(commands.Cog):
             # Apply effects
             await self.apply_effects(move, attacker, defender)
 
+            # Highlighted move effects in message
+            effects_highlight = []
+            if "burn" in move.get("effect", ""):
+                effects_highlight.append("🔥 **Burn!**")
+            if "crit" in move.get("effect", ""):
+                effects_highlight.append("✨ **Critical Hit!**")
+            if "heal" in move.get("effect", ""):
+                effects_highlight.append("💚 **Heal!**")
+            if "stun" in move.get("effect", ""):
+                effects_highlight.append("⚡ **Stun!**")
+
+            effects_display = "\n".join(effects_highlight)
+
             # Apply damage and update stats
             defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
-                f"**{attacker['name']}** used **{move['name']}**: {move['description']} "
-                f"and dealt **{damage}** damage to **{defender['name']}**!"
+                f"**{attacker['name']}** used **{move['name']}**: {move['description']}\n"
+                f"{effects_display}\n"
+                f"Dealt **{damage}** damage to **{defender['name']}**!"
             )
             embed.set_field_at(
                 0,
