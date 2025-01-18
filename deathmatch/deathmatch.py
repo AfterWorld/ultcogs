@@ -160,7 +160,72 @@ MOVES = [
     {"name": "Vitality Blossom", "type": "strong", "description": "A rare flower emits healing energy to restore health!", "effect": "heal"},
 ]
 
-SEAS = ["West Blue", "East Blue", "North Blue", "Grand Line", "South Blue"]
+# --- Modified Code with One Piece Island Environments ---
+
+ENVIRONMENTS = {
+    "Skypiea": {
+        "description": "High in the sky, electrical attacks are amplified!",
+        "effect": lambda move, stats: move.update({"crit_chance": move.get("crit_chance", 0.2) + 0.1}) if "crit" in move.get("effect", "") else None,
+    },
+    "Alabasta": {
+        "description": "A desert environment where burn effects are more potent!",
+        "effect": lambda move, stats: move.update({"burn_chance": move.get("burn_chance", 0.0) + 0.2}) if "burn" in move.get("effect", "") else None,
+    },
+    "Wano": {
+        "description": "The battlefield of samurai sharpens strong attacks!",
+        "effect": lambda move, stats: move.update({"damage": stats.get("damage", 0) + 5}) if move.get("type") == "strong" else None,
+    },
+    "Punk Hazard": {
+        "description": "A frozen and fiery wasteland where all elemental effects are enhanced!",
+        "effect": lambda move, stats: (
+            move.update({"burn_chance": move.get("burn_chance", 0.0) + 0.1}) if "burn" in move.get("effect", "") else None,
+            move.update({"stun": True}) if "stun" in move.get("effect", "") else None
+        ),
+    },
+    "Fishman Island": {
+        "description": "Underwater battles favor healing moves!",
+        "effect": lambda move, stats: move.update({"heal": stats.get("heal", 0) + 10}) if move.get("effect") == "heal" else None,
+    },
+    "Dressrosa": {
+        "description": "A vibrant battleground where critical strikes flourish!",
+        "effect": lambda move, stats: move.update({"crit_chance": move.get("crit_chance", 0.2) + 0.1}) if "crit" in move.get("effect", "") else None,
+    },
+    "Whole Cake Island": {
+        "description": "A sweet and strange land where health restoration is increased!",
+        "effect": lambda move, stats: move.update({"heal": stats.get("heal", 0) + 15}) if move.get("effect") == "heal" else None,
+    },
+    "Marineford": {
+        "description": "A war-torn battlefield amplifying strong attacks!",
+        "effect": lambda move, stats: move.update({"damage": stats.get("damage", 0) + 10}) if move.get("type") == "strong" else None,
+    },
+    "Enies Lobby": {
+        "description": "A place of justice where defensive moves shine!",
+        "effect": lambda move, stats: move.update({"block_active": True}) if "block" in move.get("effect", "") else None,
+    },
+    "Amazon Lily": {
+        "description": "A paradise that enhances healing and charm-based moves!",
+        "effect": lambda move, stats: move.update({"heal": stats.get("heal", 0) + 10}) if move.get("effect") == "heal" else None,
+    },
+    "Zou": {
+        "description": "The moving island enhances all elemental abilities!",
+        "effect": lambda move, stats: (
+            move.update({"burn_chance": move.get("burn_chance", 0.0) + 0.1}) if "burn" in move.get("effect", "") else None,
+            move.update({"stun": True}) if "stun" in move.get("effect", "") else None
+        ),
+    },
+    "Elbaf": {
+        "description": "A giant's battlefield where physical attacks are devastating!",
+        "effect": lambda move, stats: move.update({"damage": stats.get("damage", 0) + 15}) if move.get("type") == "strong" else None,
+    },
+    "Raftel": {
+        "description": "The final island where every stat is boosted!",
+        "effect": lambda move, stats: (
+            move.update({"crit_chance": move.get("crit_chance", 0.2) + 0.1}),
+            move.update({"burn_chance": move.get("burn_chance", 0.0) + 0.1}),
+            move.update({"heal": stats.get("heal", 0) + 10})
+        ),
+    },
+}
 
 class JoinButton(discord.ui.Button):
     def __init__(self, tournament_name, cog):
@@ -233,6 +298,8 @@ class Deathmatch(commands.Cog):
         self.tournaments = {}  # Track active tournaments
         self.log = logging.getLogger("red.deathmatch")  # Log under the cog name
         self.log.setLevel(logging.INFO)  # Set the log level
+        self.current_environment = None  # Track the current environment
+
 
     # --- Helper Functions ---
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
@@ -387,6 +454,11 @@ class Deathmatch(commands.Cog):
                 )
         await ctx.send(embed=embed)
         
+    def choose_environment(self):
+        """Randomly select an environment from One Piece islands."""
+        self.current_environment = random.choice(list(ENVIRONMENTS.keys()))
+        return self.current_environment
+
     # --- Main Commands ---
     @commands.hybrid_command(name="deathbattle")
     async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
@@ -711,16 +783,22 @@ class Deathmatch(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """The main battle logic for the deathmatch."""
+        """Override the fight method to include environmental effects."""
+        environment = self.choose_environment()
+        environment_effect = ENVIRONMENTS[environment]["effect"]
+
+        # Announce the environment
+        await ctx.send(f"🌍 The battle takes place in **{environment}**: {ENVIRONMENTS[environment]['description']}")
+
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
         challenger_status = {"burn": 0, "stun": False, "block_active": False}
         opponent_status = {"burn": 0, "stun": False, "block_active": False}
-    
+
         # Create the initial embed
         embed = discord.Embed(
-            title="🏴‍☠️ One Piece deathbattle ⚔️",
+            title="🏴‍☠️ One Piece Deathmatch ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
@@ -732,55 +810,60 @@ class Deathmatch(commands.Cog):
             ),
             inline=False,
         )
-        embed.set_footer(text="Actions are automatic!")
+        embed.set_footer(text="Actions are influenced by the environment!")
         message = await ctx.send(embed=embed)
-    
+
         # Player data structure
         players = [
             {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
             {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
         ]
         turn_index = 0
-    
+
         # Initialize stats
         attacker_stats = await self.config.member(challenger).all()
         defender_stats = await self.config.member(opponent).all()
-    
+
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
             defender = players[1 - turn_index]
-    
+
             # Apply burn damage
             burn_damage = await self.apply_burn_damage(defender)
             if burn_damage > 0:
                 embed.description = f"🔥 **{defender['name']}** takes {burn_damage} burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
-    
+
             # Skip turn if stunned
-            if defender["status"]["stun"]:
+            if defender["status"].get("stun"):
                 defender["status"]["stun"] = False  # Stun only lasts one turn
                 embed.description = f"⚡ **{defender['name']}** is stunned and cannot act!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
                 turn_index = 1 - turn_index
                 continue
-    
+
             # Select move
             move = random.choice(MOVES)
+
+            # Apply environmental effects
+            environment_effect(move, attacker)
+
+            # Calculate damage
             damage = self.calculate_damage(move["type"])
-    
+
             # Apply block logic
-            if defender["status"].get("block_active", False):  # Example condition for a block
+            if defender["status"].get("block_active", False):
                 damage = max(0, damage - 10)  # Reduce damage by block amount
                 await self.config.member(defender["member"]).blocks.set(
                     await self.config.member(defender["member"]).blocks() + 1
                 )
-    
+
             # Apply effects
             await self.apply_effects(move, attacker, defender)
-    
+
             # Apply damage and update stats
             defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
@@ -798,23 +881,23 @@ class Deathmatch(commands.Cog):
             )
             await message.edit(embed=embed)
             await asyncio.sleep(2)
-    
+
             # Update damage stats for the attacker
             await self.config.member(attacker["member"]).damage_dealt.set(
                 await self.config.member(attacker["member"]).damage_dealt() + damage
             )
-    
+
             # Update stats for both players
             await self.update_stats(attacker, defender, damage, move, attacker_stats)
             await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
-    
+
             # Switch turn
             turn_index = 1 - turn_index
-    
+
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
-    
+
         # Update the embed for victory
         embed.title = "🏆 Victory!"
         embed.description = f"The battle is over! **{winner['name']}** is victorious!"
@@ -851,6 +934,7 @@ class Deathmatch(commands.Cog):
         await self.config.member(winner["member"]).seasonal_damage_dealt.set(
             await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
         )
+
 
 
     async def apply_burn_damage(self, player):
