@@ -60,19 +60,19 @@ ACHIEVEMENTS = {
     },
     "unstoppable": {
         "description": "Win 10 matches to prove your dominance!",
-        "condition": "win",
+        "condition": "wins",
         "count": 10,
         "title": "Unstoppable",
     },
     "sea_emperor": {
         "description": "Claim the title of Sea Emperor by winning 25 matches!",
-        "condition": "win",
+        "condition": "wins",
         "count": 25,
         "title": "Sea Emperor",
     },
     "legendary_warrior": {
         "description": "Win 50 matches to cement your legacy!",
-        "condition": "win",
+        "condition": "wins",
         "count": 50,
         "title": "Legendary Warrior",
     },
@@ -94,7 +94,60 @@ ACHIEVEMENTS = {
         "count": 100,
         "title": "Legacy of Fire",
     },
-    # Add titles for other achievements as necessary
+    "guardian_angel": {
+        "description": "Prevent 100 damage using blocks across all matches!",
+        "condition": "damage_prevented",
+        "count": 100,
+        "title": "Guardian Angel",
+    },
+    "swift_finisher": {
+        "description": "End a match in under 5 turns!",
+        "condition": "turns_taken",
+        "count": 5,
+        "title": "Swift Finisher",
+    },
+    "relentless": {
+        "description": "Land a critical hit 10 times in one match!",
+        "condition": "critical_hits",
+        "count": 10,
+        "title": "Relentless Attacker",
+    },
+    "elemental_master": {
+        "description": "Use every elemental attack type in a single match!",
+        "condition": "elements_used",
+        "count": "all",
+        "title": "Elemental Master",
+    },
+    "unstoppable_force": {
+        "description": "Win 3 matches in a row without losing!",
+        "condition": "win_streak",
+        "count": 3,
+        "title": "Unstoppable Force",
+    },
+    "immortal": {
+        "description": "Win a match with exactly 1 HP remaining!",
+        "condition": "survive_at_1_hp",
+        "count": 1,
+        "title": "Immortal",
+    },
+    "devastator": {
+        "description": "Deal 500 damage in one match!",
+        "condition": "damage_dealt",
+        "count": 500,
+        "title": "The Devastator",
+    },
+    "pyromaniac": {
+        "description": "Inflict burn 10 times in a single match!",
+        "condition": "burns_applied",
+        "count": 10,
+        "title": "Pyromaniac",
+    },
+    "titan": {
+        "description": "Survive 50 turns in a single match!",
+        "condition": "turns_survived",
+        "count": 50,
+        "title": "The Titan",
+    },
 }
 
 MOVES = [
