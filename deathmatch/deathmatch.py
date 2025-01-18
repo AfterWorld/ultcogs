@@ -445,14 +445,10 @@ class Deathmatch(commands.Cog):
             if key in user_achievements:
                 continue  # Already unlocked
 
-            # Use the cog's logger to log debugging info
-            self.log.info(
-                f"Checking achievement {key} for {member.display_name}: "
-                f"Condition = {data['condition']}, Count Needed = {data['count']}, "
-                f"Current Stat = {stats.get(data['condition'], 0)}"
-            )
+            # Safely get the stat as an integer
+            current_stat = int(stats.get(data["condition"], 0))
 
-            if stats.get(data["condition"], 0) >= data["count"]:
+            if current_stat >= data["count"]:
                 # Unlock achievement
                 user_achievements.append(key)
                 unlocked.append(data["description"])
@@ -464,24 +460,14 @@ class Deathmatch(commands.Cog):
                         await member.send(
                             f"🎉 Congratulations! You've unlocked the title: **{data['title']}**"
                         )
-                    except discord.errors.HTTPException:
-                        if member.guild and member.guild.system_channel:
-                            await member.guild.system_channel.send(
-                                f"🎉 {member.mention}, you've unlocked the title: **{data['title']}**\n"
-                                f"(Note: Could not send a DM due to privacy settings.)"
-                            )
-                        else:
-                            # Log or handle cases where no system channel is available
-                            self.log.warning(
-                                f"Could not notify {member} about the title {data['title']} due to privacy settings."
-                            )
+                    except discord.Forbidden:
+                        pass  # User has DMs disabled or blocked the bot
 
         # Save updated achievements and titles
         await self.config.member(member).achievements.set(user_achievements)
         await self.config.member(member).titles.set(unlocked_titles)
 
         return unlocked
-
 
     async def display_achievements(self, ctx: commands.Context, member: discord.Member = None):
         """Show achievements for a user in a stylish embed."""
