@@ -447,7 +447,13 @@ class Deathmatch(commands.Cog):
 
             # Safely get the stat and required count as integers
             current_stat = int(stats.get(data["condition"], 0) or 0)
-            required_count = int(data["count"])
+            try:
+                required_count = int(data["count"])
+            except ValueError:
+                if data["count"] == "all":
+                    required_count = float('inf')  # Use infinity to represent "all"
+                else:
+                    raise
 
             if current_stat >= required_count:
                 # Unlock achievement
