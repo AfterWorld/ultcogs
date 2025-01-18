@@ -468,6 +468,7 @@ class Deathmatch(commands.Cog):
                             f"🎉 Congratulations! You've unlocked the title: **{data['title']}**"
                         )
                     except discord.Forbidden:
+                        self.log.warning(f"Could not send DM to {member.display_name}. They might have DMs disabled or have blocked the bot.")
                         pass  # User has DMs disabled or blocked the bot
 
         # Save updated achievements and titles
@@ -580,8 +581,8 @@ class Deathmatch(commands.Cog):
         if ctx.author == opponent:
             await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
             return
-        if opponent == ctx.guild.me:
-            await ctx.send("❌ You cannot challenge the bot to a deathmatch!")
+        if opponent.bot:
+            await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
             return
         if ctx.channel.id in self.active_channels:
             await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
@@ -602,6 +603,18 @@ class Deathmatch(commands.Cog):
         # Mark the channel as inactive
         self.active_channels.remove(ctx.channel.id)
 
+    @commands.command(name="stopbattle")
+    @commands.admin_or_permissions(administrator=True)
+    async def stopbattle(self, ctx: commands.Context):
+        """
+        Stop an ongoing battle in the current channel.
+        This command can only be used by admins.
+        """
+        if ctx.channel.id in self.active_channels:
+            self.active_channels.remove(ctx.channel.id)
+            await ctx.send("❌ The ongoing battle has been stopped.")
+        else:
+            await ctx.send("❌ There is no ongoing battle in this channel.")
 
     @commands.group(name="deathboard", invoke_without_command=True)
     async def deathboard(self, ctx: commands.Context):
