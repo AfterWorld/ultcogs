@@ -12,7 +12,7 @@ import logging
 ACHIEVEMENTS = {
     "first_blood": {
         "description": "Claim your first victory in the arena!",
-        "condition": "wins",
+        "condition": "win",
         "count": 1,
         "title": "Rookie Gladiator",
     },
@@ -60,19 +60,19 @@ ACHIEVEMENTS = {
     },
     "unstoppable": {
         "description": "Win 10 matches to prove your dominance!",
-        "condition": "wins",
+        "condition": "win",
         "count": 10,
         "title": "Unstoppable",
     },
     "sea_emperor": {
         "description": "Claim the title of Sea Emperor by winning 25 matches!",
-        "condition": "wins",
+        "condition": "win",
         "count": 25,
         "title": "Sea Emperor",
     },
     "legendary_warrior": {
         "description": "Win 50 matches to cement your legacy!",
-        "condition": "wins",
+        "condition": "win",
         "count": 50,
         "title": "Legendary Warrior",
     },
@@ -94,60 +94,7 @@ ACHIEVEMENTS = {
         "count": 100,
         "title": "Legacy of Fire",
     },
-    "guardian_angel": {
-        "description": "Prevent 100 damage using blocks across all matches!",
-        "condition": "damage_prevented",
-        "count": 100,
-        "title": "Guardian Angel",
-    },
-    "swift_finisher": {
-        "description": "End a match in under 5 turns!",
-        "condition": "turns_taken",
-        "count": 5,
-        "title": "Swift Finisher",
-    },
-    "relentless": {
-        "description": "Land a critical hit 10 times in one match!",
-        "condition": "critical_hits",
-        "count": 10,
-        "title": "Relentless Attacker",
-    },
-    "elemental_master": {
-        "description": "Use every elemental attack type in a single match!",
-        "condition": "elements_used",
-        "count": "all",
-        "title": "Elemental Master",
-    },
-    "unstoppable_force": {
-        "description": "Win 3 matches in a row without losing!",
-        "condition": "win_streak",
-        "count": 3,
-        "title": "Unstoppable Force",
-    },
-    "immortal": {
-        "description": "Win a match with exactly 1 HP remaining!",
-        "condition": "survive_at_1_hp",
-        "count": 1,
-        "title": "Immortal",
-    },
-    "devastator": {
-        "description": "Deal 500 damage in one match!",
-        "condition": "damage_dealt",
-        "count": 500,
-        "title": "The Devastator",
-    },
-    "pyromaniac": {
-        "description": "Inflict burn 10 times in a single match!",
-        "condition": "burns_applied",
-        "count": 10,
-        "title": "Pyromaniac",
-    },
-    "titan": {
-        "description": "Survive 50 turns in a single match!",
-        "condition": "turns_survived",
-        "count": 50,
-        "title": "The Titan",
-    },
+    # Add titles for other achievements as necessary
 }
 
 MOVES = [
@@ -451,23 +398,23 @@ class Deathmatch(commands.Cog):
         user_achievements = await self.config.member(member).achievements()
         unlocked_titles = await self.config.member(member).titles()
         unlocked = []
-    
+
         for key, data in ACHIEVEMENTS.items():
             if key in user_achievements:
                 continue  # Already unlocked
-    
+
             # Use the cog's logger to log debugging info
             self.log.info(
                 f"Checking achievement {key} for {member.display_name}: "
                 f"Condition = {data['condition']}, Count Needed = {data['count']}, "
                 f"Current Stat = {stats.get(data['condition'], 0)}"
             )
-    
+
             if stats.get(data["condition"], 0) >= data["count"]:
                 # Unlock achievement
                 user_achievements.append(key)
                 unlocked.append(data["description"])
-    
+
                 # Unlock title if specified
                 if "title" in data and data["title"] not in unlocked_titles:
                     unlocked_titles.append(data["title"])
@@ -475,13 +422,22 @@ class Deathmatch(commands.Cog):
                         await member.send(
                             f"🎉 Congratulations! You've unlocked the title: **{data['title']}**"
                         )
-                    except discord.Forbidden:
-                        pass  # User has DMs disabled or blocked the bot
-    
+                    except discord.errors.HTTPException:
+                        if member.guild and member.guild.system_channel:
+                            await member.guild.system_channel.send(
+                                f"🎉 {member.mention}, you've unlocked the title: **{data['title']}**\n"
+                                f"(Note: Could not send a DM due to privacy settings.)"
+                            )
+                        else:
+                            # Log or handle cases where no system channel is available
+                            self.log.warning(
+                                f"Could not notify {member} about the title {data['title']} due to privacy settings."
+                            )
+
         # Save updated achievements and titles
         await self.config.member(member).achievements.set(user_achievements)
         await self.config.member(member).titles.set(unlocked_titles)
-    
+
         return unlocked
 
 
