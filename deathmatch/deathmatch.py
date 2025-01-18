@@ -866,18 +866,18 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="equiptitle")
-        async def equiptitle(self, ctx: commands.Context, title: str):
-            """Equip a title for yourself."""
-            titles = await self.config.member(ctx.author).titles()
-            title_lower = title.lower()
-            matched_title = next((t for t in titles if t.lower() == title_lower), None)
+    async def equiptitle(self, ctx: commands.Context, title: str):
+        """Equip a title for yourself."""
+        titles = await self.config.member(ctx.author).titles()
+        title_lower = title.lower()
+        matched_title = next((t for t in titles if t.lower() == title_lower), None)
             
-            if not matched_title:
-                await ctx.send(f"❌ You have not unlocked the title `{title}`.")
-                return
+        if not matched_title:
+            await ctx.send(f"❌ You have not unlocked the title `{title}`.")
+            return
 
-            await self.config.member(ctx.author).current_title.set(matched_title)
-            await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
+        await self.config.member(ctx.author).current_title.set(matched_title)
+        await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
     @commands.command(name="deathstats")
     async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
