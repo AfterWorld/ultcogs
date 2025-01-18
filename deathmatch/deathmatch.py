@@ -524,6 +524,7 @@ class Deathmatch(commands.Cog):
     async def apply_environmental_hazard(self, environment, players):
         """Apply random hazards or buffs based on the environment."""
         hazard_message = None
+
         if environment == "Skypiea" and random.random() < 0.3:  # 30% chance
             hazard_message = "⚡ A lightning bolt strikes, dealing 15 damage to both players!"
             for player in players:
@@ -533,10 +534,57 @@ class Deathmatch(commands.Cog):
             for player in players:
                 player["status"]["accuracy_reduction"] = 0.2
                 player["status"]["accuracy_turns"] = 3
+        elif environment == "Wano" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🗡️ A samurai's spirit empowers strong attacks, increasing their damage temporarily!"
+            for player in players:
+                player["status"]["strong_damage_boost"] = 5
+                player["status"]["boost_turns"] = 3
+        elif environment == "Punk Hazard" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🔥❄️ The extreme elements amplify burn and stun effects!"
+            for player in players:
+                player["status"]["burn_amplification"] = 0.1
+                player["status"]["stun_chance_boost"] = True
         elif environment == "Fishman Island" and random.random() < 0.4:  # 40% chance
             hazard_message = "🌊 A soothing wave heals both players for 10 HP!"
             for player in players:
                 player["hp"] = min(100, player["hp"] + 10)
+        elif environment == "Dressrosa" and random.random() < 0.3:  # 30% chance
+            hazard_message = "✨ A dazzling aura increases crit chance for both players!"
+            for player in players:
+                player["status"]["crit_chance_boost"] = 0.1
+                player["status"]["boost_turns"] = 3
+        elif environment == "Whole Cake Island" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🍰 The sweetness restores 15 HP for both players!"
+            for player in players:
+                player["hp"] = min(100, player["hp"] + 15)
+        elif environment == "Marineford" and random.random() < 0.3:  # 30% chance
+            hazard_message = "⚔️ The battlefield empowers strong attacks, increasing their damage!"
+            for player in players:
+                player["status"]["strong_damage_boost"] = 10
+                player["status"]["boost_turns"] = 3
+        elif environment == "Enies Lobby" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🛡️ Justice prevails, enhancing block effects for both players!"
+            for player in players:
+                player["status"]["block_amplification"] = True
+        elif environment == "Amazon Lily" and random.random() < 0.3:  # 30% chance
+            hazard_message = "💖 The charm of the island enhances healing moves!"
+            for player in players:
+                player["status"]["heal_boost"] = 10
+        elif environment == "Zou" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🐘 The island enhances all elemental abilities!"
+            for player in players:
+                player["status"]["elemental_boost"] = 0.1
+        elif environment == "Elbaf" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🔨 The land of giants amplifies physical attack damage!"
+            for player in players:
+                player["status"]["physical_damage_boost"] = 15
+                player["status"]["boost_turns"] = 3
+        elif environment == "Raftel" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🏝️ The legendary island boosts all stats for both players!"
+            for player in players:
+                player["status"]["crit_chance_boost"] = 0.1
+                player["status"]["burn_amplification"] = 0.1
+                player["status"]["heal_boost"] = 10
 
         return hazard_message
 
