@@ -866,15 +866,18 @@ class Deathmatch(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="equiptitle")
-    async def equiptitle(self, ctx: commands.Context, title: str):
-        """Equip a title for yourself."""
-        titles = await self.config.member(ctx.author).titles()
-        if title not in titles:
-            await ctx.send(f"❌ You have not unlocked the title `{title}`.")
-            return
-    
-        await self.config.member(ctx.author).current_title.set(title)
-        await ctx.send(f"✅ You have equipped the title `{title}`!")
+        async def equiptitle(self, ctx: commands.Context, title: str):
+            """Equip a title for yourself."""
+            titles = await self.config.member(ctx.author).titles()
+            title_lower = title.lower()
+            matched_title = next((t for t in titles if t.lower() == title_lower), None)
+            
+            if not matched_title:
+                await ctx.send(f"❌ You have not unlocked the title `{title}`.")
+                return
+
+            await self.config.member(ctx.author).current_title.set(matched_title)
+            await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
     @commands.command(name="deathstats")
     async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
@@ -1080,12 +1083,13 @@ class Deathmatch(commands.Cog):
             await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
         )
 
-    async def apply_burn_damage(self, player):
-        """Apply burn damage to a player if they have burn stacks."""
-        if player["status"]["burn"] > 0:
-            burn_damage = 5 * player["status"]["burn"]
+    async def apply_burn_damage(self, player: dict) -> int:
+        """Apply burn damage to a player based on their burn stacks."""
+        burn_stacks = player["status"].get("burn", 0)
+        if burn_stacks > 0:
+            burn_damage = 5 * burn_stacks
             player["hp"] = max(0, player["hp"] - burn_damage)
-            player["status"]["burn"] -= 1
+            player["status"]["burn"] = max(0, burn_stacks - 1)
             return burn_damage
         return 0
 
