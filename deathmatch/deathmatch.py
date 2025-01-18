@@ -542,7 +542,7 @@ class Deathmatch(commands.Cog):
             for player in players:
                 player["status"]["crit_chance_boost"] = 0.1
                 player["status"]["boost_turns"] = 3
-        elif environment == "Whole Cake Island" and random.random() < 0.3:  # 30% chance
+        elif environment == "Whole Cake Island" and random.random() < 0.1:  # 10% chance
             hazard_message = "🍰 The sweetness restores 15 HP for both players!"
             for player in players:
                 player["hp"] = min(100, player["hp"] + 15)
