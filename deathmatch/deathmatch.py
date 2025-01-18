@@ -200,17 +200,6 @@ MOVES = [
     {"name": "Wings of Regeneration", "type": "critical", "description": "Marco's wings glow as they heal him completely!", "effect": "heal"},
     {"name": "Herb Shot", "type": "regular", "description": "Usopp launches a healing plant extract to recover!", "effect": "heal"},
     {"name": "Soul Serenade", "type": "regular", "description": "Brook's music restores vitality to the soul!", "effect": "heal"},
-    {"name": "Spicy Healing Curry", "type": "regular", "description": "Sanji's gourmet food revitalizes health!", "effect": "heal"},
-    {"name": "Berserker Recovery", "type": "strong", "description": "A burst of willpower heals battle fatigue!", "effect": "heal"},
-    {"name": "Haki Surge", "type": "critical", "description": "A burst of Conqueror's Haki restores the user's strength!", "effect": "heal"},
-    {"name": "Self-Repair", "type": "strong", "description": "Franky repairs himself mid-battle, restoring some health!", "effect": "heal"},
-    {"name": "Holy Touch", "type": "strong", "description": "A divine aura envelops the user, healing wounds!", "effect": "heal"},
-    {"name": "Refresh", "type": "regular", "description": "A quick breather to regain strength!", "effect": "heal"},
-    {"name": "Eternal Youth", "type": "critical", "description": "A mythical technique that restores significant health!", "effect": "heal"},
-    {"name": "Battle Bandage", "type": "regular", "description": "Quickly applying first aid recovers some health!", "effect": "heal"},
-    {"name": "Healing Bubble", "type": "regular", "description": "A magical bubble that rejuvenates vitality!", "effect": "heal"},
-    {"name": "Rejuvenating Stance", "type": "strong", "description": "A calm stance that channels energy to heal!", "effect": "heal"},
-    {"name": "Vitality Blossom", "type": "strong", "description": "A rare flower emits healing energy to restore health!", "effect": "heal"},
 ]
 
 # --- Modified Code with One Piece Island Environments ---
