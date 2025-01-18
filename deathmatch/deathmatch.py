@@ -12,7 +12,7 @@ import logging
 ACHIEVEMENTS = {
     "first_blood": {
         "description": "Claim your first victory in the arena!",
-        "condition": "win",
+        "condition": "wins",
         "count": 1,
         "title": "Rookie Gladiator",
     },
@@ -60,19 +60,19 @@ ACHIEVEMENTS = {
     },
     "unstoppable": {
         "description": "Win 10 matches to prove your dominance!",
-        "condition": "win",
+        "condition": "wins",
         "count": 10,
         "title": "Unstoppable",
     },
     "sea_emperor": {
         "description": "Claim the title of Sea Emperor by winning 25 matches!",
-        "condition": "win",
+        "condition": "wins",
         "count": 25,
         "title": "Sea Emperor",
     },
     "legendary_warrior": {
         "description": "Win 50 matches to cement your legacy!",
-        "condition": "win",
+        "condition": "wins",
         "count": 50,
         "title": "Legendary Warrior",
     },
@@ -94,7 +94,60 @@ ACHIEVEMENTS = {
         "count": 100,
         "title": "Legacy of Fire",
     },
-    # Add titles for other achievements as necessary
+    "guardian_angel": {
+        "description": "Prevent 100 damage using blocks across all matches!",
+        "condition": "damage_prevented",
+        "count": 100,
+        "title": "Guardian Angel",
+    },
+    "swift_finisher": {
+        "description": "End a match in under 5 turns!",
+        "condition": "turns_taken",
+        "count": 5,
+        "title": "Swift Finisher",
+    },
+    "relentless": {
+        "description": "Land a critical hit 10 times in one match!",
+        "condition": "critical_hits",
+        "count": 10,
+        "title": "Relentless Attacker",
+    },
+    "elemental_master": {
+        "description": "Use every elemental attack type in a single match!",
+        "condition": "elements_used",
+        "count": "all",
+        "title": "Elemental Master",
+    },
+    "unstoppable_force": {
+        "description": "Win 3 matches in a row without losing!",
+        "condition": "win_streak",
+        "count": 3,
+        "title": "Unstoppable Force",
+    },
+    "immortal": {
+        "description": "Win a match with exactly 1 HP remaining!",
+        "condition": "survive_at_1_hp",
+        "count": 1,
+        "title": "Immortal",
+    },
+    "devastator": {
+        "description": "Deal 500 damage in one match!",
+        "condition": "damage_dealt",
+        "count": 500,
+        "title": "The Devastator",
+    },
+    "pyromaniac": {
+        "description": "Inflict burn 10 times in a single match!",
+        "condition": "burns_applied",
+        "count": 10,
+        "title": "Pyromaniac",
+    },
+    "titan": {
+        "description": "Survive 50 turns in a single match!",
+        "condition": "turns_survived",
+        "count": 50,
+        "title": "The Titan",
+    },
 }
 
 MOVES = [
@@ -467,6 +520,25 @@ class Deathmatch(commands.Cog):
         """Randomly select an environment from One Piece islands."""
         self.current_environment = random.choice(list(ENVIRONMENTS.keys()))
         return self.current_environment
+    
+    async def apply_environmental_hazard(self, environment, players):
+        """Apply random hazards or buffs based on the environment."""
+        hazard_message = None
+        if environment == "Skypiea" and random.random() < 0.3:  # 30% chance
+            hazard_message = "⚡ A lightning bolt strikes, dealing 15 damage to both players!"
+            for player in players:
+                player["hp"] = max(0, player["hp"] - 15)
+        elif environment == "Alabasta" and random.random() < 0.3:  # 30% chance
+            hazard_message = "🌪️ A sandstorm reduces accuracy by 20% for 3 turns!"
+            for player in players:
+                player["status"]["accuracy_reduction"] = 0.2
+                player["status"]["accuracy_turns"] = 3
+        elif environment == "Fishman Island" and random.random() < 0.4:  # 40% chance
+            hazard_message = "🌊 A soothing wave heals both players for 10 HP!"
+            for player in players:
+                player["hp"] = min(100, player["hp"] + 10)
+
+        return hazard_message
 
     # --- Main Commands ---
     @commands.hybrid_command(name="deathbattle")
@@ -792,7 +864,7 @@ class Deathmatch(commands.Cog):
 
     # --- Core Battle Logic ---
     async def fight(self, ctx, challenger, opponent):
-        """Override the fight method to include environmental effects."""
+        """Override the fight method to include environmental hazards."""
         environment = self.choose_environment()
         environment_effect = ENVIRONMENTS[environment]["effect"]
 
@@ -802,8 +874,8 @@ class Deathmatch(commands.Cog):
         # Initialize player data
         challenger_hp = 100
         opponent_hp = 100
-        challenger_status = {"burn": 0, "stun": False, "block_active": False}
-        opponent_status = {"burn": 0, "stun": False, "block_active": False}
+        challenger_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
+        opponent_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
 
         # Create the initial embed
         embed = discord.Embed(
@@ -829,14 +901,17 @@ class Deathmatch(commands.Cog):
         ]
         turn_index = 0
 
-        # Initialize stats
-        attacker_stats = await self.config.member(challenger).all()
-        defender_stats = await self.config.member(opponent).all()
-
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             attacker = players[turn_index]
             defender = players[1 - turn_index]
+
+            # Apply environmental hazard
+            hazard_message = await self.apply_environmental_hazard(environment, players)
+            if hazard_message:
+                embed.description = f"⚠️ **Environmental Hazard!** {hazard_message}"
+                await message.edit(embed=embed)
+                await asyncio.sleep(2)
 
             # Apply burn damage
             burn_damage = await self.apply_burn_damage(defender)
@@ -911,8 +986,8 @@ class Deathmatch(commands.Cog):
             )
 
             # Update stats for both players
-            await self.update_stats(attacker, defender, damage, move, attacker_stats)
-            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
+            await self.update_stats(attacker, defender, damage, move, {})
+            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, {})
 
             # Switch turn
             turn_index = 1 - turn_index
