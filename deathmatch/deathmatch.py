@@ -929,8 +929,6 @@ class Deathmatch(commands.Cog):
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
-        embed.set_thumbnail(url=challenger.display_avatar.url)
-        embed.set_image(url=opponent.display_avatar.url)
         embed.add_field(
             name="Health Bars",
             value=(
