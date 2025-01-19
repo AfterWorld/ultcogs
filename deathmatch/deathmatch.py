@@ -929,6 +929,8 @@ class Deathmatch(commands.Cog):
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
+        embed.set_thumbnail(url=challenger.display_avatar.url)
+        embed.set_image(url=opponent.display_avatar.url)
         embed.add_field(
             name="Health Bars",
             value=(
@@ -937,6 +939,7 @@ class Deathmatch(commands.Cog):
             ),
             inline=False,
         )
+        embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
         embed.set_footer(text="Actions are influenced by the environment!")
         message = await ctx.send(embed=embed)
 
@@ -1027,6 +1030,12 @@ class Deathmatch(commands.Cog):
                 ),
                 inline=False,
             )
+            embed.set_field_at(
+                1,
+                name="Turn",
+                value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
+                inline=False,
+            )
             await message.edit(embed=embed)
             await asyncio.sleep(2)
 
@@ -1059,6 +1068,7 @@ class Deathmatch(commands.Cog):
             ),
             inline=False,
         )
+        embed.remove_field(1)  # Remove the turn field
         await message.edit(embed=embed)
 
         # Update stats for the winner
