@@ -1099,6 +1099,12 @@ class Deathmatch(commands.Cog):
             await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
         )
 
+    def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
+        """Generate a health bar using Discord emotes based on current HP."""
+        filled_length = int(length * current_hp // max_hp)
+        bar = "🟩" * filled_length + "⬜" * (length - filled_length)
+        return f"{bar}"
+
     async def apply_burn_damage(self, player: dict) -> int:
         """Apply burn damage to a player based on their burn stacks."""
         burn_stacks = player["status"].get("burn", 0)
