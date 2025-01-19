@@ -930,12 +930,14 @@ class Deathmatch(commands.Cog):
             color=0x00FF00,
         )
         embed.add_field(
-            name="Health Bars",
-            value=(
-                f"**{challenger.display_name}:** {self.generate_health_bar(challenger_hp)} {challenger_hp}/100\n"
-                f"**{opponent.display_name}:** {self.generate_health_bar(opponent_hp)} {opponent_hp}/100"
-            ),
-            inline=False,
+            name=f"**{challenger.display_name}**",
+            value=f"{self.generate_health_bar(challenger_hp)} {challenger_hp}/100",
+            inline=True,
+        )
+        embed.add_field(
+            name=f"**{opponent.display_name}**",
+            value=f"{self.generate_health_bar(opponent_hp)} {opponent_hp}/100",
+            inline=True,
         )
         embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
         embed.set_footer(text="Actions are influenced by the environment!")
@@ -1021,15 +1023,18 @@ class Deathmatch(commands.Cog):
             )
             embed.set_field_at(
                 0,
-                name="Health Bars",
-                value=(
-                    f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
-                    f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
-                ),
-                inline=False,
+                name=f"**{players[0]['name']}**",
+                value=f"{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
+                inline=True,
             )
             embed.set_field_at(
                 1,
+                name=f"**{players[1]['name']}**",
+                value=f"{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
+                inline=True,
+            )
+            embed.set_field_at(
+                2,
                 name="Turn",
                 value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
                 inline=False,
@@ -1059,14 +1064,17 @@ class Deathmatch(commands.Cog):
         embed.color = 0xFFD700  # Change to gold for victory
         embed.set_field_at(
             0,
-            name="Final Health Bars",
-            value=(
-                f"**{players[0]['name']}:** {self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100\n"
-                f"**{players[1]['name']}:** {self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100"
-            ),
-            inline=False,
+            name=f"**{players[0]['name']}**",
+            value=f"{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
+            inline=True,
         )
-        embed.remove_field(1)  # Remove the turn field
+        embed.set_field_at(
+            1,
+            name=f"**{players[1]['name']}**",
+            value=f"{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
+            inline=True,
+        )
+        embed.remove_field(2)  # Remove the turn field
         await message.edit(embed=embed)
 
         # Update stats for the winner
