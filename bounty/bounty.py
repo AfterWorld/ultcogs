@@ -273,9 +273,28 @@ class BountyCog(commands.Cog):
             embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
     
+    def get_redeemable_roles(self, bounty_amount):
+        """Get the roles that can be redeemed based on the bounty amount."""
+        roles = [
+            (50000000, "Rookie Pirate"),
+            (100000000, "Super Rookie"),
+            (200000000, "Notorious Pirate"),
+            (300000000, "Supernova"),
+            (400000000, "Rising Star"),
+            (500000000, "Infamous Pirate"),
+            (600000000, "Feared Pirate"),
+            (700000000, "Pirate Captain"),
+            (800000000, "Pirate Lord"),
+            (900000000, "Pirate Emperor"),
+            (1000000000, "Yonko"),
+            (1500000000, "Pirate King Candidate"),
+            (2000000000, "King of the Pirates")
+        ]
+        return [role for amount, role in roles if bounty_amount >= amount]
+
     @commands.command()
     async def redeem(self, ctx):
-        """Redeem your bounty for a unique role based on your bounty rank."""
+        """Show redeemable roles and allow the user to redeem a role based on their bounty."""
         user = ctx.author
         bounties = await self.config.guild(ctx.guild).bounties()
         user_id = str(user.id)
@@ -284,16 +303,42 @@ class BountyCog(commands.Cog):
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
         current_bounty = bounties[user_id]["amount"]
-        title = self.get_bounty_title(current_bounty)
+        redeemable_roles = self.get_redeemable_roles(current_bounty)
 
-        role_name = f"{title} - {current_bounty:,} Berries"
+        if not redeemable_roles:
+            return await ctx.send("Ye don't have enough bounty to redeem any roles, ye scallywag!")
+
+        embed = discord.Embed(title="Redeemable Roles", color=discord.Color.blue())
+        for role in redeemable_roles:
+            embed.add_field(name=role, value=f"{role} - {current_bounty:,} Berries", inline=False)
+        await ctx.send(embed=embed)
+
+        await ctx.send("Type the name of the role ye want to redeem:")
+
+        def check(m):
+            return m.author == user and m.channel == ctx.channel
+
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=30)
+        except asyncio.TimeoutError:
+            return await ctx.send("Ye took too long to respond. Try again later, ye landlubber!")
+
+        selected_role = msg.content
+        if selected_role not in redeemable_roles:
+            return await ctx.send("Invalid role. Please type the name of a valid role from the list.")
+
+        role_name = f"{selected_role} - {current_bounty:,} Berries"
         role = discord.utils.get(ctx.guild.roles, name=role_name)
 
         if role is None:
             role = await ctx.guild.create_role(name=role_name, reason="Bounty reward role")
 
         await user.add_roles(role)
-        await ctx.send(f"Ye have redeemed yer bounty for the role: **{role_name}**!")
+        bounties[user_id]["amount"] -= current_bounty
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+
+        await ctx.send(f"Ye have redeemed yer bounty for the role: **{role_name}**! Yer new bounty is {bounties[user_id]['amount']:,} Berries.")
 
         logger.info(f"{user.display_name} redeemed bounty for role: {role_name}")
         
