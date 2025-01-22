@@ -7,6 +7,14 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 import aiohttp
 import io
 import os
+import logging
+
+# Initialize logger
+logger = logging.getLogger("red.bountycog")
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(filename="bountycog.log", encoding="utf-8", mode="w")
+handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+logger.addHandler(handler)
 
 class BountyCog(commands.Cog):
     """A cog for managing bounties."""
@@ -37,7 +45,7 @@ class BountyCog(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)
     async def dailybounty(self, ctx):
-        """Claim your daily bounty increase!"""
+        """Claim your daily bounty increase."""
         user = ctx.author
         last_claim = await self.config.member(user).last_daily_claim()
         now = datetime.utcnow()
@@ -220,19 +228,48 @@ class BountyCog(commands.Cog):
         if new_bounty >= 900000000:
             await self.announce_rank(ctx.guild, user, new_title)
 
+        logger.info(f"{user.display_name} used berryflip and now has a bounty of {new_bounty:,} Berries.")
+
     @commands.command()
     async def mostwanted(self, ctx):
-        """Display the top 10 users with the highest bounties."""
+        """Display the top users with the highest bounties."""
         bounties = await self.config.guild(ctx.guild).bounties()
         sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)
-        top_bounties = sorted_bounties[:10]
+        pages = [sorted_bounties[i:i + 10] for i in range(0, len(sorted_bounties), 10)]
 
+        current_page = 0
+        embed = self.create_leaderboard_embed(pages[current_page])
+        message = await ctx.send(embed=embed)
+
+        await message.add_reaction("⬅️")
+        await message.add_reaction("➡️")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+
+                if str(reaction.emoji) == "➡️":
+                    current_page = (current_page + 1) % len(pages)
+                elif str(reaction.emoji) == "⬅️":
+                    current_page = (current_page - 1) % len(pages)
+
+                embed = self.create_leaderboard_embed(pages[current_page])
+                await message.edit(embed=embed)
+                await message.remove_reaction(reaction, user)
+            except asyncio.TimeoutError:
+                break
+
+        await message.clear_reactions()
+
+    def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
-        for i, (user_id, bounty) in enumerate(top_bounties, start=1):
+        for i, (user_id, bounty) in enumerate(bounties, start=1):
             user = self.bot.get_user(int(user_id))
             embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
-
-        await ctx.send(embed=embed)
+        return embed
 
     @commands.command()
     async def missions(self, ctx):
@@ -268,47 +305,67 @@ class BountyCog(commands.Cog):
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
         if mission["description"] == "Answer a trivia question":
-            await ctx.send("What is the capital of France?")
-            try:
-                def check(m):
-                    return m.author == user and m.channel == ctx.channel
-                msg = await self.bot.wait_for("message", check=check, timeout=30)
-                if msg.content.lower() == "paris":
-                    await ctx.send("Correct! You have completed the mission.")
-                else:
-                    return await ctx.send("Incorrect answer. Mission failed.")
-            except asyncio.TimeoutError:
-                return await ctx.send("You took too long to answer. Mission failed.")
+            success = await self.handle_trivia_question(ctx, user)
         elif mission["description"] == "Share a fun fact":
-            await ctx.send("Please share a fun fact.")
-            try:
-                def check(m):
-                    return m.author == user and m.channel == ctx.channel
-                msg = await self.bot.wait_for("message", check=check, timeout=30)
-                await ctx.send(f"Fun fact received: {msg.content}")
-            except asyncio.TimeoutError:
-                return await ctx.send("You took too long to share a fun fact. Mission failed.")
+            success = await self.handle_fun_fact(ctx, user)
         elif mission["description"] == "Post a meme":
-            await ctx.send("Please post a meme.")
-            try:
-                def check(m):
-                    return m.author == user and m.channel == ctx.channel and m.attachments
-                msg = await self.bot.wait_for("message", check=check, timeout=30)
-                await ctx.send("Meme received.")
-            except asyncio.TimeoutError:
-                return await ctx.send("You took too long to post a meme. Mission failed.")
+            success = await self.handle_post_meme(ctx, user)
 
-        bounties[user_id]["amount"] += mission["reward"]
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
-        new_bounty = bounties[user_id]["amount"]
-        new_title = self.get_bounty_title(new_bounty)
-        await ctx.send(f"🏆 Mission completed! Ye earned {mission['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                       f"Current Title: {new_title}")
+        if success:
+            bounties[user_id]["amount"] += mission["reward"]
+            await self.config.guild(ctx.guild).bounties.set(bounties)
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+            new_bounty = bounties[user_id]["amount"]
+            new_title = self.get_bounty_title(new_bounty)
+            await ctx.send(f"🏆 Mission completed! Ye earned {mission['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
+                           f"Current Title: {new_title}")
 
-        # Announce if the user reaches a significant rank
-        if bounties[user_id]["amount"] >= 900000000:
-            await self.announce_rank(ctx.guild, user, new_title)
+            # Announce if the user reaches a significant rank
+            if bounties[user_id]["amount"] >= 900000000:
+                await self.announce_rank(ctx.guild, user, new_title)
+
+    async def handle_trivia_question(self, ctx, user):
+        """Handle the trivia question mission."""
+        await ctx.send("What is the capital of France?")
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel
+            msg = await self.bot.wait_for("message", check=check, timeout=30)
+            if msg.content.lower() == "paris":
+                await ctx.send("Correct! You have completed the mission.")
+                return True
+            else:
+                await ctx.send("Incorrect answer. Mission failed.")
+                return False
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to answer. Mission failed.")
+            return False
+
+    async def handle_fun_fact(self, ctx, user):
+        """Handle the fun fact mission."""
+        await ctx.send("Please share a fun fact.")
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel
+            msg = await self.bot.wait_for("message", check=check, timeout=30)
+            await ctx.send(f"Fun fact received: {msg.content}")
+            return True
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to share a fun fact. Mission failed.")
+            return False
+
+    async def handle_post_meme(self, ctx, user):
+        """Handle the post a meme mission."""
+        await ctx.send("Please post a meme.")
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel and m.attachments
+            msg = await self.bot.wait_for("message", check=check, timeout=30)
+            await ctx.send("Meme received.")
+            return True
+        except asyncio.TimeoutError:
+            await ctx.send("You took too long to post a meme. Mission failed.")
+            return False
 
     async def check_milestones(self, ctx, user, new_bounty):
         """Check if the user has reached any bounty milestones."""
