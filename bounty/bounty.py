@@ -93,17 +93,19 @@ class BountyCog(commands.Cog):
             await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
 
     @commands.command()
-    async def wanted(self, ctx):
+    async def wanted(self, ctx, member: discord.Member = None):
         """Display a wanted poster with the user's avatar, username, and bounty."""
-        user = ctx.author
+        if member is None:
+            member = ctx.author
+
         bounties = await self.config.guild(ctx.guild).bounties()
-        user_id = str(user.id)
+        user_id = str(member.id)
 
         if user_id not in bounties:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+            return await ctx.send(f"{member.display_name} needs to start their bounty journey first by typing `.startbounty`!")
 
-        bounty_amount = await self.config.member(user).bounty()
-        avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
+        bounty_amount = await self.config.member(member).bounty()
+        avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
 
         async with aiohttp.ClientSession() as session:
             async with session.get(avatar_url) as response:
@@ -111,7 +113,7 @@ class BountyCog(commands.Cog):
                     return await ctx.send("Failed to retrieve avatar.")
                 avatar_data = await response.read()
 
-        wanted_poster = await self.create_wanted_poster(user.display_name, bounty_amount, avatar_data)
+        wanted_poster = await self.create_wanted_poster(member.display_name, bounty_amount, avatar_data)
         if isinstance(wanted_poster, str):
             return await ctx.send(wanted_poster)
         await ctx.send(file=discord.File(wanted_poster, "wanted.png"))
