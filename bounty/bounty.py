@@ -267,7 +267,7 @@ class BountyCog(commands.Cog):
             await self.announce_rank(ctx.guild, user, new_title)
 
     @commands.command()
-    async def leaderboard(self, ctx):
+    async def mostwanted(self, ctx):
         """Display the top 10 users with the highest bounties."""
         bounties = await self.config.guild(ctx.guild).bounties()
         sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)
