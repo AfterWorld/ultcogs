@@ -23,7 +23,7 @@ class BountyCog(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
         default_member = {"last_daily_claim": None, "bounty": 0}
-        default_guild = {"bounties": {}}
+        default_guild = {"bounties": {}, "event": None}
         self.config.register_member(**default_member)
         self.config.register_guild(**default_guild)
 
@@ -272,6 +272,68 @@ class BountyCog(commands.Cog):
             user = self.bot.get_user(int(user_id))
             embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
+    
+    @commands.command()
+    async def redeem(self, ctx):
+        """Redeem your bounty for a unique role based on your bounty rank."""
+        user = ctx.author
+        bounties = await self.config.guild(ctx.guild).bounties()
+        user_id = str(user.id)
+
+        if user_id not in bounties:
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+
+        current_bounty = bounties[user_id]["amount"]
+        title = self.get_bounty_title(current_bounty)
+
+        role_name = f"{title} - {current_bounty:,} Berries"
+        role = discord.utils.get(ctx.guild.roles, name=role_name)
+
+        if role is None:
+            role = await ctx.guild.create_role(name=role_name, reason="Bounty reward role")
+
+        await user.add_roles(role)
+        await ctx.send(f"Ye have redeemed yer bounty for the role: **{role_name}**!")
+
+        logger.info(f"{user.display_name} redeemed bounty for role: {role_name}")
+        
+    @commands.command()
+    async def startevent(self, ctx, event_name: str, reward: int):
+        """Start a special bounty event."""
+        await self.config.guild(ctx.guild).event.set({"name": event_name, "reward": reward})
+        await ctx.send(f"Special bounty event **{event_name}** started! Complete the event to earn {reward:,} Berries!")
+
+        logger.info(f"Special bounty event {event_name} started with reward {reward:,} Berries")
+
+    @commands.command()
+    async def completeevent(self, ctx):
+        """Complete the special bounty event to earn extra bounty."""
+        user = ctx.author
+        event = await self.config.guild(ctx.guild).event()
+
+        if not event:
+            return await ctx.send("There is no active bounty event at the moment.")
+
+        bounties = await self.config.guild(ctx.guild).bounties()
+        user_id = str(user.id)
+
+        if user_id not in bounties:
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+
+        bounties[user_id]["amount"] += event["reward"]
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+
+        new_bounty = bounties[user_id]["amount"]
+        new_title = self.get_bounty_title(new_bounty)
+        await ctx.send(f"🏆 Event completed! Ye earned {event['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
+                    f"Current Title: {new_title}")
+
+        # Announce if the user reaches a significant rank
+        if new_bounty >= 900000000:
+            await self.announce_rank(ctx.guild, user, new_title)
+
+        logger.info(f"{user.display_name} completed event {event['name']} and now has a bounty of {new_bounty:,} Berries")
 
     @commands.command()
     async def missions(self, ctx):
