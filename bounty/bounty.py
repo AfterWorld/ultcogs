@@ -115,7 +115,7 @@ class BountyCog(commands.Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(wanted_poster_url) as response:
-                if response.status != 200:
+                if response.status != 200):
                     raise Exception("Failed to retrieve wanted poster template.")
                 poster_data = await response.read()
 
@@ -181,64 +181,10 @@ class BountyCog(commands.Cog):
             if bounty_amount >= amount:
                 return title
         return "Unknown Pirate"
-    
-    @commands.command()
-    async def challenge(self, ctx):
-        """Complete a daily or weekly challenge to earn additional bounty."""
-        user = ctx.author
-        last_challenge = await self.config.member(user).last_challenge()
-        now = datetime.utcnow()
-
-        if last_challenge:
-            last_challenge = datetime.fromisoformat(last_challenge)
-            if now - last_challenge < timedelta(days=1):
-                time_left = timedelta(days=1) - (now - last_challenge)
-                hours, remainder = divmod(time_left.seconds, 3600)
-                minutes, _ = divmod(remainder, 60)
-                return await ctx.send(f"Ye can't complete another challenge yet! Come back in {hours} hours and {minutes} minutes, ye greedy sea dog!")
-
-        increase = random.randint(500, 5000)
-        bounties = await self.config.guild(ctx.guild).bounties()
-        user_id = str(user.id)
-
-        if user_id not in bounties:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
-
-        bounties[user_id]["amount"] += increase
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
-        new_bounty = bounties[user_id]["amount"]
-        new_title = self.get_bounty_title(new_bounty)
-        await self.config.member(user).last_challenge.set(now.isoformat())
-        await ctx.send(f"💰 Ye completed the challenge and earned {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                    f"Current Title: {new_title}")
-
-        # Check for milestones
-        await self.check_milestones(ctx, user, new_bounty)
-
-        # Announce if the user reaches a significant rank
-        if new_bounty >= 900000000:
-            await self.announce_rank(ctx.guild, user, new_title)
-            
-    @commands.command()
-    async def bountyhistory(self, ctx, user: discord.Member = None):
-        """View the bounty history of a user."""
-        user = user or ctx.author
-        bounty_history = await self.config.member(user).bounty_history()
-
-        if not bounty_history:
-            return await ctx.send(f"{user.display_name} has no bounty history.")
-
-        history_text = "\n".join([f"{datetime.fromisoformat(entry['date']).strftime('%Y-%m-%d %H:%M:%S')}: {entry['amount']:,} Berries" for entry in bounty_history])
-        pages = list(pagify(history_text, delims=["\n"], page_length=1000))
-
-        for page in pages:
-            embed = discord.Embed(description=page, color=discord.Color.blue())
-            await ctx.send(embed=embed)
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def berryflip(self, ctx):
+    async def berryflip(self, ctx, bet: int):
         """Flip a coin to potentially increase your bounty."""
         user = ctx.author
         bounties = await self.config.guild(ctx.guild).bounties()
@@ -248,22 +194,30 @@ class BountyCog(commands.Cog):
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
         current_bounty = bounties[user_id]["amount"]
+
+        if bet < 500 or bet > 5000:
+            return await ctx.send("Ye can only bet between 500 and 5000 Berries, ye scallywag!")
+
+        if bet > current_bounty:
+            return await ctx.send("Ye can't bet more than yer current bounty, ye scallywag!")
+
         flip_result = random.choice(["heads", "tails"])
-        increase = random.randint(100, 1000)  # Random increase between 100 and 1000 Berries
 
         if flip_result == "heads":
-            bounties[user_id]["amount"] += increase
-            await self.config.guild(ctx.guild).bounties.set(bounties)
-            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
-            new_bounty = bounties[user_id]["amount"]
-            new_title = self.get_bounty_title(new_bounty)
-            await ctx.send(f"🪙 The coin landed on heads! Ye won {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                           f"Current Title: {new_title}")
+            bounties[user_id]["amount"] += bet
+            await ctx.send(f"🪙 The coin landed on heads! Ye won {bet:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!")
         else:
-            await ctx.send("🪙 The coin landed on tails! Better luck next time, ye scallywag!")
+            bounties[user_id]["amount"] -= bet
+            await ctx.send(f"🪙 The coin landed on tails! Ye lost {bet:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!")
+
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+
+        new_bounty = bounties[user_id]["amount"]
+        new_title = self.get_bounty_title(new_bounty)
 
         # Announce if the user reaches a significant rank
-        if bounties[user_id]["amount"] >= 900000000:
+        if new_bounty >= 900000000:
             await self.announce_rank(ctx.guild, user, new_title)
 
     @commands.command()
