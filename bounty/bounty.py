@@ -10,9 +10,9 @@ import os
 import logging
 
 # Initialize logger
-logger = logging.getLogger("red.bountycog")
+logger = logging.getLogger("red.qotd")
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler(filename="bountycog.log", encoding="utf-8", mode="w")
+handler = logging.FileHandler(filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/Logs/bountycog.log", encoding="utf-8", mode="w")
 handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
 logger.addHandler(handler)
 
