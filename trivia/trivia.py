@@ -107,12 +107,12 @@ class Trivia(commands.Cog):
 
     async def ask_question(self, ctx, question, extra_points=0):
         category = self.trivia_sessions[ctx.channel.id]["category"]
-        embed = discord.Embed(title=f"{category.capitalize()} Trivia", description=question['question'])
+        message = f"**{category.capitalize()} Trivia**\n\n{question['question']}"
 
         if 'image' in question:
-            embed.set_image(url=question['image'])
+            message += f"\n{question['image']}"
 
-        await ctx.send(embed=embed)
+        await ctx.send(message)
 
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
