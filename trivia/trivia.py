@@ -254,6 +254,9 @@ class Trivia(commands.Cog):
             # Save the questions to the bot's data folder
             file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/{category}_questions.yaml")
 
+            # Ensure the directory exists
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
             action = "updated" if file_path.exists() else "uploaded"
 
             with file_path.open('wb') as f:
@@ -268,9 +271,11 @@ class Trivia(commands.Cog):
             # Reload trivia questions to ensure all categories are up to date
             await self.initialize_questions()
 
+        except yaml.YAMLError as e:
+            await ctx.send(f"Blimey! YAML parsing error: {str(e)}")
         except Exception as e:
             await ctx.send(f"Blimey! An error occurred while processing the file: {str(e)}")
-            return
+            LOG.error(f"Error in triviaupload: {str(e)}", exc_info=True)
 
     @triviaupload.error
     async def triviaupload_error(self, ctx, error):
