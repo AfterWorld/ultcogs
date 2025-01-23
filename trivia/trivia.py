@@ -7,7 +7,7 @@ import random
 import time
 from redbot.core.data_manager import cog_data_path
 from redbot.core.utils.chat_formatting import box
-from pathlib import Path  # Add this import
+from pathlib import Path
 import logging
 
 LOG = logging.getLogger("red.trivia")
@@ -26,7 +26,7 @@ class Trivia(commands.Cog):
 
     async def initialize_questions(self):
         self.questions = {}
-        trivia_path = Path("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/")
+        trivia_path = Path("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/")
         for file in trivia_path.glob('*_questions.yaml'):
             category = file.stem  # This will be like 'category_questions'
             with file.open('r') as f:
@@ -34,7 +34,7 @@ class Trivia(commands.Cog):
 
     async def load_questions(self, category):
         try:
-            file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/{category}_questions.yaml")
+            file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/{category}_questions.yaml")
             if file_path.exists():
                 with file_path.open('r') as f:
                     questions = yaml.safe_load(f)
@@ -77,7 +77,7 @@ class Trivia(commands.Cog):
             await ctx.send(f"That is an invalid category. Available categories: {available_categories}")
             return
 
-        self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category}
+        self.trivia_sessions[ctx.channel.id] = {"active": True, "scores": {}, "category": category, "asked_questions": set()}
 
         await ctx.send(f"A new {category.capitalize()} Trivia game has begun! First to 25 points wins!")
 
@@ -86,6 +86,11 @@ class Trivia(commands.Cog):
                 if ctx.channel.id not in self.trivia_sessions or not self.trivia_sessions[ctx.channel.id]["active"]:
                     await ctx.send("The trivia game has been stopped!")
                     break
+
+                if question['question'] in self.trivia_sessions[ctx.channel.id]["asked_questions"]:
+                    continue
+
+                self.trivia_sessions[ctx.channel.id]["asked_questions"].add(question['question'])
 
                 if not await self.ask_question(ctx, question, extra_points):
                     break
@@ -161,7 +166,7 @@ class Trivia(commands.Cog):
             return
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
+        score_message = "Current scores:\n" + "\n.join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
         await ctx.send(f"```{score_message}```")
 
     async def end_game(self, ctx):
@@ -181,24 +186,6 @@ class Trivia(commands.Cog):
                     scores[category][str(player.id)]["weekly_score"] += score
 
             await ctx.send(f"The {category.capitalize()} trivia game has ended! Thanks for playing!")
-            await self.display_leaderboard(ctx, category)
-
-    @commands.command()
-    async def display_leaderboard(self, ctx, category: str):
-        """Display the leaderboard for a specific category."""
-        async with self.config.guild(ctx.guild).trivia_scores() as scores:
-            if category not in scores:
-                await ctx.send(f"No scores available for the {category} category.")
-                return
-
-            leaderboard = sorted(scores[category].items(), key=lambda x: x[1]["total_score"], reverse=True)
-            leaderboard_message = f"🏴‍☠️ **{category.capitalize()} Trivia Leaderboard** 🏴‍☠️\n\n"
-            for player_id, data in leaderboard[:10]:
-                player = self.bot.get_user(int(player_id))
-                if player:
-                    leaderboard_message += f"{player.display_name}: {data['total_score']} points, {data['games_played']} games played\n"
-
-            await ctx.send(box(leaderboard_message, lang=""))
 
     @commands.command()
     async def trivialb(self, ctx):
@@ -349,3 +336,14 @@ class Trivia(commands.Cog):
     async def weekly_challenge(self, ctx):
         """Start a weekly trivia challenge."""
         await self.trivia(ctx, category="weekly")
+
+    @commands.command()
+    async def points(self, ctx):
+        """Display the user's current points."""
+        user = ctx.author
+        if ctx.channel.id not in self.trivia_sessions:
+            return await ctx.send("There's no active trivia game in this channel, ye confused sea dog!")
+
+        scores = self.trivia_sessions[ctx.channel.id]["scores"]
+        user_score = scores.get(user, 0)
+        await ctx.send(f"{user.display_name}, ye have {user_score} points in the current trivia game!")
