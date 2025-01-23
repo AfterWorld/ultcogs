@@ -107,7 +107,12 @@ class Trivia(commands.Cog):
 
     async def ask_question(self, ctx, question, extra_points=0):
         category = self.trivia_sessions[ctx.channel.id]["category"]
-        await ctx.send(f"**{category.capitalize()} Trivia**\n\n{question['question']}")
+        embed = discord.Embed(title=f"{category.capitalize()} Trivia", description=question['question'])
+
+        if 'image' in question:
+            embed.set_image(url=question['image'])
+
+        await ctx.send(embed=embed)
 
         def check(m):
             return m.channel == ctx.channel and m.author != ctx.bot.user
@@ -246,6 +251,8 @@ class Trivia(commands.Cog):
                 for question in questions:
                     if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
                         raise ValueError("Avast! Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
+                    if 'image' in question and not isinstance(question['image'], str):
+                        raise ValueError("Avast! The 'image' field must be a string containing a valid URL.")
 
                 # Get the category name from the filename (without .yaml or .yml extension)
                 category = attachment.filename.rsplit('.', 1)[0].lower()
