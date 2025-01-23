@@ -173,7 +173,7 @@ class Trivia(commands.Cog):
             return
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        score_message = "Current scores:\n" + "\n.join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
+        score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
         await ctx.send(f"```{score_message}```")
 
     async def end_game(self, ctx):
