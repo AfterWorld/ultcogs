@@ -225,57 +225,57 @@ class Trivia(commands.Cog):
     @commands.command()
     @commands.is_owner()  # Restrict this command to the bot owner
     async def triviaupload(self, ctx):
-        """Upload or update a custom YAML file for trivia."""
+        """Upload or update custom YAML files for trivia."""
         if not ctx.message.attachments:
-            await ctx.send("Arrr! Ye need to attach a YAML file with yer trivia questions, ye scurvy dog!")
+            await ctx.send("Arrr! Ye need to attach YAML files with yer trivia questions, ye scurvy dog!")
             return
 
-        attachment = ctx.message.attachments[0]
-        if not attachment.filename.endswith(('.yaml', '.yml')):
-            await ctx.send("Blimey! The attached file must be a YAML file (with .yaml or .yml extension).")
-            return
+        for attachment in ctx.message.attachments:
+            if not attachment.filename.endswith(('.yaml', '.yml')):
+                await ctx.send(f"Blimey! The attached file {attachment.filename} must be a YAML file (with .yaml or .yml extension).")
+                continue
 
-        try:
-            content = await attachment.read()
-            questions = yaml.safe_load(content)
+            try:
+                content = await attachment.read()
+                questions = yaml.safe_load(content)
 
-            # Validate the structure of the YAML file
-            if not isinstance(questions, list):
-                raise ValueError("Shiver me timbers! The YAML file should contain a list of questions.")
+                # Validate the structure of the YAML file
+                if not isinstance(questions, list):
+                    raise ValueError("Shiver me timbers! The YAML file should contain a list of questions.")
 
-            for question in questions:
-                if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
-                    raise ValueError("Avast! Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
+                for question in questions:
+                    if not all(key in question for key in ['question', 'answers', 'hints', 'difficulty']):
+                        raise ValueError("Avast! Each question must have 'question', 'answers', 'hints', and 'difficulty' fields.")
 
-            # Get the category name from the filename (without .yaml or .yml extension)
-            category = attachment.filename.rsplit('.', 1)[0].lower()
-            category = category.replace('_questions', '')  # Remove '_questions' if present
+                # Get the category name from the filename (without .yaml or .yml extension)
+                category = attachment.filename.rsplit('.', 1)[0].lower()
+                category = category.replace('_questions', '')  # Remove '_questions' if present
 
-            # Save the questions to the bot's data folder
-            file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/{category}_questions.yaml")
+                # Save the questions to the bot's data folder
+                file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/{category}_questions.yaml")
 
-            # Ensure the directory exists
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+                # Ensure the directory exists
+                file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            action = "updated" if file_path.exists() else "uploaded"
+                action = "updated" if file_path.exists() else "uploaded"
 
-            with file_path.open('wb') as f:
-                f.write(content)
+                with file_path.open('wb') as f:
+                    f.write(content)
 
-            # Load the new questions into memory
-            self.questions[f"{category}_questions"] = questions
+                # Load the new questions into memory
+                self.questions[f"{category}_questions"] = questions
 
-            await ctx.send(f"Ahoy! Successfully {action} and loaded {len(questions)} questions for the '{category}' category.\n"
-                           f"File saved at: {file_path}")
+                await ctx.send(f"Ahoy! Successfully {action} and loaded {len(questions)} questions for the '{category}' category.\n"
+                               f"File saved at: {file_path}")
 
-            # Reload trivia questions to ensure all categories are up to date
-            await self.initialize_questions()
+            except yaml.YAMLError as e:
+                await ctx.send(f"Blimey! YAML parsing error in file {attachment.filename}: {str(e)}")
+            except Exception as e:
+                await ctx.send(f"Blimey! An error occurred while processing the file {attachment.filename}: {str(e)}")
+                LOG.error(f"Error in triviaupload: {str(e)}", exc_info=True)
 
-        except yaml.YAMLError as e:
-            await ctx.send(f"Blimey! YAML parsing error: {str(e)}")
-        except Exception as e:
-            await ctx.send(f"Blimey! An error occurred while processing the file: {str(e)}")
-            LOG.error(f"Error in triviaupload: {str(e)}", exc_info=True)
+        # Reload trivia questions to ensure all categories are up to date
+        await self.initialize_questions()
 
     @triviaupload.error
     async def triviaupload_error(self, ctx, error):
