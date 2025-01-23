@@ -127,7 +127,7 @@ class Trivia(commands.Cog):
             nonlocal hint_index
             for hint_time in hint_times:
                 await asyncio.sleep(hint_time - (hint_times[hint_index-1] if hint_index > 0 else 0))
-                if answered:
+                if answered or not self.trivia_sessions[ctx.channel.id]["active"]:
                     break
                 if hint_index < len(question['hints']):
                     await ctx.send(f"Hint: {question['hints'][hint_index]}")
@@ -137,6 +137,8 @@ class Trivia(commands.Cog):
 
         try:
             while time.time() - start_time < question_duration and not answered:
+                if not self.trivia_sessions[ctx.channel.id]["active"]:
+                    break
                 try:
                     msg = await asyncio.wait_for(self.bot.wait_for("message", check=check), 
                                                  timeout=question_duration - (time.time() - start_time))
@@ -171,7 +173,7 @@ class Trivia(commands.Cog):
             return
 
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        score_message = "Current scores:\n" + "\n".join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
+        score_message = "Current scores:\n" + "\n.join(f"{player.display_name}: {score}" for player, score in sorted_scores[:5])
         await ctx.send(f"```{score_message}```")
 
     async def end_game(self, ctx):
