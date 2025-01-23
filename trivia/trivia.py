@@ -252,7 +252,7 @@ class Trivia(commands.Cog):
             category = category.replace('_questions', '')  # Remove '_questions' if present
 
             # Save the questions to the bot's data folder
-            file_path = cog_data_path(self) / f"{category}_questions.yaml"
+            file_path = Path(f"/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Trivia/Categories/{category}_questions.yaml")
 
             action = "updated" if file_path.exists() else "uploaded"
 
