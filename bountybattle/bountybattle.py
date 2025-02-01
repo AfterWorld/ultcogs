@@ -406,15 +406,25 @@ class BountyBattle(commands.Cog):
         steal_amount = random.randint(5, 20) / 100 * target_bounty  # 5-20% of target bounty
 
         if success:
-            bounties[hunter_id]["amount"] += int(steal_amount)
-            bounties[target_id]["amount"] -= int(steal_amount)
-            await ctx.send(f"🏆 {hunter.display_name} successfully hunted {target.display_name} and stole {int(steal_amount):,} Berries!")
-        else:
-            penalty = random.randint(1000, 5000)
-            bounties[hunter_id]["amount"] = max(0, bounties[hunter_id]["amount"] - penalty)
-            await ctx.send(f"⚔️ {hunter.display_name} tried to hunt {target.display_name} but failed! Lost {penalty:,} Berries!")
+            stolen_bounty = int(steal_amount)
+        
+            # Update winner's bounty
+            bounties[hunter_id]["amount"] += stolen_bounty
+        
+            # Deduct from loser and prevent negative bounty
+            bounties[target_id]["amount"] = max(0, bounties[target_id]["amount"] - stolen_bounty)
+        
+            # Save the updated bounties
+            await self.config.guild(ctx.guild).bounties.set(bounties)
+        
+            # Notify the results
+            await ctx.send(
+                f"🏴‍☠️ **{hunter.display_name}** successfully hunted **{target.display_name}** "
+                f"and stole `{stolen_bounty:,} Berries`!\n"
+                f"💰 **New Winner Bounty:** `{bounties[hunter_id]['amount']:,} Berries`\n"
+                f"💀 **New Loser Bounty:** `{bounties[target_id]['amount']:,} Berries`"
+            )
 
-        await self.config.guild(ctx.guild).bounties.set(bounties)
         
     @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)
@@ -497,7 +507,7 @@ class BountyBattle(commands.Cog):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         
         wanted_poster_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"
     
         # Open the local wanted poster template
         poster_image = Image.open(wanted_poster_path)
@@ -753,7 +763,7 @@ class BountyBattle(commands.Cog):
         Generates a dynamic fight card image with avatars and usernames.
         """
         TEMPLATE_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/deathbattle.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"
     
         # Open the local template image
         template = Image.open(TEMPLATE_PATH)
