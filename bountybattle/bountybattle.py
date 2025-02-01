@@ -315,6 +315,7 @@ class BountyBattle(commands.Cog):
             "titles": [],  # List of unlocked titles
             "current_title": None,  # Equipped title
             "devil_fruit": None,
+            "last_active": None,
         }
         self.config.register_member(**default_member)
 
@@ -491,6 +492,11 @@ class BountyBattle(commands.Cog):
         
             # Save the updated bounties
             await self.config.guild(ctx.guild).bounties.set(bounties)
+
+            # Track the last active time for both players
+            await self.config.member(ctx.author).last_active.set(datetime.utcnow().isoformat())
+            await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
+
         
             # Notify the results
             await ctx.send(
@@ -1265,6 +1271,10 @@ class BountyBattle(commands.Cog):
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
+
+        # Track the last active time for both players
+        await self.config.member(challenger).last_active.set(datetime.utcnow().isoformat())
+        await self.config.member(opponent).last_active.set(datetime.utcnow().isoformat())
         
         # Increase the winner's bounty (random amount between 1,000 and 3,000 Berries)
         bounty_increase = random.randint(1000, 3000)
