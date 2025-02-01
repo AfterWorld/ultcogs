@@ -1602,17 +1602,39 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.admin_or_permissions(administrator=True)  # Admin-only command
-    async def resetstats(self, ctx, member: discord.Member = None):
-        """Reset a player's deathmatch stats, including bounty & titles."""
+    @commands.admin_or_permissions(administrator=True)  # ✅ Admin-only command
+    async def resetstats(self, ctx, member: discord.Member = None, global_reset: bool = False):
+        """Reset a single user's stats or reset all users in the server with `[p]resetstats global`."""
+        
+        if global_reset:  # ✅ Global Reset Case
+            await ctx.send("⚠️ **Are you sure you want to reset ALL players' stats?** Type `confirm` to proceed.")
+    
+            def check(m):
+                return m.author == ctx.author and m.content.lower() == "confirm"
+    
+            try:
+                await self.bot.wait_for("message", check=check, timeout=15)
+            except asyncio.TimeoutError:
+                return await ctx.send("❌ **Global reset cancelled.**")
+    
+            all_members = await self.config.all_members(ctx.guild)
+            for user_id in all_members:
+                await self.config.member_from_id(user_id).clear()
+            
+            await ctx.send("🔄 **All player stats, bounties, and titles have been reset!**")
+            return
+    
+        # ✅ Reset a Single User
         member = member or ctx.author
     
-        # Reset all stats
+        await self.config.member(member).bounty.set(0)
         await self.config.member(member).wins.set(0)
         await self.config.member(member).losses.set(0)
-        await self.config.member(member).bounty.set(0)
-        await self.config.member(member).equipped_title.set("Unknown Pirate")  # ✅ Reset title
-        await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and title have been reset!**")
+        await self.config.member(member).equipped_title.set("Unknown Pirate")
+        await self.config.member(member).titles.set([])  # Reset unlocked titles
+        await self.config.member(member).bounty_hunted.set(0)
+    
+        await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and titles have been reset!**")
 
     
     @commands.command()
