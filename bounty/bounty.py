@@ -43,6 +43,43 @@ class BountyCog(commands.Cog):
         await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
 
     @commands.command()
+    async def bountyhunt(self, ctx, target: discord.Member):
+        """Attempt to steal a percentage of another user's bounty."""
+        hunter = ctx.author
+        bounties = await self.config.guild(ctx.guild).bounties()
+        
+        hunter_id = str(hunter.id)
+        target_id = str(target.id)
+
+        if hunter_id not in bounties or target_id not in bounties:
+            return await ctx.send("Both you and your target must have a bounty to participate!")
+
+        if hunter_id == target_id:
+            return await ctx.send("Ye can't hunt yer own bounty, ye scallywag!")
+
+        hunter_bounty = bounties[hunter_id]["amount"]
+        target_bounty = bounties[target_id]["amount"]
+
+        if target_bounty < 1000:
+            return await ctx.send(f"{target.display_name} is too broke to be worth hunting!")
+
+        # 50% chance to win
+        success = random.choice([True, False])
+        steal_amount = random.randint(5, 20) / 100 * target_bounty  # 5-20% of target bounty
+
+        if success:
+            bounties[hunter_id]["amount"] += int(steal_amount)
+            bounties[target_id]["amount"] -= int(steal_amount)
+            await ctx.send(f"🏆 {hunter.display_name} successfully hunted {target.display_name} and stole {int(steal_amount):,} Berries!")
+        else:
+            penalty = random.randint(1000, 5000)
+            bounties[hunter_id]["amount"] = max(0, bounties[hunter_id]["amount"] - penalty)
+            await ctx.send(f"⚔️ {hunter.display_name} tried to hunt {target.display_name} but failed! Lost {penalty:,} Berries!")
+
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+
+    
+    @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)
     async def dailybounty(self, ctx):
         """Claim your daily bounty increase."""
@@ -52,11 +89,12 @@ class BountyCog(commands.Cog):
 
         if last_claim:
             last_claim = datetime.fromisoformat(last_claim)
-            if now - last_claim < timedelta(days=1):
-                time_left = timedelta(days=1) - (now - last_claim)
+            time_left = timedelta(days=1) - (now - last_claim)
+            
+            if time_left.total_seconds() > 0:
                 hours, remainder = divmod(time_left.seconds, 3600)
                 minutes, _ = divmod(remainder, 60)
-                return await ctx.send(f"Ye can't claim yer daily bounty yet! Come back in {hours} hours and {minutes} minutes, ye greedy sea dog!")
+                return await ctx.send(f"Ye can't claim yer daily bounty yet! Try again in {hours} hours and {minutes} minutes! ⏳")
 
         bounties = await self.config.guild(ctx.guild).bounties()
         user_id = str(user.id)
@@ -236,11 +274,15 @@ class BountyCog(commands.Cog):
     async def mostwanted(self, ctx):
         """Display the top users with the highest bounties."""
         bounties = await self.config.guild(ctx.guild).bounties()
+        
+        if not bounties:  # Check if no bounties exist
+            return await ctx.send("🏴‍☠️ No bounties have been claimed yet! Be the first to start your journey with `.startbounty`.")
+
         sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)
         pages = [sorted_bounties[i:i + 10] for i in range(0, len(sorted_bounties), 10)]
-
+        
         current_page = 0
-        embed = await self.create_leaderboard_embed(pages[current_page])  # Add await here!
+        embed = await self.create_leaderboard_embed(pages[current_page])
         message = await ctx.send(embed=embed)
 
         await message.add_reaction("⬅️")
@@ -270,13 +312,14 @@ class BountyCog(commands.Cog):
     async def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
         for i, (user_id, bounty) in enumerate(bounties, start=1):
-            user = self.bot.get_user(int(user_id))
+            user = self.bot.get_user(int(user_id)) or await self.bot.fetch_user(int(user_id))
             if user is None:
-                user = await self.bot.fetch_user(int(user_id))  # Now valid since function is async
+                continue  # Skip if user doesn't exist
 
-            embed.add_field(name=f"{i}. {user.display_name if user else f'User {user_id}'}", 
+            embed.add_field(name=f"{i}. {user.display_name}", 
                             value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
+
 
     
     def get_redeemable_roles(self, bounty_amount):
@@ -468,6 +511,22 @@ class BountyCog(commands.Cog):
         except asyncio.TimeoutError:
             await ctx.send("You took too long to share a fun fact. Mission failed.")
             return False
+        
+    async def announce_top_three(self, ctx):
+        """Announce the top 3 most wanted pirates."""
+        bounties = await self.config.guild(ctx.guild).bounties()
+        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)[:3]
+
+        embed = discord.Embed(title="🏆 Most Wanted Pirates", color=discord.Color.red())
+        for i, (user_id, bounty) in enumerate(sorted_bounties, start=1):
+            user = self.bot.get_user(int(user_id)) or await self.bot.fetch_user(int(user_id))
+            if user:
+                embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
+
+        top_channel = discord.utils.get(ctx.guild.text_channels, name="bounty-board")
+        if top_channel:
+            await top_channel.send(embed=embed)
+
 
     async def handle_post_meme(self, ctx, user):
         """Handle the post a meme mission."""
