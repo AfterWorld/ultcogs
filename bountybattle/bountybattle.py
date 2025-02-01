@@ -459,8 +459,8 @@ class BountyBattle(commands.Cog):
         # Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in RARE_FRUITS.keys() if fruit not in all_taken_fruits]
     
-        # 30% chance to get a rare fruit, 70% chance to get a common fruit
-        is_rare = available_rare_fruits and random.randint(1, 100) <= 30
+        # 10% chance to get a rare fruit, 90% chance to get a common fruit
+        is_rare = available_rare_fruits and random.randint(1, 100) <= 10
     
         if is_rare:
             new_fruit = random.choice(available_rare_fruits)
@@ -1489,31 +1489,18 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.admin_or_permissions(administrator=True)
-    @commands.command(name="resetstats")
-    async def resetstats(self, ctx: commands.Context, member: discord.Member = None):
-        """
-        Reset the stats of a specific user, or everyone in the guild if no member is specified.
-        This command can only be used by admins.
-        """
-        if member:
-            # Reset stats for a specific user
-            await self.reset_player_stats(member)
-            await ctx.send(f"✅ Stats for **{member.display_name}** have been reset.")
-        else:
-            # Reset stats for all members in the guild
-            confirmation_msg = await ctx.send(
-                "⚠️ Are you sure you want to reset stats for **everyone in this guild**? Reply with `yes` to confirm."
-            )
-
-            def check(m):
-                return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() == "yes"
-
-            try:
-                await self.bot.wait_for("message", check=check, timeout=30)
-                await self.reset_all_stats(ctx.guild)
-                await ctx.send("✅ Stats for **all members in this guild** have been reset.")
-            except asyncio.TimeoutError:
-                await ctx.send("❌ Reset operation timed out. No stats were reset.")
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)  # Admin-only command
+    async def resetstats(self, ctx, member: discord.Member = None):
+        """Reset a player's deathmatch stats, including bounty."""
+        member = member or ctx.author
+    
+        # Reset all stats
+        await self.config.member(member).wins.set(0)
+        await self.config.member(member).losses.set(0)
+        await self.config.member(member).bounty.set(0)  # ✅ Now also resets bounty
+    
+        await ctx.send(f"🔄 **{member.display_name}'s stats and bounty have been reset!**")
     
     @commands.command(name="titles")
     async def titles(self, ctx: commands.Context, member: discord.Member = None):
@@ -1546,31 +1533,25 @@ class BountyBattle(commands.Cog):
         await self.config.member(ctx.author).current_title.set(matched_title)
         await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
-    @commands.command(name="deathstats")
-    async def deathstats(self, ctx: commands.Context, member: discord.Member = None):
-        """Display the stats, titles, and rank of a user."""
+    @commands.command()
+    async def deathstats(self, ctx, member: discord.Member = None):
+        """Check a player's deathmatch stats, now including bounty."""
         member = member or ctx.author
+    
+        # Retrieve stats from config
         stats = await self.config.member(member).all()
-        all_members = await self.config.all_members(ctx.guild)
+        wins = stats.get("wins", 0)
+        losses = stats.get("losses", 0)
+        bounty = stats.get("bounty", 0)
     
-        # Sort members by wins for ranking
-        sorted_members = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
-        rank = next((i for i, (m_id, _) in enumerate(sorted_members, start=1) if m_id == member.id), None)
-    
-        wins = stats["wins"]
-        losses = stats["losses"]
-        kdr = (wins / losses) if losses > 0 else wins  # Avoid division by zero
-        current_title = stats["current_title"]
-    
+        # Create embed
         embed = discord.Embed(
-            title=f"🏴‍☠️ {member.display_name}'s Stats 🏴‍☠️",
-            color=0x00FF00,
+            title=f"⚔️ Deathmatch Stats for {member.display_name}",
+            color=discord.Color.red()
         )
-        embed.add_field(name="Wins", value=wins, inline=True)
-        embed.add_field(name="Losses", value=losses, inline=True)
-        embed.add_field(name="KDR", value=f"{kdr:.2f}", inline=True)
-        embed.add_field(name="Rank", value=f"#{rank}" if rank else "Unranked", inline=True)
-        embed.add_field(name="Current Title", value=current_title if current_title else "None", inline=False)
+        embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
+        embed.add_field(name="💀 Losses", value=str(losses), inline=True)
+        embed.add_field(name="💰 Bounty", value=f"{bounty:,} Berries", inline=True)
     
         await ctx.send(embed=embed)
     
