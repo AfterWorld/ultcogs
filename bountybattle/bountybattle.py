@@ -1036,9 +1036,15 @@ class BountyBattle(commands.Cog):
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             if self.battle_stopped:
-                await ctx.send("⚠️ **The battle has been forcibly ended!** No winner was declared.")
+                embed.title = "⚠️ Battle Stopped!"
+                embed.description = "The fight has been forcibly ended! No winner was declared."
+                embed.color = discord.Color.red()
+                embed.set_footer(text="The battle was interrupted.")
+                await message.edit(embed=embed)
+                
                 self.battle_stopped = False  # Reset for the next battle
                 return
+
 
             # Apply environmental hazard
             hazard_message = await self.apply_environmental_hazard(environment, players)
@@ -1156,14 +1162,18 @@ class BountyBattle(commands.Cog):
         await self.config.guild(ctx.guild).bounties.set(bounties)
         await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
         
-        # Update the embed for victory
+        # Update the existing embed to show the final result
         embed.title = "🏆 Victory!"
         embed.description = (
-            f"The battle is over! **{winner['name']}** is victorious!\n"
+            f"**{winner['name']}** has won the battle!\n\n"
             f"💰 **Bounty Increased:** `{bounty_increase:,} Berries`\n"
             f"🏴‍☠️ **New Bounty:** `{bounties[winner_id]['amount']:,} Berries`"
         )
-        embed.color = 0xFFD700  # Change to gold for victory
+        embed.color = discord.Color.gold()
+        embed.set_field_at(2, name="⚔️ Battle Over", value=f"Winner: **{winner['name']}**", inline=False)
+        embed.set_footer(text="The battle has ended.")
+        
+        await message.edit(embed=embed)  # ✅ Instead of sending a new embed, update the existing one.
         
         await ctx.send(embed=embed)
 
