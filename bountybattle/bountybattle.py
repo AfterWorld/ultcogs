@@ -442,7 +442,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def eatfruit(self, ctx):
-        """Consume a random Devil Fruit (some are one-of-a-kind)."""
+        """Consume a random Devil Fruit (some are one-of-a-kind and announced globally)."""
         user = ctx.author
         current_fruit = await self.config.member(user).devil_fruit()
     
@@ -460,23 +460,35 @@ class BountyBattle(commands.Cog):
         available_rare_fruits = [fruit for fruit in RARE_FRUITS.keys() if fruit not in all_taken_fruits]
     
         # 30% chance to get a rare fruit, 70% chance to get a common fruit
-        if available_rare_fruits and random.randint(1, 100) <= 30:
+        is_rare = available_rare_fruits and random.randint(1, 100) <= 30
+    
+        if is_rare:
             new_fruit = random.choice(available_rare_fruits)
             fruit_type = RARE_FRUITS[new_fruit]["type"]
             effect = RARE_FRUITS[new_fruit]["bonus"]
+    
+            # **🔴 ANNOUNCE THE RARE FRUIT FIND**
+            announcement = (
+                f"🚨 **Breaking News from the Grand Line!** 🚨\n"
+                f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**! ({fruit_type} Type)\n"
+                f"🔥 **New Power:** {effect}\n\n"
+                f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it unless they remove it!*"
+            )
+            await ctx.send(announcement)
+    
         else:
             new_fruit = random.choice(list(COMMON_FRUITS.keys()))
             fruit_type = COMMON_FRUITS[new_fruit]["type"]
             effect = COMMON_FRUITS[new_fruit]["bonus"]
     
+            await ctx.send(
+                f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
+                f"🔥 **New Power:** {effect}\n\n"
+                f"⚠️ *You cannot eat another Devil Fruit unless you remove this one!*"
+            )
+    
         # Assign the fruit to the player
         await self.config.member(user).devil_fruit.set(new_fruit)
-    
-        await ctx.send(
-            f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
-            f"🔥 **New Power:** {effect}\n\n"
-            f"⚠️ *You cannot eat another Devil Fruit!*"
-        )
 
     @commands.command()
     async def removefruit(self, ctx):
