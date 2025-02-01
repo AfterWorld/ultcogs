@@ -982,8 +982,10 @@ class BountyBattle(commands.Cog):
             "🏴‍☠️ **Shanks stepped in!** He declares: *'This fight ends now.'*",
         ]
         reason = random.choice(reasons)
+    
+        # Send the message inside the async function
+        await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
-    await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
         
     async def fight(self, ctx, challenger, opponent):
         """Override the fight method to include environmental hazards."""
