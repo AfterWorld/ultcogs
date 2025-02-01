@@ -690,25 +690,30 @@ class BountyBattle(commands.Cog):
 
     def get_bounty_title(self, bounty_amount):
         """Get the bounty title based on the bounty amount."""
-        titles = [
-            (50000000, "Rookie Pirate"),
-            (100000000, "Super Rookie"),
-            (200000000, "Notorious Pirate"),
-            (300000000, "Supernova"),
-            (400000000, "Rising Star"),
-            (500000000, "Infamous Pirate"),
-            (600000000, "Feared Pirate"),
-            (700000000, "Pirate Captain"),
-            (800000000, "Pirate Lord"),
-            (900000000, "Pirate Emperor"),
-            (1000000000, "Yonko"),
-            (1500000000, "Pirate King Candidate"),
-            (2000000000, "King of the Pirates")
-        ]
-        for amount, title in reversed(titles):
-            if bounty_amount >= amount:
-                return title
-        return "Unknown Pirate"
+        titles = {
+            "Small-time Pirate": {"bounty": 10_000},
+            "Rookie Pirate": {"bounty": 50_000},
+            "Super Rookie": {"bounty": 100_000},
+            "Notorious Pirate": {"bounty": 200_000},
+            "Supernova": {"bounty": 300_000},
+            "Rising Star": {"bounty": 400_000},
+            "Infamous Pirate": {"bounty": 500_000},
+            "Feared Pirate": {"bounty": 600_000},
+            "Pirate Captain": {"bounty": 700_000},
+            "Pirate Lord": {"bounty": 800_000},
+            "Pirate Emperor": {"bounty": 900_000},
+            "Yonko Candidate": {"bounty": 1_000_000},
+            "Pirate King Candidate": {"bounty": 1_500_000_000},
+            "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
+            "King of the Pirates": {"bounty": 5_000_000_000},
+        }
+        
+        def get_bounty_title(self, bounty_amount):
+            """Get the highest earned bounty title based on the bounty amount."""
+            for title, condition in reversed(TITLES.items()):
+                if bounty_amount >= condition["bounty"]:
+                    return title
+            return "Unknown Pirate"
     
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
@@ -1350,7 +1355,15 @@ class BountyBattle(commands.Cog):
         # Save the new bounty
         await self.config.guild(ctx.guild).bounties.set(bounties)
         await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
+
+        # Check if the user unlocks a new title
+        new_title = self.get_bounty_title(winner_bounty)
+        current_title = await self.config.member(winner["member"]).equipped_title()
         
+        if new_title != current_title:
+            await self.config.member(winner["member"]).equipped_title.set(new_title)
+            await ctx.send(f"🏴‍☠️ **{winner['name']}** has earned the new title: `{new_title}`!")
+            
         # Update the existing embed to show the final result
         embed.title = "🏆 Victory!"
         embed.description = (
@@ -1503,16 +1516,19 @@ class BountyBattle(commands.Cog):
     
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
-        """View or equip a title."""
+        """View or equip a previously unlocked title."""
         user = ctx.author
-        user_titles = await self.config.member(user).titles()
+        bounty = (await self.config.guild(ctx.guild).bounties()).get(str(user.id), {}).get("amount", 0)
+    
+        # Get all titles the user has unlocked
+        unlocked_titles = [t for t, c in TITLES.items() if bounty >= c["bounty"]]
         equipped_title = await self.config.member(user).equipped_title()
     
-        if not user_titles:
+        if not unlocked_titles:
             return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
     
         if action == "equip" and title:
-            if title not in user_titles:
+            if title not in unlocked_titles:
                 return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
     
             await self.config.member(user).equipped_title.set(title)
@@ -1520,7 +1536,7 @@ class BountyBattle(commands.Cog):
     
         # Show available titles
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
-        embed.add_field(name="Unlocked Titles", value="\n".join(user_titles) or "None", inline=False)
+        embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
         embed.add_field(name="Currently Equipped", value=equipped_title or "None", inline=False)
         embed.set_footer(text="Use [p]titles equip <title> to set a title!")
     
@@ -1543,15 +1559,20 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
-        """Check a player's deathmatch stats, now including bounty & titles."""
+        """Check a player's deathmatch stats, now with the proper bounty & title."""
         member = member or ctx.author
     
         # Retrieve stats from config
         stats = await self.config.member(member).all()
         wins = stats.get("wins", 0)
         losses = stats.get("losses", 0)
-        bounty = stats.get("bounty", 0)
-        equipped_title = stats.get("equipped_title", "None")
+    
+        # ✅ Retrieve bounty from the same source as `mostwanted`
+        bounties = await self.config.guild(ctx.guild).bounties()
+        bounty = bounties.get(str(member.id), {}).get("amount", 0)
+    
+        # ✅ Get the correct title based on bounty
+        title = self.get_bounty_title(bounty)
     
         # Create embed
         embed = discord.Embed(
@@ -1561,7 +1582,7 @@ class BountyBattle(commands.Cog):
         embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
         embed.add_field(name="💀 Losses", value=str(losses), inline=True)
         embed.add_field(name="💰 Bounty", value=f"{bounty:,} Berries", inline=True)
-        embed.add_field(name="🎖️ Title", value=equipped_title, inline=True)
+        embed.add_field(name="🎖️ Title", value=title, inline=True)
     
         await ctx.send(embed=embed)
     
