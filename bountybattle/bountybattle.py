@@ -276,7 +276,7 @@ ENVIRONMENTS = {
 }
 
 
-class OnePieceRPG(commands.Cog):
+class BountyBattle(commands.Cog):
     """A combined One Piece RPG cog with Bounties & Deathmatches."""
 
     def __init__(self, bot):
