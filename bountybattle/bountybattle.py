@@ -234,6 +234,23 @@ RARE_FRUITS = {
     "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
 }
 
+TITLES = {
+    "Small-time Pirate": {"bounty": 10_000},
+    "Rookie Pirate": {"bounty": 50_000},
+    "Super Rookie": {"bounty": 100_000},
+    "Notorious Pirate": {"bounty": 200_000},
+    "Supernova": {"bounty": 300_000},
+    "Rising Star": {"bounty": 400_000},
+    "Infamous Pirate": {"bounty": 500_000},
+    "Feared Pirate": {"bounty": 600_000},
+    "Pirate Captain": {"bounty": 700_000},
+    "Pirate Lord": {"bounty": 800_000},
+    "Pirate Emperor": {"bounty": 900_000},
+    "Yonko Candidate": {"bounty": 1_000_000},
+    "Pirate King Candidate": {"bounty": 1_500_000_000},
+    "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
+    "King of the Pirates": {"bounty": 5_000_000_000},
+}
 # --- Modified Code with One Piece Island Environments ---
 
 ENVIRONMENTS = {
@@ -1500,19 +1517,19 @@ class BountyBattle(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.admin_or_permissions(administrator=True)
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Admin-only command
     async def resetstats(self, ctx, member: discord.Member = None):
-        """Reset a player's deathmatch stats, including bounty."""
+        """Reset a player's deathmatch stats, including bounty & titles."""
         member = member or ctx.author
     
         # Reset all stats
         await self.config.member(member).wins.set(0)
         await self.config.member(member).losses.set(0)
-        await self.config.member(member).bounty.set(0)  # ✅ Now also resets bounty
-    
-        await ctx.send(f"🔄 **{member.display_name}'s stats and bounty have been reset!**")
+        await self.config.member(member).bounty.set(0)
+        await self.config.member(member).equipped_title.set("Unknown Pirate")  # ✅ Reset title
+        await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and title have been reset!**")
+
     
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
@@ -1520,7 +1537,7 @@ class BountyBattle(commands.Cog):
         user = ctx.author
         bounty = (await self.config.guild(ctx.guild).bounties()).get(str(user.id), {}).get("amount", 0)
     
-        # Get all titles the user has unlocked
+        # Ensure `TITLES` is in scope
         unlocked_titles = [t for t, c in TITLES.items() if bounty >= c["bounty"]]
         equipped_title = await self.config.member(user).equipped_title()
     
@@ -1541,7 +1558,6 @@ class BountyBattle(commands.Cog):
         embed.set_footer(text="Use [p]titles equip <title> to set a title!")
     
         await ctx.send(embed=embed)
-
         
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, title: str):
