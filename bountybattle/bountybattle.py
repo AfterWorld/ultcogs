@@ -1431,4 +1431,4 @@ class OnePieceRPG(commands.Cog):
 
 # ------------------ Setup Function ------------------
 async def setup(bot):
-    await bot.add_cog(OnePieceRPG(bot))
+    await bot.add_cog(BountyBattle(bot))
