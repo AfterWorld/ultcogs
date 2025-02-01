@@ -1121,25 +1121,30 @@ class BountyBattle(commands.Cog):
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
-
+        
+        # Increase the winner's bounty (random amount between 1,000 and 5,000 Berries)
+        bounty_increase = random.randint(1000, 5000)
+        winner_id = str(winner["member"].id)
+        
+        # Get current bounty and update it
+        bounties = await self.config.guild(ctx.guild).bounties()
+        bounties[winner_id] = bounties.get(winner_id, {"amount": 0})
+        bounties[winner_id]["amount"] += bounty_increase
+        
+        # Save the new bounty
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
+        
         # Update the embed for victory
         embed.title = "🏆 Victory!"
-        embed.description = f"The battle is over! **{winner['name']}** is victorious!"
+        embed.description = (
+            f"The battle is over! **{winner['name']}** is victorious!\n"
+            f"💰 **Bounty Increased:** `{bounty_increase:,} Berries`\n"
+            f"🏴‍☠️ **New Bounty:** `{bounties[winner_id]['amount']:,} Berries`"
+        )
         embed.color = 0xFFD700  # Change to gold for victory
-        embed.set_field_at(
-            0,
-            name="\u200b",
-            value=f"**{players[0]['name']}**\n{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
-            inline=True,
-        )
-        embed.set_field_at(
-            1,
-            name="\u200b",
-            value=f"**{players[1]['name']}**\n{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
-            inline=True,
-        )
-        embed.remove_field(2)  # Remove the turn field
-        await message.edit(embed=embed)
+        
+        await ctx.send(embed=embed)
 
         # Update stats for the winner
         await self.check_achievements(winner["member"])
