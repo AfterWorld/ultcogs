@@ -1154,35 +1154,49 @@ class BountyBattle(commands.Cog):
         return hazard_message
 
     @commands.hybrid_command(name="deathbattle")
-    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member):
+    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member = None):
         """
-        Start a One Piece deathmatch against another user.
+        Start a One Piece deathmatch against another user with a bounty.
         """
-        # Prevent invalid matches
+        # ✅ Retrieve the bounty list
+        bounties = await self.config.guild(ctx.guild).bounties()
+    
+        # ✅ If no opponent is provided, choose a random bounty holder
+        if opponent is None:
+            valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
+            
+            if not valid_opponents:
+                return await ctx.send("❌ **There are no users with a bounty to challenge!**")
+    
+            opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
+    
+        # ✅ Ensure the opponent has a bounty
+        elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
+            return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
+    
+        # ✅ Prevent invalid matches
         if ctx.author == opponent:
-            await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
-            return
+            return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
         if opponent.bot:
-            await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
-            return
+            return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
         if ctx.channel.id in self.active_channels:
-            await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
-            return
-
-        # Mark the channel as active
+            return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
+    
+        # ✅ Mark the channel as active
         self.active_channels.add(ctx.channel.id)
-
-        # Generate fight card
+    
+        # ✅ Generate fight card
         fight_card = self.generate_fight_card(ctx.author, opponent)
-
-        # Send the dynamically generated fight card image
+    
+        # ✅ Send the dynamically generated fight card image
         await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
-
-        # Proceed with fight logic if applicable...
+    
+        # ✅ Proceed with fight logic if applicable...
         await self.fight(ctx, ctx.author, opponent)
-
-        # Mark the channel as inactive
+    
+        # ✅ Mark the channel as inactive
         self.active_channels.remove(ctx.channel.id)
+
         
     @commands.command(name="stopbattle")
     @commands.admin_or_permissions(administrator=True)
