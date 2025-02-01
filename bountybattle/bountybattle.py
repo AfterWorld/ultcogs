@@ -607,13 +607,14 @@ class BountyBattle(commands.Cog):
         """Remove a user's Devil Fruit. Owners remove for free, others pay 1,000,000 berries."""
         user = ctx.author
         member = member or user  # If no member is provided, remove for the command user
-        is_owner = await self.bot.is_owner(user)  # Check if the user is the bot owner
+        is_owner = await self.bot.is_owner(user)  # ✅ Check if the user is the bot owner
 
         fruit = await self.config.member(member).devil_fruit()
         if not fruit:
             return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
 
-        if is_owner:  # Owners remove for free
+        # ✅ Owners remove the fruit for free, skipping the cost check
+        if is_owner:
             await self.config.member(member).devil_fruit.set(None)
             return await ctx.send(f"🛡️ **{user.display_name}** removed `{fruit}` from **{member.display_name}** for free!")
 
@@ -632,6 +633,7 @@ class BountyBattle(commands.Cog):
             f"💰 **{user.display_name}** has paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
             f"That fruit can now be found again! 🍏"
         )
+
 
         
     @commands.command()
