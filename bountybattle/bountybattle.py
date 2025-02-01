@@ -317,7 +317,6 @@ class BountyBattle(commands.Cog):
             "losses": 0,
             "damage_dealt": 0,
             "achievements": [],
-            "titles": [],
             "titles": [],  # List of unlocked titles
             "current_title": None,  # Equipped title
             "devil_fruit": None,
@@ -1502,22 +1501,31 @@ class BountyBattle(commands.Cog):
     
         await ctx.send(f"🔄 **{member.display_name}'s stats and bounty have been reset!**")
     
-    @commands.command(name="titles")
-    async def titles(self, ctx: commands.Context, member: discord.Member = None):
-        """Display a list of unlocked titles for a user."""
-        member = member or ctx.author
-        titles = await self.config.member(member).titles()
-        current_title = await self.config.member(member).current_title()
+    @commands.command()
+    async def titles(self, ctx, action: str = None, *, title: str = None):
+        """View or equip a title."""
+        user = ctx.author
+        user_titles = await self.config.member(user).titles()
+        equipped_title = await self.config.member(user).equipped_title()
     
-        embed = discord.Embed(
-            title=f"🏅 {member.display_name}'s Titles",
-            description=(
-                f"**Current Title:** {current_title if current_title else 'None'}\n\n"
-                f"**Unlocked Titles:**\n" + "\n".join(titles) if titles else "None"
-            ),
-            color=0x00FF00,
-        )
+        if not user_titles:
+            return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
+    
+        if action == "equip" and title:
+            if title not in user_titles:
+                return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
+    
+            await self.config.member(user).equipped_title.set(title)
+            return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{title}`!")
+    
+        # Show available titles
+        embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
+        embed.add_field(name="Unlocked Titles", value="\n".join(user_titles) or "None", inline=False)
+        embed.add_field(name="Currently Equipped", value=equipped_title or "None", inline=False)
+        embed.set_footer(text="Use [p]titles equip <title> to set a title!")
+    
         await ctx.send(embed=embed)
+
         
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, title: str):
@@ -1535,7 +1543,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
-        """Check a player's deathmatch stats, now including bounty."""
+        """Check a player's deathmatch stats, now including bounty & titles."""
         member = member or ctx.author
     
         # Retrieve stats from config
@@ -1543,6 +1551,7 @@ class BountyBattle(commands.Cog):
         wins = stats.get("wins", 0)
         losses = stats.get("losses", 0)
         bounty = stats.get("bounty", 0)
+        equipped_title = stats.get("equipped_title", "None")
     
         # Create embed
         embed = discord.Embed(
@@ -1552,6 +1561,7 @@ class BountyBattle(commands.Cog):
         embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
         embed.add_field(name="💀 Losses", value=str(losses), inline=True)
         embed.add_field(name="💰 Bounty", value=f"{bounty:,} Berries", inline=True)
+        embed.add_field(name="🎖️ Title", value=equipped_title, inline=True)
     
         await ctx.send(embed=embed)
     
