@@ -410,7 +410,7 @@ class BountyBattle(commands.Cog):
             return await ctx.send("🏴‍☠️ No wanted criminals found!")
     
         # Load base poster
-        base_poster = Image.open("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/mostwanted.png")
+        base_poster = Image.open("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png")
     
         draw = ImageDraw.Draw(base_poster)
         font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/fonts/onepiece.ttf"
