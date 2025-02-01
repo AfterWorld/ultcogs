@@ -640,22 +640,22 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
-    """Give a user a Devil Fruit (Admin only)."""
-    fruit = fruit.strip().title()  # Normalize case & remove spaces
-    all_fruits = {name.lower(): name for name in {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}}  # Convert keys to lowercase
+        """Give a user a Devil Fruit (Admin only)."""
+        fruit = fruit.strip().title()  # Normalize case & remove spaces
+        all_fruits = {name.lower(): name for name in {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}}  # Convert keys to lowercase
 
-    if fruit.lower() not in all_fruits:
-        return await ctx.send("❌ That Devil Fruit does not exist in the current list.")
+        if fruit.lower() not in all_fruits:
+            return await ctx.send("❌ That Devil Fruit does not exist in the current list.")
 
-    current_fruit = await self.config.member(member).devil_fruit()
-    if current_fruit:
-        return await ctx.send(f"❌ **{member.display_name}** already has `{current_fruit}`! They must remove it first.")
+        current_fruit = await self.config.member(member).devil_fruit()
+        if current_fruit:
+            return await ctx.send(f"❌ **{member.display_name}** already has `{current_fruit}`! They must remove it first.")
 
-    # Assign the correctly formatted fruit name
-    fruit_name = all_fruits[fruit.lower()]
-    await self.config.member(member).devil_fruit.set(fruit_name)
+        # Assign the correctly formatted fruit name
+        fruit_name = all_fruits[fruit.lower()]
+        await self.config.member(member).devil_fruit.set(fruit_name)
 
-    await ctx.send(f"🍏 **{member.display_name}** has been given the `{fruit_name}`!")
+        await ctx.send(f"🍏 **{member.display_name}** has been given the `{fruit_name}`!")
 
 
     @commands.command()
