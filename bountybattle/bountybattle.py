@@ -2,6 +2,7 @@ from redbot.core import commands, Config
 import discord
 import random
 import asyncio
+import requests
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import logging
@@ -749,52 +750,42 @@ class BountyBattle(commands.Cog):
     def generate_fight_card(self, user1, user2):
         """
         Generates a dynamic fight card image with avatars and usernames.
-        :param user1: (discord.Member) First user in the battle.
-        :param user2: (discord.Member) Second user in the battle.
-        :return: BytesIO object of the generated image.
         """
         TEMPLATE_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/deathbattle.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/Deathmatch/fonts/onepiece.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/fonts/onepiece.ttf"
     
-        # Download the template
-        response = requests.get(TEMPLATE_URL)
-        if response.status_code != 200:
-            raise FileNotFoundError(f"Could not fetch template from {TEMPLATE_URL}")
-    
-        # Open the template as an image
+        # Open the local template image
         template = Image.open(TEMPLATE_PATH)
         draw = ImageDraw.Draw(template)
     
-        # Load fonts
+        # Load font
         try:
-            username_font = ImageFont.truetype(FONT_PATH, 25)  # Adjust font size as needed
+            username_font = ImageFont.truetype(FONT_PATH, 25)
         except OSError:
             raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
     
         # Avatar dimensions and positions
-        avatar_size = (250, 260)  # Adjust size to fully cover the white box
-        avatar_positions = [(15, 130), (358, 130)]  # Coordinates for avatar placement
+        avatar_size = (250, 260)  # Adjust as needed
+        avatar_positions = [(15, 130), (358, 130)]  # Positions for avatars
+        username_positions = [(75, 410), (430, 410)]  # Positions for usernames
     
-        # Username positions (under the avatars in grey boxes)
-        username_positions = [(75, 410), (430, 410)]  # Coordinates for username placement
-    
-        # Fetch, resize, and paste avatars
+        # Fetch and paste avatars
         for i, user in enumerate((user1, user2)):
-            # Fetch avatar
             avatar_response = requests.get(user.display_avatar.url)
-            avatar = Image.open(BytesIO(avatar_response.content)).convert("RGBA")
-            avatar = avatar.resize(avatar_size)  # Resize to match white box size
+            avatar = Image.open(io.BytesIO(avatar_response.content)).convert("RGBA")
+            avatar = avatar.resize(avatar_size)
     
             # Paste avatar onto the template
-            template.paste(avatar, avatar_positions[i], avatar)  # Supports transparency
+            template.paste(avatar, avatar_positions[i], avatar)
     
-            # Draw username in the grey box below the avatar
+            # Draw username
             draw.text(username_positions[i], user.display_name, font=username_font, fill="black")
     
-        # Save to BytesIO for Discord
-        output = BytesIO()
+        # Save the image to a BytesIO object
+        output = io.BytesIO()
         template.save(output, format="PNG")
         output.seek(0)
+    
         return output
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
