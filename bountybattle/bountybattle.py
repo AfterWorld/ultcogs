@@ -1174,8 +1174,6 @@ class BountyBattle(commands.Cog):
         embed.set_footer(text="The battle has ended.")
         
         await message.edit(embed=embed)  # ✅ Instead of sending a new embed, update the existing one.
-        
-        await ctx.send(embed=embed)
 
         # Update stats for the winner
         await self.check_achievements(winner["member"])
