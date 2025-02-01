@@ -438,7 +438,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(
             f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
             f"🔥 **New Power:** {effect}\n\n"
-            f"⚠️ *You cannot eat another Devil Fruit unless you remove this one!*"
+            f"⚠️ *You cannot eat another Devil Fruit!*"
         )
 
     @commands.command()
@@ -522,7 +522,7 @@ class BountyBattle(commands.Cog):
         user_id = str(user.id)
 
         if user_id not in bounties:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`! and `.eatfruit`!")
 
         increase = random.randint(1000, 5000)
         
