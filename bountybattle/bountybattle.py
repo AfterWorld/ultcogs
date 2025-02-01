@@ -311,6 +311,7 @@ class BountyBattle(commands.Cog):
         self.log = logging.getLogger("red.deathmatch")  # Log under the cog name
         self.log.setLevel(logging.INFO)  # Set the log level
         self.current_environment = None  # Track the current environment
+        self.battle_stopped = False  # Track if a battle was stopped
 
     # ------------------ Bounty System ------------------
 
@@ -1035,8 +1036,9 @@ class BountyBattle(commands.Cog):
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             if self.battle_stopped:
-                self.battle_stopped = False  # Reset for the next fight
-                return  # Exit the fight function immediately
+                await ctx.send("⚠️ **The battle has been forcibly ended!** No winner was declared.")
+                self.battle_stopped = False  # Reset for the next battle
+                return
 
             # Apply environmental hazard
             hazard_message = await self.apply_environmental_hazard(environment, players)
