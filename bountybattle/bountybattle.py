@@ -401,24 +401,38 @@ class BountyBattle(commands.Cog):
         return embed
 
     @commands.command()
+    @commands.admin_or_permissions(administrator=True)  # Admin-only command
     async def bountydecay(self, ctx):
         """Reduce inactive players' bounties over time."""
         bounties = await self.config.guild(ctx.guild).bounties()
-        decay_rate = 0.05  # 5% per day
+        decay_rate = 0.05  # 5% per day after 3 days of inactivity
+        decay_threshold = 3  # Days before decay starts
+    
+        updated_bounties = []
+        now = datetime.utcnow()
     
         for user_id, data in bounties.items():
+            # ✅ Define `member` properly
+            member = ctx.guild.get_member(int(user_id))
+            if not member:
+                continue  # Skip if user is no longer in the server
+    
+            # ✅ Now `member` is defined before being used
             last_active = await self.config.member(member).last_active()
             if last_active:
                 last_active = datetime.fromisoformat(last_active)
-                days_inactive = (datetime.utcnow() - last_active).days
+                days_inactive = (now - last_active).days
     
-                if days_inactive >= 3:  # Decay starts after 3 days of inactivity
-                    decay_amount = int(data["amount"] * (decay_rate * days_inactive))
-                    data["amount"] = max(0, data["amount"] - decay_amount)
-                    await self.config.member_from_id(int(user_id)).bounty.set(data["amount"])
+                if days_inactive >= decay_threshold:
+                    decay_amount = int(data["amount"] * (decay_rate * (days_inactive - decay_threshold)))
+                    new_bounty = max(0, data["amount"] - decay_amount)
+                    await self.config.member(member).bounty.set(new_bounty)
+                    updated_bounties.append(f"⚠️ **{member.display_name}** lost `{decay_amount:,} Berries` due to inactivity!")
     
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await ctx.send("🏴‍☠️ **Inactive bounties have decayed!** Stay active to keep your bounty high!")
+        if updated_bounties:
+            await ctx.send("\n".join(updated_bounties))
+        else:
+            await ctx.send("✅ No bounties were decayed. Everyone is active!")
 
     @commands.command()
     async def eatfruit(self, ctx):
