@@ -240,7 +240,7 @@ class BountyCog(commands.Cog):
         pages = [sorted_bounties[i:i + 10] for i in range(0, len(sorted_bounties), 10)]
 
         current_page = 0
-        embed = self.create_leaderboard_embed(pages[current_page])
+        embed = await self.create_leaderboard_embed(pages[current_page])  # Add await here!
         message = await ctx.send(embed=embed)
 
         await message.add_reaction("⬅️")
@@ -258,13 +258,14 @@ class BountyCog(commands.Cog):
                 elif str(reaction.emoji) == "⬅️":
                     current_page = (current_page - 1) % len(pages)
 
-                embed = self.create_leaderboard_embed(pages[current_page])
+                embed = await self.create_leaderboard_embed(pages[current_page])  # Add await here!
                 await message.edit(embed=embed)
                 await message.remove_reaction(reaction, user)
             except asyncio.TimeoutError:
                 break
 
         await message.clear_reactions()
+
 
     async def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
