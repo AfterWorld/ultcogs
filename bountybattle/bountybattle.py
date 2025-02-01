@@ -1463,6 +1463,23 @@ class BountyBattle(commands.Cog):
         await self.config.member(member).titles.set(unlocked_titles)
     
         return unlocked
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            # Convert cooldown to human-readable time (minutes/hours)
+            retry_seconds = int(error.retry_after)
+            if retry_seconds >= 86400:
+                time_left = f"{retry_seconds // 86400} day(s)"
+            elif retry_seconds >= 3600:
+                time_left = f"{retry_seconds // 3600} hour(s)"
+            elif retry_seconds >= 60:
+                time_left = f"{retry_seconds // 60} minute(s)"
+            else:
+                time_left = f"{retry_seconds} seconds"
+    
+            await ctx.send(f"⏳ This command is on cooldown. Try again in **{time_left}**.")
+            return  # Prevent duplicate messages
 # ------------------ Setup Function ------------------
 async def setup(bot):
     await bot.add_cog(BountyBattle(bot))
