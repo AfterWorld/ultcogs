@@ -489,7 +489,8 @@ class BountyBattle(commands.Cog):
         if user_id not in bounties:
             return await ctx.send(f"{member.display_name} needs to start their bounty journey first by typing `.startbounty`!")
 
-        bounty_amount = await self.config.member(member).bounty()
+        bounties = await self.config.guild(ctx.guild).bounties()
+        bounty_amount = bounties.get(str(member.id), {}).get("amount", 0)
         avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
 
         async with aiohttp.ClientSession() as session:
