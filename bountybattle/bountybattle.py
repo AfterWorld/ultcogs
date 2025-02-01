@@ -1724,8 +1724,8 @@ class BountyBattle(commands.Cog):
         user_titles = await self.config.member(user).titles()
         unlocked_titles.update(user_titles)  # ✅ Ensures no duplicate titles
 
-        # Fetch equipped title
-        equipped_title = await self.config.member(user).equipped_title()
+        # ✅ Fetch `current_title` (NOT `equipped_title`)
+        equipped_title = await self.config.member(user).current_title()
 
         # ✅ Convert all titles to lowercase for case-insensitive comparison
         unlocked_titles_lower = {t.lower(): t for t in unlocked_titles}
@@ -1735,7 +1735,7 @@ class BountyBattle(commands.Cog):
             equipped_title = unlocked_titles_lower[equipped_title.lower()]
         else:
             equipped_title = None  # Reset if the title isn't in the unlocked list
-            await self.config.member(user).equipped_title.set(None)  # ✅ Fix stored title
+            await self.config.member(user).current_title.set(None)  # ✅ Fix stored title
 
         if not unlocked_titles:
             return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
@@ -1744,31 +1744,33 @@ class BountyBattle(commands.Cog):
             if title.lower() not in unlocked_titles_lower:
                 return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
 
-            await self.config.member(user).equipped_title.set(unlocked_titles_lower[title.lower()])
+            await self.config.member(user).current_title.set(unlocked_titles_lower[title.lower()])
             return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{unlocked_titles_lower[title.lower()]}`!")
 
         # Show available titles
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
         embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
         embed.add_field(name="Currently Equipped", value=equipped_title or "None Equipped", inline=False)
-        embed.set_footer(text="Use [p]titles equip <title> to set a title!")
+        embed.set_footer(text="Use [p]equiptitle "<title>" to set a title!")
 
         await ctx.send(embed=embed)
 
         
     @commands.command(name="equiptitle")
-    async def equiptitle(self, ctx: commands.Context, title: str):
+    async def equiptitle(self, ctx: commands.Context, *, title: str):
         """Equip a title for yourself."""
         titles = await self.config.member(ctx.author).titles()
         title_lower = title.lower()
         matched_title = next((t for t in titles if t.lower() == title_lower), None)
-            
+        
         if not matched_title:
             await ctx.send(f"❌ You have not unlocked the title `{title}`.")
             return
 
+        # ✅ Save the equipped title as `current_title`
         await self.config.member(ctx.author).current_title.set(matched_title)
         await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
+
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
