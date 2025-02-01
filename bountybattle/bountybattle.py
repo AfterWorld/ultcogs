@@ -532,7 +532,7 @@ class BountyBattle(commands.Cog):
                 all_taken_fruits.add(data["devil_fruit"])
 
         # ✅ Remove taken rare fruits from available list
-        available_rare_fruits = [fruit for fruit in RARE_FRUITS if fruit not in all_taken_fruits]
+        available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
 
         # ✅ Determine fruit type (90% Common, 10% Rare if available)
         is_rare = available_rare_fruits and random.randint(1, 100) <= 10
