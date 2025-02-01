@@ -1047,7 +1047,11 @@ class BountyBattle(commands.Cog):
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
 
-            # Apply burn damage
+            # Define attacker and defender
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]  # Now `defender` is correctly assigned
+            
+            # Apply burn damage AFTER defining `defender`
             burn_damage = await self.apply_burn_damage(defender)
             if burn_damage > 0:
                 embed.description = f"🔥 **{defender['name']}** takes `{burn_damage}` burn damage from fire stacks!"
