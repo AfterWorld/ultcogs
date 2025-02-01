@@ -381,6 +381,7 @@ class BountyBattle(commands.Cog):
         return embed
     
     @commands.command()
+    @commands.cooldown(1, 86400, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty."""
         hunter = ctx.author
