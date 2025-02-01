@@ -1734,10 +1734,10 @@ class BountyBattle(commands.Cog):
         bounty = bounties.get(str(member.id), {}).get("amount", 0)
     
         # ✅ Get the correct title based on bounty
-        title = self.get_bounty_title(bounty)
+        title = self.get_bounty_title(bounty) or "Unknown Pirate"
     
-        # ✅ Check for hidden/exclusive titles
-        hidden_titles = await self.config.member(member).titles()
+        # ✅ Check for hidden/exclusive titles and prevent NoneType errors
+        hidden_titles = await self.config.member(member).titles() or []
         if hidden_titles:
             title += f" / {', '.join(hidden_titles)}"
     
