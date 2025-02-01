@@ -1477,9 +1477,8 @@ class BountyBattle(commands.Cog):
                 await ctx.send(f"🔥 **{attacker['name']}** has unlocked the secret title: `The Berserker`!")
         
                 
-                
         # Increase the winner's bounty (random amount between 1,000 and 3,000 Berries)
-        bounty_increase = random.randint(1000, 3000)
+        bounty_increase = random.randint(1000, 2000)
         winner_id = str(winner["member"].id)
         
         # Get current bounty and update it
