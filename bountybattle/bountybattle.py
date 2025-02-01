@@ -314,6 +314,7 @@ class BountyBattle(commands.Cog):
             "titles": [],
             "titles": [],  # List of unlocked titles
             "current_title": None,  # Equipped title
+            "devil_fruit": None,
         }
         self.config.register_member(**default_member)
 
