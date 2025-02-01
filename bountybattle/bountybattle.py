@@ -210,7 +210,7 @@ MOVES = [
     {"name": "Soul Serenade", "type": "regular", "description": "Brook's music restores vitality to the soul!", "effect": "heal"},
 ]
 
-DEVIL_FRUITS = {
+COMMON_FRUITS = {
     "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
     "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
     "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
@@ -221,11 +221,17 @@ DEVIL_FRUITS = {
     "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
     "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
     "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
-    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
-    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
     "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
     "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
+}
+
+RARE_FRUITS = {
+    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
+    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
     "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+    "Gura Gura no Mi": {"type": "Paramecia", "effect": "quake", "bonus": "Earthquake attack deals massive AoE damage"},
+    "Pika Pika no Mi": {"type": "Logia", "effect": "light", "bonus": "Moves first in every battle"},
+    "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
 }
 
 # --- Modified Code with One Piece Island Environments ---
@@ -401,37 +407,6 @@ class BountyBattle(commands.Cog):
         return embed
 
     @commands.command()
-    async def mostwantedposter(self, ctx):
-        """Generate a wanted poster for the most wanted players."""
-        bounties = await self.config.guild(ctx.guild).bounties()
-        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)[:5]
-    
-        if not sorted_bounties:
-            return await ctx.send("🏴‍☠️ No wanted criminals found!")
-    
-        # Load base poster
-        base_poster = Image.open("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png")
-    
-        draw = ImageDraw.Draw(base_poster)
-        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/fonts/onepiece.ttf"
-        font = ImageFont.truetype(font_path, 50)
-    
-        y_position = 200  # Starting y-coordinate for first name
-    
-        for user_id, data in sorted_bounties:
-            member = ctx.guild.get_member(int(user_id))
-            if member:
-                draw.text((150, y_position), f"{member.display_name}: {data['amount']:,} Berries", font=font, fill="black")
-                y_position += 100  # Move down for next user
-    
-        # Save and send the image
-        output = io.BytesIO()
-        base_poster.save(output, format="PNG")
-        output.seek(0)
-        
-        await ctx.send("🏴‍☠️ **Most Wanted Pirates!**", file=discord.File(output, "mostwanted.png"))
-
-    @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Admin-only command
     async def bountydecay(self, ctx):
         """Reduce inactive players' bounties over time."""
@@ -467,18 +442,34 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def eatfruit(self, ctx):
-        """Consume a random Devil Fruit for unique battle powers!"""
+        """Consume a random Devil Fruit (some are one-of-a-kind)."""
         user = ctx.author
         current_fruit = await self.config.member(user).devil_fruit()
     
         if current_fruit:
             return await ctx.send(f"❌ You already have the `{current_fruit}`! You can only eat one Devil Fruit!")
     
-        # Select a random fruit
-        new_fruit = random.choice(list(DEVIL_FRUITS.keys()))
-        fruit_type = DEVIL_FRUITS[new_fruit]["type"]
-        effect = DEVIL_FRUITS[new_fruit]["bonus"]
+        # Get all rare fruits currently taken
+        all_taken_fruits = []
+        all_bounties = await self.config.all_members(ctx.guild)
+        for user_id, data in all_bounties.items():
+            if "devil_fruit" in data and data["devil_fruit"] in RARE_FRUITS:
+                all_taken_fruits.append(data["devil_fruit"])
     
+        # Remove taken rare fruits from available list
+        available_rare_fruits = [fruit for fruit in RARE_FRUITS.keys() if fruit not in all_taken_fruits]
+    
+        # 30% chance to get a rare fruit, 70% chance to get a common fruit
+        if available_rare_fruits and random.randint(1, 100) <= 30:
+            new_fruit = random.choice(available_rare_fruits)
+            fruit_type = RARE_FRUITS[new_fruit]["type"]
+            effect = RARE_FRUITS[new_fruit]["bonus"]
+        else:
+            new_fruit = random.choice(list(COMMON_FRUITS.keys()))
+            fruit_type = COMMON_FRUITS[new_fruit]["type"]
+            effect = COMMON_FRUITS[new_fruit]["bonus"]
+    
+        # Assign the fruit to the player
         await self.config.member(user).devil_fruit.set(new_fruit)
     
         await ctx.send(
@@ -486,6 +477,21 @@ class BountyBattle(commands.Cog):
             f"🔥 **New Power:** {effect}\n\n"
             f"⚠️ *You cannot eat another Devil Fruit!*"
         )
+
+    @commands.command()
+    async def removefruit(self, ctx):
+        """Remove your Devil Fruit (you lose its power)."""
+        user = ctx.author
+        fruit = await self.config.member(user).devil_fruit()
+    
+        if not fruit:
+            return await ctx.send("🍏 You have no Devil Fruit to remove!")
+    
+        # Remove the fruit
+        await self.config.member(user).devil_fruit.set(None)
+    
+        await ctx.send(f"❌ **{user.display_name}** has lost the power of `{fruit}`!\nThat fruit can now be found again!")
+    
 
     @commands.command()
     async def myfruit(self, ctx):
