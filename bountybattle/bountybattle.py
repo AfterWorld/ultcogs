@@ -338,6 +338,7 @@ class BountyBattle(commands.Cog):
             "current_title": None,  # Equipped title
             "devil_fruit": None,
             "last_active": None,
+            "equipped_title": "Unknown Pirate",  # ✅ Now registered!
         }
         self.config.register_member(**default_member)
 
