@@ -484,7 +484,7 @@ class BountyBattle(commands.Cog):
             await ctx.send(
                 f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
                 f"🔥 **New Power:** {effect}\n\n"
-                f"⚠️ *You cannot eat another Devil Fruit unless you remove this one!*"
+                f"⚠️ *You cannot eat another Devil Fruit!*"
             )
     
         # Assign the fruit to the player
