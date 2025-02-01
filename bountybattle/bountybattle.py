@@ -507,7 +507,7 @@ class BountyBattle(commands.Cog):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         
         wanted_poster_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"
+        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"  # ✅ Define font path
     
         # Open the local wanted poster template
         poster_image = Image.open(wanted_poster_path)
@@ -521,10 +521,12 @@ class BountyBattle(commands.Cog):
     
         # Draw text (name & bounty)
         draw = ImageDraw.Draw(poster_image)
+    
+        # ✅ Define font before using it
         try:
             font = ImageFont.truetype(font_path, 100)
         except OSError:
-            return "Failed to load font. Ensure the font file exists and is accessible."
+            return "⚠️ Font file not found! Ensure `onepiece.ttf` exists in the fonts folder."
     
         draw.text((150, 750), username, font=font, fill="black")
         draw.text((150, 870), f"{bounty_amount:,} Berries", font=font, fill="black")
