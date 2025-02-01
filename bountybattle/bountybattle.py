@@ -1393,21 +1393,38 @@ class BountyBattle(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    async def check_achievements(self, user):
-        """Check if a user has unlocked achievements."""
-        stats = await self.config.member(user).all()
+    async def check_achievements(self, member):
+        """Check and unlock achievements for the member."""
+        stats = await self.config.member(member).all()  # Get stats inside the function
+        user_achievements = stats.get("achievements", [])
+        unlocked_titles = stats.get("titles", [])
         unlocked = []
-
+    
         for key, data in ACHIEVEMENTS.items():
-            if key not in stats["achievements"] and stats[data["condition"]] >= data["count"]:
-                stats["achievements"].append(key)
+            if key in user_achievements:
+                continue  # Already unlocked
+    
+            current_stat = stats.get(data["condition"], 0)  # Use .get() to avoid KeyError
+            required_count = data["count"]
+    
+            if isinstance(required_count, str) and required_count == "all":
+                required_count = float('inf')  # "all" means infinite
+    
+            if current_stat >= required_count:
+                user_achievements.append(key)
                 unlocked.append(data["description"])
-
-        await self.config.member(user).achievements.set(stats["achievements"])
-
-        if unlocked:
-            await user.send(f"🏆 You've unlocked new achievements: {', '.join(unlocked)}!")
-
+    
+                if "title" in data and data["title"] not in unlocked_titles:
+                    unlocked_titles.append(data["title"])
+                    try:
+                        await member.send(f"🎉 Congratulations! You've unlocked the title: **{data['title']}**")
+                    except discord.Forbidden:
+                        self.log.warning(f"Could not send DM to {member.display_name}. They might have DMs disabled.")
+    
+        await self.config.member(member).achievements.set(user_achievements)
+        await self.config.member(member).titles.set(unlocked_titles)
+    
+        return unlocked
 # ------------------ Setup Function ------------------
 async def setup(bot):
     await bot.add_cog(BountyBattle(bot))
