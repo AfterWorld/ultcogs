@@ -1632,7 +1632,6 @@ class BountyBattle(commands.Cog):
         await self.config.member(member).losses.set(0)
         await self.config.member(member).equipped_title.set("Unknown Pirate")
         await self.config.member(member).titles.set([])  # Reset unlocked titles
-        await self.config.member(member).bounty_hunted.set(0)
     
         await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and titles have been reset!**")
 
