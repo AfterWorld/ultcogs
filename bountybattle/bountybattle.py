@@ -210,6 +210,24 @@ MOVES = [
     {"name": "Soul Serenade", "type": "regular", "description": "Brook's music restores vitality to the soul!", "effect": "heal"},
 ]
 
+DEVIL_FRUITS = {
+    "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
+    "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
+    "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
+    "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Absorbs enemy attacks 10% of the time"},
+    "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Freezes opponent, reducing their speed"},
+    "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
+    "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Blocks 50% of damage every 3 turns"},
+    "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
+    "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
+    "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
+    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
+    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
+    "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
+    "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
+    "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+}
+
 # --- Modified Code with One Piece Island Environments ---
 
 ENVIRONMENTS = {
@@ -379,6 +397,61 @@ class BountyBattle(commands.Cog):
             embed.add_field(name=f"{i}. {user.display_name}", 
                             value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
+
+    @commands.command()
+    async def bountydecay(self, ctx):
+        """Reduce inactive players' bounties over time."""
+        bounties = await self.config.guild(ctx.guild).bounties()
+        decay_rate = 0.05  # 5% per day
+    
+        for user_id, data in bounties.items():
+            last_active = await self.config.member_from_id(int(user_id)).last_daily_claim()
+            if last_active:
+                last_active = datetime.fromisoformat(last_active)
+                days_inactive = (datetime.utcnow() - last_active).days
+    
+                if days_inactive >= 3:  # Decay starts after 3 days of inactivity
+                    decay_amount = int(data["amount"] * (decay_rate * days_inactive))
+                    data["amount"] = max(0, data["amount"] - decay_amount)
+                    await self.config.member_from_id(int(user_id)).bounty.set(data["amount"])
+    
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await ctx.send("🏴‍☠️ **Inactive bounties have decayed!** Stay active to keep your bounty high!")
+
+    @commands.command()
+    async def eatfruit(self, ctx):
+        """Consume a random Devil Fruit for unique battle powers!"""
+        user = ctx.author
+        current_fruit = await self.config.member(user).devil_fruit()
+    
+        if current_fruit:
+            return await ctx.send(f"❌ You already have the `{current_fruit}`! You can only eat one Devil Fruit!")
+    
+        # Select a random fruit
+        new_fruit = random.choice(list(DEVIL_FRUITS.keys()))
+        fruit_type = DEVIL_FRUITS[new_fruit]["type"]
+        effect = DEVIL_FRUITS[new_fruit]["bonus"]
+    
+        await self.config.member(user).devil_fruit.set(new_fruit)
+    
+        await ctx.send(
+            f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
+            f"🔥 **New Power:** {effect}\n\n"
+            f"⚠️ *You cannot eat another Devil Fruit unless you remove this one!*"
+        )
+
+    @commands.command()
+    async def myfruit(self, ctx):
+        """Check which Devil Fruit you have eaten."""
+        user = ctx.author
+        fruit = await self.config.member(user).devil_fruit()
+    
+        if not fruit:
+            return await ctx.send("🍏 You have not eaten a Devil Fruit yet!")
+    
+        effect = DEVIL_FRUITS[fruit]["bonus"]
+        await ctx.send(f"🍎 **{user.display_name}**, you have the `{fruit}`! **Effect:** {effect}")
+
     
     @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)
@@ -1069,7 +1142,36 @@ class BountyBattle(commands.Cog):
 
             # Define attacker and defender
             attacker = players[turn_index]
-            defender = players[1 - turn_index]  # Now `defender` is correctly assigned
+            defender = players[1 - turn_index]  # Now defender is correctly assigned
+            
+            # Check if the attacker has a Devil Fruit
+            attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
+            if attacker_fruit and attacker_fruit in DEVIL_FRUITS:
+                fruit_effect = DEVIL_FRUITS[attacker_fruit]["effect"]
+            
+                if fruit_effect == "fire":
+                    burn_chance = random.randint(1, 100)
+                    if burn_chance <= 30:  # 30% chance to burn opponent
+                        defender["status"]["burn"] += 2
+                        await ctx.send(f"🔥 **{attacker['name']}**'s `{attacker_fruit}` burned **{defender['name']}**!")
+            
+                elif fruit_effect == "rubber":
+                    blunt_damage = random.randint(1, 100)
+                    if blunt_damage <= 50:  # 50% chance to negate blunt attacks
+                        damage = 0
+                        await ctx.send(f"💪 **{attacker['name']}**'s `{attacker_fruit}` made them immune to blunt attacks!")
+            
+                elif fruit_effect == "surgical":
+                    swap_chance = random.randint(1, 100)
+                    if swap_chance <= 10:  # 10% chance to swap places
+                        players[0], players[1] = players[1], players[0]
+                        await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` swapped places!")
+            
+                elif fruit_effect == "darkness":
+                    absorb_chance = random.randint(1, 100)
+                    if absorb_chance <= 10:  # 10% chance to absorb enemy attack
+                        attacker["hp"] += 10
+                        await ctx.send(f"🌑 **{attacker['name']}**'s `{attacker_fruit}` absorbed enemy damage!")
             
             # Apply burn damage AFTER defining `defender`
             burn_damage = await self.apply_burn_damage(defender)
