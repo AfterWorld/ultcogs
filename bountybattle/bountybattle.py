@@ -1604,9 +1604,9 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # ✅ Admin-only command
     async def resetstats(self, ctx, member: discord.Member = None):
-        """Reset a single user's stats or reset all users in the server with `[p]resetstats global`."""
+        """Reset all users' stats (default) or reset a specific user with `[p]resetstats @user`."""
     
-        if member and member.name.lower() == "global":  # ✅ If "global" is typed, perform a full reset
+        if member is None:  # ✅ Default to a full server reset if no user is mentioned
             await ctx.send("⚠️ **Are you sure you want to reset ALL players' stats?** Type `confirm` to proceed.")
     
             def check(m):
@@ -1628,8 +1628,6 @@ class BountyBattle(commands.Cog):
             return
     
         # ✅ Reset a Single User
-        member = member or ctx.author
-    
         await self.config.member(member).clear()
     
         # ✅ Reset the user's bounty inside the `mostwanted` bounty list
@@ -1639,8 +1637,6 @@ class BountyBattle(commands.Cog):
             await self.config.guild(ctx.guild).bounties.set(bounties)  # Save changes
     
         await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and titles have been reset!**")
-
-
     
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
