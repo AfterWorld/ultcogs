@@ -1287,20 +1287,20 @@ class BountyBattle(commands.Cog):
         """
         # ✅ Retrieve the bounty list
         bounties = await self.config.guild(ctx.guild).bounties()
-    
+
         # ✅ If no opponent is provided, choose a random bounty holder
         if opponent is None:
             valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
-            
+
             if not valid_opponents:
                 return await ctx.send("❌ **There are no users with a bounty to challenge!**")
-    
+
             opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
-    
+
         # ✅ Ensure the opponent has a bounty
         elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
             return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
-    
+
         # ✅ Prevent invalid matches
         if ctx.author == opponent:
             return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
@@ -1308,19 +1308,19 @@ class BountyBattle(commands.Cog):
             return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
         if ctx.channel.id in self.active_channels:
             return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
-    
+
         # ✅ Mark the channel as active
         self.active_channels.add(ctx.channel.id)
-    
+
         # ✅ Generate fight card
         fight_card = self.generate_fight_card(ctx.author, opponent)
-    
+
         # ✅ Send the dynamically generated fight card image
         await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
-    
-        # ✅ Proceed with fight logic if applicable...
+
+        # ✅ Call the fight function and update bounty only for the initiator
         await self.fight(ctx, ctx.author, opponent)
-    
+
         # ✅ Mark the channel as inactive
         self.active_channels.remove(ctx.channel.id)
 
@@ -1420,7 +1420,6 @@ class BountyBattle(commands.Cog):
                 
                 self.battle_stopped = False  # Reset for the next battle
                 return
-
 
             # Apply environmental hazard
             hazard_message = await self.apply_environmental_hazard(environment, players)
@@ -1643,6 +1642,31 @@ class BountyBattle(commands.Cog):
         await self.config.member(loser["member"]).losses.set(
             await self.config.member(loser["member"]).losses() + 1
         )
+
+        # Decrease the loser's bounty (random amount between 500 and 1500 Berries)
+        bounty_decrease = random.randint(500, 1500)
+        loser_id = str(loser["member"].id)
+        
+        # Get current bounty and update it
+        bounties[loser_id] = bounties.get(loser_id, {"amount": 0})
+        bounties[loser_id]["amount"] = max(0, bounties[loser_id]["amount"] - bounty_decrease)
+        
+        # Save the new bounty
+        await self.config.guild(ctx.guild).bounties.set(bounties)
+        await self.config.member(loser["member"]).bounty.set(bounties[loser_id]["amount"])
+
+        # Update the existing embed to show the final result for the loser
+        embed.add_field(
+            name="💀 Defeat!",
+            value=(
+                f"**{loser['name']}** has lost the battle!\n\n"
+                f"💸 **Bounty Decreased:** `{bounty_decrease:,} Berries`\n"
+                f"🏴‍☠️ **New Bounty:** `{bounties[loser_id]['amount']:,} Berries`"
+            ),
+            inline=False,
+        )
+        
+        await message.edit(embed=embed)
         
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
@@ -1988,3 +2012,4 @@ class BountyBattle(commands.Cog):
 # ------------------ Setup Function ------------------
 async def setup(bot):
     await bot.add_cog(BountyBattle(bot))
+
