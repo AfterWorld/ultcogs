@@ -1727,20 +1727,25 @@ class BountyBattle(commands.Cog):
         # Fetch equipped title
         equipped_title = await self.config.member(user).equipped_title()
 
+        # ✅ Convert all titles to lowercase for case-insensitive comparison
+        unlocked_titles_lower = {t.lower(): t for t in unlocked_titles}
+
         # ✅ Ensure the equipped title is still valid
-        if equipped_title not in unlocked_titles:
-            equipped_title = None
-            await self.config.member(user).equipped_title.set(None)  # Reset invalid equipped title
+        if equipped_title and equipped_title.lower() in unlocked_titles_lower:
+            equipped_title = unlocked_titles_lower[equipped_title.lower()]
+        else:
+            equipped_title = None  # Reset if the title isn't in the unlocked list
+            await self.config.member(user).equipped_title.set(None)  # ✅ Fix stored title
 
         if not unlocked_titles:
             return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
 
         if action == "equip" and title:
-            if title not in unlocked_titles:
+            if title.lower() not in unlocked_titles_lower:
                 return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
 
-            await self.config.member(user).equipped_title.set(title)
-            return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{title}`!")
+            await self.config.member(user).equipped_title.set(unlocked_titles_lower[title.lower()])
+            return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{unlocked_titles_lower[title.lower()]}`!")
 
         # Show available titles
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
