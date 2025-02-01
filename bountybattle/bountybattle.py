@@ -1716,33 +1716,40 @@ class BountyBattle(commands.Cog):
         """View or equip a previously unlocked title, including exclusive ones."""
         user = ctx.author
         bounty = (await self.config.guild(ctx.guild).bounties()).get(str(user.id), {}).get("amount", 0)
-    
-        # Get all normal unlocked titles
-        unlocked_titles = [t for t, c in TITLES.items() if bounty >= c["bounty"]]
-        
-        # ✅ Add hidden & exclusive titles that have been unlocked
+
+        # Get all normal unlocked titles based on bounty
+        unlocked_titles = {t for t, c in TITLES.items() if bounty >= c["bounty"]}
+
+        # ✅ Add hidden & exclusive titles that have been unlocked, avoiding duplicates
         user_titles = await self.config.member(user).titles()
-        unlocked_titles.extend(user_titles)
-    
+        unlocked_titles.update(user_titles)  # ✅ Ensures no duplicate titles
+
+        # Fetch equipped title
         equipped_title = await self.config.member(user).equipped_title()
-    
+
+        # ✅ Ensure the equipped title is still valid
+        if equipped_title not in unlocked_titles:
+            equipped_title = None
+            await self.config.member(user).equipped_title.set(None)  # Reset invalid equipped title
+
         if not unlocked_titles:
             return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
-    
+
         if action == "equip" and title:
             if title not in unlocked_titles:
                 return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
-    
+
             await self.config.member(user).equipped_title.set(title)
             return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{title}`!")
-    
+
         # Show available titles
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
         embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
-        embed.add_field(name="Currently Equipped", value=equipped_title or "None", inline=False)
+        embed.add_field(name="Currently Equipped", value=equipped_title or "None Equipped", inline=False)
         embed.set_footer(text="Use [p]titles equip <title> to set a title!")
-    
+
         await ctx.send(embed=embed)
+
         
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, title: str):
