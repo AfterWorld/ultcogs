@@ -266,16 +266,17 @@ class BountyCog(commands.Cog):
 
         await message.clear_reactions()
 
-    def create_leaderboard_embed(self, bounties):
+    async def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
         for i, (user_id, bounty) in enumerate(bounties, start=1):
             user = self.bot.get_user(int(user_id))
             if user is None:
-                user = await self.bot.fetch_user(int(user_id))  # Fetch user from Discord if not in cache
+                user = await self.bot.fetch_user(int(user_id))  # Now valid since function is async
 
-            embed.add_field(name=f"{i}. {user.display_name if user else 'Unknown User'}", 
+            embed.add_field(name=f"{i}. {user.display_name if user else f'User {user_id}'}", 
                             value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
+
     
     def get_redeemable_roles(self, bounty_amount):
         """Get the roles that can be redeemed based on the bounty amount."""
