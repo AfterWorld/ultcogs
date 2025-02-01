@@ -1170,7 +1170,7 @@ class BountyBattle(commands.Cog):
         # Update stats for the winner
         await self.check_achievements(winner["member"])
         # Update stats for the loser
-        await self.check_achievements(loser["member"], defender_stats)
+        await self.check_achievements(loser["member"])
         # Update stats for the winner and loser
         await self.config.member(winner["member"]).wins.set(
             await self.config.member(winner["member"]).wins() + 1
@@ -1178,17 +1178,7 @@ class BountyBattle(commands.Cog):
         await self.config.member(loser["member"]).losses.set(
             await self.config.member(loser["member"]).losses() + 1
         )
-        # Update stats for the winner and loser (Seasonal)
-        await self.config.member(winner["member"]).seasonal_wins.set(
-            await self.config.member(winner["member"]).seasonal_wins() + 1
-        )
-        await self.config.member(loser["member"]).seasonal_losses.set(
-            await self.config.member(loser["member"]).seasonal_losses() + 1
-        )
-        await self.config.member(winner["member"]).seasonal_damage_dealt.set(
-            await self.config.member(winner["member"]).seasonal_damage_dealt() + damage
-        )
-
+        
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
