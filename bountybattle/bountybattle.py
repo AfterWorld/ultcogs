@@ -493,39 +493,35 @@ class BountyBattle(commands.Cog):
 
     async def create_wanted_poster(self, username, bounty_amount, avatar_data):
         """Create a wanted poster with the user's avatar, username, and bounty."""
+        
         wanted_poster_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png"
         font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(wanted_poster_url) as response:
-                if response.status != 200:
-                    raise Exception("Failed to retrieve wanted poster template.")
-                poster_data = await response.read()
-
+    
+        # Open the local wanted poster template
         poster_image = Image.open(wanted_poster_path)
+        
+        # Open the user's avatar image
         avatar_image = Image.open(io.BytesIO(avatar_data)).resize((625, 455))
-
-        # Round the avatar corners
-        avatar_image = self.round_image_corners(avatar_image)
-
-        # Ensure avatar image is in RGBA mode
         avatar_image = avatar_image.convert("RGBA")
-
+    
+        # Paste the avatar onto the wanted poster
+        poster_image.paste(avatar_image, (65, 223), avatar_image)
+    
+        # Draw text (name & bounty)
         draw = ImageDraw.Draw(poster_image)
         try:
             font = ImageFont.truetype(font_path, 100)
         except OSError:
-            return "Failed to load font. Please ensure the font file exists and is accessible."
-
-        poster_image.paste(avatar_image, (65, 223), avatar_image)
-
+            return "Failed to load font. Ensure the font file exists and is accessible."
+    
         draw.text((150, 750), username, font=font, fill="black")
-        draw.text((150, 870), f"{bounty_amount:,}", font=font, fill="black")
-
+        draw.text((150, 870), f"{bounty_amount:,} Berries", font=font, fill="black")
+    
+        # Save to a BytesIO object
         output = io.BytesIO()
         poster_image.save(output, format="PNG")
         output.seek(0)
-
+    
         return output
     
     async def announce_rank(self, guild, user, title):
