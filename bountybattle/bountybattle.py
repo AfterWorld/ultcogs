@@ -1452,11 +1452,13 @@ class BountyBattle(commands.Cog):
         loser_bounty = await self.config.member(loser["member"]).bounty()
         winner_bounty = await self.config.member(winner["member"]).bounty()
         
-        if loser_bounty >= winner_bounty * 5:
-            if "The Underdog" not in unlocked_titles:
-                unlocked_titles.append("The Underdog")
-                await self.config.member(winner["member"]).titles.set(unlocked_titles)
-                await ctx.send(f"🐺 **{winner['name']}** has unlocked the secret title: `The Underdog`!")
+        # ✅ Ensure unlocked_titles is always defined before using it
+        unlocked_titles = await self.config.member(winner["member"]).titles() or []
+        
+        if "The Underdog" not in unlocked_titles:
+            unlocked_titles.append("The Underdog")
+            await self.config.member(winner["member"]).titles.set(unlocked_titles)
+            await ctx.send(f"🏆 **{winner['name']}** has unlocked the secret title: `The Underdog`!")
 
         # ✅ Unlock "The Ghost" (Evade 3 attacks in a row)
         if defender["status"].get("evade_streak", 0) >= 3:
