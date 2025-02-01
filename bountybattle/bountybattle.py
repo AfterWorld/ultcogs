@@ -1149,8 +1149,8 @@ class BountyBattle(commands.Cog):
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
         
-        # Increase the winner's bounty (random amount between 1,000 and 5,000 Berries)
-        bounty_increase = random.randint(1000, 5000)
+        # Increase the winner's bounty (random amount between 1,000 and 3,000 Berries)
+        bounty_increase = random.randint(1000, 3000)
         winner_id = str(winner["member"].id)
         
         # Get current bounty and update it
