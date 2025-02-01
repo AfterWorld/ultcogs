@@ -407,7 +407,7 @@ class BountyBattle(commands.Cog):
         decay_rate = 0.05  # 5% per day
     
         for user_id, data in bounties.items():
-            last_active = await self.config.member_from_id(int(user_id)).last_daily_claim()
+            last_active = await self.config.member(member).last_active()
             if last_active:
                 last_active = datetime.fromisoformat(last_active)
                 days_inactive = (datetime.utcnow() - last_active).days
