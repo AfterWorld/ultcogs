@@ -964,14 +964,26 @@ class BountyBattle(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     async def stopbattle(self, ctx: commands.Context):
         """
-        Stop an ongoing battle in the current channel.
-        This command can only be used by admins.
+        Stop an ongoing battle in the current channel with a One Piece joke.
         """
-        if ctx.channel.id in self.active_channels:
-            self.active_channels.remove(ctx.channel.id)
-            await ctx.send("❌ The ongoing battle has been stopped.")
-        else:
-            await ctx.send("❌ There is no ongoing battle in this channel.")
+        if ctx.channel.id not in self.active_channels:
+            return await ctx.send("❌ There is no ongoing battle in this channel.")
+    
+        # Mark the battle as stopped
+        self.battle_stopped = True
+        self.active_channels.remove(ctx.channel.id)
+    
+        # Choose a random reason for stopping the fight
+        reasons = [
+            "🚢 **The Marines have arrived!** Everyone retreats immediately! ⚓",
+            "👁️ **Imu has erased this battle from history!** The fight never happened...",
+            "💥 **A Buster Call has been activated!** The battlefield is destroyed! 🔥",
+            "🕊️ **The Five Elders have intervened!** All fighters are forced to flee.",
+            "🏴‍☠️ **Shanks stepped in!** He declares: *'This fight ends now.'*",
+        ]
+        reason = random.choice(reasons)
+
+    await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
         
     async def fight(self, ctx, challenger, opponent):
         """Override the fight method to include environmental hazards."""
@@ -1020,8 +1032,9 @@ class BountyBattle(commands.Cog):
 
         # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
-            attacker = players[turn_index]
-            defender = players[1 - turn_index]
+            if self.battle_stopped:
+                self.battle_stopped = False  # Reset for the next fight
+                return  # Exit the fight function immediately
 
             # Apply environmental hazard
             hazard_message = await self.apply_environmental_hazard(environment, players)
