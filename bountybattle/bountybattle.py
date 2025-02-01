@@ -5,7 +5,8 @@ import asyncio
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import logging
-
+import aiohttp
+import io  # Required for handling images
 
 # Initialize logger
 logger = logging.getLogger("red.bounty")
