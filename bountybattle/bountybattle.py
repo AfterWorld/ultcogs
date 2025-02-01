@@ -368,6 +368,7 @@ class BountyBattle(commands.Cog):
         self.log.setLevel(logging.INFO)  # Set the log level
         self.current_environment = None  # Track the current environment
         self.battle_stopped = False  # Track if a battle was stopped
+        self.config.register_member(bounty_hunted=0)
 
     # ------------------ Bounty System ------------------
 
@@ -617,7 +618,9 @@ class BountyBattle(commands.Cog):
             await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
 
             # ✅ Unlock "The Bounty Hunter" (Steal 100,000 Berries)
-            total_stolen = await self.config.member(hunter).bounty_hunted() + int(steal_amount)
+            current_stolen = await self.config.member(hunter).bounty_hunted() or 0  # ✅ Ensures no NoneType error
+            total_stolen = current_stolen + int(steal_amount)
+            
             await self.config.member(hunter).bounty_hunted.set(total_stolen)
             
             if total_stolen >= 100_000:
