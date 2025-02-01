@@ -270,7 +270,11 @@ class BountyCog(commands.Cog):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
         for i, (user_id, bounty) in enumerate(bounties, start=1):
             user = self.bot.get_user(int(user_id))
-            embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
+            if user is None:
+                user = await self.bot.fetch_user(int(user_id))  # Fetch user from Discord if not in cache
+
+            embed.add_field(name=f"{i}. {user.display_name if user else 'Unknown User'}", 
+                            value=f"{bounty['amount']:,} Berries", inline=False)
         return embed
     
     def get_redeemable_roles(self, bounty_amount):
