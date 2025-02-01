@@ -603,25 +603,33 @@ class BountyBattle(commands.Cog):
         await self.config.member(user).devil_fruit.set(new_fruit)
 
     @commands.command()
-    async def removefruit(self, ctx):
-        """Remove your Devil Fruit (you lose its power) by paying 1,000,000 berries."""
+    async def removefruit(self, ctx, member: discord.Member = None):
+        """Remove a user's Devil Fruit. Owners remove for free, others pay 1,000,000 berries."""
         user = ctx.author
-        fruit = await self.config.member(user).devil_fruit()
-        berries = await self.config.member(user).berries()  # ✅ This will now work!
-        cost = 1_000_000  # Cost to remove a Devil Fruit
+        member = member or user  # If no member is provided, remove for the command user
+        is_owner = await self.bot.is_owner(user)  # Check if the user is the bot owner
 
+        fruit = await self.config.member(member).devil_fruit()
         if not fruit:
-            return await ctx.send("🍏 You have no Devil Fruit to remove!")
+            return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
+
+        if is_owner:  # Owners remove for free
+            await self.config.member(member).devil_fruit.set(None)
+            return await ctx.send(f"🛡️ **{user.display_name}** removed `{fruit}` from **{member.display_name}** for free!")
+
+        # Normal users must pay
+        berries = await self.config.member(user).berries()
+        cost = 1_000_000
 
         if berries < cost:
             return await ctx.send(f"❌ You don't have enough berries! You need **{cost:,}** berries to remove your Devil Fruit.")
 
         # Deduct cost and remove the fruit
         await self.config.member(user).berries.set(berries - cost)
-        await self.config.member(user).devil_fruit.set(None)
+        await self.config.member(member).devil_fruit.set(None)
 
         await ctx.send(
-            f"💰 **{user.display_name}** has paid **{cost:,}** berries and lost the power of `{fruit}`!\n"
+            f"💰 **{user.display_name}** has paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
             f"That fruit can now be found again! 🍏"
         )
 
