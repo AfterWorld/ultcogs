@@ -1751,7 +1751,7 @@ class BountyBattle(commands.Cog):
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
         embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
         embed.add_field(name="Currently Equipped", value=equipped_title or "None Equipped", inline=False)
-        embed.set_footer(text="Use [p]equiptitle "<title>" to set a title!")
+        embed.set_footer(text='Use [p]equiptitle "<title>" to set a title!')
 
         await ctx.send(embed=embed)
 
