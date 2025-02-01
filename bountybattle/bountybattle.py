@@ -496,7 +496,7 @@ class BountyBattle(commands.Cog):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         
         wanted_poster_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png"
-        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
     
         # Open the local wanted poster template
         poster_image = Image.open(wanted_poster_path)
@@ -752,7 +752,7 @@ class BountyBattle(commands.Cog):
         Generates a dynamic fight card image with avatars and usernames.
         """
         TEMPLATE_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/deathbattle.png"
-        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/fonts/onepiece.ttf"
+        FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyCog/fonts/onepiece.ttf"
     
         # Open the local template image
         template = Image.open(TEMPLATE_PATH)
