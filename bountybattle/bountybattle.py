@@ -1606,7 +1606,7 @@ class BountyBattle(commands.Cog):
     async def resetstats(self, ctx, member: discord.Member = None):
         """Reset all users' stats (default) or reset a specific user with `[p]resetstats @user`."""
     
-        if member is None:  # ✅ Default to a full server reset if no user is mentioned
+        if member is None:  # ✅ Default to full server reset if no user is mentioned
             await ctx.send("⚠️ **Are you sure you want to reset ALL players' stats?** Type `confirm` to proceed.")
     
             def check(m):
@@ -1619,7 +1619,9 @@ class BountyBattle(commands.Cog):
     
             all_members = await self.config.all_members(ctx.guild)
             for user_id in all_members:
-                await self.config.member_from_id(user_id).clear()
+                user = ctx.guild.get_member(int(user_id))  # ✅ Get the actual Discord member object
+                if user:
+                    await self.config.member(user).clear()
     
             # ✅ Reset the server-wide bounty list to 0
             await self.config.guild(ctx.guild).bounties.set({})
@@ -1637,7 +1639,7 @@ class BountyBattle(commands.Cog):
             await self.config.guild(ctx.guild).bounties.set(bounties)  # Save changes
     
         await ctx.send(f"🔄 **{member.display_name}'s stats, bounty, and titles have been reset!**")
-    
+        
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
         """View or equip a previously unlocked title, including exclusive ones."""
