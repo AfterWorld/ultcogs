@@ -401,6 +401,37 @@ class BountyBattle(commands.Cog):
         return embed
 
     @commands.command()
+    async def mostwantedposter(self, ctx):
+        """Generate a wanted poster for the most wanted players."""
+        bounties = await self.config.guild(ctx.guild).bounties()
+        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)[:5]
+    
+        if not sorted_bounties:
+            return await ctx.send("🏴‍☠️ No wanted criminals found!")
+    
+        # Load base poster
+        base_poster = Image.open("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/mostwanted.png")
+    
+        draw = ImageDraw.Draw(base_poster)
+        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/fonts/onepiece.ttf"
+        font = ImageFont.truetype(font_path, 50)
+    
+        y_position = 200  # Starting y-coordinate for first name
+    
+        for user_id, data in sorted_bounties:
+            member = ctx.guild.get_member(int(user_id))
+            if member:
+                draw.text((150, y_position), f"{member.display_name}: {data['amount']:,} Berries", font=font, fill="black")
+                y_position += 100  # Move down for next user
+    
+        # Save and send the image
+        output = io.BytesIO()
+        base_poster.save(output, format="PNG")
+        output.seek(0)
+        
+        await ctx.send("🏴‍☠️ **Most Wanted Pirates!**", file=discord.File(output, "mostwanted.png"))
+
+    @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Admin-only command
     async def bountydecay(self, ctx):
         """Reduce inactive players' bounties over time."""
