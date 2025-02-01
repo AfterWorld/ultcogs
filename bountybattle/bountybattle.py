@@ -210,46 +210,29 @@ MOVES = [
     {"name": "Soul Serenade", "type": "regular", "description": "Brook's music restores vitality to the soul!", "effect": "heal"},
 ]
 
-COMMON_FRUITS = {
-    "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
-    "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
-    "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
-    "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Absorbs enemy attacks 10% of the time"},
-    "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Freezes opponent, reducing their speed"},
-    "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
-    "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Blocks 50% of damage every 3 turns"},
-    "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
-    "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
-    "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
-    "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
-    "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
-}
-
-RARE_FRUITS = {
-    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
-    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
-    "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
-    "Gura Gura no Mi": {"type": "Paramecia", "effect": "quake", "bonus": "Earthquake attack deals massive AoE damage"},
-    "Pika Pika no Mi": {"type": "Logia", "effect": "light", "bonus": "Moves first in every battle"},
-    "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
-}
-
 DEVIL_FRUITS = {
-    "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
-    "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
-    "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
-    "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Absorbs enemy attacks 10% of the time"},
-    "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Freezes opponent, reducing their speed"},
-    "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
-    "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Blocks 50% of damage every 3 turns"},
-    "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
-    "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
-    "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
-    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
-    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
-    "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
-    "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
-    "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+    "Common": {
+        "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
+        "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
+        "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
+        "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Absorbs enemy attacks 10% of the time"},
+        "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Freezes opponent, reducing their speed"},
+        "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
+        "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Blocks 50% of damage every 3 turns"},
+        "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
+        "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
+        "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
+        "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
+        "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
+    },
+    "Rare": {
+        "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
+        "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
+        "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+        "Gura Gura no Mi": {"type": "Paramecia", "effect": "quake", "bonus": "Earthquake attack deals massive AoE damage"},
+        "Pika Pika no Mi": {"type": "Logia", "effect": "light", "bonus": "Moves first in every battle"},
+        "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
+    }
 }
 
 TITLES = {
@@ -509,32 +492,42 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def eatfruit(self, ctx):
-        """Consume a random Devil Fruit (some are one-of-a-kind and announced globally)."""
+        """Consume a random Devil Fruit! Some rare fruits are unique and globally announced."""
         user = ctx.author
         current_fruit = await self.config.member(user).devil_fruit()
-    
+
         if current_fruit:
             return await ctx.send(f"❌ You already have the `{current_fruit}`! You can only eat one Devil Fruit!")
-    
-        # Get all rare fruits currently taken
-        all_taken_fruits = []
+
+        # ✅ Get all rare fruits currently taken
+        all_taken_fruits = set()
         all_bounties = await self.config.all_members(ctx.guild)
+
         for user_id, data in all_bounties.items():
             if "devil_fruit" in data and data["devil_fruit"] in RARE_FRUITS:
-                all_taken_fruits.append(data["devil_fruit"])
-    
-        # Remove taken rare fruits from available list
-        available_rare_fruits = [fruit for fruit in RARE_FRUITS.keys() if fruit not in all_taken_fruits]
-    
-        # 10% chance to get a rare fruit, 90% chance to get a common fruit
+                all_taken_fruits.add(data["devil_fruit"])
+
+        # ✅ Remove taken rare fruits from available list
+        available_rare_fruits = [fruit for fruit in RARE_FRUITS if fruit not in all_taken_fruits]
+
+        # ✅ Determine fruit type (90% Common, 10% Rare if available)
         is_rare = available_rare_fruits and random.randint(1, 100) <= 10
-    
+
         if is_rare:
             new_fruit = random.choice(available_rare_fruits)
-            fruit_type = RARE_FRUITS[new_fruit]["type"]
-            effect = RARE_FRUITS[new_fruit]["bonus"]
-    
-            # **🔴 ANNOUNCE THE RARE FRUIT FIND**
+            fruit_data = RARE_FRUITS[new_fruit]
+        else:
+            new_fruit = random.choice(list(COMMON_FRUITS.keys()))
+            fruit_data = COMMON_FRUITS[new_fruit]
+
+        fruit_type = fruit_data["type"]
+        effect = fruit_data["bonus"]
+
+        # ✅ Save the fruit to the player's profile
+        await self.config.member(user).devil_fruit.set(new_fruit)
+
+        # ✅ ANNOUNCE IF RARE FRUIT
+        if is_rare:
             announcement = (
                 f"🚨 **Breaking News from the Grand Line!** 🚨\n"
                 f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**! ({fruit_type} Type)\n"
@@ -542,17 +535,13 @@ class BountyBattle(commands.Cog):
                 f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it unless they remove it!*"
             )
             await ctx.send(announcement)
-    
         else:
-            new_fruit = random.choice(list(COMMON_FRUITS.keys()))
-            fruit_type = COMMON_FRUITS[new_fruit]["type"]
-            effect = COMMON_FRUITS[new_fruit]["bonus"]
-    
             await ctx.send(
                 f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
                 f"🔥 **New Power:** {effect}\n\n"
                 f"⚠️ *You cannot eat another Devil Fruit!*"
             )
+
     
         # Assign the fruit to the player
         await self.config.member(user).devil_fruit.set(new_fruit)
@@ -1250,6 +1239,18 @@ class BountyBattle(commands.Cog):
 
         # Announce the environment
         await ctx.send(f"🌍 The battle takes place in **{environment}**: {ENVIRONMENTS[environment]['description']}")
+
+        # ✅ Get Devil Fruit info for both fighters
+        attacker_fruit = await self.config.member(challenger).devil_fruit()
+        defender_fruit = await self.config.member(opponent).devil_fruit()
+
+        attacker_bonus = DEVIL_FRUITS["Common"].get(attacker_fruit) or DEVIL_FRUITS["Rare"].get(attacker_fruit)
+        defender_bonus = DEVIL_FRUITS["Common"].get(defender_fruit) or DEVIL_FRUITS["Rare"].get(defender_fruit)
+
+        if attacker_bonus:
+            await ctx.send(f"🔥 **{challenger.display_name}** is using `{attacker_fruit}`! Bonus: {attacker_bonus['bonus']}")
+        if defender_bonus:
+            await ctx.send(f"❄️ **{opponent.display_name}** is using `{defender_fruit}`! Bonus: {defender_bonus['bonus']}")
 
         # Initialize player data
         challenger_hp = 100
