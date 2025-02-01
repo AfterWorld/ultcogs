@@ -389,6 +389,8 @@ class BountyBattle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
+        self.config.register_member(berries=0)
+
 
         # Store both bounty and deathmatch stats
         default_member = {
@@ -604,7 +606,7 @@ class BountyBattle(commands.Cog):
         """Remove your Devil Fruit (you lose its power) by paying 1,000,000 berries."""
         user = ctx.author
         fruit = await self.config.member(user).devil_fruit()
-        berries = await self.config.member(user).berries()  # Fetch user's berry balance
+        berries = await self.config.member(user).berries()  # ✅ This will now work!
         cost = 1_000_000  # Cost to remove a Devil Fruit
 
         if not fruit:
@@ -622,7 +624,37 @@ class BountyBattle(commands.Cog):
             f"That fruit can now be found again! 🍏"
         )
 
-    
+        
+    @commands.command()
+    @commands.is_owner()
+    async def setbounty(self, ctx, member: discord.Member, amount: int):
+        """Set a user's bounty (Admin only)."""
+        if amount < 0:
+            return await ctx.send("❌ Bounty cannot be negative.")
+
+        await self.config.guild(ctx.guild).bounties.set_raw(str(member.id), value={"amount": amount})
+        
+        await ctx.send(f"🏴‍☠️ **{member.display_name}** now has a bounty of **{amount:,}** berries!")
+
+    @commands.command()
+    @commands.is_owner()
+    async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
+        """Give a user a Devil Fruit (Admin only)."""
+        fruit = fruit.title()  # Normalize case
+        all_fruits = {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}  # Merge all fruits
+
+        if fruit not in all_fruits:
+            return await ctx.send("❌ That Devil Fruit does not exist in the current list.")
+
+        current_fruit = await self.config.member(member).devil_fruit()
+        if current_fruit:
+            return await ctx.send(f"❌ **{member.display_name}** already has `{current_fruit}`! They must remove it first.")
+
+        # Assign the fruit
+        await self.config.member(member).devil_fruit.set(fruit)
+        
+        await ctx.send(f"🍏 **{member.display_name}** has been given the `{fruit}`!")
+
 
     @commands.command()
     async def myfruit(self, ctx):
