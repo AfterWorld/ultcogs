@@ -1467,7 +1467,8 @@ class BountyBattle(commands.Cog):
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
-            # Convert cooldown to human-readable time (minutes/hours)
+            await ctx.message.delete()  # Removes the command message if possible (optional)
+            
             retry_seconds = int(error.retry_after)
             if retry_seconds >= 86400:
                 time_left = f"{retry_seconds // 86400} day(s)"
@@ -1478,8 +1479,13 @@ class BountyBattle(commands.Cog):
             else:
                 time_left = f"{retry_seconds} seconds"
     
-            await ctx.send(f"⏳ This command is on cooldown. Try again in **{time_left}**.")
-            return  # Prevent duplicate messages
+            # Send only one cooldown message
+            await ctx.send(f"⏳ This command is on cooldown. Try again in **{time_left}**.", delete_after=5)
+            return
+    
+        # Prevent Redbot from sending another cooldown message
+        if isinstance(error, commands.CommandOnCooldown):
+            return
 # ------------------ Setup Function ------------------
 async def setup(bot):
     await bot.add_cog(BountyBattle(bot))
