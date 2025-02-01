@@ -234,6 +234,24 @@ RARE_FRUITS = {
     "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
 }
 
+DEVIL_FRUITS = {
+    "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
+    "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
+    "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
+    "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Absorbs enemy attacks 10% of the time"},
+    "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Freezes opponent, reducing their speed"},
+    "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
+    "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Blocks 50% of damage every 3 turns"},
+    "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
+    "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
+    "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
+    "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
+    "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
+    "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "Can stun enemy with gravity 20% of the time"},
+    "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
+    "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+}
+
 TITLES = {
     "Small-time Pirate": {"bounty": 10_000},
     "Rookie Pirate": {"bounty": 50_000},
