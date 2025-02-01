@@ -1642,6 +1642,77 @@ class BountyBattle(commands.Cog):
                             defender["status"]["accuracy_reduction"] = 30
                             defender["status"]["accuracy_turns"] = 2
                             await ctx.send(f"👥 **{attacker['name']}**'s `{attacker_fruit}` stole **{defender['name']}**'s shadow!")
+                            
+                    elif fruit_effect == "weight":
+                        # Kilo Kilo no Mi
+                        if random.randint(1, 100) <= 30:
+                            damage = 0  # Dodge by becoming light
+                            await ctx.send(f"⚖️ **{attacker['name']}**'s `{attacker_fruit}` changed their weight to avoid damage!")
+
+                    elif fruit_effect == "spikes":
+                        # Toge Toge no Mi
+                        if "melee" in move.get("type", ""):
+                            counter_damage = int(damage * 0.3)  # Counter with 30% damage
+                            attacker["hp"] -= counter_damage
+                            await ctx.send(f"🦔 **{attacker['name']}**'s `{attacker_fruit}` countered with spike damage!")
+
+                    elif fruit_effect == "springs":
+                        # Bane Bane no Mi
+                        if random.randint(1, 100) <= 25:
+                            damage = int(damage * 1.4)  # 40% more damage from spring force
+                            await ctx.send(f"🔩 **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack with spring force!")
+
+                    elif fruit_effect == "magnetism":
+                        # Jiki Jiki no Mi
+                        if random.randint(1, 100) <= 25:
+                            if "metal" in move.get("type", ""):
+                                damage = int(damage * 1.5)  # 50% more damage to metal weapons
+                                await ctx.send(f"🧲 **{attacker['name']}**'s `{attacker_fruit}` magnetized the attack!")
+
+                    elif fruit_effect == "time":
+                        # Toki Toki no Mi
+                        if random.randint(1, 100) <= 20:
+                            # Reset all cooldowns
+                            for status in attacker["status"]:
+                                if isinstance(attacker["status"][status], int) and attacker["status"][status] > 0:
+                                    attacker["status"][status] = 0
+                            await ctx.send(f"⏰ **{attacker['name']}**'s `{attacker_fruit}` reset their ability cooldowns!")
+
+                    elif fruit_effect == "dehydration":
+                        # Shibo Shibo no Mi
+                        if random.randint(1, 100) <= 25:
+                            defender["status"]["weakened"] = 2  # Weakened for 2 turns
+                            await ctx.send(f"💧 **{attacker['name']}**'s `{attacker_fruit}` dehydrated **{defender['name']}**!")
+
+                    elif fruit_effect == "diamond":
+                        # Kira Kira no Mi
+                        damage = int(damage * 0.7)  # Reduce incoming damage by 30%
+                        await ctx.send(f"💎 **{attacker['name']}**'s `{attacker_fruit}` hardened their defense!")
+
+                    elif fruit_effect == "stone":
+                        # Ishi Ishi no Mi
+                        if random.randint(1, 100) <= 30:
+                            defender["status"]["movement_restricted"] = 2  # Restrict movement for 2 turns
+                            await ctx.send(f"🗿 **{attacker['name']}**'s `{attacker_fruit}` created stone obstacles!")
+
+                    elif fruit_effect == "forest":
+                        # Mori Mori no Mi
+                        if random.randint(1, 100) <= 25:
+                            defender["status"]["immobilized"] = 1  # Immobilize for 1 turn
+                            await ctx.send(f"🌳 **{attacker['name']}**'s `{attacker_fruit}` trapped **{defender['name']}** in roots!")
+
+                    elif fruit_effect == "wind":
+                        # Kaze Kaze no Mi
+                        if random.randint(1, 100) <= 20:
+                            damage = 0  # Dodge using wind
+                            await ctx.send(f"🌪️ **{attacker['name']}**'s `{attacker_fruit}` dodged with the wind!")
+
+                    elif fruit_effect == "toy":
+                        # Hobi Hobi no Mi
+                        if random.randint(1, 100) <= 20:
+                            defender["status"]["disabled"] = 1  # Disable attacks for 1 turn
+                            await ctx.send(f"🧸 **{attacker['name']}**'s `{attacker_fruit}` temporarily turned **{defender['name']}** into a toy!")
+
 
                 # ZOAN TYPES
                 elif "Zoan" in fruit_type:
@@ -1672,6 +1743,74 @@ class BountyBattle(commands.Cog):
                         else:
                             damage = 0
                             await ctx.send(f"💨 **{attacker['name']}**'s `{attacker_fruit}` helped them dodge!")
+                    
+                    elif "Model Spinosaurus" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Spinosaurus
+                        attacker["hp"] = min(100, int(attacker["hp"] * 1.2))  # 20% HP boost
+                        await ctx.send(f"🦕 **{attacker['name']}**'s `{attacker_fruit}` increased their maximum HP!")
+
+                    elif "Model Pteranodon" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Pteranodon
+                        if random.randint(1, 100) <= 15:
+                            damage = 0  # Dodge attack
+                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` allowed them to fly away from the attack!")
+
+                    elif "Model Okuchi no Makami" in attacker_fruit:
+                        # Inu Inu no Mi: Model Okuchi no Makami
+                        if "heal" in move.get("effect", ""):
+                            heal_amount = int(move["heal"] * 2)  # Double healing
+                            attacker["hp"] = min(100, attacker["hp"] + heal_amount)
+                            await ctx.send(f"🐺 **{attacker['name']}**'s `{attacker_fruit}` doubled their healing!")
+
+                    elif "Model Rosamygale Grauvogeli" in attacker_fruit:
+                        # Kumo Kumo no Mi: Model Rosamygale Grauvogeli
+                        if random.randint(1, 100) <= 30:
+                            defender["status"]["slowed"] = 2  # Slow for 2 turns
+                            await ctx.send(f"🕷️ **{attacker['name']}**'s `{attacker_fruit}` webbed **{defender['name']}**, slowing them!")
+
+                    elif "Model Bison" in attacker_fruit:
+                        # Ushi Ushi no Mi: Model Bison
+                        damage_boost = min(50, turn_count * 5)  # Increase damage by 5% each turn, max 50%
+                        damage = int(damage * (1 + damage_boost/100))
+                        await ctx.send(f"🦬 **{attacker['name']}**'s `{attacker_fruit}` increased damage by {damage_boost}%!")
+
+                    elif "Model Seiryu" in attacker_fruit:
+                        # Uo Uo no Mi: Model Seiryu
+                        damage = int(damage * 1.3)  # 30% stronger attacks
+                        await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack power!")
+
+                    elif "Model Allosaurus" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Allosaurus
+                        damage = int(damage * 1.25)  # 25% more damage
+                        await ctx.send(f"🦖 **{attacker['name']}**'s `{attacker_fruit}` increased their attack power!")
+
+                    elif "Model Cerberus" in attacker_fruit:
+                        # Inu Inu no Mi: Model Cerberus
+                        if random.randint(1, 100) <= 30:
+                            extra_damage = int(damage * 0.75)  # Second attack deals 75% damage
+                            defender["hp"] -= extra_damage
+                            await ctx.send(f"🐕 **{attacker['name']}**'s `{attacker_fruit}` attacked twice!")
+
+                    elif "Model Thunderbird" in attacker_fruit:
+                        # Tori Tori no Mi: Model Thunderbird
+                        if "lightning" in move.get("effect", ""):
+                            damage = int(damage * 1.5)  # 50% more lightning damage
+                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their lightning attack!")
+
+                    elif "Model Daibutsu" in attacker_fruit:
+                        # Hito Hito no Mi: Model Daibutsu
+                        damage = int(damage * 1.2)  # 20% more damage
+                        defender_damage = int(defender_damage * 0.8)  # Take 20% less damage
+                        await ctx.send(f"🗿 **{attacker['name']}**'s `{attacker_fruit}` increased attack and defense!")
+
+                    elif "Model Yamata no Orochi" in attacker_fruit:
+                        # Hebi Hebi no Mi: Model Yamata no Orochi
+                        if turn_count % 3 == 0:  # Every 3rd turn
+                            extra_attacks = 2
+                            for _ in range(extra_attacks):
+                                extra_damage = int(damage * 0.5)  # Each extra attack deals 50% damage
+                                defender["hp"] -= extra_damage
+                            await ctx.send(f"🐍 **{attacker['name']}**'s `{attacker_fruit}` unleashed multiple attacks!")
 
             # Apply status effects
             if defender["status"].get("poison", 0) > 0:
@@ -1728,6 +1867,27 @@ class BountyBattle(commands.Cog):
                     damage = 0
                 defender["status"]["trapped"] -= 1
                 embed.description += f"\n🍯 **{defender['name']}** is trapped in honey!"
+            
+            def process_status_effects(attacker, defender):
+                """Process all status effects at the start of a turn"""
+                if defender["status"].get("weakened", 0) > 0:
+                    damage = int(damage * 1.3)  # Take 30% more damage while weakened
+                    defender["status"]["weakened"] -= 1
+
+                if defender["status"].get("movement_restricted", 0) > 0:
+                    if random.randint(1, 100) <= 40:  # 40% chance to miss turn
+                        damage = 0
+                    defender["status"]["movement_restricted"] -= 1
+
+                if defender["status"].get("immobilized", 0) > 0:
+                    damage = 0  # Can't attack while immobilized
+                    defender["status"]["immobilized"] -= 1
+
+                if defender["status"].get("disabled", 0) > 0:
+                    damage = 0  # Can't attack while transformed into toy
+                    defender["status"]["disabled"] -= 1
+
+                return damage            # Process status effects at the start of the turn
             
             # Apply burn damage AFTER defining `defender`
             burn_damage = await self.apply_burn_damage(defender)
