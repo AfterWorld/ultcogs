@@ -802,46 +802,37 @@ class BountyBattle(commands.Cog):
         elif effect == "crit":
             attacker["crit_hit"] = True  # Add crit tracking for stats
 
-    async def check_achievements(self, member, stats):
+    async def check_achievements(self, member):
         """Check and unlock achievements for the member."""
-        user_achievements = await self.config.member(member).achievements()
-        unlocked_titles = await self.config.member(member).titles()
+        stats = await self.config.member(member).all()  # Get stats inside the function
+        user_achievements = stats.get("achievements", [])
+        unlocked_titles = stats.get("titles", [])
         unlocked = []
-
+    
         for key, data in ACHIEVEMENTS.items():
             if key in user_achievements:
                 continue  # Already unlocked
-
-            # Safely get the stat and required count as integers
-            current_stat = int(stats.get(data["condition"], 0) or 0)
-            try:
-                required_count = int(data["count"])
-            except ValueError:
-                if data["count"] == "all":
-                    required_count = float('inf')  # Use infinity to represent "all"
-                else:
-                    raise
-
+    
+            current_stat = stats.get(data["condition"], 0)
+            required_count = data["count"]
+    
+            if isinstance(required_count, str) and required_count == "all":
+                required_count = float('inf')  # "all" means infinite
+    
             if current_stat >= required_count:
-                # Unlock achievement
                 user_achievements.append(key)
                 unlocked.append(data["description"])
-
-                # Unlock title if specified
+    
                 if "title" in data and data["title"] not in unlocked_titles:
                     unlocked_titles.append(data["title"])
                     try:
-                        await member.send(
-                            f"🎉 Congratulations! You've unlocked the title: **{data['title']}**"
-                        )
+                        await member.send(f"🎉 Congratulations! You've unlocked the title: **{data['title']}**")
                     except discord.Forbidden:
-                        self.log.warning(f"Could not send DM to {member.display_name}. They might have DMs disabled or have blocked the bot.")
-                        pass  # User has DMs disabled or blocked the bot
-
-        # Save updated achievements and titles
+                        self.log.warning(f"Could not send DM to {member.display_name}. They might have DMs disabled.")
+    
         await self.config.member(member).achievements.set(user_achievements)
         await self.config.member(member).titles.set(unlocked_titles)
-
+    
         return unlocked
 
     async def display_achievements(self, ctx: commands.Context, member: discord.Member = None):
@@ -1151,7 +1142,7 @@ class BountyBattle(commands.Cog):
         await message.edit(embed=embed)
 
         # Update stats for the winner
-        await self.check_achievements(winner["member"], attacker_stats)
+        await self.check_achievements(winner["member"])
         # Update stats for the loser
         await self.check_achievements(loser["member"], defender_stats)
         # Update stats for the winner and loser
