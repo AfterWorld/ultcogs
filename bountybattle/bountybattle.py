@@ -539,10 +539,10 @@ class BountyBattle(commands.Cog):
 
         if is_rare:
             new_fruit = random.choice(available_rare_fruits)
-            fruit_data = RARE_FRUITS[new_fruit]
+            fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
         else:
             new_fruit = random.choice(list(DEVIL_FRUITS["Common"].keys()))
-            fruit_data = COMMON_FRUITS[new_fruit]
+            fruit_data = DEVIL_FRUITS["Common"][new_fruit]
 
         fruit_type = fruit_data["type"]
         effect = fruit_data["bonus"]
