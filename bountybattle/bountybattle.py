@@ -1787,6 +1787,26 @@ class BountyBattle(commands.Cog):
     
         return unlocked
 
+    async def cog_command_error(self, ctx, error):
+        """Handles errors in this cog to prevent duplicate cooldown messages."""
+        
+        if isinstance(error, commands.CommandOnCooldown):
+            remaining = error.retry_after
+            hours = int(remaining // 3600)
+            minutes = int((remaining % 3600) // 60)
+            seconds = int(remaining % 60)
+    
+            if hours > 0:
+                cooldown_message = f"⏳ This command is on cooldown. Try again in {hours} hour(s) {minutes} minute(s)."
+            elif minutes > 0:
+                cooldown_message = f"⏳ This command is on cooldown. Try again in {minutes} minute(s) {seconds} seconds."
+            else:
+                cooldown_message = f"⏳ This command is on cooldown. Try again in {seconds} seconds."
+    
+            return await ctx.send(cooldown_message)  # ✅ Ensures only ONE message is sent
+    
+        await ctx.send(f"❌ An error occurred: {error}")  # ✅ Generic error handler
+
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
