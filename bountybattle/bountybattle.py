@@ -569,10 +569,21 @@ class BountyBattle(commands.Cog):
         fruit = await self.config.member(user).devil_fruit()
     
         if not fruit:
-            return await ctx.send("🍏 You have not eaten a Devil Fruit yet!")
+            return await ctx.send("❌ You have not eaten a Devil Fruit!")
     
-        effect = DEVIL_FRUITS[fruit]["bonus"]
-        await ctx.send(f"🍎 **{user.display_name}**, you have the `{fruit}`! **Effect:** {effect}")
+        # ✅ Search for the fruit in both Common and Rare categories
+        fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
+    
+        if not fruit_data:
+            return await ctx.send("⚠️ **Error:** Your Devil Fruit could not be found in the database. Please report this!")
+    
+        fruit_type = fruit_data["type"]
+        effect = fruit_data["bonus"]
+    
+        await ctx.send(
+            f"🍎 **{user.display_name}** has the **{fruit}**! ({fruit_type} Type)\n"
+            f"🔥 **Ability:** {effect}"
+        )
 
     
     @commands.command()
