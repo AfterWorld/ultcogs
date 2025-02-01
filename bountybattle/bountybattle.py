@@ -251,6 +251,17 @@ TITLES = {
     "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
     "King of the Pirates": {"bounty": 5_000_000_000},
 }
+
+HIDDEN_TITLES = {
+    "The Unbreakable": {"condition": "Win 10 battles without losing"},
+    "The Underdog": {"condition": "Defeat an opponent with a bounty 5x higher than yours"},
+    "The Bounty Hunter": {"condition": "Steal 100,000 Berries from bounty hunting"},
+    "The Kingmaker": {"condition": "Help an ally win 5 battles by teaming up"},
+    "The Ghost": {"condition": "Evade 3 attacks in a row"},
+    "The Berserker": {"condition": "Deal 100 damage in a single attack"},
+    "The Marine Slayer": {"condition": "Defeat 5 different players with Marine-themed titles"},
+}
+
 # --- Modified Code with One Piece Island Environments ---
 
 ENVIRONMENTS = {
@@ -346,6 +357,7 @@ class BountyBattle(commands.Cog):
             "bounties": {},
             "event": None,
             "tournaments": {},
+            "beta_active": True,  # ✅ Stores whether beta is still running
         }
         self.config.register_guild(**default_guild)
         self.config.register_member(**default_member)
@@ -372,7 +384,27 @@ class BountyBattle(commands.Cog):
         await self.config.guild(ctx.guild).bounties.set(bounties)
         await self.config.member(user).bounty.set(bounties[user_id]["amount"])
         await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
+        # ✅ If beta is active, give "BETA TESTER" title
+        beta_active = await self.config.guild(ctx.guild).beta_active()
+        if beta_active:
+            unlocked_titles = await self.config.member(ctx.author).titles()
+            if "BETA TESTER" not in unlocked_titles:
+                unlocked_titles.append("BETA TESTER")
+                await self.config.member(ctx.author).titles.set(unlocked_titles)
+                await ctx.send(f"🎖️ **{ctx.author.display_name}** has received the exclusive title: `BETA TESTER`!")
 
+    @commands.command()
+    @commands.is_owner()  # ✅ Only the bot owner can use this
+    async def betaover(self, ctx):
+        """End the beta test, preventing new players from getting the 'BETA TESTER' title."""
+        beta_active = await self.config.guild(ctx.guild).beta_active()
+    
+        if not beta_active:
+            return await ctx.send("❌ Beta is already over!")
+    
+        await self.config.guild(ctx.guild).beta_active.set(False)
+        await ctx.send("🚨 **The beta test is now officially over!**\nNo new players will receive the `BETA TESTER` title.")
+    
     @commands.command()
     async def mostwanted(self, ctx):
         """Display the top users with the highest bounties."""
@@ -576,6 +608,18 @@ class BountyBattle(commands.Cog):
             # Track the last active time for both players
             await self.config.member(ctx.author).last_active.set(datetime.utcnow().isoformat())
             await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
+
+            # ✅ Unlock "The Bounty Hunter" (Steal 100,000 Berries)
+            total_stolen = await self.config.member(hunter).bounty_hunted() + int(steal_amount)
+            await self.config.member(hunter).bounty_hunted.set(total_stolen)
+            
+            if total_stolen >= 100_000:
+                unlocked_titles = await self.config.member(hunter).titles()
+                if "The Bounty Hunter" not in unlocked_titles:
+                    unlocked_titles.append("The Bounty Hunter")
+                    await self.config.member(hunter).titles.set(unlocked_titles)
+                    await ctx.send(f"💰 **{hunter.display_name}** has unlocked the secret title: `The Bounty Hunter`!")
+
 
         
             # Notify the results
@@ -1360,7 +1404,46 @@ class BountyBattle(commands.Cog):
         # Track the last active time for both players
         await self.config.member(challenger).last_active.set(datetime.utcnow().isoformat())
         await self.config.member(opponent).last_active.set(datetime.utcnow().isoformat())
+
+        # Track total wins
+        total_wins = await self.config.member(winner["member"]).wins()
         
+        # ✅ Unlock "The Unbreakable" (10 wins without losing)
+        if total_wins >= 10:
+            unlocked_titles = await self.config.member(winner["member"]).titles()
+            if "The Unbreakable" not in unlocked_titles:
+                unlocked_titles.append("The Unbreakable")
+                await self.config.member(winner["member"]).titles.set(unlocked_titles)
+                await ctx.send(f"🏆 **{winner['name']}** has unlocked the secret title: `The Unbreakable`!")
+        
+        # ✅ Unlock "The Underdog" (Defeat an opponent with 5x your bounty)
+        loser_bounty = await self.config.member(loser["member"]).bounty()
+        winner_bounty = await self.config.member(winner["member"]).bounty()
+        
+        if loser_bounty >= winner_bounty * 5:
+            if "The Underdog" not in unlocked_titles:
+                unlocked_titles.append("The Underdog")
+                await self.config.member(winner["member"]).titles.set(unlocked_titles)
+                await ctx.send(f"🐺 **{winner['name']}** has unlocked the secret title: `The Underdog`!")
+
+        # ✅ Unlock "The Ghost" (Evade 3 attacks in a row)
+        if defender["status"].get("evade_streak", 0) >= 3:
+            unlocked_titles = await self.config.member(defender["member"]).titles()
+            if "The Ghost" not in unlocked_titles:
+                unlocked_titles.append("The Ghost")
+                await self.config.member(defender["member"]).titles.set(unlocked_titles)
+                await ctx.send(f"👻 **{defender['name']}** has unlocked the secret title: `The Ghost`!")
+        
+        # ✅ Unlock "The Berserker" (Deal 100 damage in one attack)
+        if damage >= 100:
+            unlocked_titles = await self.config.member(attacker["member"]).titles()
+            if "The Berserker" not in unlocked_titles:
+                unlocked_titles.append("The Berserker")
+                await self.config.member(attacker["member"]).titles.set(unlocked_titles)
+                await ctx.send(f"🔥 **{attacker['name']}** has unlocked the secret title: `The Berserker`!")
+        
+                
+                
         # Increase the winner's bounty (random amount between 1,000 and 3,000 Berries)
         bounty_increase = random.randint(1000, 3000)
         winner_id = str(winner["member"].id)
@@ -1534,12 +1617,17 @@ class BountyBattle(commands.Cog):
     
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
-        """View or equip a previously unlocked title."""
+        """View or equip a previously unlocked title, including exclusive ones."""
         user = ctx.author
         bounty = (await self.config.guild(ctx.guild).bounties()).get(str(user.id), {}).get("amount", 0)
     
-        # Ensure `TITLES` is in scope
+        # Get all normal unlocked titles
         unlocked_titles = [t for t, c in TITLES.items() if bounty >= c["bounty"]]
+        
+        # ✅ Add hidden & exclusive titles that have been unlocked
+        user_titles = await self.config.member(user).titles()
+        unlocked_titles.extend(user_titles)
+    
         equipped_title = await self.config.member(user).equipped_title()
     
         if not unlocked_titles:
@@ -1576,7 +1664,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
-        """Check a player's deathmatch stats, now with the proper bounty & title."""
+        """Check a player's deathmatch stats, including exclusive titles."""
         member = member or ctx.author
     
         # Retrieve stats from config
@@ -1591,6 +1679,11 @@ class BountyBattle(commands.Cog):
         # ✅ Get the correct title based on bounty
         title = self.get_bounty_title(bounty)
     
+        # ✅ Check for hidden/exclusive titles
+        hidden_titles = await self.config.member(member).titles()
+        if hidden_titles:
+            title += f" / {', '.join(hidden_titles)}"
+    
         # Create embed
         embed = discord.Embed(
             title=f"⚔️ Deathmatch Stats for {member.display_name}",
@@ -1599,10 +1692,10 @@ class BountyBattle(commands.Cog):
         embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
         embed.add_field(name="💀 Losses", value=str(losses), inline=True)
         embed.add_field(name="💰 Bounty", value=f"{bounty:,} Berries", inline=True)
-        embed.add_field(name="🎖️ Title", value=title, inline=True)
+        embed.add_field(name="🎖️ Titles", value=title, inline=False)
     
         await ctx.send(embed=embed)
-    
+
     async def update_winner(self, ctx, winner):
         """Update bounty and stats for the winner."""
         bounty_reward = random.randint(1000, 5000)
