@@ -916,12 +916,12 @@ class BountyBattle(commands.Cog):
         if bet < 1 or bet > current_bounty:
             return await ctx.send(f"Ye can only bet between 1 and {current_bounty:,} Berries, ye scallywag!")
 
-        # Calculate win probability based on bounty amount
-        if current_bounty <= 1000:
+        # Calculate win probability based on bet amount
+        if bet <= 1000:
             win_probability = 0.9
-        elif current_bounty <= 10000:
+        elif bet <= 10000:
             win_probability = 0.7
-        elif current_bounty <= 100000:
+        elif bet <= 100000:
             win_probability = 0.5
         else:
             win_probability = 0.3
@@ -944,7 +944,7 @@ class BountyBattle(commands.Cog):
             await self.announce_rank(ctx.guild, user, new_title)
 
         logger.info(f"{user.display_name} used berryflip and now has a bounty of {new_bounty:,} Berries.")
-
+        
     @commands.command()
     async def missions(self, ctx):
         """Display available missions."""
