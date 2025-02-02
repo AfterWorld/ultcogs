@@ -1538,9 +1538,9 @@ class BountyBattle(commands.Cog):
             # Switch turn
             turn_index = 1 - turn_index
 
-        # Determine winner
-        winner = players[0] if players[0]["hp"] > 0 else players[1]
-        loser = players[1] if players[0]["hp"] > 0 else players[0]
+            # Determine winner
+            winner = players[0] if players[0]["hp"] > 0 else players[1]
+            loser = players[1] if players[0]["hp"] > 0 else players[0]
 
         # Track the last active time for both players
         await self.config.member(challenger).last_active.set(datetime.utcnow().isoformat())
@@ -1834,10 +1834,6 @@ class BountyBattle(commands.Cog):
                 status_messages.append(f"🦶 **{defender['name']}**'s movement is restricted!")
 
             return "\n".join(status_messages) if status_messages else None # Check for battle end
-        
-    # Battle End
-    winner = players[0] if players[0]["hp"] > 0 else players[1]
-    loser = players[1] if players[0]["hp"] > 0 else players[0]
         
     def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
