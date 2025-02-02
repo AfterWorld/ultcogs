@@ -1557,189 +1557,170 @@ class BountyBattle(commands.Cog):
             fruit_effect = fruit_data["effect"]
             effect_message = None
 
+            # Handle different fruit types
             if fruit_type == "Logia":
                 damage, effect_message = await self.handle_logia_effects(attacker, defender, damage, fruit_effect)
-            if "Zoan" in fruit_type:
+            elif "Zoan" in fruit_type:  # This connects to your Zoan handler
                 damage, effect_message = await self.handle_zoan_effects(attacker, defender, damage, fruit_effect, move)
             elif fruit_type in ["Paramecia", "Special Paramecia"]:
                 damage, effect_message = await self.handle_paramecia_effects(attacker, defender, damage, fruit_effect, move)
                 
-            return effect_message
+            # Update embed if there's an effect message
+            if effect_message and embed:
+                current_desc = embed.description or ""
+                embed.description = f"{current_desc}\n{effect_message}"
+            return damage
 
         async def handle_logia_effects(self, attacker, defender, damage, effect):
             """Handle all Logia-type devil fruit effects."""
             effect_message = None
             
-            if fruit_type == "Logia":
-                    if fruit_effect == "fire":
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["burn"] += 2
-                            damage *= 2  # Double damage from fire attacks
-                            await ctx.send(f"🔥 **{attacker['name']}**'s `{attacker_fruit}` burned **{defender['name']}**!")
+            if effect == "fire":
+                if random.randint(1, 100) <= 30:
+                    defender["status"]["burn"] += 2
+                    damage *= 2  # Double damage from fire attacks
+                    effect_message = f"🔥 **{attacker['name']}**'s ability burned **{defender['name']}**!"
 
-                    elif fruit_effect == "lightning":
-                        if random.randint(1, 100) <= 20:
-                            defender["status"]["stun"] = True
-                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` stunned **{defender['name']}**!")
+            elif effect == "lightning":
+                if random.randint(1, 100) <= 20:
+                    defender["status"]["stun"] = True
+                    effect_message = f"⚡ **{attacker['name']}**'s ability stunned **{defender['name']}**!"
 
-                    elif fruit_effect == "smoke":
-                        if random.randint(1, 100) <= 15:
-                            damage = 0
-                            await ctx.send(f"💨 **{attacker['name']}**'s `{attacker_fruit}` allowed them to dodge the attack!")
+            elif effect == "smoke":
+                if random.randint(1, 100) <= 15:
+                    damage = 0
+                    effect_message = f"💨 **{attacker['name']}**'s ability allowed them to dodge the attack!"
 
-                    elif fruit_effect == "sand":
-                        if random.randint(1, 100) <= 10:
-                            drain = int(defender["hp"] * 0.1)
-                            defender["hp"] -= drain
-                            attacker["hp"] = min(100, attacker["hp"] + drain)
-                            await ctx.send(f"🏖️ **{attacker['name']}**'s `{attacker_fruit}` drained {drain} HP!")
+            elif effect == "sand":
+                if random.randint(1, 100) <= 10:
+                    drain = int(defender["hp"] * 0.1)
+                    defender["hp"] -= drain
+                    attacker["hp"] = min(100, attacker["hp"] + drain)
+                    effect_message = f"🏖️ **{attacker['name']}**'s ability drained {drain} HP!"
 
-                    elif fruit_effect == "darkness":
-                        if random.randint(1, 100) <= 15:
-                            heal = int(damage * 0.15)
-                            attacker["hp"] = min(100, attacker["hp"] + heal)
-                            await ctx.send(f"🌑 **{attacker['name']}**'s `{attacker_fruit}` absorbed {heal} damage!")
+            elif effect == "darkness":
+                if random.randint(1, 100) <= 15:
+                    heal = int(damage * 0.15)
+                    attacker["hp"] = min(100, attacker["hp"] + heal)
+                    effect_message = f"🌑 **{attacker['name']}**'s ability absorbed {heal} damage!"
 
-                    elif fruit_effect == "ice":
-                        if random.randint(1, 100) <= 25:
-                            defender["status"]["frozen"] = True
-                            await ctx.send(f"❄️ **{attacker['name']}**'s `{attacker_fruit}` froze **{defender['name']}**!")
+            elif effect == "ice":
+                if random.randint(1, 100) <= 25:
+                    defender["status"]["frozen"] = True
+                    effect_message = f"❄️ **{attacker['name']}**'s ability froze **{defender['name']}**!"
 
-                    elif fruit_effect == "light":
-                        # Always moves first handled by turn order logic
-                        damage *= 1.2  # 20% more damage from light speed
-                        await ctx.send(f"✨ **{attacker['name']}**'s `{attacker_fruit}` strikes with blinding speed!")
-                    
-                    elif fruit_effect == "bubbles":
-                        # Awa Awa no Mi
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["defense_down"] = 2  # Lasts 2 turns
-                            await ctx.send(f"🫧 **{attacker['name']}**'s `{attacker_fruit}` weakened **{defender['name']}**'s defense!")
+            elif effect == "light":
+                damage *= 1.2  # 20% more damage from light speed
+                effect_message = f"✨ **{attacker['name']}**'s ability strikes with blinding speed!"
+            
+            elif effect == "bubbles":
+                if random.randint(1, 100) <= 30:
+                    defender["status"]["defense_down"] = 2  # Lasts 2 turns
+                    effect_message = f"🫧 **{attacker['name']}**'s ability weakened **{defender['name']}**'s defense!"
 
-                    elif fruit_effect == "multiple limbs":
-                        # Hana Hana no Mi
-                        if random.randint(1, 100) <= 25:
-                            extra_damage = int(damage * 0.5)  # 50% extra damage from multiple attacks
-                            damage += extra_damage
-                            await ctx.send(f"👐 **{attacker['name']}**'s `{attacker_fruit}` launched multiple attacks!")
+            elif effect == "multiple limbs":
+                if random.randint(1, 100) <= 25:
+                    extra_damage = int(damage * 0.5)  # 50% extra damage from multiple attacks
+                    damage += extra_damage
+                    effect_message = f"👐 **{attacker['name']}**'s ability launched multiple attacks!"
 
-                    elif fruit_effect == "wax":
-                        # Doru Doru no Mi
-                        if random.randint(1, 100) <= 30:
-                            attacker["status"]["shield"] = 2  # Shield lasts 2 turns
-                            await ctx.send(f"🕯️ **{attacker['name']}**'s `{attacker_fruit}` created a wax shield!")
+            elif effect == "wax":
+                if random.randint(1, 100) <= 30:
+                    attacker["status"]["shield"] = 2  # Shield lasts 2 turns
+                    effect_message = f"🕯️ **{attacker['name']}**'s ability created a wax shield!"
 
-                    elif fruit_effect == "blades":
-                        # Supa Supa no Mi
-                        if random.randint(1, 100) <= 35:
-                            damage = int(damage * 1.4)  # 40% more damage from blade attacks
-                            await ctx.send(f"⚔️ **{attacker['name']}**'s `{attacker_fruit}` enhanced their blade attack!")
+            elif effect == "blades":
+                if random.randint(1, 100) <= 35:
+                    damage = int(damage * 1.4)  # 40% more damage from blade attacks
+                    effect_message = f"⚔️ **{attacker['name']}**'s ability enhanced their blade attack!"
 
-                    elif fruit_effect == "eat anything":
-                        # Baku Baku no Mi
-                        if random.randint(1, 100) <= 20:
-                            # Copy the last move used against them
-                            attacker["status"]["copied_move"] = move
-                            await ctx.send(f"🍽️ **{attacker['name']}**'s `{attacker_fruit}` copied the enemy's move!")
+            elif effect == "eat anything":
+                if random.randint(1, 100) <= 20:
+                    attacker["status"]["copied_move"] = move
+                    effect_message = f"🍽️ **{attacker['name']}**'s ability copied the enemy's move!"
 
-                    elif fruit_effect == "copy":
-                        # Mane Mane no Mi
-                        if random.randint(1, 100) <= 25 and not attacker.get("copied_used", False):
-                            damage *= 2  # Double damage when copying
-                            attacker["copied_used"] = True
-                            await ctx.send(f"👥 **{attacker['name']}**'s `{attacker_fruit}` mimicked the attack perfectly!")
+            elif effect == "copy":
+                if random.randint(1, 100) <= 25 and not attacker.get("copied_used", False):
+                    damage *= 2  # Double damage when copying
+                    attacker["copied_used"] = True
+                    effect_message = f"👥 **{attacker['name']}**'s ability mimicked the attack perfectly!"
 
-                    elif fruit_effect == "binding":
-                        # Ori Ori no Mi
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["bound"] = 2  # Bound for 2 turns
-                            await ctx.send(f"⛓️ **{attacker['name']}**'s `{attacker_fruit}` bound **{defender['name']}**!")
+            elif effect == "binding":
+                if random.randint(1, 100) <= 30:
+                    defender["status"]["bound"] = 2  # Bound for 2 turns
+                    effect_message = f"⛓️ **{attacker['name']}**'s ability bound **{defender['name']}**!"
 
-                    elif fruit_effect == "wheels":
-                        # Shari Shari no Mi
-                        if random.randint(1, 100) <= 40:
-                            damage = int(damage * 1.3)  # 30% more damage from wheel momentum
-                            await ctx.send(f"🛞 **{attacker['name']}**'s `{attacker_fruit}` gained momentum for extra damage!")
+            elif effect == "wheels":
+                if random.randint(1, 100) <= 40:
+                    damage = int(damage * 1.3)  # 30% more damage from wheel momentum
+                    effect_message = f"🛞 **{attacker['name']}**'s ability gained momentum for extra damage!"
 
-                    elif fruit_effect == "rust":
-                        # Sabi Sabi no Mi
-                        if random.randint(1, 100) <= 25:
-                            defender["status"]["defense_down"] = 3  # Defense down for 3 turns
-                            await ctx.send(f"🦀 **{attacker['name']}**'s `{attacker_fruit}` corroded **{defender['name']}**'s defense!")
+            elif effect == "rust":
+                if random.randint(1, 100) <= 25:
+                    defender["status"]["defense_down"] = 3  # Defense down for 3 turns
+                    effect_message = f"🦀 **{attacker['name']}**'s ability corroded **{defender['name']}**'s defense!"
 
-                    elif fruit_effect == "slow beam":
-                        # Noro Noro no Mi
-                        if random.randint(1, 100) <= 35:
-                            defender["status"]["slowed"] = 2  # Slowed for 2 turns
-                            await ctx.send(f"⏳ **{attacker['name']}**'s `{attacker_fruit}` slowed down **{defender['name']}**!")
+            elif effect == "slow beam":
+                if random.randint(1, 100) <= 35:
+                    defender["status"]["slowed"] = 2  # Slowed for 2 turns
+                    effect_message = f"⏳ **{attacker['name']}**'s ability slowed down **{defender['name']}**!"
 
-                    elif fruit_effect == "doors":
-                        # Doa Doa no Mi
-                        if random.randint(1, 100) <= 30:
-                            damage = 0  # Dodge attack through a door
-                            await ctx.send(f"🚪 **{attacker['name']}**'s `{attacker_fruit}` teleported to avoid the attack!")
+            elif effect == "doors":
+                if random.randint(1, 100) <= 30:
+                    damage = 0  # Dodge attack through a door
+                    effect_message = f"🚪 **{attacker['name']}**'s ability teleported to avoid the attack!"
 
-                    elif fruit_effect == "barrier balls":
-                        # Beri Beri no Mi
-                        if random.randint(1, 100) <= 25:
-                            damage = int(damage * 0.5)  # Reduce damage by splitting body
-                            await ctx.send(f"🔮 **{attacker['name']}**'s `{attacker_fruit}` split apart to reduce damage!")
+            elif effect == "barrier balls":
+                if random.randint(1, 100) <= 25:
+                    damage = int(damage * 0.5)  # Reduce damage by splitting body
+                    effect_message = f"🔮 **{attacker['name']}**'s ability split apart to reduce damage!"
 
-                    elif fruit_effect == "revival":
-                        # Yomi Yomi no Mi
-                        if attacker["hp"] <= 0 and not attacker.get("revived", False):
-                            attacker["hp"] = 30  # Revive with 30 HP
-                            attacker["revived"] = True
-                            await ctx.send(f"💀 **{attacker['name']}**'s `{attacker_fruit}` brought them back to life!")
+            elif effect == "revival":
+                if attacker["hp"] <= 0 and not attacker.get("revived", False):
+                    attacker["hp"] = 30  # Revive with 30 HP
+                    attacker["revived"] = True
+                    effect_message = f"💀 **{attacker['name']}**'s ability brought them back to life!"
 
-                    elif fruit_effect == "ghosts":
-                        # Horo Horo no Mi
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["demoralized"] = 2  # Reduce attack power for 2 turns
-                            await ctx.send(f"👻 **{attacker['name']}**'s `{attacker_fruit}` demoralized **{defender['name']}**!")
+            elif effect == "ghosts":
+                if random.randint(1, 100) <= 30:
+                    defender["status"]["demoralized"] = 2  # Reduce attack power for 2 turns
+                    effect_message = f"👻 **{attacker['name']}**'s ability demoralized **{defender['name']}**!"
 
-                    elif fruit_effect == "jacket":
-                        # Jake Jake no Mi
-                        if random.randint(1, 100) <= 20:
-                            damage *= 1.5  # 50% more damage while possessing
-                            await ctx.send(f"🧥 **{attacker['name']}**'s `{attacker_fruit}` possessed their opponent!")
+            elif effect == "jacket":
+                if random.randint(1, 100) <= 20:
+                    damage *= 1.5  # 50% more damage while possessing
+                    effect_message = f"🧥 **{attacker['name']}**'s ability possessed their opponent!"
 
-                    elif fruit_effect == "x-ray":
-                        # Giro Giro no Mi
-                        if random.randint(1, 100) <= 40:
-                            damage *= 1.25  # 25% more damage from predicting moves
-                            await ctx.send(f"👁️ **{attacker['name']}**'s `{attacker_fruit}` predicted the attack!")
+            elif effect == "x-ray":
+                if random.randint(1, 100) <= 40:
+                    damage *= 1.25  # 25% more damage from predicting moves
+                    effect_message = f"👁️ **{attacker['name']}**'s ability predicted the attack!"
 
-                    elif fruit_effect == "egg":
-                        # Tama Tama no Mi
-                        if random.randint(1, 100) <= 30:
-                            attacker["status"]["hardened"] = 2  # Increased defense for 2 turns
-                            await ctx.send(f"🥚 **{attacker['name']}**'s `{attacker_fruit}` hardened their defense!")
+            elif effect == "egg":
+                if random.randint(1, 100) <= 30:
+                    attacker["status"]["hardened"] = 2  # Increased defense for 2 turns
+                    effect_message = f"🥚 **{attacker['name']}**'s ability hardened their defense!"
 
-                    elif fruit_effect == "art":
-                        # Ato Ato no Mi
-                        if random.randint(1, 100) <= 25:
-                            defender["status"]["slowed"] = 2  # Slow effect from being turned into art
-                            await ctx.send(f"🎨 **{attacker['name']}**'s `{attacker_fruit}` turned **{defender['name']}** into art!")
+            elif effect == "art":
+                if random.randint(1, 100) <= 25:
+                    defender["status"]["slowed"] = 2  # Slow effect from being turned into art
+                    effect_message = f"🎨 **{attacker['name']}**'s ability turned **{defender['name']}** into art!"
 
-                    elif fruit_effect == "sleep":
-                        # Nemu Nemu no Mi
-                        if random.randint(1, 100) <= 20:
-                            defender["status"]["asleep"] = 1  # Sleep for 1 turn
-                            await ctx.send(f"💤 **{attacker['name']}**'s `{attacker_fruit}` put **{defender['name']}** to sleep!")
+            elif effect == "sleep":
+                if random.randint(1, 100) <= 20:
+                    defender["status"]["asleep"] = 1  # Sleep for 1 turn
+                    effect_message = f"💤 **{attacker['name']}**'s ability put **{defender['name']}** to sleep!"
 
-                    elif fruit_effect == "sticky":
-                        # Beta Beta no Mi
-                        if random.randint(1, 100) <= 35:
-                            defender["status"]["slowed"] = 2  # Slowed by sticky effect
-                            await ctx.send(f"🍯 **{attacker['name']}**'s `{attacker_fruit}` made **{defender['name']}** sticky and slow!")
+            elif effect == "sticky":
+                if random.randint(1, 100) <= 35:
+                    defender["status"]["slowed"] = 2  # Slowed by sticky effect
+                    effect_message = f"🍯 **{attacker['name']}**'s ability made **{defender['name']}** sticky and slow!"
 
-                    elif fruit_effect == "honey":
-                        # Mitsu Mitsu no Mi
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["trapped"] = 2  # Trapped in honey for 2 turns
-                            await ctx.send(f"🍯 **{attacker['name']}**'s `{attacker_fruit}` trapped **{defender['name']}** in honey!")
-                
+            elif effect == "honey":
+                if random.randint(1, 100) <= 30:
+                    defender["status"]["trapped"] = 2  # Trapped in honey for 2 turns
+                    effect_message = f"🍯 **{attacker['name']}**'s ability trapped **{defender['name']}** in honey!"
+
             return damage, effect_message
 
         async def handle_zoan_effects(self, attacker, defender, damage, effect, move):
@@ -1776,72 +1757,79 @@ class BountyBattle(commands.Cog):
             
             return damage, effect_message
 
-        async def handle_paramecia_effects(self, attacker, defender, damage, effect, move):
+        async def handle_paramecia_effects(self, attacker, defender, damage, fruit_data, move):
             """Handle all Paramecia-type devil fruit effects."""
             effect_message = None
             
-            if fruit_type == "Paramecia" or fruit_type == "Special Paramecia":
+            fruit_type = fruit_data["type"]
+            fruit_effect = fruit_data["effect"]
+
+            if fruit_type in ["Paramecia", "Special Paramecia"]:
                 if fruit_effect == "rubber":
                     if random.randint(1, 100) <= 50:
                         damage = 0
-                        await ctx.send(f"💪 **{attacker['name']}**'s `{attacker_fruit}` made them immune to blunt attacks!")
+                        effect_message = f"💪 **{attacker['name']}**'s ability made them immune to blunt attacks!"
 
                 elif fruit_effect == "surgical":
                     if random.randint(1, 100) <= 10:
-                        players[0], players[1] = players[1], players[0]
-                        await ctx.send(f"🏥 **{attacker['name']}**'s `{attacker_fruit}` swapped places!")
+                        # Note: You'll need to modify this to work with the current battle structure
+                        effect_message = f"🏥 **{attacker['name']}**'s ability attempted to swap positions!"
 
                 elif fruit_effect == "explosion":
                     damage = int(damage * 1.3)
-                    await ctx.send(f"💥 **{attacker['name']}**'s `{attacker_fruit}` increased damage!")
+                    effect_message = f"💥 **{attacker['name']}**'s ability increased damage!"
 
                 elif fruit_effect == "barrier":
                     damage = int(damage * 0.6)  # Reduce incoming damage by 40%
-                    await ctx.send(f"🛡️ **{attacker['name']}**'s `{attacker_fruit}` reduced the damage!")
+                    effect_message = f"🛡️ **{attacker['name']}**'s ability reduced the damage!"
 
                 elif fruit_effect == "poison":
                     defender["status"]["poison"] = 3
-                    await ctx.send(f"☠️ **{attacker['name']}**'s `{attacker_fruit}` poisoned **{defender['name']}**!")
+                    effect_message = f"☠️ **{attacker['name']}**'s ability poisoned **{defender['name']}**!"
 
                 elif fruit_effect == "sound waves":
                     if random.randint(1, 100) <= 25:
                         defender["status"]["stun"] = True
                         damage *= 1.2
-                        await ctx.send(f"🔊 **{attacker['name']}**'s `{attacker_fruit}` unleashed a sonic blast!")
+                        effect_message = f"🔊 **{attacker['name']}**'s ability unleashed a sonic blast!"
 
                 elif fruit_effect == "shadows":
                     if random.randint(1, 100) <= 20:
                         defender["status"]["accuracy_reduction"] = 30
                         defender["status"]["accuracy_turns"] = 2
-                        await ctx.send(f"👥 **{attacker['name']}**'s `{attacker_fruit}` stole **{defender['name']}**'s shadow!")
-                
+                        effect_message = f"👥 **{attacker['name']}**'s ability stole **{defender['name']}**'s shadow!"
+            
             return damage, effect_message
 
         async def process_status_effects(self, defender, embed):
             """Process all status effects and return effect messages."""
             status_messages = []
             
+            # Poison damage
             if defender["status"].get("poison", 0) > 0:
                 poison_damage = 5
-                defender["hp"] -= poison_damage
+                defender["hp"] = max(0, defender["hp"] - poison_damage)
                 defender["status"]["poison"] -= 1
                 status_messages.append(f"☠️ **{defender['name']}** took {poison_damage} poison damage!")
 
+            # Accuracy reduction tracking
             if defender["status"].get("accuracy_reduction", 0) > 0:
                 defender["status"]["accuracy_turns"] -= 1
                 if defender["status"]["accuracy_turns"] <= 0:
                     defender["status"]["accuracy_reduction"] = 0
                     status_messages.append(f"👁️ **{defender['name']}**'s accuracy has returned to normal!")
 
+            # Defense reduction tracking
             if defender["status"].get("defense_down", 0) > 0:
                 defender["status"]["defense_down"] -= 1
                 status_messages.append(f"🛡️ **{defender['name']}**'s defense is weakened!")
 
+            # Movement restriction tracking
             if defender["status"].get("movement_restricted", 0) > 0:
                 defender["status"]["movement_restricted"] -= 1
                 status_messages.append(f"🦶 **{defender['name']}**'s movement is restricted!")
 
-            return "\n".join(status_messages) if status_messages else None        # Check for battle end
+            return "\n".join(status_messages) if status_messages else None # Check for battle end
 
         # Battle End
         winner = players[0] if players[0]["hp"] > 0 else players[1]
