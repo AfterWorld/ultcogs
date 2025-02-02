@@ -2063,25 +2063,6 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
     @commands.command()
-    async def cd(self, ctx):
-        """Show all active cooldowns for the user."""
-        user = ctx.author
-        cooldowns = []
-
-        for command in self.bot.commands:
-            if command.is_on_cooldown(ctx):
-                retry_after = command.get_cooldown_retry_after(ctx)
-                hours, remainder = divmod(retry_after, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                cooldowns.append(f"**{command.name}**: {int(hours)}h {int(minutes)}m {int(seconds)}s")
-
-        if not cooldowns:
-            await ctx.send("You have no active cooldowns.")
-        else:
-            embed = discord.Embed(title="Active Cooldowns", description="\n".join(cooldowns), color=discord.Color.blue())
-            await ctx.send(embed=embed)
-
-    @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
         """Check a player's deathmatch stats, including exclusive titles."""
         member = member or ctx.author
