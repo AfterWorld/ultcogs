@@ -921,9 +921,9 @@ class BountyBattle(commands.Cog):
             win_probability = 0.9
         elif bet <= 10000:
             win_probability = 0.7
-        elif bet <= 100000:
+        elif bet <= 50000:
             win_probability = 0.5
-        elif bet <= 1000000:
+        elif bet <= 100000:
             win_probability = 0.1
         else:
             win_probability = 0.01
