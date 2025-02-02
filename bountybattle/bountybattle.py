@@ -2063,7 +2063,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
     @commands.command()
-    async def cooldowns(self, ctx):
+    async def cd(self, ctx):
         """Show all active cooldowns for the user."""
         user = ctx.author
         cooldowns = []
