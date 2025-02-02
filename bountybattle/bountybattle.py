@@ -1349,20 +1349,36 @@ class BountyBattle(commands.Cog):
         environment = self.choose_environment()
         environment_effect = ENVIRONMENTS[environment]["effect"]
 
-        # Announce the environment
-        await ctx.send(f"🌍 The battle takes place in **{environment}**: {ENVIRONMENTS[environment]['description']}")
+        # Battle Setup Embed
+        setup_embed = discord.Embed(
+            title="🌍 Battle Environment",
+            description=f"The battle takes place in **{environment}**: {ENVIRONMENTS[environment]['description']}",
+            color=0x00FF00
+        )
+        await ctx.send(embed=setup_embed)
 
-        # ✅ Get Devil Fruit info for both fighters
+        # Get Devil Fruit info for both fighters
         attacker_fruit = await self.config.member(challenger).devil_fruit()
         defender_fruit = await self.config.member(opponent).devil_fruit()
 
         attacker_bonus = DEVIL_FRUITS["Common"].get(attacker_fruit) or DEVIL_FRUITS["Rare"].get(attacker_fruit)
         defender_bonus = DEVIL_FRUITS["Common"].get(defender_fruit) or DEVIL_FRUITS["Rare"].get(defender_fruit)
 
+        # Display fighter information
+        fighter_embed = discord.Embed(title="⚔️ Fighter Information", color=0x0000FF)
         if attacker_bonus:
-            await ctx.send(f"🔥 **{challenger.display_name}** is using `{attacker_fruit}`! Bonus: {attacker_bonus['bonus']}")
+            fighter_embed.add_field(
+                name=f"🔥 {challenger.display_name}'s Devil Fruit",
+                value=f"`{attacker_fruit}`\nBonus: {attacker_bonus['bonus']}",
+                inline=False
+            )
         if defender_bonus:
-            await ctx.send(f"❄️ **{opponent.display_name}** is using `{defender_fruit}`! Bonus: {defender_bonus['bonus']}")
+            fighter_embed.add_field(
+                name=f"❄️ {opponent.display_name}'s Devil Fruit",
+                value=f"`{defender_fruit}`\nBonus: {defender_bonus['bonus']}",
+                inline=False
+            )
+        await ctx.send(embed=fighter_embed)
 
         # Initialize player data
         challenger_hp = 100
@@ -1370,73 +1386,54 @@ class BountyBattle(commands.Cog):
         challenger_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
         opponent_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
 
-        # Create the initial embed
-        embed = discord.Embed(
+        # Create battle embed
+        battle_embed = discord.Embed(
             title="🏴‍☠️ One Piece Deathmatch ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
-        embed.add_field(
+        battle_embed.add_field(
             name="\u200b",
             value=f"**{challenger.display_name}**\n{self.generate_health_bar(challenger_hp)} {challenger_hp}/100",
             inline=True,
         )
-        embed.add_field(
+        battle_embed.add_field(
             name="\u200b",
             value=f"**{opponent.display_name}**\n{self.generate_health_bar(opponent_hp)} {opponent_hp}/100",
             inline=True,
         )
-        embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
-        embed.set_footer(text="Actions are influenced by the environment!")
-        message = await ctx.send(embed=embed)
+        battle_embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
+        battle_embed.set_footer(text="Actions are influenced by the environment!")
+        message = await ctx.send(embed=battle_embed)
 
-        # Player data structure
+        # Initialize players
         players = [
             {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
             {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
         ]
         turn_index = 0
+        turn_count = 0
 
         # Initialize stats
         attacker_stats = await self.config.member(challenger).all()
         defender_stats = await self.config.member(opponent).all()
 
-        # Battle loop
-        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
-            if self.battle_stopped:
-                embed.title = "⚠️ Battle Stopped!"
-                embed.description = "The fight has been forcibly ended! No winner was declared."
-                embed.color = discord.Color.red()
-                embed.set_footer(text="The battle was interrupted.")
-                await message.edit(embed=embed)
-                
-                self.battle_stopped = False  # Reset for the next battle
-                return
+        def update_embed_description(new_text, embed):
+            """Helper function to update embed description while preserving previous effects"""
+            current_desc = embed.description or ""
+            if "Effects:" in current_desc:
+                effects_section = current_desc[current_desc.find("Effects:"):]
+                embed.description = f"{new_text}\n\n{effects_section}"
+            else:
+                embed.description = new_text
 
-            # Apply environmental hazard
-            hazard_message = await self.apply_environmental_hazard(environment, players)
-            if hazard_message:
-                embed.description = f"⚠️ **Environmental Hazard!** {hazard_message}"
-                await message.edit(embed=embed)
-                await asyncio.sleep(2)
+        async def apply_devil_fruit_effects(attacker, defender, damage, move, fruit_data):
+            """Apply devil fruit effects and return damage and effect messages"""
+            effect_messages = []
+            fruit_effect = fruit_data["effect"]
+            fruit_type = fruit_data["type"]
 
-            # Define attacker and defender
-            attacker = players[turn_index]
-            defender = players[1 - turn_index]  # Now defender is correctly assigned
-            
-            # Check if the attacker has a Devil Fruit
-            attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
-            if attacker_fruit and attacker_fruit in DEVIL_FRUITS:
-                # Determine rarity
-                rarity = "Common"
-                if attacker_fruit in DEVIL_FRUITS["Rare"]:
-                    rarity = "Rare"
-                
-                fruit_data = DEVIL_FRUITS[rarity][attacker_fruit]
-                fruit_effect = fruit_data["effect"]
-                fruit_type = fruit_data["type"]
-
-                # LOGIA TYPES
+            # LOGIA TYPES
                 if fruit_type == "Logia":
                     if fruit_effect == "fire":
                         if random.randint(1, 100) <= 30:
@@ -1607,7 +1604,105 @@ class BountyBattle(commands.Cog):
                             defender["status"]["trapped"] = 2  # Trapped in honey for 2 turns
                             await ctx.send(f"🍯 **{attacker['name']}**'s `{attacker_fruit}` trapped **{defender['name']}** in honey!")
 
-                # PARAMECIA TYPES
+            # ZOAN TYPES
+                elif "Zoan" in fruit_type:
+                    if "Model Leopard" in attacker_fruit:
+                        damage *= 1.2  # 20% more damage from increased speed
+                        await ctx.send(f"🐆 **{attacker['name']}**'s `{attacker_fruit}` strikes with incredible speed!")
+
+                    elif "Model Azure Dragon" in attacker_fruit:
+                        if random.randint(1, 100) <= 25:
+                            damage *= 1.5  # Powerful dragon attack
+                            await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` unleashes dragon's fury!")
+
+                    elif "Model Phoenix" in attacker_fruit:
+                        if attacker["hp"] < 50:  # Below 50% HP
+                            heal = 20
+                            attacker["hp"] = min(100, attacker["hp"] + heal)
+                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` regenerated {heal} HP!")
+
+                    elif "Model Nika" in attacker_fruit:
+                        effect = random.choice(["damage", "heal", "dodge"])
+                        if effect == "damage":
+                            damage *= 1.5
+                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack!")
+                        elif effect == "heal":
+                            heal = 15
+                            attacker["hp"] = min(100, attacker["hp"] + heal)
+                            await ctx.send(f"💖 **{attacker['name']}**'s `{attacker_fruit}` granted healing!")
+                        else:
+                            damage = 0
+                            await ctx.send(f"💨 **{attacker['name']}**'s `{attacker_fruit}` helped them dodge!")
+                    
+                    elif "Model Spinosaurus" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Spinosaurus
+                        attacker["hp"] = min(100, int(attacker["hp"] * 1.2))  # 20% HP boost
+                        await ctx.send(f"🦕 **{attacker['name']}**'s `{attacker_fruit}` increased their maximum HP!")
+
+                    elif "Model Pteranodon" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Pteranodon
+                        if random.randint(1, 100) <= 15:
+                            damage = 0  # Dodge attack
+                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` allowed them to fly away from the attack!")
+
+                    elif "Model Okuchi no Makami" in attacker_fruit:
+                        # Inu Inu no Mi: Model Okuchi no Makami
+                        if "heal" in move.get("effect", ""):
+                            heal_amount = int(move["heal"] * 2)  # Double healing
+                            attacker["hp"] = min(100, attacker["hp"] + heal_amount)
+                            await ctx.send(f"🐺 **{attacker['name']}**'s `{attacker_fruit}` doubled their healing!")
+
+                    elif "Model Rosamygale Grauvogeli" in attacker_fruit:
+                        # Kumo Kumo no Mi: Model Rosamygale Grauvogeli
+                        if random.randint(1, 100) <= 30:
+                            defender["status"]["slowed"] = 2  # Slow for 2 turns
+                            await ctx.send(f"🕷️ **{attacker['name']}**'s `{attacker_fruit}` webbed **{defender['name']}**, slowing them!")
+
+                    elif "Model Bison" in attacker_fruit:
+                        # Ushi Ushi no Mi: Model Bison
+                        damage_boost = min(50, turn_count * 5)  # Increase damage by 5% each turn, max 50%
+                        damage = int(damage * (1 + damage_boost/100))
+                        await ctx.send(f"🦬 **{attacker['name']}**'s `{attacker_fruit}` increased damage by {damage_boost}%!")
+
+                    elif "Model Seiryu" in attacker_fruit:
+                        # Uo Uo no Mi: Model Seiryu
+                        damage = int(damage * 1.3)  # 30% stronger attacks
+                        await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack power!")
+
+                    elif "Model Allosaurus" in attacker_fruit:
+                        # Ryu Ryu no Mi: Model Allosaurus
+                        damage = int(damage * 1.25)  # 25% more damage
+                        await ctx.send(f"🦖 **{attacker['name']}**'s `{attacker_fruit}` increased their attack power!")
+
+                    elif "Model Cerberus" in attacker_fruit:
+                        # Inu Inu no Mi: Model Cerberus
+                        if random.randint(1, 100) <= 30:
+                            extra_damage = int(damage * 0.75)  # Second attack deals 75% damage
+                            defender["hp"] -= extra_damage
+                            await ctx.send(f"🐕 **{attacker['name']}**'s `{attacker_fruit}` attacked twice!")
+
+                    elif "Model Thunderbird" in attacker_fruit:
+                        # Tori Tori no Mi: Model Thunderbird
+                        if "lightning" in move.get("effect", ""):
+                            damage = int(damage * 1.5)  # 50% more lightning damage
+                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their lightning attack!")
+
+                    elif "Model Daibutsu" in attacker_fruit:
+                        # Hito Hito no Mi: Model Daibutsu
+                        damage = int(damage * 1.2)  # 20% more damage
+                        defender_damage = int(defender_damage * 0.8)  # Take 20% less damage
+                        await ctx.send(f"🗿 **{attacker['name']}**'s `{attacker_fruit}` increased attack and defense!")
+
+                    elif "Model Yamata no Orochi" in attacker_fruit:
+                        # Hebi Hebi no Mi: Model Yamata no Orochi
+                        if turn_count % 3 == 0:  # Every 3rd turn
+                            extra_attacks = 2
+                            for _ in range(extra_attacks):
+                                extra_damage = int(damage * 0.5)  # Each extra attack deals 50% damage
+                                defender["hp"] -= extra_damage
+                            await ctx.send(f"🐍 **{attacker['name']}**'s `{attacker_fruit}` unleashed multiple attacks!")
+
+            # PARAMECIA TYPES
                 elif fruit_type == "Paramecia" or fruit_type == "Special Paramecia":
                     if fruit_effect == "rubber":
                         if random.randint(1, 100) <= 50:
@@ -1714,217 +1809,79 @@ class BountyBattle(commands.Cog):
                             await ctx.send(f"🧸 **{attacker['name']}**'s `{attacker_fruit}` temporarily turned **{defender['name']}** into a toy!")
 
 
-                # ZOAN TYPES
-                elif "Zoan" in fruit_type:
-                    if "Model Leopard" in attacker_fruit:
-                        damage *= 1.2  # 20% more damage from increased speed
-                        await ctx.send(f"🐆 **{attacker['name']}**'s `{attacker_fruit}` strikes with incredible speed!")
+            return damage, effect_messages
 
-                    elif "Model Azure Dragon" in attacker_fruit:
-                        if random.randint(1, 100) <= 25:
-                            damage *= 1.5  # Powerful dragon attack
-                            await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` unleashes dragon's fury!")
-
-                    elif "Model Phoenix" in attacker_fruit:
-                        if attacker["hp"] < 50:  # Below 50% HP
-                            heal = 20
-                            attacker["hp"] = min(100, attacker["hp"] + heal)
-                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` regenerated {heal} HP!")
-
-                    elif "Model Nika" in attacker_fruit:
-                        effect = random.choice(["damage", "heal", "dodge"])
-                        if effect == "damage":
-                            damage *= 1.5
-                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack!")
-                        elif effect == "heal":
-                            heal = 15
-                            attacker["hp"] = min(100, attacker["hp"] + heal)
-                            await ctx.send(f"💖 **{attacker['name']}**'s `{attacker_fruit}` granted healing!")
-                        else:
-                            damage = 0
-                            await ctx.send(f"💨 **{attacker['name']}**'s `{attacker_fruit}` helped them dodge!")
-                    
-                    elif "Model Spinosaurus" in attacker_fruit:
-                        # Ryu Ryu no Mi: Model Spinosaurus
-                        attacker["hp"] = min(100, int(attacker["hp"] * 1.2))  # 20% HP boost
-                        await ctx.send(f"🦕 **{attacker['name']}**'s `{attacker_fruit}` increased their maximum HP!")
-
-                    elif "Model Pteranodon" in attacker_fruit:
-                        # Ryu Ryu no Mi: Model Pteranodon
-                        if random.randint(1, 100) <= 15:
-                            damage = 0  # Dodge attack
-                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` allowed them to fly away from the attack!")
-
-                    elif "Model Okuchi no Makami" in attacker_fruit:
-                        # Inu Inu no Mi: Model Okuchi no Makami
-                        if "heal" in move.get("effect", ""):
-                            heal_amount = int(move["heal"] * 2)  # Double healing
-                            attacker["hp"] = min(100, attacker["hp"] + heal_amount)
-                            await ctx.send(f"🐺 **{attacker['name']}**'s `{attacker_fruit}` doubled their healing!")
-
-                    elif "Model Rosamygale Grauvogeli" in attacker_fruit:
-                        # Kumo Kumo no Mi: Model Rosamygale Grauvogeli
-                        if random.randint(1, 100) <= 30:
-                            defender["status"]["slowed"] = 2  # Slow for 2 turns
-                            await ctx.send(f"🕷️ **{attacker['name']}**'s `{attacker_fruit}` webbed **{defender['name']}**, slowing them!")
-
-                    elif "Model Bison" in attacker_fruit:
-                        # Ushi Ushi no Mi: Model Bison
-                        damage_boost = min(50, turn_count * 5)  # Increase damage by 5% each turn, max 50%
-                        damage = int(damage * (1 + damage_boost/100))
-                        await ctx.send(f"🦬 **{attacker['name']}**'s `{attacker_fruit}` increased damage by {damage_boost}%!")
-
-                    elif "Model Seiryu" in attacker_fruit:
-                        # Uo Uo no Mi: Model Seiryu
-                        damage = int(damage * 1.3)  # 30% stronger attacks
-                        await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack power!")
-
-                    elif "Model Allosaurus" in attacker_fruit:
-                        # Ryu Ryu no Mi: Model Allosaurus
-                        damage = int(damage * 1.25)  # 25% more damage
-                        await ctx.send(f"🦖 **{attacker['name']}**'s `{attacker_fruit}` increased their attack power!")
-
-                    elif "Model Cerberus" in attacker_fruit:
-                        # Inu Inu no Mi: Model Cerberus
-                        if random.randint(1, 100) <= 30:
-                            extra_damage = int(damage * 0.75)  # Second attack deals 75% damage
-                            defender["hp"] -= extra_damage
-                            await ctx.send(f"🐕 **{attacker['name']}**'s `{attacker_fruit}` attacked twice!")
-
-                    elif "Model Thunderbird" in attacker_fruit:
-                        # Tori Tori no Mi: Model Thunderbird
-                        if "lightning" in move.get("effect", ""):
-                            damage = int(damage * 1.5)  # 50% more lightning damage
-                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their lightning attack!")
-
-                    elif "Model Daibutsu" in attacker_fruit:
-                        # Hito Hito no Mi: Model Daibutsu
-                        damage = int(damage * 1.2)  # 20% more damage
-                        defender_damage = int(defender_damage * 0.8)  # Take 20% less damage
-                        await ctx.send(f"🗿 **{attacker['name']}**'s `{attacker_fruit}` increased attack and defense!")
-
-                    elif "Model Yamata no Orochi" in attacker_fruit:
-                        # Hebi Hebi no Mi: Model Yamata no Orochi
-                        if turn_count % 3 == 0:  # Every 3rd turn
-                            extra_attacks = 2
-                            for _ in range(extra_attacks):
-                                extra_damage = int(damage * 0.5)  # Each extra attack deals 50% damage
-                                defender["hp"] -= extra_damage
-                            await ctx.send(f"🐍 **{attacker['name']}**'s `{attacker_fruit}` unleashed multiple attacks!")
-
-            # Apply status effects
-            if defender["status"].get("poison", 0) > 0:
-                poison_damage = 5
-                defender["hp"] -= poison_damage
-                defender["status"]["poison"] -= 1
-                embed.description += f"\n☠️ **{defender['name']}** took {poison_damage} poison damage!"
-
-            if defender["status"].get("frozen"):
-                defender["status"]["frozen"] = False  # Frozen status lasts one turn
-                damage = 0
-                embed.description += f"\n❄️ **{defender['name']}** is frozen and cannot attack!"
-
-            if defender["status"].get("accuracy_reduction", 0) > 0:
-                if random.randint(1, 100) <= defender["status"]["accuracy_reduction"]:
-                    damage = 0
-                    embed.description += f"\n👥 **{defender['name']}**'s attack missed due to shadow theft!"
-                defender["status"]["accuracy_turns"] -= 1
-                if defender["status"]["accuracy_turns"] <= 0:
-                    defender["status"]["accuracy_reduction"] = 0
-           
-            if defender["status"].get("defense_down", 0) > 0:
-                damage = int(damage * 1.3)  # Take 30% more damage
-                defender["status"]["defense_down"] -= 1
-                
-            if attacker["status"].get("shield", 0) > 0:
-                damage = int(damage * 0.7)  # Reduce damage by 30%
-                attacker["status"]["shield"] -= 1
-                
-            if defender["status"].get("bound", 0) > 0:
-                damage *= 1.5  # Take 50% more damage while bound
-                defender["status"]["bound"] -= 1
-                
-            if defender["status"].get("slowed", 0) > 0:
-                if random.randint(1, 100) <= 50:  # 50% chance to miss turn when slowed
-                    damage = 0
-                defender["status"]["slowed"] -= 1
-                
-            if defender["status"].get("demoralized", 0) > 0:
-                damage = int(damage * 0.7)  # Deal 30% less damage
-                defender["status"]["demoralized"] -= 1
-                
-            if attacker["status"].get("hardened", 0) > 0:
-                damage = int(damage * 0.6)  # Take 40% less damage
-                attacker["status"]["hardened"] -= 1
-                
-            if defender["status"].get("asleep", 0) > 0:
-                damage = 0  # Can't attack while asleep
-                defender["status"]["asleep"] -= 1
-                embed.description += f"\n💤 **{defender['name']}** is asleep and cannot attack!"
-                
-            if defender["status"].get("trapped", 0) > 0:
-                if random.randint(1, 100) <= 70:  # 70% chance to miss turn when trapped
-                    damage = 0
-                defender["status"]["trapped"] -= 1
-                embed.description += f"\n🍯 **{defender['name']}** is trapped in honey!"
+        # Battle loop
+        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
+            turn_count += 1
             
-            def process_status_effects(attacker, defender):
-                """Process all status effects at the start of a turn"""
-                if defender["status"].get("weakened", 0) > 0:
-                    damage = int(damage * 1.3)  # Take 30% more damage while weakened
-                    defender["status"]["weakened"] -= 1
+            if self.battle_stopped:
+                battle_embed.title = "⚠️ Battle Stopped!"
+                battle_embed.description = "The fight has been forcibly ended! No winner was declared."
+                battle_embed.color = discord.Color.red()
+                battle_embed.set_footer(text="The battle was interrupted.")
+                await message.edit(embed=battle_embed)
+                self.battle_stopped = False
+                return
 
-                if defender["status"].get("movement_restricted", 0) > 0:
-                    if random.randint(1, 100) <= 40:  # 40% chance to miss turn
-                        damage = 0
-                    defender["status"]["movement_restricted"] -= 1
+            # Define current players
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]
 
-                if defender["status"].get("immobilized", 0) > 0:
-                    damage = 0  # Can't attack while immobilized
-                    defender["status"]["immobilized"] -= 1
-
-                if defender["status"].get("disabled", 0) > 0:
-                    damage = 0  # Can't attack while transformed into toy
-                    defender["status"]["disabled"] -= 1
-
-                return damage            # Process status effects at the start of the turn
-            
-            # Apply burn damage AFTER defining `defender`
-            burn_damage = await self.apply_burn_damage(defender)
-            if burn_damage > 0:
-                embed.description = f"🔥 **{defender['name']}** takes `{burn_damage}` burn damage from fire stacks!"
-                await message.edit(embed=embed)
+            # Apply environmental hazard
+            hazard_message = await self.apply_environmental_hazard(environment, players)
+            if hazard_message:
+                update_embed_description(f"⚠️ **Environmental Hazard!** {hazard_message}", battle_embed)
+                await message.edit(embed=battle_embed)
                 await asyncio.sleep(2)
 
-            # Skip turn if stunned
+            # Process status effects
+            if defender["status"].get("burn", 0) > 0:
+                burn_damage = 5 * defender["status"]["burn"]
+                defender["hp"] -= burn_damage
+                defender["status"]["burn"] -= 1
+                update_embed_description(f"🔥 **{defender['name']}** takes {burn_damage} burn damage!", battle_embed)
+                await message.edit(embed=battle_embed)
+                await asyncio.sleep(2)
+
+            # Handle stun status
             if defender["status"].get("stun"):
-                defender["status"]["stun"] = False  # Stun only lasts one turn
-                embed.description = f"⚡ **{defender['name']}** is `stunned` and cannot act!"
-                await message.edit(embed=embed)
+                defender["status"]["stun"] = False
+                update_embed_description(f"⚡ **{defender['name']}** is stunned and cannot act!", battle_embed)
+                await message.edit(embed=battle_embed)
                 await asyncio.sleep(2)
                 turn_index = 1 - turn_index
                 continue
 
-            # Select move
+            # Select move and calculate damage
             move = random.choice(MOVES)
-
-            # Apply environmental effects
-            environment_effect(move, attacker)
-
-            # Calculate damage
             damage = self.calculate_damage(move["type"])
+            
+        async def apply_environmental_hazard(self, environment, players, damage):
+            """Apply environmental effects to the battle."""
+            hazard_message = None
+                
+            # Apply environment-specific modifiers
+            if environment in ENVIRONMENTS:
+                env_data = ENVIRONMENTS[environment]
+                if "effect" in env_data:
+                    damage = env_data["effect"](damage)
+                    hazard_message = env_data.get("hazard_message", None)
+                
+                return damage, hazard_message # Apply environmental hazard
 
-            # Apply block logic
-            if defender["status"].get("block_active", False):
-                damage = max(0, damage - 10)  # Reduce damage by block amount
-                await self.config.member(defender["member"]).blocks.set(
-                    await self.config.member(defender["member"]).blocks() + 1
-                )
+            # Apply devil fruit effects
+            if attacker_fruit and attacker_fruit in DEVIL_FRUITS:
+                rarity = "Rare" if attacker_fruit in DEVIL_FRUITS["Rare"] else "Common"
+                fruit_data = DEVIL_FRUITS[rarity][attacker_fruit]
+                damage, effect_messages = await apply_devil_fruit_effects(attacker, defender, damage, move, fruit_data)
+                
+                if effect_messages:
+                    effects_text = "\n".join(effect_messages)
+                    current_desc = battle_embed.description or ""
+                    battle_embed.description = f"{current_desc}\n\n**Devil Fruit Effects:**\n{effects_text}"
 
-            # Apply effects
-            await self.apply_effects(move, attacker, defender)
-
-            # Highlighted move effects in message
+            # Process combat effects
             effects_highlight = []
             if "burn" in move.get("effect", ""):
                 effects_highlight.append("🔥 **Burn!**")
@@ -1935,49 +1892,53 @@ class BountyBattle(commands.Cog):
             if "stun" in move.get("effect", ""):
                 effects_highlight.append("⚡ **Stun!**")
 
-            effects_display = "\n".join(effects_highlight)
-
-            # Apply damage and update stats
+            # Update health and display
             defender["hp"] = max(0, defender["hp"] - damage)
-            embed.description = (
+            
+            # Create turn description
+            turn_desc = (
                 f"**{attacker['name']}** used **{move['name']}**: {move['description']}\n"
-                f"{effects_display}\n"
                 f"Dealt **{damage}** damage to **{defender['name']}**!"
             )
-            embed.set_field_at(
+            
+            if effects_highlight:
+                turn_desc += f"\n\n{''.join(effects_highlight)}"
+                
+            update_embed_description(turn_desc, battle_embed)
+            
+            # Update health bars
+            battle_embed.set_field_at(
                 0,
                 name="\u200b",
                 value=f"**{players[0]['name']}**\n{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
                 inline=True,
             )
-            embed.set_field_at(
+            battle_embed.set_field_at(
                 1,
                 name="\u200b",
                 value=f"**{players[1]['name']}**\n{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
                 inline=True,
             )
-            embed.set_field_at(
+            battle_embed.set_field_at(
                 2,
                 name="Turn",
                 value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
                 inline=False,
             )
-            await message.edit(embed=embed)
+            
+            await message.edit(embed=battle_embed)
             await asyncio.sleep(2)
 
-            # Update damage stats for the attacker
+            # Update stats
             await self.config.member(attacker["member"]).damage_dealt.set(
                 await self.config.member(attacker["member"]).damage_dealt() + damage
             )
-
-            # Update stats for both players
             await self.update_stats(attacker, defender, damage, move, attacker_stats)
-            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
-
-            # Switch turn
+            
+            # Switch turns
             turn_index = 1 - turn_index
 
-        # Determine winner
+        # Battle End
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
 
