@@ -1434,7 +1434,7 @@ class BountyBattle(commands.Cog):
             fruit_type = fruit_data["type"]
 
             # LOGIA TYPES
-                if fruit_type == "Logia":
+            if fruit_type == "Logia":
                     if fruit_effect == "fire":
                         if random.randint(1, 100) <= 30:
                             defender["status"]["burn"] += 2
@@ -1605,7 +1605,7 @@ class BountyBattle(commands.Cog):
                             await ctx.send(f"🍯 **{attacker['name']}**'s `{attacker_fruit}` trapped **{defender['name']}** in honey!")
 
             # ZOAN TYPES
-                elif "Zoan" in fruit_type:
+            elif "Zoan" in fruit_type:
                     if "Model Leopard" in attacker_fruit:
                         damage *= 1.2  # 20% more damage from increased speed
                         await ctx.send(f"🐆 **{attacker['name']}**'s `{attacker_fruit}` strikes with incredible speed!")
@@ -1703,7 +1703,7 @@ class BountyBattle(commands.Cog):
                             await ctx.send(f"🐍 **{attacker['name']}**'s `{attacker_fruit}` unleashed multiple attacks!")
 
             # PARAMECIA TYPES
-                elif fruit_type == "Paramecia" or fruit_type == "Special Paramecia":
+            elif fruit_type == "Paramecia" or fruit_type == "Special Paramecia":
                     if fruit_effect == "rubber":
                         if random.randint(1, 100) <= 50:
                             damage = 0
