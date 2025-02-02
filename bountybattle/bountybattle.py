@@ -910,15 +910,13 @@ class BountyBattle(commands.Cog):
 
         current_bounty = bounties[user_id]["amount"]
 
-        if bet < 500 or bet > 5000:
-            return await ctx.send("Ye can only bet between 500 and 5000 Berries, ye scallywag!")
+        if bet < 1 or bet > current_bounty:
+            return await ctx.send(f"Ye can only bet between 1 and {current_bounty:,} Berries, ye scallywag!")
 
-        if bet > current_bounty:
-            return await ctx.send("Ye can't bet more than yer current bounty, ye scallywag!")
+        # Calculate win probability based on bounty amount
+        win_probability = max(0.1, 1 - (current_bounty / 1_000_000))  # Higher bounty, lower win probability
 
-        flip_result = random.choice(["heads", "tails"])
-
-        if flip_result == "heads":
+        if random.random() < win_probability:
             bounties[user_id]["amount"] += bet
             await ctx.send(f"🪙 The coin landed on heads! Ye won {bet:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!")
         else:
@@ -932,7 +930,7 @@ class BountyBattle(commands.Cog):
         new_title = self.get_bounty_title(new_bounty)
 
         # Announce if the user reaches a significant rank
-        if new_bounty >= 900000000:
+        if new_bounty >= 900_000_000:
             await self.announce_rank(ctx.guild, user, new_title)
 
         logger.info(f"{user.display_name} used berryflip and now has a bounty of {new_bounty:,} Berries.")
