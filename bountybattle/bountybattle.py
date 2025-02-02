@@ -923,8 +923,10 @@ class BountyBattle(commands.Cog):
             win_probability = 0.7
         elif bet <= 100000:
             win_probability = 0.5
+        elif bet <= 1000000:
+            win_probability = 0.1
         else:
-            win_probability = 0.3
+            win_probability = 0.01
 
         if random.random() < win_probability:
             bounties[user_id]["amount"] += bet
