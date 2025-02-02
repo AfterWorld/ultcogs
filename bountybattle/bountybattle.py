@@ -2062,6 +2062,24 @@ class BountyBattle(commands.Cog):
         await self.config.member(ctx.author).current_title.set(matched_title)
         await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
 
+    @commands.command()
+    async def cooldowns(self, ctx):
+        """Show all active cooldowns for the user."""
+        user = ctx.author
+        cooldowns = []
+
+        for command in self.bot.commands:
+            if command.is_on_cooldown(ctx):
+                retry_after = command.get_cooldown_retry_after(ctx)
+                hours, remainder = divmod(retry_after, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                cooldowns.append(f"**{command.name}**: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+
+        if not cooldowns:
+            await ctx.send("You have no active cooldowns.")
+        else:
+            embed = discord.Embed(title="Active Cooldowns", description="\n".join(cooldowns), color=discord.Color.blue())
+            await ctx.send(embed=embed)
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
@@ -2163,26 +2181,6 @@ class BountyBattle(commands.Cog):
     
         return unlocked
 
-    async def cog_command_error(self, ctx, error):
-        """Handles errors in this cog to prevent duplicate cooldown messages."""
-        
-        if isinstance(error, commands.CommandOnCooldown):
-            remaining = error.retry_after
-            hours = int(remaining // 3600)
-            minutes = int((remaining % 3600) // 60)
-            seconds = int(remaining % 60)
-    
-            if hours > 0:
-                cooldown_message = f"⏳ This command is on cooldown. Try again in {hours} hour(s) {minutes} minute(s)."
-            elif minutes > 0:
-                cooldown_message = f"⏳ This command is on cooldown. Try again in {minutes} minute(s) {seconds} seconds."
-            else:
-                cooldown_message = f"⏳ This command is on cooldown. Try again in {seconds} seconds."
-    
-            return await ctx.send(cooldown_message)  # ✅ Ensures only ONE message is sent
-    
-        await ctx.send(f"❌ An error occurred: {error}")  # ✅ Generic error handler
-
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
@@ -2195,5 +2193,6 @@ class BountyBattle(commands.Cog):
 
 # ------------------ Setup Function ------------------
 async def setup(bot):
-    await bot.add_cog(BountyBattle(bot))
+    cog = BountyBattle(bot)
+    await bot.add_cog(cog)
 
