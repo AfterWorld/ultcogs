@@ -1361,8 +1361,7 @@ class BountyBattle(commands.Cog):
         # Send the message inside the async function
         await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
-        
-    async def fight(self, ctx, challenger, opponent):
+    async def fight(self, ctx, challenger, opponent):    
         """Override the fight method to include environmental hazards."""
         environment = self.choose_environment()
         environment_effect = ENVIRONMENTS[environment]["effect"]
@@ -1521,7 +1520,15 @@ class BountyBattle(commands.Cog):
                 value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
                 inline=False,
             )
-            await message.edit(embed=embed)
+
+            try:
+                await message.edit(embed=embed)
+            except discord.errors.HTTPException as e:
+                if "Maximum number of edits to messages older than 1 hour reached" in str(e):
+                    message = await ctx.send(embed=embed)
+                else:
+                    raise e
+
             await asyncio.sleep(2)
 
             # Update damage stats for the attacker
@@ -1536,9 +1543,9 @@ class BountyBattle(commands.Cog):
             # Switch turn
             turn_index = 1 - turn_index
 
-            # Determine winner
-            winner = players[0] if players[0]["hp"] > 0 else players[1]
-            loser = players[1] if players[0]["hp"] > 0 else players[0]
+        # Determine winner
+        winner = players[0] if players[0]["hp"] > 0 else players[1]
+        loser = players[1] if players[0]["hp"] > 0 else players[0]
 
         # Track the last active time for both players
         await self.config.member(challenger).last_active.set(datetime.utcnow().isoformat())
