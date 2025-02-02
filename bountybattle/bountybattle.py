@@ -1386,25 +1386,36 @@ class BountyBattle(commands.Cog):
         challenger_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
         opponent_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
 
-        # Create battle embed
-        battle_embed = discord.Embed(
+        ## Create the initial embed
+        embed = discord.Embed(
             title="🏴‍☠️ One Piece Deathmatch ⚔️",
             description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
             color=0x00FF00,
         )
-        battle_embed.add_field(
+        embed.add_field(
             name="\u200b",
             value=f"**{challenger.display_name}**\n{self.generate_health_bar(challenger_hp)} {challenger_hp}/100",
             inline=True,
         )
-        battle_embed.add_field(
+        embed.add_field(
             name="\u200b",
             value=f"**{opponent.display_name}**\n{self.generate_health_bar(opponent_hp)} {opponent_hp}/100",
             inline=True,
         )
-        battle_embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
-        battle_embed.set_footer(text="Actions are influenced by the environment!")
-        message = await ctx.send(embed=battle_embed)
+        embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
+        embed.set_footer(text="Actions are influenced by the environment!")
+        message = await ctx.send(embed=embed)
+
+        # Player data structure
+        players = [
+            {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
+            {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
+        ]
+        turn_index = 0
+
+        # Initialize stats
+        attacker_stats = await self.config.member(challenger).all()
+        defender_stats = await self.config.member(opponent).all()
 
         # Initialize players
         players = [
@@ -1831,9 +1842,13 @@ class BountyBattle(commands.Cog):
             # Apply environmental hazard
             hazard_message = await self.apply_environmental_hazard(environment, players)
             if hazard_message:
-                update_embed_description(f"⚠️ **Environmental Hazard!** {hazard_message}", battle_embed)
-                await message.edit(embed=battle_embed)
+                embed.description = f"⚠️ **Environmental Hazard!** {hazard_message}"
+                await message.edit(embed=embed)
                 await asyncio.sleep(2)
+
+            # Define attacker and defender
+            attacker = players[turn_index]
+            defender = players[1 - turn_index]  # Now defender is correctly assigned
 
             # Process status effects
             if defender["status"].get("burn", 0) > 0:
@@ -1853,9 +1868,15 @@ class BountyBattle(commands.Cog):
                 turn_index = 1 - turn_index
                 continue
 
-            # Select move and calculate damage
+            # Select move
             move = random.choice(MOVES)
+
+            # Apply environmental effects
+            environment_effect(move, attacker)
+
+            # Calculate damage
             damage = self.calculate_damage(move["type"])
+
             
         async def apply_environmental_hazard(self, environment, players, damage):
             """Apply environmental effects to the battle."""
@@ -1931,7 +1952,6 @@ class BountyBattle(commands.Cog):
 
             # Switch turn
             turn_index = 1 - turn_index
-
 
             # Update health and display
             defender["hp"] = max(0, defender["hp"] - damage)
