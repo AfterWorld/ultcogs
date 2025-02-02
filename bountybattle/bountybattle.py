@@ -1277,44 +1277,64 @@ class BountyBattle(commands.Cog):
         """
         Start a One Piece deathmatch against another user with a bounty.
         """
-        # ✅ Retrieve the bounty list
-        bounties = await self.config.guild(ctx.guild).bounties()
+        try:
+            # ✅ Retrieve the bounty list
+            bounties = await self.config.guild(ctx.guild).bounties()
 
-        # ✅ If no opponent is provided, choose a random bounty holder
-        if opponent is None:
-            valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
+            # ✅ If no opponent is provided, choose a random bounty holder
+            if opponent is None:
+                valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
 
-            if not valid_opponents:
-                return await ctx.send("❌ **There are no users with a bounty to challenge!**")
+                if not valid_opponents:
+                    return await ctx.send("❌ **There are no users with a bounty to challenge!**")
 
-            opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
+                opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
 
-        # ✅ Ensure the opponent has a bounty
-        elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
-            return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
+            # ✅ Ensure the opponent has a bounty
+            elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
+                return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
 
-        # ✅ Prevent invalid matches
-        if ctx.author == opponent:
-            return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
-        if opponent.bot:
-            return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
-        if ctx.channel.id in self.active_channels:
-            return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
+            # ✅ Prevent invalid matches
+            if ctx.author == opponent:
+                return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
+            if opponent.bot:
+                return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
+            
+            # ✅ Check if a battle is already in progress
+            if ctx.channel.id in self.active_channels:
+                return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
 
-        # ✅ Mark the channel as active
-        self.active_channels.add(ctx.channel.id)
+            # ✅ Mark the channel as active
+            self.active_channels.add(ctx.channel.id)
 
-        # ✅ Generate fight card
-        fight_card = self.generate_fight_card(ctx.author, opponent)
+            # ✅ Generate fight card
+            fight_card = self.generate_fight_card(ctx.author, opponent)
 
-        # ✅ Send the dynamically generated fight card image
-        await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
+            # ✅ Send the dynamically generated fight card image
+            await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
 
-        # ✅ Call the fight function and update bounty only for the initiator
-        await self.fight(ctx, ctx.author, opponent)
+            try:
+                # ✅ Call the fight function and update bounty only for the initiator
+                await self.fight(ctx, ctx.author, opponent)
+            except Exception as e:
+                await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
+                self.log.error(f"Battle error: {str(e)}")
+            finally:
+                # ✅ Always attempt to remove the channel ID, even if an error occurs
+                if ctx.channel.id in self.active_channels:
+                    self.active_channels.remove(ctx.channel.id)
 
-        # ✅ Mark the channel as inactive
-        self.active_channels.remove(ctx.channel.id)
+        except Exception as e:
+            # ✅ Catch any unexpected errors
+            await ctx.send(f"❌ An unexpected error occurred: {str(e)}")
+            self.log.error(f"Deathbattle command error: {str(e)}")
+            
+            # ✅ Ensure channel is removed from active channels if an error occurs
+            if ctx.channel.id in self.active_channels:
+                self.active_channels.remove(ctx.channel.id)
+
+            # ✅ Re-raise the exception for further handling
+            raise
 
         
     @commands.command(name="stopbattle")
