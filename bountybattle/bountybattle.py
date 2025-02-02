@@ -899,7 +899,7 @@ class BountyBattle(commands.Cog):
     
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def berryflip(self, ctx, bet: int):
+    async def berryflip(self, ctx, bet: int = None):
         """Flip a coin to potentially increase your bounty."""
         user = ctx.author
         bounties = await self.config.guild(ctx.guild).bounties()
@@ -910,11 +910,21 @@ class BountyBattle(commands.Cog):
 
         current_bounty = bounties[user_id]["amount"]
 
+        if bet is None:
+            bet = current_bounty  # Default to betting the entire bounty
+
         if bet < 1 or bet > current_bounty:
             return await ctx.send(f"Ye can only bet between 1 and {current_bounty:,} Berries, ye scallywag!")
 
         # Calculate win probability based on bounty amount
-        win_probability = max(0.1, 1 - (current_bounty / 1_000_000))  # Higher bounty, lower win probability
+        if current_bounty <= 1000:
+            win_probability = 0.9
+        elif current_bounty <= 10000:
+            win_probability = 0.7
+        elif current_bounty <= 100000:
+            win_probability = 0.5
+        else:
+            win_probability = 0.3
 
         if random.random() < win_probability:
             bounties[user_id]["amount"] += bet
