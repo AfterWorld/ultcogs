@@ -1891,6 +1891,47 @@ class BountyBattle(commands.Cog):
                 effects_highlight.append("💚 **Heal!**")
             if "stun" in move.get("effect", ""):
                 effects_highlight.append("⚡ **Stun!**")
+                
+            # Apply damage and update stats
+            defender["hp"] = max(0, defender["hp"] - damage)
+            embed.description = (
+                f"**{attacker['name']}** used **{move['name']}**: {move['description']}\n"
+                f"{effects_display}\n"
+                f"Dealt **{damage}** damage to **{defender['name']}**!"
+            )
+            embed.set_field_at(
+                0,
+                name="\u200b",
+                value=f"**{players[0]['name']}**\n{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
+                inline=True,
+            )
+            embed.set_field_at(
+                1,
+                name="\u200b",
+                value=f"**{players[1]['name']}**\n{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
+                inline=True,
+            )
+            embed.set_field_at(
+                2,
+                name="Turn",
+                value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
+                inline=False,
+            )
+            await message.edit(embed=embed)
+            await asyncio.sleep(2)
+
+            # Update damage stats for the attacker
+            await self.config.member(attacker["member"]).damage_dealt.set(
+                await self.config.member(attacker["member"]).damage_dealt() + damage
+            )
+
+            # Update stats for both players
+            await self.update_stats(attacker, defender, damage, move, attacker_stats)
+            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
+
+            # Switch turn
+            turn_index = 1 - turn_index
+
 
             # Update health and display
             defender["hp"] = max(0, defender["hp"] - damage)
