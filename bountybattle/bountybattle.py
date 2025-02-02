@@ -1746,36 +1746,34 @@ class BountyBattle(commands.Cog):
             """Handle all Zoan-type devil fruit effects."""
             effect_message = None
             
-            if fruit_type == "Zoan":
-                    if "Zoan" in fruit_type:
-                    if "Model Leopard" in attacker_fruit:
-                        damage *= 1.2  # 20% more damage from increased speed
-                        await ctx.send(f"🐆 **{attacker['name']}**'s `{attacker_fruit}` strikes with incredible speed!")
+            if "Model Leopard" in effect:
+                damage *= 1.2  # 20% more damage from increased speed
+                effect_message = f"🐆 **{attacker['name']}**'s ability strikes with incredible speed!"
 
-                    elif "Model Azure Dragon" in attacker_fruit:
-                        if random.randint(1, 100) <= 25:
-                            damage *= 1.5  # Powerful dragon attack
-                            await ctx.send(f"🐉 **{attacker['name']}**'s `{attacker_fruit}` unleashes dragon's fury!")
+            elif "Model Azure Dragon" in effect:
+                if random.randint(1, 100) <= 25:
+                    damage *= 1.5  # Powerful dragon attack
+                    effect_message = f"🐉 **{attacker['name']}**'s ability unleashes dragon's fury!"
 
-                    elif "Model Phoenix" in attacker_fruit:
-                        if attacker["hp"] < 50:  # Below 50% HP
-                            heal = 20
-                            attacker["hp"] = min(100, attacker["hp"] + heal)
-                            await ctx.send(f"🦅 **{attacker['name']}**'s `{attacker_fruit}` regenerated {heal} HP!")
+            elif "Model Phoenix" in effect:
+                if attacker["hp"] < 50:  # Below 50% HP
+                    heal = 20
+                    attacker["hp"] = min(100, attacker["hp"] + heal)
+                    effect_message = f"🦅 **{attacker['name']}** regenerated {heal} HP!"
 
-                    elif "Model Nika" in attacker_fruit:
-                        effect = random.choice(["damage", "heal", "dodge"])
-                        if effect == "damage":
-                            damage *= 1.5
-                            await ctx.send(f"⚡ **{attacker['name']}**'s `{attacker_fruit}` enhanced their attack!")
-                        elif effect == "heal":
-                            heal = 15
-                            attacker["hp"] = min(100, attacker["hp"] + heal)
-                            await ctx.send(f"💖 **{attacker['name']}**'s `{attacker_fruit}` granted healing!")
-                        else:
-                            damage = 0
-                            await ctx.send(f"💨 **{attacker['name']}**'s `{attacker_fruit}` helped them dodge!")
-                
+            elif "Model Nika" in effect:
+                effect_type = random.choice(["damage", "heal", "dodge"])
+                if effect_type == "damage":
+                    damage *= 1.5
+                    effect_message = f"⚡ **{attacker['name']}**'s ability enhanced their attack!"
+                elif effect_type == "heal":
+                    heal = 15
+                    attacker["hp"] = min(100, attacker["hp"] + heal)
+                    effect_message = f"💖 **{attacker['name']}** received healing!"
+                else:
+                    damage = 0
+                    effect_message = f"💨 **{attacker['name']}** dodged the attack!"
+            
             return damage, effect_message
 
         async def handle_paramecia_effects(self, attacker, defender, damage, effect, move):
