@@ -11,31 +11,28 @@ import io
 import json
 import os
 
-# Define file path
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
 # Ensure directory exists
 os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
 
-# Load and save functions
-def load_data(file):
-    try:
-        with open(file, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-def save_data(file, data):
-    with open(file, "w") as f:
-        json.dump(data, f, indent=4)
-        
 def load_bounties():
-    """Load bounty data from file."""
+    """Load bounty data safely from file."""
     if not os.path.exists(BOUNTY_FILE):
-        return {}
-    with open(BOUNTY_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-	    
+        return {}  # If file doesn't exist, return empty dict
+    
+    try:
+        with open(BOUNTY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}  # If file is corrupted, return empty dict
+
+def save_bounties(data):
+    """Save bounty data safely to file."""
+    os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)  # Ensure directory exists
+    with open(BOUNTY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
 # Initialize logger
 logger = logging.getLogger("red.bounty")
 logger.setLevel(logging.INFO)
@@ -1596,8 +1593,9 @@ class BountyBattle(commands.Cog):
             damage = self.calculate_damage(move["type"])
 
             # ✅ Apply Devil Fruit effects before finalizing damage
-            if fruit_data:
+            if fruit_data and isinstance(fruit_data, dict):  # ✅ Ensure it's a dictionary
                 damage = await self.apply_devil_fruit_effect(attacker, defender, damage, move, fruit_data, embed)
+
 
             # Apply block logic
             if defender["status"].get("block_active", False):
