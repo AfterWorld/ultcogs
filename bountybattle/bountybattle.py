@@ -33,12 +33,22 @@ def save_json(file_path, data):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# ✅ Shortcut functions for bounties
 def load_bounties():
-    return load_json(BOUNTY_FILE)
+    """Load bounty data safely from file."""
+    if not os.path.exists(BOUNTY_FILE):
+        return {}  # If file doesn't exist, return empty dict
+    
+    try:
+        with open(BOUNTY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}  # If file is corrupted, return empty dict
 
 def save_bounties(data):
-    save_json(BOUNTY_FILE, data)
+    """Save bounty data safely to file."""
+    os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
+    with open(BOUNTY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 # Initialize logger
 logger = logging.getLogger("red.bounty")
@@ -582,38 +592,38 @@ class BountyBattle(commands.Cog):
     async def eatfruit(self, ctx):
         """Consume a random Devil Fruit! Some rare fruits are unique and globally announced."""
         user = ctx.author
-        bounties = load_data(BOUNTY_FILE)
+        bounties = load_bounties()  # ✅ Use load_bounties() instead
         user_id = str(user.id)
-    
+
         if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
-    
+
         if bounties[user_id].get("fruit"):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
-    
+
         # ✅ Get all rare fruits currently taken
         all_taken_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
-    
+
         # ✅ Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
-    
+
         # ✅ Determine fruit type (90% Common, 10% Rare if available)
         is_rare = available_rare_fruits and random.randint(1, 100) <= 10
-    
+
         if is_rare:
             new_fruit = random.choice(available_rare_fruits)
             fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
         else:
             new_fruit = random.choice(list(DEVIL_FRUITS["Common"].keys()))
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
-    
+
         fruit_type = fruit_data["type"]
         effect = fruit_data["bonus"]
-    
+
         # ✅ Save the fruit to bounties.json
         bounties[user_id]["fruit"] = new_fruit
-        save_data(BOUNTY_FILE, bounties)
-    
+        save_bounties(bounties)  # ✅ Use save_bounties() instead
+
         # ✅ ANNOUNCE IF RARE FRUIT
         if is_rare:
             announcement = (
@@ -629,8 +639,10 @@ class BountyBattle(commands.Cog):
                 f"🔥 **New Power:** {effect}\n\n"
                 f"⚠️ *You cannot eat another Devil Fruit!*"
             )
-        # Assign the fruit to the player
+
+        # Assign the fruit to the player in Redbot's Config
         await self.config.member(user).devil_fruit.set(new_fruit)
+
 
     @commands.command()
     async def removefruit(self, ctx, member: discord.Member = None):
