@@ -1275,52 +1275,129 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
     async def berryflip(self, ctx, bet: int = None):
-        """Flip a coin to potentially increase your bounty."""
-        user = ctx.author
-        bounties = await self.config.guild(ctx.guild).bounties()
-        user_id = str(user.id)
+        """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
+        try:
+            user = ctx.author
+            bounties = load_bounties()  # Use load_bounties instead of config
+            user_id = str(user.id)
 
-        if user_id not in bounties:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+            if user_id not in bounties:
+                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
 
-        current_bounty = bounties[user_id]["amount"]
+            current_bounty = bounties[user_id]["amount"]
+            
+            # Validate bet amount
+            if bet is None:
+                bet = min(current_bounty, 10000)  # Default to 10k or max bounty
+            elif bet < 100:
+                return await ctx.send("❌ Minimum bet is `100` Berries! Don't be stingy!")
+            elif bet > current_bounty:
+                return await ctx.send(f"❌ Ye only have `{current_bounty:,}` Berries to bet!")
 
-        if bet is None:
-            bet = current_bounty  # Default to betting the entire bounty
+            # Create initial embed
+            embed = discord.Embed(
+                title="🎲 Berry Flip Gamble",
+                description=f"**{user.display_name}** is betting `{bet:,}` Berries!",
+                color=discord.Color.gold()
+            )
+            
+            # Calculate and show win probability
+            if bet <= 1000:
+                win_probability = 0.75  # 75% chance
+                difficulty = "Easy"
+            elif bet <= 10000:
+                win_probability = 0.60  # 60% chance
+                difficulty = "Medium"
+            elif bet <= 50000:
+                win_probability = 0.40  # 40% chance
+                difficulty = "Hard"
+            elif bet <= 100000:
+                win_probability = 0.20  # 20% chance
+                difficulty = "Very Hard"
+            else:
+                win_probability = 0.10  # 10% chance
+                difficulty = "Extreme"
 
-        if bet < 1 or bet > current_bounty:
-            return await ctx.send(f"Ye can only bet between 1 and {current_bounty:,} Berries, ye scallywag!")
+            embed.add_field(
+                name="Difficulty",
+                value=f"**{difficulty}**\nWin Chance: `{win_probability*100:.0f}%`",
+                inline=False
+            )
 
-        # Calculate win probability based on bet amount
-        if bet <= 1000:
-            win_probability = 0.9
-        elif bet <= 10000:
-            win_probability = 0.7
-        elif bet <= 50000:
-            win_probability = 0.5
-        elif bet <= 100000:
-            win_probability = 0.1
-        else:
-            win_probability = 0.01
+            message = await ctx.send(embed=embed)
+            await asyncio.sleep(2)  # Dramatic pause
 
-        if random.random() < win_probability:
-            bounties[user_id]["amount"] += bet
-            await ctx.send(f"🪙 The coin landed on heads! Ye won {bet:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!")
-        else:
-            bounties[user_id]["amount"] -= bet
-            await ctx.send(f"🪙 The coin landed on tails! Ye lost {bet:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!")
+            # Determine outcome
+            won = random.random() < win_probability
+            
+            if won:
+                # Calculate bonus multiplier based on risk
+                multiplier = 1.0
+                if bet > 50000: multiplier = 2.0
+                elif bet > 10000: multiplier = 1.5
+                
+                winnings = int(bet * multiplier)
+                bounties[user_id]["amount"] += winnings
 
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+                embed.color = discord.Color.green()
+                embed.description = (
+                    f"🎉 **{user.display_name}** won `{winnings:,}` Berries!\n"
+                    f"{'💫 BONUS WIN! ({}x Multiplier)'.format(multiplier) if multiplier > 1 else ''}\n"
+                    f"New Bounty: `{bounties[user_id]['amount']:,}` Berries"
+                )
+            else:
+                loss = bet
+                bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - loss)
+                
+                embed.color = discord.Color.red()
+                embed.description = (
+                    f"💀 **{user.display_name}** lost `{loss:,}` Berries!\n"
+                    f"Remaining Bounty: `{bounties[user_id]['amount']:,}` Berries"
+                )
 
-        new_bounty = bounties[user_id]["amount"]
-        new_title = self.get_bounty_title(new_bounty)
+            # Save updated bounties
+            save_bounties(bounties)
 
-        # Announce if the user reaches a significant rank
-        if new_bounty >= 900_000_000:
-            await self.announce_rank(ctx.guild, user, new_title)
+            # Update Config as well for compatibility
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+            await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
 
-        logger.info(f"{user.display_name} used berryflip and now has a bounty of {new_bounty:,} Berries.")
+            # Check for new title
+            new_bounty = bounties[user_id]["amount"]
+            current_title = await self.config.member(user).current_title()
+            new_title = self.get_bounty_title(new_bounty)
+
+            if new_title != current_title:
+                await self.config.member(user).current_title.set(new_title)
+                embed.add_field(
+                    name="🎭 New Title Unlocked!",
+                    value=f"`{new_title}`",
+                    inline=False
+                )
+
+            # Announce if reached significant rank
+            if new_bounty >= 900_000_000:
+                await self.announce_rank(ctx.guild, user, new_title)
+
+            # Log the gamble
+            logger.info(
+                f"Berryflip: {user.display_name} bet {bet:,} Berries - "
+                f"{'Won' if won else 'Lost'} - New bounty: {new_bounty:,}"
+            )
+
+            # Update the embed
+            await message.edit(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in berryflip command: {str(e)}")
+            await ctx.send("❌ An error occurred during the gamble!")
+
+    @berryflip.error
+    async def berryflip_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            minutes = int(error.retry_after / 60)
+            seconds = int(error.retry_after % 60)
+            await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
         
     @commands.command()
     async def missions(self, ctx):
@@ -1950,7 +2027,117 @@ class BountyBattle(commands.Cog):
 
         # Check achievements
         await self.check_achievements(winner["member"])
+    
+    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
+        """Apply Devil Fruit effects to combat."""
+        fruit = await self.config.member(attacker["member"]).devil_fruit()
+        if not fruit:
+            return damage, None
+
+        # Get fruit data from either Common or Rare categories
+        fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
+        if not fruit_data:
+            return damage, None
+
+        effect_message = None
+        fruit_type = fruit_data["type"]
+        
+        # Track fruit usage for achievements
+        if "elements_used" not in attacker:
+            attacker["elements_used"] = set()
+        attacker["elements_used"].add(fruit_type)
+
+        # Apply type-specific effects
+        if fruit_type == "Logia":
+            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data)
+        elif "Zoan" in fruit_type:
+            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data)
+        elif fruit_type in ["Paramecia", "Special Paramecia"]:
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data)
+
+        return damage, effect_message
+
+    async def _handle_logia_combat(self, attacker, defender, damage, fruit_data):
+        """Handle Logia-type combat effects."""
+        effect = fruit_data["effect"]
+        effect_message = None
+
+        if effect == "fire":
+            if random.random() < 0.4:  # 40% chance
+                defender["status"]["burn"] += 2
+                damage *= 1.5
+                effect_message = f"🔥 {attacker['name']}'s flames intensify the attack!"
+        
+        elif effect == "light":
+            damage *= 1.3
+            if random.random() < 0.2:  # 20% chance to attack twice
+                effect_message = f"⚡ {attacker['name']} strikes at light speed!"
+                return damage * 2, effect_message
+        
+        elif effect == "darkness":
+            absorbed = int(damage * 0.3)
+            attacker["hp"] = min(100, attacker["hp"] + absorbed)
+            effect_message = f"🌑 {attacker['name']} absorbs {absorbed} HP through darkness!"
+        
+        elif effect == "ice":
+            if random.random() < 0.25:  # 25% chance
+                defender["status"]["frozen"] = 2  # Frozen for 2 turns
+                effect_message = f"❄️ {attacker['name']} freezes the opponent!"
+
+        return damage, effect_message
+
+    async def _handle_zoan_combat(self, attacker, defender, damage, fruit_data):
+        """Handle Zoan-type combat effects."""
+        effect = fruit_data["effect"]
+        effect_message = None
+
+        if "Model Phoenix" in fruit_data["effect"]:
+            if attacker["hp"] < 50:  # Below 50% HP
+                heal = 15
+                attacker["hp"] = min(100, attacker["hp"] + heal)
+                effect_message = f"🦅 {attacker['name']} regenerates {heal} HP!"
+        
+        elif "Model Dragon" in fruit_data["effect"]:
+            damage *= 1.4
+            if random.random() < 0.3:  # 30% chance
+                defender["status"]["burn"] += 1
+                effect_message = f"🐉 {attacker['name']}'s dragon breath scorches the enemy!"
+
+        elif "Model Nika" in fruit_data["effect"]:
+            effect = random.choice(["damage", "dodge", "transform"])
+            if effect == "damage":
+                damage *= 2
+                effect_message = f"✨ {attacker['name']}'s rubber powers amplify the attack!"
+            elif effect == "dodge":
+                damage = 0
+                effect_message = f"💫 {attacker['name']} stretches to avoid the attack!"
+            else:
+                attacker["status"]["transformed"] = 2
+                effect_message = f"⚡ {attacker['name']} awakens their power!"
+
+        return damage, effect_message
+
+    async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data):
+        """Handle Paramecia-type combat effects."""
+        effect = fruit_data["effect"]
+        effect_message = None
+
+        if effect == "rubber":
+            damage *= 1.3
+            effect_message = f"💫 {attacker['name']}'s rubber body enhances the attack!"
             
+        elif effect == "quake":
+            bonus_damage = int(damage * 0.5)
+            damage += bonus_damage
+            effect_message = f"💥 {attacker['name']}'s quake powers deal {bonus_damage} extra damage!"
+            
+        elif effect == "barrier":
+            if random.random() < 0.4:  # 40% chance
+                defender["status"]["protected"] = True
+                effect_message = f"🛡️ {attacker['name']} creates a protective barrier!"
+
+        return damage, effect_message
+    
     @commands.group(name="deathboard", invoke_without_command=True)
     async def deathboard(self, ctx: commands.Context):
         """
