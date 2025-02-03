@@ -2265,81 +2265,132 @@ class BountyBattle(commands.Cog):
         return "\n".join(status_messages) if status_messages else None
 
     async def _handle_battle_rewards(self, ctx, winner, loser):
-        """Handle post-battle rewards and updates."""
+        """Handle post-battle rewards and updates with enhanced error handling."""
         try:
+            # Log the start of rewards processing
+            logger.info(f"Processing battle rewards for {winner['name']} vs {loser['name']}")
+
+            # Validate input data
+            if not winner or not loser:
+                logger.error("Invalid winner or loser data received")
+                await ctx.send("❌ Error: Invalid battle participants!")
+                return
+
             # Sync both players' bounties first
-            await self.sync_bounty(winner["member"])
-            await self.sync_bounty(loser["member"])
-            
+            try:
+                await self.sync_bounty(winner["member"])
+                await self.sync_bounty(loser["member"])
+            except Exception as sync_error:
+                logger.error(f"Bounty sync error: {sync_error}")
+                await ctx.send("⚠️ Could not sync bounties. Proceeding with caution.")
+
             # Load current bounty data
-            bounties = load_bounties()
+            try:
+                bounties = load_bounties()
+            except Exception as load_error:
+                logger.error(f"Error loading bounties: {load_error}")
+                await ctx.send("❌ Could not load bounty data!")
+                return
+
+            # Validate bounty data for both participants
             winner_id = str(winner["member"].id)
             loser_id = str(loser["member"].id)
-            
-            # Calculate bounty changes
-            bounty_increase = random.randint(1000, 3000)
-            bounty_decrease = random.randint(500, 1500)
-            
-            # Update winner's bounty in both systems
-            bounties[winner_id]["amount"] += bounty_increase
-            await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
-            
-            # Update loser's bounty in both systems
-            current_bounty = bounties[loser_id].get("amount", 0)
-            bounties[loser_id]["amount"] = max(0, current_bounty - bounty_decrease)
-            await self.config.member(loser["member"]).bounty.set(bounties[loser_id]["amount"])
-            
-            # Save bounty changes
-            save_bounties(bounties)
-            
-            # Create results embed
-            embed = discord.Embed(
-                title="🏆 Battle Results",
-                color=discord.Color.gold()
-            )
-            
-            embed.add_field(
-                name="Winner",
-                value=(
-                    f"**{winner['name']}**\n"
-                    f"+ `{bounty_increase:,}` Berries\n"
-                    f"New Bounty: `{bounties[winner_id]['amount']:,}` Berries"
-                ),
-                inline=False
-            )
-            
-            embed.add_field(
-                name="Loser",
-                value=(
-                    f"**{loser['name']}**\n"
-                    f"- `{bounty_decrease:,}` Berries\n"
-                    f"New Bounty: `{bounties[loser_id]['amount']:,}` Berries"
-                ),
-                inline=False
-            )
-            
-            await ctx.send(embed=embed)
-            
-            # Update stats
-            await self.config.member(winner["member"]).wins.set(
-                await self.config.member(winner["member"]).wins() + 1
-            )
-            await self.config.member(loser["member"]).losses.set(
-                await self.config.member(loser["member"]).losses() + 1
-            )
-            
-            # Update last active time
-            current_time = datetime.utcnow().isoformat()
-            await self.config.member(winner["member"]).last_active.set(current_time)
-            await self.config.member(loser["member"]).last_active.set(current_time)
-            
-            # Check achievements
-            await self.check_achievements(winner["member"])
-            await self.check_achievements(loser["member"])
+
+            if winner_id not in bounties:
+                bounties[winner_id] = {"amount": 0, "fruit": None}
+            if loser_id not in bounties:
+                bounties[loser_id] = {"amount": 0, "fruit": None}
+
+            # Calculate bounty changes with safety checks
+            try:
+                bounty_increase = random.randint(1000, 3000)
+                bounty_decrease = random.randint(500, 1500)
                 
+                # Ensure bounty doesn't go negative
+                current_loser_bounty = bounties[loser_id].get("amount", 0)
+                bounty_decrease = min(bounty_decrease, current_loser_bounty)
+
+                bounties[winner_id]["amount"] += bounty_increase
+                bounties[loser_id]["amount"] = max(0, current_loser_bounty - bounty_decrease)
+            except Exception as calc_error:
+                logger.error(f"Bounty calculation error: {calc_error}")
+                await ctx.send("⚠️ Error calculating bounty changes!")
+                return
+
+            # Save updated bounties
+            try:
+                save_bounties(bounties)
+                await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
+                await self.config.member(loser["member"]).bounty.set(bounties[loser_id]["amount"])
+            except Exception as save_error:
+                logger.error(f"Bounty save error: {save_error}")
+                await ctx.send("⚠️ Could not save updated bounty information!")
+
+            # Create results embed
+            try:
+                embed = discord.Embed(
+                    title="🏆 Battle Results",
+                    color=discord.Color.gold()
+                )
+                
+                embed.add_field(
+                    name="Winner",
+                    value=(
+                        f"**{winner['name']}**\n"
+                        f"+ `{bounty_increase:,}` Berries\n"
+                        f"New Bounty: `{bounties[winner_id]['amount']:,}` Berries"
+                    ),
+                    inline=False
+                )
+                
+                embed.add_field(
+                    name="Loser",
+                    value=(
+                        f"**{loser['name']}**\n"
+                        f"- `{bounty_decrease:,}` Berries\n"
+                        f"New Bounty: `{bounties[loser_id]['amount']:,}` Berries"
+                    ),
+                    inline=False
+                )
+                
+                await ctx.send(embed=embed)
+            except Exception as embed_error:
+                logger.error(f"Embed creation error: {embed_error}")
+                await ctx.send("⚠️ Could not create battle results embed!")
+
+            # Update stats with error handling
+            try:
+                await self.config.member(winner["member"]).wins.set(
+                    await self.config.member(winner["member"]).wins() + 1
+                )
+                await self.config.member(loser["member"]).losses.set(
+                    await self.config.member(loser["member"]).losses() + 1
+                )
+            except Exception as stats_error:
+                logger.error(f"Stats update error: {stats_error}")
+                await ctx.send("⚠️ Could not update battle statistics!")
+
+            # Update last active time
+            try:
+                current_time = datetime.utcnow().isoformat()
+                await self.config.member(winner["member"]).last_active.set(current_time)
+                await self.config.member(loser["member"]).last_active.set(current_time)
+            except Exception as time_error:
+                logger.error(f"Last active time update error: {time_error}")
+                await ctx.send("⚠️ Could not update last active time!")
+
+            # Check achievements with error handling
+            try:
+                await self.check_achievements(winner["member"])
+                await self.check_achievements(loser["member"])
+            except Exception as achievement_error:
+                logger.error(f"Achievement check error: {achievement_error}")
+                await ctx.send("⚠️ Could not process achievements!")
+
         except Exception as e:
-            logger.error(f"Error in battle rewards: {str(e)}")
-            await ctx.send("❌ An error occurred while processing battle rewards!")
+            # Catch-all error handler
+            logger.error(f"Unexpected error in battle rewards: {str(e)}", exc_info=True)
+            await ctx.send(f"❌ A critical error occurred during battle rewards: {str(e)}")
 
     async def _unlock_achievement(self, member, achievement_name):
         """Unlock a specific achievement for a member."""
