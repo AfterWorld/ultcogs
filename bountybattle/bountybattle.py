@@ -2242,7 +2242,7 @@ class BountyBattle(commands.Cog):
                 damage *= 2
                 effect_message = (
                     f"🔥 **FLAME EMPEROR'S WRATH**! 🔥\n"
-                    f"**{attacker['name']}**'s flames burn with devastating power!\n"
+                    f"**{attacker['name']}**'s flames burn with devastating power using {move_copy}!\n"
                     f"💥 Double Damage + Intense Burn Effect!"
                 )
 
@@ -2252,7 +2252,7 @@ class BountyBattle(commands.Cog):
                 defender["status"]["stun"] = True
                 effect_message = (
                     f"⚡ **THUNDER GOD'S JUDGEMENT**! ⚡\n"
-                    f"**{attacker['name']}** channels divine lightning!\n"
+                    f"**{attacker['name']}** channels divine lightning with {move_copy}!\n"
                     f"💫 Enemy Paralyzed by Lightning!"
                 )
 
@@ -2262,9 +2262,17 @@ class BountyBattle(commands.Cog):
                 damage = 0
                 effect_message = (
                     f"💨 **WHITE SCREEN**! 💨\n"
-                    f"**{attacker['name']}** dissolves into smoke!\n"
+                    f"**{attacker['name']}** dissolves into smoke with {move_copy}!\n"
                     f"✨ Attack Completely Avoided!"
                 )
+
+        # Example usage of turn variable
+        if turn % 5 == 0:
+            effect_message = (
+                f"🌪️ **SPECIAL TURN EFFECT**! 🌪️\n"
+                f"**{attacker['name']}** gains a special boost on turn {turn} using {move_copy}!\n"
+                f"✨ Special Effect Activated!"
+            )
 
         # Sand Logia
         elif effect == "sand":
@@ -2371,23 +2379,23 @@ class BountyBattle(commands.Cog):
             if effect == "attack":
                 damage *= 1.5
                 effect_message = (
-                    f"✨ **WARRIOR OF LIBERATION**! ✨\n"
-                    f"**{attacker['name']}** unleashes the power of the Sun God!\n"
-                    f"💥 Attack Power Dramatically Increased!"
+                    f"🔥 **NIKA'S FURY**! 🔥\n"
+                    f"**{attacker['name']}** unleashes a powerful attack with {move_copy}!\n"
+                    f"💥 Damage Increased!"
                 )
             elif effect == "speed":
-                attacker["status"]["accuracy_reduction"] = 0
+                attacker["speed"] += 10
                 effect_message = (
-                    f"💨 **FREEDOM OF MOVEMENT**! 💨\n"
-                    f"**{attacker['name']}** moves with divine agility!\n"
-                    f"⚡ Speed Greatly Enhanced!"
+                    f"⚡ **NIKA'S AGILITY**! ⚡\n"
+                    f"**{attacker['name']}** moves with incredible speed using {move_copy}!\n"
+                    f"🏃 Speed Increased!"
                 )
-            else:
-                attacker["status"]["protected"] = True
+            elif effect == "defense":
+                defender["damage"] *= 0.5
                 effect_message = (
-                    f"🛡️ **JOY BOY'S BLESSING**! 🛡️\n"
-                    f"**{attacker['name']}** awakens defensive power!\n"
-                    f"✨ Divine Protection Activated!"
+                    f"🛡️ **NIKA'S SHIELD**! 🛡️\n"
+                    f"**{attacker['name']}** becomes highly resistant with {move_copy}!\n"
+                    f"🛡️ Damage Taken Reduced!"
                 )
 
         elif "Model Thunderbird" in effect:
