@@ -2376,7 +2376,7 @@ class BountyBattle(commands.Cog):
         return damage, effect_message
 
     async def _handle_zoan_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
-        """Handle Zoan-type combat effects with dramatic announcements."""
+        """Handle Zoan-type combat effects."""
         effect = fruit_data["effect"]
         effect_message = None
 
@@ -2405,22 +2405,8 @@ class BountyBattle(commands.Cog):
                 damage *= 1.5
                 effect_message = (
                     f"🔥 **NIKA'S FURY**! 🔥\n"
-                    f"**{attacker['name']}** unleashes a powerful attack with {move_copy}!\n"
+                    f"**{attacker['name']}** unleashes a powerful attack with {move_copy['name']}!\n"
                     f"💥 Damage Increased!"
-                )
-            elif effect == "speed":
-                attacker["speed"] += 10
-                effect_message = (
-                    f"⚡ **NIKA'S AGILITY**! ⚡\n"
-                    f"**{attacker['name']}** moves with incredible speed using {move_copy}!\n"
-                    f"🏃 Speed Increased!"
-                )
-            elif effect == "defense":
-                defender["damage"] *= 0.5
-                effect_message = (
-                    f"🛡️ **NIKA'S SHIELD**! 🛡️\n"
-                    f"**{attacker['name']}** becomes highly resistant with {move_copy}!\n"
-                    f"🛡️ Damage Taken Reduced!"
                 )
 
         elif "Model Thunderbird" in effect:
@@ -2430,15 +2416,6 @@ class BountyBattle(commands.Cog):
                 f"**{attacker['name']}** harnesses thunder itself!\n"
                 f"🌩️ Lightning Attack Enhanced!"
             )
-
-        elif "Model Cerberus" in effect:
-            if random.random() < 0.2:
-                damage *= 2
-                effect_message = (
-                    f"🐕 **GATES OF HELL**! 🐕\n"
-                    f"**{attacker['name']}** attacks with all three heads!\n"
-                    f"💥 Triple Damage Strike!"
-                )
 
         # Ancient Zoan Types
         elif "Model Spinosaurus" in effect:
@@ -2457,7 +2434,7 @@ class BountyBattle(commands.Cog):
                     f"**{attacker['name']}** soars through the skies!\n"
                     f"💨 Attack Dodged Through Flight!"
                 )
-
+                
         elif "Model Allosaurus" in effect:
             damage *= 1.25
             effect_message = (
@@ -2466,8 +2443,14 @@ class BountyBattle(commands.Cog):
                 f"💥 Attack Damage Increased by 25%!"
             )
 
-        if effect_message:
-            effect_message = await self._create_devil_fruit_announcement(attacker, fruit_data, effect_message)
+        else:
+            damage *= 1.2
+            effect_message = (
+                f"🐾 **ZOAN POWER**! 🐾\n"
+                f"**{attacker['name']}**'s transformation enhances their strength!\n"
+                f"💪 Attack Boosted!"
+            )
+
         return damage, effect_message
 
     async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
