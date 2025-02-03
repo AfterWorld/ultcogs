@@ -527,41 +527,100 @@ class BountyBattle(commands.Cog):
     @commands.command()
     async def mostwanted(self, ctx):
         """Display the top users with the highest bounties."""
-        bounties = await self.config.guild(ctx.guild).bounties()
+        # Load current bounty data from bounties.json
+        bounties = load_bounties()
         
-        if not bounties:  # Check if no bounties exist
+        if not bounties:
             return await ctx.send("🏴‍☠️ No bounties have been claimed yet! Be the first to start your journey with `.startbounty`.")
 
-        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)
+        # Filter out inactive or invalid entries and sort by amount
+        valid_bounties = []
+        for user_id, data in bounties.items():
+            try:
+                member = ctx.guild.get_member(int(user_id))
+                if member and data.get("amount", 0) > 0:
+                    valid_bounties.append((user_id, data))
+            except (ValueError, AttributeError):
+                continue
+
+        if not valid_bounties:
+            return await ctx.send("🏴‍☠️ No active bounties found! Start your journey with `.startbounty`.")
+
+        sorted_bounties = sorted(valid_bounties, key=lambda x: x[1]["amount"], reverse=True)
         pages = [sorted_bounties[i:i + 10] for i in range(0, len(sorted_bounties), 10)]
         
         current_page = 0
-        embed = await self.create_leaderboard_embed(pages[current_page])
+        
+        async def create_leaderboard_embed(page_data, page_num):
+            embed = discord.Embed(
+                title="🏆 Most Wanted Pirates 🏆",
+                description="The most notorious pirates of the sea!",
+                color=discord.Color.gold()
+            )
+            
+            total_pages = len(pages)
+            embed.set_footer(text=f"Page {page_num + 1}/{total_pages} | Total Pirates: {len(sorted_bounties)}")
+            
+            for i, (user_id, data) in enumerate(page_data, start=1 + (page_num * 10)):
+                member = ctx.guild.get_member(int(user_id))
+                if not member:
+                    continue
+                
+                # Get user's devil fruit if they have one
+                devil_fruit = data.get("fruit", "None")
+                fruit_display = f" • 🍎 {devil_fruit}" if devil_fruit and devil_fruit != "None" else ""
+                
+                # Create rank emoji based on position
+                rank_emoji = "👑" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                
+                # Format the bounty amount with commas
+                bounty_amount = "{:,}".format(data["amount"])
+                
+                embed.add_field(
+                    name=f"{rank_emoji} {member.display_name}",
+                    value=f"💰 `{bounty_amount} Berries`{fruit_display}",
+                    inline=False
+                )
+            
+            return embed
+
+        # Send initial embed
+        embed = await create_leaderboard_embed(pages[current_page], current_page)
         message = await ctx.send(embed=embed)
 
-        await message.add_reaction("⬅️")
-        await message.add_reaction("➡️")
+        # Add reactions for navigation
+        if len(pages) > 1:
+            await message.add_reaction("⬅️")
+            await message.add_reaction("➡️")
 
-        def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
+            def check(reaction, user):
+                return (
+                    user == ctx.author 
+                    and str(reaction.emoji) in ["⬅️", "➡️"] 
+                    and reaction.message.id == message.id
+                )
 
-        while True:
-            try:
-                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+            while True:
+                try:
+                    reaction, user = await self.bot.wait_for(
+                        "reaction_add",
+                        timeout=60.0,
+                        check=check
+                    )
 
-                if str(reaction.emoji) == "➡️":
-                    current_page = (current_page + 1) % len(pages)
-                elif str(reaction.emoji) == "⬅️":
-                    current_page = (current_page - 1) % len(pages)
+                    if str(reaction.emoji) == "➡️":
+                        current_page = (current_page + 1) % len(pages)
+                    elif str(reaction.emoji) == "⬅️":
+                        current_page = (current_page - 1) % len(pages)
 
-                embed = await self.create_leaderboard_embed(pages[current_page])  # Add await here!
-                await message.edit(embed=embed)
-                await message.remove_reaction(reaction, user)
-            except asyncio.TimeoutError:
-                break
+                    embed = await create_leaderboard_embed(pages[current_page], current_page)
+                    await message.edit(embed=embed)
+                    await message.remove_reaction(reaction, user)
+                    
+                except asyncio.TimeoutError:
+                    break
 
-        await message.clear_reactions()
-        
+            await message.clear_reactions()
 
     async def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
