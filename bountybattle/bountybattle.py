@@ -541,7 +541,7 @@ class BountyBattle(commands.Cog):
                 break
 
         await message.clear_reactions()
-
+        
 
     async def create_leaderboard_embed(self, bounties):
         embed = discord.Embed(title="🏆 Bounty Leaderboard 🏆", color=discord.Color.gold())
@@ -1002,40 +1002,56 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def check(self, ctx, member: discord.Member = None):
-        """Check a user's bounty, Devil Fruit, and count remaining rare fruits."""
+        """Check a user's bounty, Devil Fruit, and stats."""
         if member is None:
             member = ctx.author
 
-        # Load bounty data
-        base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle"
-        file_path = os.path.join(base_path, "bounties.json")
-
-        # Ensure the file exists before trying to read it
-        if not os.path.exists(file_path):
-            return await ctx.send("❌ No bounty data found! Try running `.getdata` first.")
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            bounties = json.load(f)
-
+        bounties = load_bounties()
         user_id = str(member.id)
 
-        # Check if user has a bounty entry
         if user_id not in bounties:
-            return await ctx.send(f"{member.display_name} has no bounty record! They need to start with `.startbounty`.")
+            return await ctx.send(f"🏴‍☠️ {member.display_name} has no bounty record! Use `.startbounty`.")
 
-        # Get bounty and fruit info
+        # Fetch bounty data
         bounty_amount = bounties[user_id].get("amount", 0)
         devil_fruit = bounties[user_id].get("fruit", "None")
 
+        # Fetch user stats from config
+        wins = await self.config.member(member).wins()
+        losses = await self.config.member(member).losses()
+        titles = await self.config.member(member).titles()
+        equipped_title = await self.config.member(member).equipped_title() or "None"
+
         # Count remaining rare fruits
-        taken_rare_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
+        taken_rare_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
         remaining_rare_fruits = len(DEVIL_FRUITS["Rare"]) - len(taken_rare_fruits)
 
-        # Format message
+        # Build embed
         embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
         embed.add_field(name="💰 Bounty", value=f"`{bounty_amount:,} Berries`", inline=False)
         embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`" if devil_fruit else "`None`", inline=False)
+        embed.add_field(name="🏆 Wins", value=f"`{wins}`", inline=True)
+        embed.add_field(name="💀 Losses", value=f"`{losses}`", inline=True)
         embed.add_field(name="🌟 Rare Fruits Left", value=f"`{remaining_rare_fruits}`", inline=False)
+        embed.add_field(name="🎖️ Titles", value=", ".join(titles) if titles else "`None`", inline=False)
+        embed.add_field(name="🎭 Equipped Title", value=f"`{equipped_title}`", inline=False)
+
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def topfruits(self, ctx):
+        """Show which rare Devil Fruits are still available."""
+        bounties = load_bounties()
+        
+        taken_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
+        available_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in taken_fruits]
+
+        embed = discord.Embed(title="🌟 Rare Devil Fruits Left", color=discord.Color.orange())
+        
+        if available_fruits:
+            embed.description = "\n".join(f"🍏 `{fruit}`" for fruit in available_fruits)
+        else:
+            embed.description = "❌ No rare fruits left to claim!"
 
         await ctx.send(embed=embed)
 
