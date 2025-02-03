@@ -1985,14 +1985,14 @@ class BountyBattle(commands.Cog):
             # Apply Devil Fruit effects
             if attacker["fruit"]:
                 fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
-            if fruit_data:
-                final_damage, fruit_effect = await self.apply_devil_fruit_effects(
-                    attacker, 
-                    defender, 
-                    base_damage, 
-                    move_copy,
-                    turn  # Add turn number here
-                )
+                if fruit_data:
+                    final_damage, fruit_effect = await self.apply_devil_fruit_effects(
+                        attacker, 
+                        defender, 
+                        base_damage, 
+                        move_copy,
+                        turn
+                    )
                 if fruit_effect:
                         # Create dramatic Devil Fruit activation message
                         fruit_embed = discord.Embed(
@@ -2199,17 +2199,17 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error unlocking achievement: {str(e)}")
     
-    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
+    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy, turn_number=1):
         """Apply Devil Fruit effects to combat."""
-        fruit_effect = None  # Initialize fruit_effect to None
+        fruit_effect = None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
         if not fruit:
-            return damage, fruit_effect  # Return tuple with fruit_effect as None
+            return damage, fruit_effect
 
         # Get fruit data from either Common or Rare categories
         fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
         if not fruit_data:
-            return damage, fruit_effect  # Return tuple with fruit_effect as None
+            return damage, fruit_effect
 
         effect_message = None
         fruit_type = fruit_data["type"]
@@ -2219,15 +2219,15 @@ class BountyBattle(commands.Cog):
             attacker["elements_used"] = set()
         attacker["elements_used"].add(fruit_type)
 
-        # Apply type-specific effects
+        # Apply type-specific effects with turn_number
         if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, move_copy)
+            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number)
         elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, move_copy)
+            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, move_copy)
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number)
 
-        return damage, effect_message  # Return tuple with effect_message (may be None)
+        return damage, effect_message
 
     async def _create_devil_fruit_announcement(self, attacker, fruit_data, effect_message):
         """Create a dramatic Devil Fruit ability announcement."""
