@@ -725,10 +725,13 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def removefruit(self, ctx, member: discord.Member = None):
-        """Remove a user's Devil Fruit. Owners remove for free, others pay 1,000,000 berries."""
+        """Remove a user's Devil Fruit. Owners and Admins remove for free, others pay 1,000,000 berries."""
         user = ctx.author
         member = member or user  # Defaults to the user running the command
-        is_owner = await self.bot.is_owner(user)  # Check if user is bot owner
+        
+        # Check if user is bot owner or has admin permissions
+        is_owner = await self.bot.is_owner(user)
+        is_admin = ctx.author.guild_permissions.administrator
 
         # Load both data sources
         bounties = load_bounties()
@@ -743,8 +746,8 @@ class BountyBattle(commands.Cog):
         # Get the actual fruit (prefer config over bounties)
         current_fruit = config_fruit or bounty_fruit
 
-        # ✅ Owners remove the fruit for free
-        if is_owner:
+        # ✅ Owners and Admins remove the fruit for free
+        if is_owner or is_admin:
             # Clear from both sources
             await self.config.member(member).devil_fruit.set(None)
             if user_id in bounties:
