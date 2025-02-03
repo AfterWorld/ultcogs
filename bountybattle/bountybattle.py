@@ -1518,7 +1518,7 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
-    def generate_health_bar(self, current_hp: int, max_hp: int = 250, length: int = 10) -> str:
+    def generate_health_bar(self, current_hp: int, max_hp: int = 300, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
@@ -1851,7 +1851,7 @@ class BountyBattle(commands.Cog):
         # Initialize player data with 300 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 250,
+            "hp": 300,
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1877,7 +1877,7 @@ class BountyBattle(commands.Cog):
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 250,
+            "hp": 300,
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1918,7 +1918,7 @@ class BountyBattle(commands.Cog):
             embed.add_field(
                 name=f"🏴‍☠️ {challenger_data['name']}",
                 value=(
-                    f"❤️ HP: {challenger_data['hp']}/250\n"
+                    f"❤️ HP: {challenger_data['hp']}/300\n"
                     f"{challenger_health}\n"
                     f"✨ Status: {challenger_status}{challenger_fruit_text}"
                 ),
@@ -2431,6 +2431,45 @@ class BountyBattle(commands.Cog):
                     f"💥 Damage Amplified!"
                 )
 
+        elif "Model Yamata no Orochi" in effect:  # Hebi Hebi no Mi: Model Yamata no Orochi
+            if random.random() < 0.3:
+                multi_strike = random.randint(2, 4)
+                damage *= multi_strike
+                effect_message = (
+                    f"🐍 **EIGHT-HEADED SERPENT STRIKE**! 🐍\n"
+                    f"**{attacker['name']}** attacks with multiple heads!\n"
+                    f"💥 {multi_strike}x Damage!"
+                )
+
+        elif "Model Rosamygale Grauvogeli" in effect:  # Ancient Spider
+            if random.random() < 0.35:
+                defender["status"]["movement_restricted"] = 2
+                damage *= 1.3
+                effect_message = (
+                    f"🕷️ **ANCIENT SPIDER'S HUNTING TECHNIQUE**! 🕷️\n"
+                    f"**{attacker['name']}** traps and strikes!\n"
+                    f"🕸️ Enemy Ensnared!"
+                )
+
+        elif "Model Seiryu" in effect:  # Uo Uo no Mi
+            if random.random() < 0.3:
+                damage *= 1.4
+                attacker["status"]["elemental_boost"] = True
+                effect_message = (
+                    f"🐉 **AZURE DRAGON'S MIGHT**! 🐉\n"
+                    f"**{attacker['name']}** channels divine power!\n"
+                    f"⚡ Damage Enhanced!"
+                )
+
+        elif "Model Allosaurus" in effect:
+            if random.random() < 0.25:
+                damage *= 1.5
+                effect_message = (
+                    f"🦖 **PREHISTORIC HUNTER**! 🦖\n"
+                    f"**{attacker['name']}** unleashes ancient might!\n"
+                    f"💥 Damage Boosted!"
+                )
+
         return damage, effect_message
 
     async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
@@ -2495,6 +2534,107 @@ class BountyBattle(commands.Cog):
                     f"🍡 **MOCHI STRIKE**! 🍡\n"
                     f"**{attacker['name']}** launches a powerful mochi attack!\n"
                     f"💥 Special Turn Damage Boost!"
+                )
+
+        elif effect == "barrier balls":  # Beri Beri no Mi
+            if random.random() < 0.3:
+                damage = 0
+                effect_message = (
+                    f"🔮 **BERRY BARRIER**! 🔮\n"
+                    f"**{attacker['name']}** splits into barrier balls!\n"
+                    f"✨ Attack Completely Evaded!"
+                )
+
+        elif effect == "copy":  # Mane Mane no Mi
+            if random.random() < 0.25:
+                damage *= 2
+                effect_message = (
+                    f"👥 **PERFECT MIMICRY**! 👥\n"
+                    f"**{attacker['name']}** copies the enemy's technique!\n"
+                    f"💥 Double Damage!"
+                )
+
+        elif effect == "multiple limbs":  # Hana Hana no Mi
+            if random.random() < 0.3:
+                extra_hits = random.randint(1, 3)
+                damage *= (1 + (0.5 * extra_hits))
+                effect_message = (
+                    f"🌸 **FLEUR CASCADE**! 🌸\n"
+                    f"**{attacker['name']}** sprouts multiple limbs!\n"
+                    f"👊 {extra_hits} Extra Attacks!"
+                )
+
+        elif effect == "weight":  # Kilo Kilo no Mi
+            if random.random() < 0.35:
+                if random.random() < 0.5:  # 50% chance for either effect
+                    damage *= 2
+                    effect_message = (
+                        f"⚖️ **WEIGHT CRUSH**! ⚖️\n"
+                        f"**{attacker['name']}** increases weight for devastating impact!\n"
+                        f"💥 Double Damage!"
+                    )
+                else:
+                    damage = 0
+                    effect_message = (
+                        f"🪶 **WEIGHTLESS DODGE**! 🪶\n"
+                        f"**{attacker['name']}** becomes weightless to evade!\n"
+                        f"✨ Attack Dodged!"
+                    )
+
+        elif effect == "feet":  # Ashi Ashi no Mi
+            if random.random() < 0.4:
+                damage *= 1.5
+                effect_message = (
+                    f"👣 **LIGHTNING FEET**! 👣\n"
+                    f"**{attacker['name']}** strikes with enhanced speed!\n"
+                    f"⚡ Damage Boosted!"
+                )
+
+        elif effect == "wheels":  # Shari Shari no Mi
+            if random.random() < 0.3:
+                damage *= 1.8
+                effect_message = (
+                    f"🎡 **WHEEL RUSH**! 🎡\n"
+                    f"**{attacker['name']}** transforms into a deadly wheel!\n"
+                    f"💨 Enhanced Strike!"
+                )
+
+        elif effect == "binding":  # Ori Ori no Mi
+            if random.random() < 0.25:
+                defender["status"]["movement_restricted"] = 2
+                effect_message = (
+                    f"⛓️ **BINDING PRISON**! ⛓️\n"
+                    f"**{attacker['name']}** restrains the enemy!\n"
+                    f"🔒 Movement Restricted!"
+                )
+
+        elif effect == "spider":  # Kumo Kumo no Mi
+            if random.random() < 0.3:
+                defender["status"]["movement_restricted"] = 2
+                defender["status"]["accuracy_reduction"] = 0.2
+                effect_message = (
+                    f"🕷️ **SPIDER'S WEB**! 🕷️\n"
+                    f"**{attacker['name']}** traps the enemy in sticky webs!\n"
+                    f"🕸️ Movement and Accuracy Reduced!"
+                )
+
+        elif effect == "honey":  # Mitsu Mitsu no Mi
+            if random.random() < 0.35:
+                defender["status"]["movement_restricted"] = 2
+                effect_message = (
+                    f"🍯 **HONEY TRAP**! 🍯\n"
+                    f"**{attacker['name']}** ensnares with sticky honey!\n"
+                    f"🌟 Enemy Movement Restricted!"
+                )
+
+        elif effect == "rust":  # Sabi Sabi no Mi
+            if random.random() < 0.3:
+                damage *= 1.5
+                defender["status"]["defense_reduced"] = True
+                effect_message = (
+                    f"🔨 **RUST DECAY**! 🔨\n"
+                    f"**{attacker['name']}** corrodes the enemy's defenses!\n"
+                    f"💫 Defense Reduced!"
                 )
 
         return damage, effect_message
