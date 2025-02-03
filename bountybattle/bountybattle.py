@@ -1485,21 +1485,6 @@ class BountyBattle(commands.Cog):
         except asyncio.TimeoutError:
             await ctx.send("You took too long to share a fun fact. Mission failed.")
             return False
-        
-    async def announce_top_three(self, ctx):
-        """Announce the top 3 most wanted pirates."""
-        bounties = await self.config.guild(ctx.guild).bounties()
-        sorted_bounties = sorted(bounties.items(), key=lambda x: x[1]["amount"], reverse=True)[:3]
-
-        embed = discord.Embed(title="🏆 Most Wanted Pirates", color=discord.Color.red())
-        for i, (user_id, bounty) in enumerate(sorted_bounties, start=1):
-            user = self.bot.get_user(int(user_id)) or await self.bot.fetch_user(int(user_id))
-            if user:
-                embed.add_field(name=f"{i}. {user.display_name}", value=f"{bounty['amount']:,} Berries", inline=False)
-
-        top_channel = discord.utils.get(ctx.guild.text_channels, name="bounty-board")
-        if top_channel:
-            await top_channel.send(embed=embed)
 
     async def handle_post_meme(self, ctx, user):
         """Handle the post a meme mission."""
@@ -2199,12 +2184,12 @@ class BountyBattle(commands.Cog):
         fruit_effect = None  # Initialize fruit_effect to None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
         if not fruit:
-            return damage, None
+            return damage, fruit_effect  # Return tuple with fruit_effect as None
 
         # Get fruit data from either Common or Rare categories
         fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
         if not fruit_data:
-            return damage, None
+            return damage, fruit_effect  # Return tuple with fruit_effect as None
 
         effect_message = None
         fruit_type = fruit_data["type"]
@@ -2222,7 +2207,7 @@ class BountyBattle(commands.Cog):
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
             damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn, move_copy)
 
-        return damage, effect_message
+        return damage, effect_message  # Return tuple with effect_message (may be None)
 
     async def _create_devil_fruit_announcement(self, attacker, fruit_data, effect_message):
         """Create a dramatic Devil Fruit ability announcement."""
