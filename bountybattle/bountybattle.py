@@ -578,7 +578,7 @@ class BountyBattle(commands.Cog):
                 
                 embed.add_field(
                     name=f"{rank_emoji} {member.display_name}",
-                    value=f"💰 `{bounty_amount} Berries`{fruit_display}",
+                    value=f"<:Beli:1237118142774247425> `{bounty_amount} Berries`{fruit_display}",
                     inline=False
                 )
             
