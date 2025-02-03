@@ -2201,7 +2201,7 @@ class BountyBattle(commands.Cog):
     
     async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy, turn_number=1):
         """Apply Devil Fruit effects to combat."""
-        fruit_effect = None
+        fruit_effect = None  # Initialize fruit_effect to None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
         if not fruit:
             return damage, fruit_effect
@@ -2219,13 +2219,13 @@ class BountyBattle(commands.Cog):
             attacker["elements_used"] = set()
         attacker["elements_used"].add(fruit_type)
 
-        # Apply type-specific effects with turn_number
+        # Apply type-specific effects - Making sure move_copy is passed to all handlers
         if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number)
+            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
         elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number)
+            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number)
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
 
         return damage, effect_message
 
