@@ -2199,7 +2199,7 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error unlocking achievement: {str(e)}")
     
-    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy, turn_number):
+    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
         """Apply Devil Fruit effects to combat."""
         fruit_effect = None  # Initialize fruit_effect to None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
@@ -2221,11 +2221,11 @@ class BountyBattle(commands.Cog):
 
         # Apply type-specific effects
         if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
+            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, move_copy)
         elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
+            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, move_copy)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, move_copy)
 
         return damage, effect_message  # Return tuple with effect_message (may be None)
 
