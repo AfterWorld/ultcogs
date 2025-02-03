@@ -588,7 +588,7 @@ class BountyBattle(commands.Cog):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
     
         # ✅ Get all rare fruits currently taken
-        all_taken_fruits = set(fruit for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"])
+        all_taken_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
     
         # ✅ Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
@@ -632,16 +632,22 @@ class BountyBattle(commands.Cog):
     async def removefruit(self, ctx, member: discord.Member = None):
         """Remove a user's Devil Fruit. Owners remove for free, others pay 1,000,000 berries."""
         user = ctx.author
-        member = member or user  # If no member is provided, remove for the command user
-        is_owner = await self.bot.is_owner(user)  # ✅ Check if the user is the bot owner
+        member = member or user  # Defaults to the user running the command
+        is_owner = await self.bot.is_owner(user)  # ✅ Check if user is bot owner
 
-        fruit = await self.config.member(member).devil_fruit()
-        if not fruit:
+        # Load bounty data
+        bounties = load_bounties()
+        user_id = str(member.id)
+
+        if user_id not in bounties or not bounties[user_id].get("fruit"):
             return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
 
-        # ✅ Owners remove the fruit for free, skipping the cost check
+        fruit = bounties[user_id]["fruit"]  # Get current fruit
+
+        # ✅ Owners remove the fruit for free
         if is_owner:
-            await self.config.member(member).devil_fruit.set(None)
+            bounties[user_id]["fruit"] = None
+            save_data(BOUNTY_FILE, bounties)  # Save changes
             return await ctx.send(f"🛡️ **{user.display_name}** removed `{fruit}` from **{member.display_name}** for free!")
 
         # Normal users must pay
@@ -649,16 +655,18 @@ class BountyBattle(commands.Cog):
         cost = 1_000_000
 
         if berries < cost:
-            return await ctx.send(f"❌ You don't have enough berries! You need **{cost:,}** berries to remove your Devil Fruit.")
+            return await ctx.send(f"❌ You need **{cost:,}** berries to remove your Devil Fruit.")
 
-        # Deduct cost and remove the fruit
+        # Deduct cost and remove fruit
         await self.config.member(user).berries.set(berries - cost)
-        await self.config.member(member).devil_fruit.set(None)
+        bounties[user_id]["fruit"] = None
+        save_data(BOUNTY_FILE, bounties)  # Save changes
 
         await ctx.send(
-            f"💰 **{user.display_name}** has paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
+            f"💰 **{user.display_name}** paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
             f"That fruit can now be found again! 🍏"
         )
+
         
     @commands.command()
     @commands.is_owner()
