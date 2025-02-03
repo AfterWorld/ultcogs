@@ -1881,7 +1881,7 @@ class BountyBattle(commands.Cog):
         challenger_fruit = await self.config.member(challenger).devil_fruit()
         opponent_fruit = await self.config.member(opponent).devil_fruit()
         
-        # Initialize player data with 300 HP
+        # Initialize player data with 250 HP
         challenger_data = {
             "name": challenger.display_name,
             "hp": 250,
@@ -1897,6 +1897,18 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
+            },
+            "stats": {  # Added stats dictionary
+                "damage": 0,
+                "heal": 0,
+                "critical_hits": 0,
+                "blocks": 0,
+                "burns_applied": 0,
+                "stuns_applied": 0,
+                "damage_dealt": 0,
+                "damage_taken": 0,
+                "healing_done": 0,
+                "turns_survived": 0
             }
         }
 
@@ -1915,6 +1927,18 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
+            },
+            "stats": {  # Added stats dictionary
+                "damage": 0,
+                "heal": 0,
+                "critical_hits": 0,
+                "blocks": 0,
+                "burns_applied": 0,
+                "stuns_applied": 0,
+                "damage_dealt": 0,
+                "damage_taken": 0,
+                "healing_done": 0,
+                "turns_survived": 0
             }
         }
 
@@ -1930,14 +1954,16 @@ class BountyBattle(commands.Cog):
             """Update HP with proper rounding."""
             if is_damage:
                 player["hp"] = max(0, int(round(player["hp"] - amount)))
+                player["stats"]["damage_taken"] += amount
             else:
                 player["hp"] = min(250, int(round(player["hp"] + amount)))
+                player["stats"]["healing_done"] += amount
 
         # Define the update_player_fields function
         def update_player_fields():
             # Challenger field
             challenger_status = self.get_status_icons(challenger_data)
-            challenger_health = self.generate_health_bar(int(challenger_data["hp"]))
+            challenger_health = self.generate_health_bar(int(challenger_data["hp"]), max_hp=250)
             challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
             
             embed.add_field(
@@ -1955,7 +1981,7 @@ class BountyBattle(commands.Cog):
 
             # Opponent field
             opponent_status = self.get_status_icons(opponent_data)
-            opponent_health = self.generate_health_bar(int(opponent_data["hp"]))
+            opponent_health = self.generate_health_bar(int(opponent_data["hp"]), max_hp=250)
             opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
             
             embed.add_field(
@@ -1984,6 +2010,10 @@ class BountyBattle(commands.Cog):
             turn += 1
             attacker = players[current_player]
             defender = players[1 - current_player]
+
+            # Update turn survival stat
+            attacker["stats"]["turns_survived"] = turn
+            defender["stats"]["turns_survived"] = turn
             
             # Check for battle stop
             if self.battle_stopped:
@@ -2022,12 +2052,13 @@ class BountyBattle(commands.Cog):
                     if fruit_effect:
                         await battle_log.edit(content=f"{battle_log.content}\n{fruit_effect}")
 
-            # Update HP using new function
+            # Update stats and HP
+            attacker["stats"]["damage_dealt"] += final_damage
             update_hp(defender, final_damage, is_damage=True)
             
             # Process healing or other HP changes
             if move_copy.get("effect") == "heal":
-                heal_amount = int(round(move_copy.get("heal", 10)))  # Round heal amount
+                heal_amount = int(round(move_copy.get("heal", 10)))
                 update_hp(attacker, heal_amount, is_damage=False)
 
             # Create action description
