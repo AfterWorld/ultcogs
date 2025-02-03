@@ -1930,20 +1930,21 @@ class BountyBattle(commands.Cog):
             base_damage = self.calculate_damage(move_copy["type"])
             
             # Apply Devil Fruit effects
+            fruit_effect = None  # Initialize fruit_effect to None
             if attacker["fruit"]:
                 fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
                 if fruit_data:
                     # Handle different fruit types
                     if fruit_data["type"] == "Logia":
-                        final_damage, base_effect = await self._handle_logia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+                        final_damage, fruit_effect = await self._handle_logia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
                     elif "Zoan" in fruit_data["type"]:
-                        final_damage, base_effect = await self._handle_zoan_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+                        final_damage, fruit_effect = await self._handle_zoan_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
                     elif fruit_data["type"] in ["Paramecia", "Special Paramecia"]:
-                        final_damage, base_effect = await self._handle_paramecia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+                        final_damage, fruit_effect = await self._handle_paramecia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
 
                     # Create dramatic announcement if there was an effect
-                    if base_effect:
-                        fruit_effect = await self._create_devil_fruit_announcement(attacker, fruit_data, base_effect)
+                    if fruit_effect:
+                        fruit_effect = await self._create_devil_fruit_announcement(attacker, fruit_data, fruit_effect)
                         # Send separate announcement
                         await ctx.send(fruit_effect)
                         await asyncio.sleep(2)
@@ -1952,7 +1953,6 @@ class BountyBattle(commands.Cog):
                         effect_messages.append(fruit_effect)
             else:
                 final_damage = base_damage
-                fruit_effect = None
             
             # Apply status modifiers
             if defender["status"]["protected"]:
