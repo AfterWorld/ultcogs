@@ -958,7 +958,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def check(self, ctx, member: discord.Member = None):
-        """Check a user's bounty and Devil Fruit."""
+        """Check a user's bounty, Devil Fruit, and count remaining rare fruits."""
         if member is None:
             member = ctx.author
 
@@ -983,12 +983,18 @@ class BountyBattle(commands.Cog):
         bounty_amount = bounties[user_id].get("amount", 0)
         devil_fruit = bounties[user_id].get("fruit", "None")
 
+        # Count remaining rare fruits
+        taken_rare_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
+        remaining_rare_fruits = len(DEVIL_FRUITS["Rare"]) - len(taken_rare_fruits)
+
         # Format message
         embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
         embed.add_field(name="💰 Bounty", value=f"`{bounty_amount:,} Berries`", inline=False)
         embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`" if devil_fruit else "`None`", inline=False)
+        embed.add_field(name="🌟 Rare Fruits Left", value=f"`{remaining_rare_fruits}`", inline=False)
 
         await ctx.send(embed=embed)
+
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
