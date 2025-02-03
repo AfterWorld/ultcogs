@@ -2014,33 +2014,161 @@ class BountyBattle(commands.Cog):
         embed.description = f"**{winner['name']}** is victorious!"
         await message.edit(embed=embed)
 
-    async def _handle_battle_rewards(self, ctx, winner, loser):
-        """Handle post-battle rewards and stat updates."""
-        # Update bounties
-        bounty_increase = random.randint(1000, 3000)
-        bounties = load_bounties()
-        winner_id = str(winner["member"].id)
+    async def process_status_effects(self, attacker, defender):
+        """Process all status effects and return effect messages."""
+        status_messages = []
         
-        if winner_id in bounties:
-            bounties[winner_id]["amount"] += bounty_increase
+        # Process burn damage
+        if attacker["status"]["burn"] > 0:
+            burn_damage = 5 * attacker["status"]["burn"]
+            attacker["hp"] = max(0, attacker["hp"] - burn_damage)
+            attacker["status"]["burn"] = max(0, attacker["status"]["burn"] - 1)
+            status_messages.append(f"🔥 **{attacker['name']}** takes `{burn_damage}` burn damage!")
+
+        # Process frozen status
+        if attacker["status"]["frozen"] > 0:
+            attacker["status"]["frozen"] -= 1
+            if attacker["status"]["frozen"] > 0:
+                status_messages.append(f"❄️ **{attacker['name']}** is frozen and cannot move!")
+                return "\n".join(status_messages)
+
+        # Process stun
+        if attacker["status"]["stun"]:
+            attacker["status"]["stun"] = False
+            status_messages.append(f"⚡ **{attacker['name']}** is stunned and loses their turn!")
+            return "\n".join(status_messages)
+
+        # Process transformation
+        if attacker["status"]["transformed"] > 0:
+            attacker["status"]["transformed"] -= 1
+            if attacker["status"]["transformed"] > 0:
+                status_messages.append(f"✨ **{attacker['name']}**'s transformation boosts their power!")
+
+        # Process protection
+        if attacker["status"]["protected"]:
+            attacker["status"]["protected"] = False
+            status_messages.append(f"🛡️ **{attacker['name']}**'s barrier fades away.")
+
+        # Process accuracy reduction
+        if attacker["status"]["accuracy_turns"] > 0:
+            attacker["status"]["accuracy_turns"] -= 1
+            if attacker["status"]["accuracy_turns"] == 0:
+                attacker["status"]["accuracy_reduction"] = 0
+                status_messages.append(f"👁️ **{attacker['name']}**'s accuracy returns to normal!")
+            else:
+                status_messages.append(f"🌫️ **{attacker['name']}**'s accuracy is still reduced!")
+
+        return "\n".join(status_messages) if status_messages else None
+
+    async def _handle_battle_rewards(self, ctx, winner, loser):
+        """Handle post-battle rewards and updates."""
+        try:
+            # Update bounties
+            bounties = load_bounties()
+            winner_id = str(winner["member"].id)
+            loser_id = str(loser["member"].id)
+            
+            # Calculate bounty changes
+            bounty_increase = random.randint(1000, 3000)
+            bounty_decrease = random.randint(500, 1500)
+            
+            # Update winner's bounty
+            if winner_id in bounties:
+                bounties[winner_id]["amount"] += bounty_increase
+                
+            # Update loser's bounty
+            if loser_id in bounties:
+                current_bounty = bounties[loser_id].get("amount", 0)
+                bounties[loser_id]["amount"] = max(0, current_bounty - bounty_decrease)
+            
+            # Save bounty changes
             save_bounties(bounties)
             
-            # Announce bounty increase
-            await ctx.send(
-                f"💰 **{winner['name']}**'s bounty increased by `{bounty_increase:,}` Berries!\n"
-                f"New Bounty: `{bounties[winner_id]['amount']:,}` Berries"
+            # Update stats
+            await self.config.member(winner["member"]).wins.set(
+                await self.config.member(winner["member"]).wins() + 1
             )
+            await self.config.member(loser["member"]).losses.set(
+                await self.config.member(loser["member"]).losses() + 1
+            )
+            
+            # Update last active time
+            current_time = datetime.utcnow().isoformat()
+            await self.config.member(winner["member"]).last_active.set(current_time)
+            await self.config.member(loser["member"]).last_active.set(current_time)
+            
+            # Announce results
+            embed = discord.Embed(
+                title="🏆 Battle Results",
+                color=discord.Color.gold()
+            )
+            
+            embed.add_field(
+                name="Winner",
+                value=(
+                    f"**{winner['name']}**\n"
+                    f"+ `{bounty_increase:,}` Berries\n"
+                    f"New Bounty: `{bounties[winner_id]['amount']:,}` Berries"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="Loser",
+                value=(
+                    f"**{loser['name']}**\n"
+                    f"- `{bounty_decrease:,}` Berries\n"
+                    f"New Bounty: `{bounties[loser_id]['amount']:,}` Berries"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+            # Check achievements
+            await self.check_achievements(winner["member"])
+            await self.check_achievements(loser["member"])
+            
+        except Exception as e:
+            logger.error(f"Error in battle rewards: {str(e)}")
+            await ctx.send("❌ An error occurred while processing battle rewards!")
 
-        # Update stats
-        await self.config.member(winner["member"]).wins.set(
-            await self.config.member(winner["member"]).wins() + 1
-        )
-        await self.config.member(loser["member"]).losses.set(
-            await self.config.member(loser["member"]).losses() + 1
-        )
+    async def _unlock_achievement(self, member, achievement_name):
+        """Unlock a specific achievement for a member."""
+        try:
+            if achievement_name not in ACHIEVEMENTS:
+                return
 
-        # Check achievements
-        await self.check_achievements(winner["member"])
+            current_achievements = await self.config.member(member).achievements()
+            if achievement_name not in current_achievements:
+                current_achievements.append(achievement_name)
+                await self.config.member(member).achievements.set(current_achievements)
+                
+                achievement_data = ACHIEVEMENTS[achievement_name]
+                await self.config.member(member).titles.set(
+                    await self.config.member(member).titles() + [achievement_data["title"]]
+                )
+                
+                # Create achievement unlock announcement
+                embed = discord.Embed(
+                    title="🎉 Achievement Unlocked!",
+                    description=f"**{member.display_name}** has unlocked: `{achievement_data['description']}`",
+                    color=discord.Color.green()
+                )
+                embed.add_field(
+                    name="Title Earned",
+                    value=f"`{achievement_data['title']}`",
+                    inline=False
+                )
+                
+                # Send to the channel where the achievement was earned
+                if member.guild:
+                    channel = discord.utils.get(member.guild.text_channels, name="achievements")
+                    if channel:
+                        await channel.send(embed=embed)
+                        
+        except Exception as e:
+            logger.error(f"Error unlocking achievement: {str(e)}")
     
     async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
         """Apply Devil Fruit effects to combat."""
