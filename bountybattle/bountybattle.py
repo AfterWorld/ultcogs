@@ -908,7 +908,7 @@ class BountyBattle(commands.Cog):
                     return title
             return "Unknown Pirate"
 
-    
+	
 
 	@commands.command()
 	@commands.admin_or_permissions(administrator=True)  # Restrict to admins
