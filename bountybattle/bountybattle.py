@@ -1984,7 +1984,7 @@ class BountyBattle(commands.Cog):
             
             # Apply Devil Fruit effects
             if attacker["fruit"]:
-            fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
+                fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
             if fruit_data:
                 final_damage, fruit_effect = await self.apply_devil_fruit_effects(
                     attacker, 
