@@ -472,7 +472,7 @@ class BountyBattle(commands.Cog):
     async def startbounty(self, ctx):
         """Start your bounty journey."""
         user = ctx.author
-        bounties = load_data(BOUNTY_FILE)
+        bounties = load_bounties()  # ✅ Use load_bounties() instead
         user_id = str(user.id)
     
         if user_id in bounties:
@@ -859,7 +859,7 @@ class BountyBattle(commands.Cog):
         if member is None:
             member = ctx.author
     
-        bounties = load_data(BOUNTY_FILE)
+        bounties = load_bounties()  # ✅ Use load_bounties() instead
         user_id = str(member.id)
     
         if user_id not in bounties:
