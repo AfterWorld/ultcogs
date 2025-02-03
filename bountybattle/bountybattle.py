@@ -581,7 +581,7 @@ class BountyBattle(commands.Cog):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
     
         # ✅ Get all rare fruits currently taken
-        all_taken_fruits = {data["fruit"] for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
+        all_taken_fruits = set(fruit for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"])
     
         # ✅ Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
@@ -1551,6 +1551,35 @@ class BountyBattle(commands.Cog):
             # Define attacker and defender
             attacker = players[turn_index]
             defender = players[1 - turn_index]  # Now defender is correctly assigned
+
+            # Select move
+            move = random.choice(MOVES)
+
+            # Get Devil Fruit data for attacker
+            attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
+            fruit_data = None
+            if attacker_fruit:
+                fruit_data = DEVIL_FRUITS["Common"].get(attacker_fruit) or DEVIL_FRUITS["Rare"].get(attacker_fruit)
+
+            # Apply environmental effects
+            environment_effect(move, attacker)
+
+            # Calculate base damage
+            damage = self.calculate_damage(move["type"])
+
+            # ✅ Apply Devil Fruit effects before finalizing damage
+            if fruit_data:
+                damage = await self.apply_devil_fruit_effect(attacker, defender, damage, move, fruit_data, embed)
+
+            # Apply block logic
+            if defender["status"].get("block_active", False):
+                damage = max(0, damage - 10)  # Reduce damage by block amount
+                await self.config.member(defender["member"]).blocks.set(
+                    await self.config.member(defender["member"]).blocks() + 1
+                )
+
+            # Apply effects
+            await self.apply_effects(move, attacker, defender)
             
             # Check if the attacker has a Devil Fruit
             attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
@@ -1775,22 +1804,31 @@ class BountyBattle(commands.Cog):
 
     async def apply_devil_fruit_effect(self, attacker, defender, damage, move, fruit_data, embed):
         """Apply devil fruit effects and return any effect messages."""
-        fruit_type = fruit_data["type"]
-        fruit_effect = fruit_data["effect"]
+        if not fruit_data:
+            return damage  # No fruit, no effect
+
+        fruit_type = fruit_data.get("type", "")
+        fruit_effect = fruit_data.get("effect", "")
         effect_message = None
+
+        # Ensure defender has a status dictionary
+        defender.setdefault("status", {})
 
         # Handle different fruit types
         if fruit_type == "Logia":
             damage, effect_message = await self.handle_logia_effects(attacker, defender, damage, fruit_effect)
-        elif "Zoan" in fruit_type:  # This connects to your Zoan handler
+        elif "Zoan" in fruit_type:
             damage, effect_message = await self.handle_zoan_effects(attacker, defender, damage, fruit_effect, move)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
             damage, effect_message = await self.handle_paramecia_effects(attacker, defender, damage, fruit_effect, move)
-            
-        # Update embed if there's an effect message
-        if effect_message and embed:
-            current_desc = embed.description or ""
-            embed.description = f"{current_desc}\n{effect_message}"
+
+        # Add effect message to embed if it exists
+        if effect_message:
+            if embed.description is None:
+                embed.description = effect_message
+            else:
+                embed.description += f"\n{effect_message}"
+
         return damage
 
     async def handle_logia_effects(self, attacker, defender, damage, effect):
