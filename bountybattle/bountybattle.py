@@ -649,22 +649,29 @@ class BountyBattle(commands.Cog):
         """Remove a user's Devil Fruit. Owners remove for free, others pay 1,000,000 berries."""
         user = ctx.author
         member = member or user  # Defaults to the user running the command
-        is_owner = await self.bot.is_owner(user)  # ✅ Check if user is bot owner
+        is_owner = await self.bot.is_owner(user)  # Check if user is bot owner
 
-        # Load bounty data
+        # Load both data sources
         bounties = load_bounties()
         user_id = str(member.id)
+        config_fruit = await self.config.member(member).devil_fruit()
+        bounty_fruit = bounties.get(user_id, {}).get("fruit", None)
 
-        if user_id not in bounties or not bounties[user_id].get("fruit"):
+        # Check both sources for devil fruit
+        if not config_fruit and not bounty_fruit:
             return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
 
-        fruit = bounties[user_id]["fruit"]  # Get current fruit
+        # Get the actual fruit (prefer config over bounties)
+        current_fruit = config_fruit or bounty_fruit
 
         # ✅ Owners remove the fruit for free
         if is_owner:
-            bounties[user_id]["fruit"] = None
-            save_bounties(bounties)  # ✅ Use save_bounties() instead  # Save changes
-            return await ctx.send(f"🛡️ **{user.display_name}** removed `{fruit}` from **{member.display_name}** for free!")
+            # Clear from both sources
+            await self.config.member(member).devil_fruit.set(None)
+            if user_id in bounties:
+                bounties[user_id]["fruit"] = None
+                save_bounties(bounties)
+            return await ctx.send(f"🛡️ **{user.display_name}** removed `{current_fruit}` from **{member.display_name}** for free!")
 
         # Normal users must pay
         berries = await self.config.member(user).berries()
@@ -675,11 +682,14 @@ class BountyBattle(commands.Cog):
 
         # Deduct cost and remove fruit
         await self.config.member(user).berries.set(berries - cost)
-        bounties[user_id]["fruit"] = None
-        save_bounties(bounties)  # ✅ Use save_bounties() instead  # Save changes
+        await self.config.member(member).devil_fruit.set(None)
+        
+        if user_id in bounties:
+            bounties[user_id]["fruit"] = None
+            save_bounties(bounties)
 
         await ctx.send(
-            f"💰 **{user.display_name}** paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
+            f"💰 **{user.display_name}** paid **{cost:,}** berries to remove `{current_fruit}` from **{member.display_name}**!\n"
             f"That fruit can now be found again! 🍏"
         )
 
@@ -700,21 +710,36 @@ class BountyBattle(commands.Cog):
     async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
         """Give a user a Devil Fruit (Admin only)."""
         fruit = fruit.strip().title()  # Normalize case & remove spaces
-        all_fruits = {name.lower(): name for name in {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}}  # Convert keys to lowercase
+        all_fruits = {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}
+        fruit_names = {name.lower(): name for name in all_fruits}  # Convert keys to lowercase
 
-        if fruit.lower() not in all_fruits:
+        if fruit.lower() not in fruit_names:
             return await ctx.send("❌ That Devil Fruit does not exist in the current list.")
 
-        current_fruit = await self.config.member(member).devil_fruit()
-        if current_fruit:
-            return await ctx.send(f"❌ **{member.display_name}** already has `{current_fruit}`! They must remove it first.")
+        # Check both sources for existing fruit
+        bounties = load_bounties()
+        user_id = str(member.id)
+        config_fruit = await self.config.member(member).devil_fruit()
+        bounty_fruit = bounties.get(user_id, {}).get("fruit", None)
 
-        # Assign the correctly formatted fruit name
-        fruit_name = all_fruits[fruit.lower()]
+        # If either source has a fruit, prevent giving new fruit
+        if config_fruit or bounty_fruit:
+            existing_fruit = config_fruit or bounty_fruit
+            return await ctx.send(f"❌ **{member.display_name}** already has `{existing_fruit}`! They must remove it first.")
+
+        # Assign the correctly formatted fruit name to both sources
+        fruit_name = fruit_names[fruit.lower()]
         await self.config.member(member).devil_fruit.set(fruit_name)
+        
+        # Initialize or update bounties entry
+        if user_id not in bounties:
+            bounties[user_id] = {"amount": 0, "fruit": fruit_name}
+        else:
+            bounties[user_id]["fruit"] = fruit_name
+        save_bounties(bounties)
 
         await ctx.send(f"🍏 **{member.display_name}** has been given the `{fruit_name}`!")
-
+        
     @commands.command()
     async def myfruit(self, ctx):
         """Check which Devil Fruit you have eaten."""
