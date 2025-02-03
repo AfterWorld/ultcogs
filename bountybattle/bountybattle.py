@@ -839,7 +839,7 @@ class BountyBattle(commands.Cog):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         
         # Define dynamic paths (works across different setups)
-        base_path = os.path.join("data", "bountybattle")
+        base_path = os.path.join("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/")
         wanted_poster_path = os.path.join(base_path, "wanted.png")
         font_path = os.path.join(base_path, "onepiece.ttf")
     
