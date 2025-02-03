@@ -1278,7 +1278,7 @@ class BountyBattle(commands.Cog):
         """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
         try:
             user = ctx.author
-            bounties = load_bounties()  # Use load_bounties instead of config
+            bounties = load_bounties()
             user_id = str(user.id)
 
             if user_id not in bounties:
@@ -1333,16 +1333,20 @@ class BountyBattle(commands.Cog):
             if won:
                 # Calculate bonus multiplier based on risk
                 multiplier = 1.0
-                if bet > 50000: multiplier = 2.0
-                elif bet > 10000: multiplier = 1.5
+                if bet > 50000:
+                    multiplier = 2.0
+                elif bet > 10000:
+                    multiplier = 1.5
                 
                 winnings = int(bet * multiplier)
                 bounties[user_id]["amount"] += winnings
 
+                bonus_text = f"💫 BONUS WIN! ({multiplier}x Multiplier)\n" if multiplier > 1 else ""
+                
                 embed.color = discord.Color.green()
                 embed.description = (
                     f"🎉 **{user.display_name}** won `{winnings:,}` Berries!\n"
-                    f"{'💫 BONUS WIN! ({}x Multiplier)'.format(multiplier) if multiplier > 1 else ''}\n"
+                    f"{bonus_text}"
                     f"New Bounty: `{bounties[user_id]['amount']:,}` Berries"
                 )
             else:
@@ -1874,14 +1878,20 @@ class BountyBattle(commands.Cog):
             "stats": {"damage": 0, "heal": 0}
         }
 
-        # Announce battle start with fruits
+        # Create battle announcement
+        challenger_powers = f"powers: `{challenger_fruit}`" if challenger_fruit else ""
+        opponent_powers = f"powers: `{opponent_fruit}`" if opponent_fruit else ""
+        
+        battle_description = (
+            f"Battle begins in **{environment}**!\n"
+            f"**{challenger.display_name}** {challenger_powers} VS "
+            f"**{opponent.display_name}** {opponent_powers}"
+        )
+
+        # Create the embed
         embed = discord.Embed(
             title="🏴‍☠️ One Piece Deathmatch ⚔️",
-            description=(
-                f"Battle begins in **{environment}**!\n"
-                f"**{challenger.display_name}** {f'powers: `{challenger_fruit}`' if challenger_fruit else ''} VS "
-                f"**{opponent.display_name}** {f'powers: `{opponent_fruit}`' if opponent_fruit else ''}"
-            ),
+            description=battle_description,
             color=discord.Color.blue()
         )
 
@@ -1957,14 +1967,18 @@ class BountyBattle(commands.Cog):
             # Update HP
             defender["hp"] = max(0, defender["hp"] - final_damage)
 
-            # Update embed
-            embed.description = (
-                f"**{attacker['name']}** used **{move_copy['name']}**!\n"
-                f"{move_copy['description']}\n"
-                f"{''.join(f'{msg}\n' for msg in effect_messages)}"
-                f"Dealt **{final_damage}** damage!"
-            )
+            # Create action description
+            action_description = [
+                f"**{attacker['name']}** used **{move_copy['name']}**!",
+                move_copy['description']
+            ]
+            action_description.extend(effect_messages)
+            action_description.append(f"Dealt **{final_damage}** damage!")
             
+            # Update embed
+            embed.description = "\n".join(action_description)
+            
+            # Update health bars
             embed.set_field_at(
                 0,
                 name="\u200b",
