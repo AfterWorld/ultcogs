@@ -1884,7 +1884,7 @@ class BountyBattle(commands.Cog):
         # Initialize player data with 300 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 300,
+            "hp": 250,
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1902,7 +1902,7 @@ class BountyBattle(commands.Cog):
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 300,
+            "hp": 250,
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1925,13 +1925,50 @@ class BountyBattle(commands.Cog):
             color=discord.Color.blue()
         )
 
+        # Define the update_hp function
         def update_hp(player, amount, is_damage=True):
             """Update HP with proper rounding."""
             if is_damage:
                 player["hp"] = max(0, int(round(player["hp"] - amount)))
             else:
-                player["hp"] = min(300, int(round(player["hp"] + amount)))
+                player["hp"] = min(250, int(round(player["hp"] + amount)))
 
+        # Define the update_player_fields function
+        def update_player_fields():
+            # Challenger field
+            challenger_status = self.get_status_icons(challenger_data)
+            challenger_health = self.generate_health_bar(int(challenger_data["hp"]))
+            challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
+            
+            embed.add_field(
+                name=f"🏴‍☠️ {challenger_data['name']}",
+                value=(
+                    f"❤️ HP: {int(challenger_data['hp'])}/250\n"
+                    f"{challenger_health}\n"
+                    f"✨ Status: {challenger_status}{challenger_fruit_text}"
+                ),
+                inline=True
+            )
+
+            # VS Separator
+            embed.add_field(name="⚔️", value="VS", inline=True)
+
+            # Opponent field
+            opponent_status = self.get_status_icons(opponent_data)
+            opponent_health = self.generate_health_bar(int(opponent_data["hp"]))
+            opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
+            
+            embed.add_field(
+                name=f"🏴‍☠️ {opponent_data['name']}",
+                value=(
+                    f"❤️ HP: {int(opponent_data['hp'])}/250\n"
+                    f"{opponent_health}\n"
+                    f"✨ Status: {opponent_status}{opponent_fruit_text}"
+                ),
+                inline=True
+            )
+
+        # Now we can call update_player_fields and send the initial message
         update_player_fields()
         message = await ctx.send(embed=embed)
 
