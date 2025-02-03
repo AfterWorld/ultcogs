@@ -28,6 +28,13 @@ def load_data(file):
 def save_data(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
+        
+def load_bounties():
+    """Load bounty data from file."""
+    if not os.path.exists(BOUNTY_FILE):
+        return {}
+    with open(BOUNTY_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 	    
 # Initialize logger
 logger = logging.getLogger("red.bounty")
