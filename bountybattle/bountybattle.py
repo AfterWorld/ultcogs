@@ -743,8 +743,8 @@ class BountyBattle(commands.Cog):
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty."""
         hunter = ctx.author
-        bounties = await self.config.guild(ctx.guild).bounties()
-        
+        bounties = load_bounties()  # ✅ Use JSON-based storage
+
         hunter_id = str(hunter.id)
         target_id = str(target.id)
 
@@ -754,39 +754,69 @@ class BountyBattle(commands.Cog):
         if hunter_id == target_id:
             return await ctx.send("Ye can't hunt yer own bounty, ye scallywag!")
 
-        target_bounty = bounties[target_id]["amount"]
+        target_bounty = bounties[target_id].get("amount", 0)
+        hunter_bounty = bounties[hunter_id].get("amount", 0)
+
         if target_bounty < 1000:
             return await ctx.send(f"{target.display_name} is too broke to be worth hunting!")
 
+        # ✅ Add a critical failure chance (5% chance to lose bounty instead of stealing)
+        critical_failure = random.randint(1, 100) <= 5
         success = random.choice([True, False])
-        steal_amount = int(random.uniform(0.05, 0.20) * target_bounty)
 
-        if success:
+        # ✅ Ensure bounty stolen is never 0 (minimum 500 Berries)
+        steal_amount = max(int(random.uniform(0.05, 0.20) * target_bounty), 500)
+
+        if success and not critical_failure:
             bounties[hunter_id]["amount"] += steal_amount
-            bounties[target_id]["amount"] = max(0, bounties[target_id]["amount"] - steal_amount)
-            
-            await self.config.guild(ctx.guild).bounties.set(bounties)
-            await self.config.member(ctx.author).last_active.set(datetime.utcnow().isoformat())
+            bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
+
+            save_bounties(bounties)  # ✅ Save to JSON
+
+            # ✅ Track stats
+            await self.config.member(hunter).last_active.set(datetime.utcnow().isoformat())
             await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
 
             current_stolen = await self.config.member(hunter).bounty_hunted() or 0
             total_stolen = current_stolen + steal_amount
             await self.config.member(hunter).bounty_hunted.set(total_stolen)
-            
+
+            # ✅ Unlock "The Bounty Hunter" title
             if total_stolen >= 100_000:
                 unlocked_titles = await self.config.member(hunter).titles()
                 if "The Bounty Hunter" not in unlocked_titles:
                     unlocked_titles.append("The Bounty Hunter")
                     await self.config.member(hunter).titles.set(unlocked_titles)
-                    await ctx.send(f"💰 **{hunter.display_name}** has unlocked the secret title: `The Bounty Hunter`!")
-            
-            await ctx.send(
-                f"🏴‍☠️ **{hunter.display_name}** successfully hunted **{target.display_name}** "
-                f"and stole `{steal_amount:,} Berries`!\n"
-                f"💰 **New Winner Bounty:** `{bounties[hunter_id]['amount']:,} Berries`\n"
-                f"💀 **New Loser Bounty:** `{bounties[target_id]['amount']:,} Berries`"
+                    await ctx.send(f"💰 **{hunter.display_name}** has unlocked the secret title: `The Bounty Hunter`! 🎖️")
+
+            # ✅ Use an embed for a cleaner response
+            embed = discord.Embed(
+                title="🏴‍☠️ Bounty Hunt Success!",
+                description=f"💰 **{hunter.display_name}** successfully hunted **{target.display_name}**!",
+                color=discord.Color.green()
             )
+            embed.add_field(name="💰 Stolen Amount", value=f"`{steal_amount:,} Berries`", inline=False)
+            embed.add_field(name="🏆 New Hunter Bounty", value=f"`{bounties[hunter_id]['amount']:,} Berries`", inline=True)
+            embed.add_field(name="💀 New Target Bounty", value=f"`{bounties[target_id]['amount']:,} Berries`", inline=True)
+            await ctx.send(embed=embed)
+
+        elif critical_failure:
+            # ✅ 5% chance for the hunter to lose bounty instead of stealing!
+            penalty = max(int(hunter_bounty * 0.10), 1000)  # Lose 10% of bounty or at least 1,000 Berries
+            bounties[hunter_id]["amount"] = max(0, hunter_bounty - penalty)
+            save_bounties(bounties)
+
+            embed = discord.Embed(
+                title="❌ Critical Failure!",
+                description=f"💀 **{hunter.display_name}** tried to steal from **{target.display_name}** but got caught!",
+                color=discord.Color.red()
+            )
+            embed.add_field(name="📉 Lost Bounty", value=f"`{penalty:,} Berries`", inline=False)
+            embed.add_field(name="🏴‍☠️ Remaining Bounty", value=f"`{bounties[hunter_id]['amount']:,} Berries`", inline=True)
+            await ctx.send(embed=embed)
+
         else:
+            # ❌ Normal failure
             await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
             
     @commands.command()
@@ -1535,10 +1565,10 @@ class BountyBattle(commands.Cog):
     async def fight(self, ctx, challenger, opponent):    
         """Override the fight method to include environmental hazards."""
         environment = self.choose_environment()
-        environment_effect = ENVIRONMENTS[environment]["effect"]
+        environment_data = ENVIRONMENTS[environment]
 
         # Announce the environment
-        await ctx.send(f"🌍 The battle takes place in **{environment}**: {ENVIRONMENTS[environment]['description']}")
+        await ctx.send(f"🌍 The battle takes place in **{environment}**: {environment_data['description']}")
 
         # Get Devil Fruit info for both fighters
         attacker_fruit = await self.config.member(challenger).devil_fruit()
@@ -1552,11 +1582,25 @@ class BountyBattle(commands.Cog):
         if defender_bonus:
             await ctx.send(f"❄️ **{opponent.display_name}** is using `{defender_fruit}`! Bonus: {defender_bonus['bonus']}")
 
-        # Initialize player data
-        challenger_hp = 100
-        opponent_hp = 100
-        challenger_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
-        opponent_status = {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0}
+        # Initialize player data with stats dictionary
+        challenger_stats = {"damage": 0, "heal": 0}
+        opponent_stats = {"damage": 0, "heal": 0}
+
+        challenger_data = {
+            "name": challenger.display_name,
+            "hp": 100,
+            "status": {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0},
+            "member": challenger,
+            "stats": challenger_stats
+        }
+
+        opponent_data = {
+            "name": opponent.display_name,
+            "hp": 100,
+            "status": {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0},
+            "member": opponent,
+            "stats": opponent_stats
+        }
 
         # Create the initial embed
         embed = discord.Embed(
@@ -1566,30 +1610,25 @@ class BountyBattle(commands.Cog):
         )
         embed.add_field(
             name="\u200b",
-            value=f"**{challenger.display_name}**\n{self.generate_health_bar(challenger_hp)} {challenger_hp}/100",
+            value=f"**{challenger_data['name']}**\n{self.generate_health_bar(challenger_data['hp'])} {challenger_data['hp']}/100",
             inline=True,
         )
         embed.add_field(
             name="\u200b",
-            value=f"**{opponent.display_name}**\n{self.generate_health_bar(opponent_hp)} {opponent_hp}/100",
+            value=f"**{opponent_data['name']}**\n{self.generate_health_bar(opponent_data['hp'])} {opponent_data['hp']}/100",
             inline=True,
         )
-        embed.add_field(name="Turn", value=f"It's **{challenger.display_name}**'s turn!", inline=False)
+        embed.add_field(name="Turn", value=f"It's **{challenger_data['name']}**'s turn!", inline=False)
         embed.set_footer(text="Actions are influenced by the environment!")
         message = await ctx.send(embed=embed)
 
-        # Player data structure
-        players = [
-            {"name": challenger.display_name, "hp": challenger_hp, "status": challenger_status, "member": challenger},
-            {"name": opponent.display_name, "hp": opponent_hp, "status": opponent_status, "member": opponent},
-        ]
+        players = [challenger_data, opponent_data]
         turn_index = 0
 
         # Initialize stats
         attacker_stats = await self.config.member(challenger).all()
         defender_stats = await self.config.member(opponent).all()
 
-        # Battle loop
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
             if self.battle_stopped:
                 embed.title = "⚠️ Battle Stopped!"
@@ -1597,8 +1636,7 @@ class BountyBattle(commands.Cog):
                 embed.color = discord.Color.red()
                 embed.set_footer(text="The battle was interrupted.")
                 await message.edit(embed=embed)
-                
-                self.battle_stopped = False  # Reset for the next battle
+                self.battle_stopped = False
                 return
 
             # Apply environmental hazard
@@ -1608,101 +1646,50 @@ class BountyBattle(commands.Cog):
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
 
-            # Define attacker and defender
             attacker = players[turn_index]
-            defender = players[1 - turn_index]  # Now defender is correctly assigned
+            defender = players[1 - turn_index]
 
-            # Select move
+            # Select move and apply environment effect
             move = random.choice(MOVES)
+            move_copy = move.copy()  # Create a copy of the move to modify
+            if environment_data['effect']:
+                environment_data['effect'](move_copy, attacker["stats"])
 
-            # Get Devil Fruit data for attacker
-            attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
-            fruit_data = None
-            if attacker_fruit:
-                fruit_data = DEVIL_FRUITS["Common"].get(attacker_fruit) or DEVIL_FRUITS["Rare"].get(attacker_fruit)
-
-            # Apply environmental effects
-            environment_effect(move, attacker)
-
-            # Calculate base damage
-            damage = self.calculate_damage(move["type"])
-
-            # ✅ Apply Devil Fruit effects before finalizing damage
-            if fruit_data and isinstance(fruit_data, dict):  # ✅ Ensure it's a dictionary
-                damage = await self.apply_devil_fruit_effect(attacker, defender, damage, move, fruit_data, embed)
-
-
-            # Apply block logic
-            if defender["status"].get("block_active", False):
-                damage = max(0, damage - 10)  # Reduce damage by block amount
-                await self.config.member(defender["member"]).blocks.set(
-                    await self.config.member(defender["member"]).blocks() + 1
-                )
+            # Calculate damage
+            damage = self.calculate_damage(move_copy["type"])
 
             # Apply effects
-            await self.apply_effects(move, attacker, defender)
-            
-            # Check if the attacker has a Devil Fruit
-            attacker_fruit = await self.config.member(attacker["member"]).devil_fruit()
-            if attacker_fruit and attacker_fruit in DEVIL_FRUITS:
-                fruit_data = DEVIL_FRUITS[attacker_fruit]
-                damage = await self.apply_devil_fruit_effect(attacker, defender, damage, move, fruit_data, embed)
-            
-            # Apply burn damage AFTER defining `defender`
+            await self.apply_effects(move_copy, attacker, defender)
+
+            # Apply burn damage
             burn_damage = await self.apply_burn_damage(defender)
             if burn_damage > 0:
                 embed.description = f"🔥 **{defender['name']}** takes `{burn_damage}` burn damage from fire stacks!"
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
 
-            # Skip turn if stunned
-            if defender["status"].get("stun"):
-                defender["status"]["stun"] = False  # Stun only lasts one turn
-                embed.description = f"⚡ **{defender['name']}** is `stunned` and cannot act!"
-                await message.edit(embed=embed)
-                await asyncio.sleep(2)
-                turn_index = 1 - turn_index
-                continue
-
-            # Select move
-            move = random.choice(MOVES)
-
-            # Apply environmental effects
-            environment_effect(move, attacker)
-
-            # Calculate damage
-            damage = self.calculate_damage(move["type"])
-
-            # Apply block logic
-            if defender["status"].get("block_active", False):
-                damage = max(0, damage - 10)  # Reduce damage by block amount
-                await self.config.member(defender["member"]).blocks.set(
-                    await self.config.member(defender["member"]).blocks() + 1
-                )
-
-            # Apply effects
-            await self.apply_effects(move, attacker, defender)
-
-            # Highlighted move effects in message
+            # Apply damage and update display
+            defender["hp"] = max(0, defender["hp"] - damage)
+            
             effects_highlight = []
-            if "burn" in move.get("effect", ""):
+            if "burn" in move_copy.get("effect", ""):
                 effects_highlight.append("🔥 **Burn!**")
-            if "crit" in move.get("effect", ""):
+            if "crit" in move_copy.get("effect", ""):
                 effects_highlight.append("✨ **Critical Hit!**")
-            if "heal" in move.get("effect", ""):
+            if "heal" in move_copy.get("effect", ""):
                 effects_highlight.append("💚 **Heal!**")
-            if "stun" in move.get("effect", ""):
+            if "stun" in move_copy.get("effect", ""):
                 effects_highlight.append("⚡ **Stun!**")
 
             effects_display = "\n".join(effects_highlight)
 
-            # Apply damage and update stats
-            defender["hp"] = max(0, defender["hp"] - damage)
             embed.description = (
-                f"**{attacker['name']}** used **{move['name']}**: {move['description']}\n"
+                f"**{attacker['name']}** used **{move_copy['name']}**: {move_copy['description']}\n"
                 f"{effects_display}\n"
                 f"Dealt **{damage}** damage to **{defender['name']}**!"
             )
+
+            # Update health bars
             embed.set_field_at(
                 0,
                 name="\u200b",
@@ -1732,16 +1719,15 @@ class BountyBattle(commands.Cog):
 
             await asyncio.sleep(2)
 
-            # Update damage stats for the attacker
+            # Update damage stats
             await self.config.member(attacker["member"]).damage_dealt.set(
                 await self.config.member(attacker["member"]).damage_dealt() + damage
             )
 
             # Update stats for both players
-            await self.update_stats(attacker, defender, damage, move, attacker_stats)
+            await self.update_stats(attacker, defender, damage, move_copy, attacker_stats)
             await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
 
-            # Switch turn
             turn_index = 1 - turn_index
 
         # Determine winner
