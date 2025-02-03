@@ -1881,10 +1881,10 @@ class BountyBattle(commands.Cog):
         challenger_fruit = await self.config.member(challenger).devil_fruit()
         opponent_fruit = await self.config.member(opponent).devil_fruit()
         
-        # Initialize player data with 250 HP
+        # Initialize player data with 300 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 250,  # Integer HP
+            "hp": 300,
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1897,20 +1897,12 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
-            },
-            "stats": {
-                "damage": 0,
-                "heal": 0,
-                "critical_hits": 0,
-                "blocks": 0,
-                "burns_applied": 0,
-                "stuns_applied": 0
             }
         }
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 250,  # Integer HP
+            "hp": 300,
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1923,14 +1915,6 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
-            },
-            "stats": {
-                "damage": 0,
-                "heal": 0,
-                "critical_hits": 0,
-                "blocks": 0,
-                "burns_applied": 0,
-                "stuns_applied": 0
             }
         }
 
@@ -1946,8 +1930,14 @@ class BountyBattle(commands.Cog):
             if is_damage:
                 player["hp"] = max(0, int(round(player["hp"] - amount)))
             else:
-                player["hp"] = min(250, int(round(player["hp"] + amount)))
+                player["hp"] = min(300, int(round(player["hp"] + amount)))
 
+        update_player_fields()
+        message = await ctx.send(embed=embed)
+
+        # Create the battle log message
+        battle_log = await ctx.send("📜 **Battle Log:**")
+        
         # Battle loop
         turn = 0
         players = [challenger_data, opponent_data]
@@ -1992,6 +1982,8 @@ class BountyBattle(commands.Cog):
                         move_copy,
                         turn
                     )
+                    if fruit_effect:
+                        await battle_log.edit(content=f"{battle_log.content}\n{fruit_effect}")
 
             # Update HP using new function
             update_hp(defender, final_damage, is_damage=True)
@@ -2008,7 +2000,7 @@ class BountyBattle(commands.Cog):
                 f"💥 Dealt **{int(final_damage)}** damage!"
             )
             
-            # Update battle log
+            # Update battle log with the latest action
             await battle_log.edit(content=f"{battle_log.content}\n{action_description}")
             
             # Update main embed
