@@ -801,10 +801,49 @@ class BountyBattle(commands.Cog):
         if amount < 0:
             return await ctx.send("❌ Bounty cannot be negative.")
 
-        await self.config.guild(ctx.guild).bounties.set_raw(str(member.id), value={"amount": amount})
-        
-        await ctx.send(f"🏴‍☠️ **{member.display_name}** now has a bounty of **{amount:,}** berries!")
+        try:
+            # Load current bounties
+            bounties = load_bounties()
+            user_id = str(member.id)
 
+            # Initialize user in bounties if they don't exist
+            if user_id not in bounties:
+                bounties[user_id] = {
+                    "amount": 0,
+                    "fruit": None
+                }
+
+            # Update bounty in both systems
+            bounties[user_id]["amount"] = amount
+            save_bounties(bounties)
+            await self.config.member(member).bounty.set(amount)
+
+            # Create embed for response
+            embed = discord.Embed(
+                title="🏴‍☠️ Bounty Updated",
+                description=f"**{member.display_name}**'s bounty has been set to `{amount:,}` Berries!",
+                color=discord.Color.green()
+            )
+
+            # Add current title if applicable
+            new_title = self.get_bounty_title(amount)
+            if new_title:
+                embed.add_field(
+                    name="Current Title",
+                    value=f"`{new_title}`",
+                    inline=False
+                )
+
+            await ctx.send(embed=embed)
+
+            # Check if the new bounty warrants an announcement
+            if amount >= 900_000_000:
+                await self.announce_rank(ctx.guild, member, new_title)
+
+        except Exception as e:
+            logger.error(f"Error in setbounty command: {str(e)}")
+            await ctx.send(f"❌ An error occurred while setting the bounty: {str(e)}")
+            
     @commands.command()
     @commands.has_permissions(administrator=True)  # Allow admins to use the command
     async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
