@@ -1943,7 +1943,18 @@ class BountyBattle(commands.Cog):
             base_damage = self.calculate_damage(move_copy["type"])
             
             # Apply Devil Fruit effects
-            final_damage, fruit_effect = await self.apply_devil_fruit_effects(attacker, defender, base_damage, move_copy)
+            if attacker["fruit"]:
+                fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
+                if fruit_data:
+                    if fruit_data["type"] == "Logia":
+                        final_damage, fruit_effect = await self._handle_logia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+                    elif "Zoan" in fruit_data["type"]:
+                        final_damage, fruit_effect = await self._handle_zoan_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+                    elif fruit_data["type"] in ["Paramecia", "Special Paramecia"]:
+                        final_damage, fruit_effect = await self._handle_paramecia_combat(attacker, defender, base_damage, fruit_data, turn, move_copy)
+            else:
+                final_damage = base_damage
+                fruit_effect = None
             
             # Apply status modifiers
             if defender["status"]["protected"]:
@@ -2199,84 +2210,177 @@ class BountyBattle(commands.Cog):
 
         return damage, effect_message
 
-    async def _handle_logia_combat(self, attacker, defender, damage, fruit_data):
+    async def _handle_logia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
         """Handle Logia-type combat effects."""
         effect = fruit_data["effect"]
         effect_message = None
 
+        # Fire Logia
         if effect == "fire":
             if random.random() < 0.4:  # 40% chance
                 defender["status"]["burn"] += 2
-                damage *= 1.5
+                damage *= 2  # Double damage as per bonus
                 effect_message = f"🔥 {attacker['name']}'s flames intensify the attack!"
-        
+
+        # Lightning Logia
+        elif effect == "lightning":
+            if random.random() < 0.2:  # 20% chance
+                defender["status"]["stun"] = True
+                effect_message = f"⚡ {attacker['name']} stuns the opponent with lightning!"
+
+        # Smoke Logia
+        elif effect == "smoke":
+            if random.random() < 0.15:  # 15% chance
+                damage = 0
+                effect_message = f"💨 {attacker['name']} disperses into smoke, avoiding damage!"
+
+        # Sand Logia
+        elif effect == "sand":
+            if random.random() < 0.1:  # 10% chance
+                drain = int(defender["hp"] * 0.1)
+                defender["hp"] -= drain
+                attacker["hp"] = min(100, attacker["hp"] + drain)
+                effect_message = f"🏖️ {attacker['name']} drains {drain} HP through sand!"
+
+        # Ice Logia
+        elif effect == "ice":
+            if random.random() < 0.25:
+                defender["status"]["frozen"] = 2
+                effect_message = f"❄️ {attacker['name']} freezes the opponent!"
+
+        # Light Logia
         elif effect == "light":
-            damage *= 1.3
-            if random.random() < 0.2:  # 20% chance to attack twice
-                effect_message = f"⚡ {attacker['name']} strikes at light speed!"
-                return damage * 2, effect_message
-        
+            damage *= 1.2
+            if random.random() < 0.2:
+                damage *= 2
+                effect_message = f"✨ {attacker['name']} strikes at light speed!"
+
+        # Darkness Logia
         elif effect == "darkness":
-            absorbed = int(damage * 0.3)
+            absorbed = int(damage * 0.15)  # 15% absorption
             attacker["hp"] = min(100, attacker["hp"] + absorbed)
             effect_message = f"🌑 {attacker['name']} absorbs {absorbed} HP through darkness!"
-        
-        elif effect == "ice":
-            if random.random() < 0.25:  # 25% chance
-                defender["status"]["frozen"] = 2  # Frozen for 2 turns
-                effect_message = f"❄️ {attacker['name']} freezes the opponent!"
+
+        # Magma Logia
+        elif effect == "magma":
+            defender["status"]["burn"] += 3
+            effect_message = f"🌋 {attacker['name']}'s magma inflicts severe burns!"
+
+        # Forest Logia
+        elif effect == "forest":
+            if random.random() < 0.3:
+                defender["status"]["movement_restricted"] = 2
+                effect_message = f"🌳 {attacker['name']} immobilizes opponent with roots!"
+
+        # Wind Logia
+        elif effect == "wind":
+            if random.random() < 0.2:  # 20% dodge
+                damage = 0
+                effect_message = f"🌪️ {attacker['name']} becomes wind and dodges!"
 
         return damage, effect_message
 
-    async def _handle_zoan_combat(self, attacker, defender, damage, fruit_data):
+    async def _handle_zoan_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
         """Handle Zoan-type combat effects."""
         effect = fruit_data["effect"]
         effect_message = None
 
-        if "Model Phoenix" in fruit_data["effect"]:
-            if attacker["hp"] < 50:  # Below 50% HP
-                heal = 15
+        # Mythical Zoan Types
+        if "Model Phoenix" in effect:
+            if turn % 3 == 0:  # Every 3 turns
+                heal = int(attacker["hp"] * 0.1)  # 10% heal
                 attacker["hp"] = min(100, attacker["hp"] + heal)
                 effect_message = f"🦅 {attacker['name']} regenerates {heal} HP!"
-        
-        elif "Model Dragon" in fruit_data["effect"]:
-            damage *= 1.4
-            if random.random() < 0.3:  # 30% chance
-                defender["status"]["burn"] += 1
-                effect_message = f"🐉 {attacker['name']}'s dragon breath scorches the enemy!"
 
-        elif "Model Nika" in fruit_data["effect"]:
-            effect = random.choice(["damage", "dodge", "transform"])
-            if effect == "damage":
-                damage *= 2
-                effect_message = f"✨ {attacker['name']}'s rubber powers amplify the attack!"
-            elif effect == "dodge":
-                damage = 0
-                effect_message = f"💫 {attacker['name']} stretches to avoid the attack!"
+        elif "Model Azure Dragon" in effect:
+            damage *= 0.75  # 25% damage reduction
+            effect_message = f"🐉 {attacker['name']} resists with dragon scales!"
+
+        elif "Model Nika" in effect:
+            effect = random.choice(["attack", "speed", "defense"])
+            if effect == "attack":
+                damage *= 1.5
+                effect_message = f"✨ {attacker['name']}'s awakened power boosts attack!"
+            elif effect == "speed":
+                attacker["status"]["accuracy_reduction"] = 0
+                effect_message = f"💨 {attacker['name']}'s speed increases!"
             else:
-                attacker["status"]["transformed"] = 2
-                effect_message = f"⚡ {attacker['name']} awakens their power!"
+                attacker["status"]["protected"] = True
+                effect_message = f"🛡️ {attacker['name']}'s defense improves!"
+
+        elif "Model Thunderbird" in effect and "lightning" in move_copy.get("effect", ""):
+            damage *= 1.5
+            effect_message = f"⚡ {attacker['name']}'s lightning attack is amplified!"
+
+        elif "Model Cerberus" in effect:
+            if random.random() < 0.2:  # 20% chance
+                damage *= 2
+                effect_message = f"🐕 {attacker['name']} attacks with multiple heads!"
+
+        # Ancient Zoan Types
+        elif "Model Spinosaurus" in effect:
+            attacker["hp"] = min(120, attacker["hp"])  # 20% more HP
+            effect_message = f"🦕 {attacker['name']}'s enhanced durability!"
+
+        elif "Model Pteranodon" in effect:
+            if random.random() < 0.15:  # 15% dodge
+                damage = 0
+                effect_message = f"🦅 {attacker['name']} evades with aerial agility!"
+
+        elif "Model Allosaurus" in effect:
+            damage *= 1.25  # 25% more damage
+            effect_message = f"🦖 {attacker['name']}'s fierce attack!"
 
         return damage, effect_message
 
-    async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data):
+    async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
         """Handle Paramecia-type combat effects."""
         effect = fruit_data["effect"]
         effect_message = None
 
+        # Common Paramecia Effects
         if effect == "rubber":
-            damage *= 1.3
-            effect_message = f"💫 {attacker['name']}'s rubber body enhances the attack!"
-            
+            if move_copy.get("type") == "regular":
+                damage = 0
+                effect_message = f"💫 {attacker['name']}'s rubber body nullifies the attack!"
+
+        elif effect == "surgical":
+            if random.random() < 0.2:  # 20% chance
+                attacker["hp"], defender["hp"] = defender["hp"], attacker["hp"]
+                effect_message = f"🏥 {attacker['name']} switches HP with ROOM!"
+
+        elif effect == "explosion":
+            damage *= 1.3  # 30% more damage
+            effect_message = f"💥 {attacker['name']}'s explosive power!"
+
         elif effect == "quake":
-            bonus_damage = int(damage * 0.5)
-            damage += bonus_damage
-            effect_message = f"💥 {attacker['name']}'s quake powers deal {bonus_damage} extra damage!"
-            
+            damage *= 2
+            effect_message = f"🌋 {attacker['name']}'s quake devastates!"
+
         elif effect == "barrier":
-            if random.random() < 0.4:  # 40% chance
+            if random.random() < 0.4:
                 defender["status"]["protected"] = True
-                effect_message = f"🛡️ {attacker['name']} creates a protective barrier!"
+                damage *= 0.6  # 40% damage reduction
+                effect_message = f"🛡️ {attacker['name']}'s barrier reduces damage!"
+
+        elif effect == "poison":
+            defender["status"]["poison"] = 3
+            effect_message = f"☠️ {attacker['name']}'s poison takes effect!"
+
+        elif effect == "gravity":
+            if random.random() < 0.2:
+                defender["status"]["stun"] = True
+                effect_message = f"⚫ {attacker['name']}'s gravity crushes the opponent!"
+
+        elif effect == "shadow":
+            defender["status"]["accuracy_reduction"] = 0.3
+            defender["status"]["accuracy_turns"] = 2
+            effect_message = f"👥 {attacker['name']} steals opponent's shadow!"
+
+        elif effect == "mochi":
+            if turn % 4 == 0:  # Every 4 turns
+                damage = 0
+                effect_message = f"🍡 {attacker['name']} dodges with mochi transformation!"
 
         return damage, effect_message
     
