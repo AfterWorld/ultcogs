@@ -1749,260 +1749,198 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
     async def fight(self, ctx, challenger, opponent):    
-        """Override the fight method to include environmental hazards."""
+        """Fight system with integrated Devil Fruit abilities."""
+        # Initialize environment
         environment = self.choose_environment()
         environment_data = ENVIRONMENTS[environment]
-
-        # Announce the environment
-        await ctx.send(f"🌍 The battle takes place in **{environment}**: {environment_data['description']}")
-
-        # Get Devil Fruit info for both fighters
-        attacker_fruit = await self.config.member(challenger).devil_fruit()
-        defender_fruit = await self.config.member(opponent).devil_fruit()
-
-        attacker_bonus = DEVIL_FRUITS["Common"].get(attacker_fruit) or DEVIL_FRUITS["Rare"].get(attacker_fruit)
-        defender_bonus = DEVIL_FRUITS["Common"].get(defender_fruit) or DEVIL_FRUITS["Rare"].get(defender_fruit)
-
-        if attacker_bonus:
-            await ctx.send(f"🔥 **{challenger.display_name}** is using `{attacker_fruit}`! Bonus: {attacker_bonus['bonus']}")
-        if defender_bonus:
-            await ctx.send(f"❄️ **{opponent.display_name}** is using `{defender_fruit}`! Bonus: {defender_bonus['bonus']}")
-
-        # Initialize player data with stats dictionary
-        challenger_stats = {"damage": 0, "heal": 0}
-        opponent_stats = {"damage": 0, "heal": 0}
-
+        
+        # Get Devil Fruit info and announce
+        challenger_fruit = await self.config.member(challenger).devil_fruit()
+        opponent_fruit = await self.config.member(opponent).devil_fruit()
+        
+        # Initialize player data with fruit info
         challenger_data = {
             "name": challenger.display_name,
             "hp": 100,
-            "status": {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0},
             "member": challenger,
-            "stats": challenger_stats
+            "fruit": challenger_fruit,
+            "status": {
+                "burn": 0,
+                "stun": False,
+                "frozen": 0,
+                "transformed": 0,
+                "protected": False,
+                "block_active": False,
+                "accuracy_reduction": 0,
+                "accuracy_turns": 0,
+                "elements_used": set()
+            },
+            "stats": {"damage": 0, "heal": 0}
         }
-
+        
         opponent_data = {
             "name": opponent.display_name,
             "hp": 100,
-            "status": {"burn": 0, "stun": False, "block_active": False, "accuracy_reduction": 0, "accuracy_turns": 0},
             "member": opponent,
-            "stats": opponent_stats
+            "fruit": opponent_fruit,
+            "status": {
+                "burn": 0,
+                "stun": False,
+                "frozen": 0,
+                "transformed": 0,
+                "protected": False,
+                "block_active": False,
+                "accuracy_reduction": 0,
+                "accuracy_turns": 0,
+                "elements_used": set()
+            },
+            "stats": {"damage": 0, "heal": 0}
         }
 
-        # Create the initial embed
+        # Announce battle start with fruits
         embed = discord.Embed(
             title="🏴‍☠️ One Piece Deathmatch ⚔️",
-            description=f"Battle begins between **{challenger.display_name}** and **{opponent.display_name}**!",
-            color=0x00FF00,
+            description=(
+                f"Battle begins in **{environment}**!\n"
+                f"**{challenger.display_name}** {f'powers: `{challenger_fruit}`' if challenger_fruit else ''} VS "
+                f"**{opponent.display_name}** {f'powers: `{opponent_fruit}`' if opponent_fruit else ''}"
+            ),
+            color=discord.Color.blue()
         )
+
+        # Initialize health display
         embed.add_field(
             name="\u200b",
             value=f"**{challenger_data['name']}**\n{self.generate_health_bar(challenger_data['hp'])} {challenger_data['hp']}/100",
-            inline=True,
+            inline=True
         )
         embed.add_field(
             name="\u200b",
             value=f"**{opponent_data['name']}**\n{self.generate_health_bar(opponent_data['hp'])} {opponent_data['hp']}/100",
-            inline=True,
+            inline=True
         )
-        embed.add_field(name="Turn", value=f"It's **{challenger_data['name']}**'s turn!", inline=False)
-        embed.set_footer(text="Actions are influenced by the environment!")
+        
         message = await ctx.send(embed=embed)
-
+        
+        # Battle loop
+        turn = 0
         players = [challenger_data, opponent_data]
-        turn_index = 0
-
-        # Initialize stats
-        attacker_stats = await self.config.member(challenger).all()
-        defender_stats = await self.config.member(opponent).all()
-
+        current_player = 0
+        
         while players[0]["hp"] > 0 and players[1]["hp"] > 0:
+            turn += 1
+            attacker = players[current_player]
+            defender = players[1 - current_player]
+            
+            # Check for battle stop
             if self.battle_stopped:
                 embed.title = "⚠️ Battle Stopped!"
-                embed.description = "The fight has been forcibly ended! No winner was declared."
-                embed.color = discord.Color.red()
-                embed.set_footer(text="The battle was interrupted.")
+                embed.description = "The fight has been forcibly ended!"
                 await message.edit(embed=embed)
-                self.battle_stopped = False
                 return
 
-            # Apply environmental hazard
-            hazard_message = await self.apply_environmental_hazard(environment, players)
-            if hazard_message:
-                embed.description = f"⚠️ **Environmental Hazard!** {hazard_message}"
+            # Process status effects
+            status_message = await self.process_status_effects(attacker, defender)
+            if status_message:
+                embed.description = status_message
                 await message.edit(embed=embed)
                 await asyncio.sleep(2)
 
-            attacker = players[turn_index]
-            defender = players[1 - turn_index]
-
-            # Select move and apply environment effect
+            # Select and modify move based on environment
             move = random.choice(MOVES)
-            move_copy = move.copy()  # Create a copy of the move to modify
+            move_copy = move.copy()
             if environment_data['effect']:
                 environment_data['effect'](move_copy, attacker["stats"])
 
-            # Calculate damage
-            damage = self.calculate_damage(move_copy["type"])
-
-            # Apply effects
-            await self.apply_effects(move_copy, attacker, defender)
-
-            # Apply burn damage
-            burn_damage = await self.apply_burn_damage(defender)
-            if burn_damage > 0:
-                embed.description = f"🔥 **{defender['name']}** takes `{burn_damage}` burn damage from fire stacks!"
-                await message.edit(embed=embed)
-                await asyncio.sleep(2)
-
-            # Apply damage and update display
-            defender["hp"] = max(0, defender["hp"] - damage)
+            # Calculate base damage
+            base_damage = self.calculate_damage(move_copy["type"])
             
-            effects_highlight = []
-            if "burn" in move_copy.get("effect", ""):
-                effects_highlight.append("🔥 **Burn!**")
-            if "crit" in move_copy.get("effect", ""):
-                effects_highlight.append("✨ **Critical Hit!**")
-            if "heal" in move_copy.get("effect", ""):
-                effects_highlight.append("💚 **Heal!**")
-            if "stun" in move_copy.get("effect", ""):
-                effects_highlight.append("⚡ **Stun!**")
+            # Apply Devil Fruit effects
+            final_damage, fruit_effect = await self.apply_devil_fruit_effects(attacker, defender, base_damage, move_copy)
+            
+            # Apply status modifiers
+            if defender["status"]["protected"]:
+                final_damage = int(final_damage * 0.5)
+            if attacker["status"]["transformed"]:
+                final_damage = int(final_damage * 1.5)
 
-            effects_display = "\n".join(effects_highlight)
+            # Build effect messages
+            effect_messages = []
+            if fruit_effect:
+                effect_messages.append(fruit_effect)
+            if move_copy.get("effect"):
+                await self.apply_effects(move_copy, attacker, defender)
+                if "burn" in move_copy["effect"]:
+                    effect_messages.append("🔥 **Burn Effect!**")
+                if "stun" in move_copy["effect"]:
+                    effect_messages.append("⚡ **Stun Effect!**")
+                if "heal" in move_copy["effect"]:
+                    effect_messages.append("💚 **Heal Effect!**")
 
+            # Update HP
+            defender["hp"] = max(0, defender["hp"] - final_damage)
+
+            # Update embed
             embed.description = (
-                f"**{attacker['name']}** used **{move_copy['name']}**: {move_copy['description']}\n"
-                f"{effects_display}\n"
-                f"Dealt **{damage}** damage to **{defender['name']}**!"
+                f"**{attacker['name']}** used **{move_copy['name']}**!\n"
+                f"{move_copy['description']}\n"
+                f"{''.join(f'{msg}\n' for msg in effect_messages)}"
+                f"Dealt **{final_damage}** damage!"
             )
-
-            # Update health bars
+            
             embed.set_field_at(
                 0,
                 name="\u200b",
                 value=f"**{players[0]['name']}**\n{self.generate_health_bar(players[0]['hp'])} {players[0]['hp']}/100",
-                inline=True,
+                inline=True
             )
             embed.set_field_at(
                 1,
                 name="\u200b",
                 value=f"**{players[1]['name']}**\n{self.generate_health_bar(players[1]['hp'])} {players[1]['hp']}/100",
-                inline=True,
-            )
-            embed.set_field_at(
-                2,
-                name="Turn",
-                value=f"It's **{players[1 - turn_index]['name']}**'s turn!",
-                inline=False,
+                inline=True
             )
 
-            try:
-                await message.edit(embed=embed)
-            except discord.errors.HTTPException as e:
-                if "Maximum number of edits to messages older than 1 hour reached" in str(e):
-                    message = await ctx.send(embed=embed)
-                else:
-                    raise e
-
+            await message.edit(embed=embed)
             await asyncio.sleep(2)
 
-            # Update damage stats
-            await self.config.member(attacker["member"]).damage_dealt.set(
-                await self.config.member(attacker["member"]).damage_dealt() + damage
-            )
-
-            # Update stats for both players
-            await self.update_stats(attacker, defender, damage, move_copy, attacker_stats)
-            await self.update_stats(defender, attacker, burn_damage, {"effect": "burn"}, defender_stats)
-
-            turn_index = 1 - turn_index
+            # Switch turns
+            current_player = 1 - current_player
 
         # Determine winner
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
 
-        # Track the last active time for both players
-        await self.config.member(challenger).last_active.set(datetime.utcnow().isoformat())
-        await self.config.member(opponent).last_active.set(datetime.utcnow().isoformat())
+        # Update stats and achievements
+        await self._handle_battle_rewards(ctx, winner, loser)
+        
+        # Check for Devil Fruit achievements
+        if len(winner["status"]["elements_used"]) >= 3:
+            await self._unlock_achievement(winner["member"], "elemental_master")
 
-        # Track total wins
-        total_wins = await self.config.member(winner["member"]).wins()
-        
-        # Unlock "The Unbreakable" (10 wins without losing)
-        if total_wins >= 10:
-            unlocked_titles = await self.config.member(winner["member"]).titles()
-            if "The Unbreakable" not in unlocked_titles:
-                unlocked_titles.append("The Unbreakable")
-                await self.config.member(winner["member"]).titles.set(unlocked_titles)
-                await ctx.send(f"🏆 **{winner['name']}** has unlocked the secret title: `The Unbreakable`!")
-        
-        # Unlock "The Underdog" (Defeat an opponent with 5x your bounty)
-        loser_bounty = await self.config.member(loser["member"]).bounty()
-        winner_bounty = await self.config.member(winner["member"]).bounty()
-        
-        # Ensure unlocked_titles is always defined before using it
-        unlocked_titles = await self.config.member(winner["member"]).titles() or []
-        
-        if "The Underdog" not in unlocked_titles:
-            unlocked_titles.append("The Underdog")
-            await self.config.member(winner["member"]).titles.set(unlocked_titles)
-            await ctx.send(f"🏆 **{winner['name']}** has unlocked the secret title: `The Underdog`!")
+        # Final embed update
+        embed.title = "🏆 Battle Complete!"
+        embed.description = f"**{winner['name']}** is victorious!"
+        await message.edit(embed=embed)
 
-        # Unlock "The Ghost" (Evade 3 attacks in a row)
-        if defender["status"].get("evade_streak", 0) >= 3:
-            unlocked_titles = await self.config.member(defender["member"]).titles()
-            if "The Ghost" not in unlocked_titles:
-                unlocked_titles.append("The Ghost")
-                await self.config.member(defender["member"]).titles.set(unlocked_titles)
-                await ctx.send(f"👻 **{defender['name']}** has unlocked the secret title: `The Ghost`!")
-        
-        # Unlock "The Berserker" (Deal 100 damage in one attack)
-        if damage >= 100:
-            unlocked_titles = await self.config.member(attacker["member"]).titles()
-            if "The Berserker" not in unlocked_titles:
-                unlocked_titles.append("The Berserker")
-                await self.config.member(attacker["member"]).titles.set(unlocked_titles)
-                await ctx.send(f"🔥 **{attacker['name']}** has unlocked the secret title: `The Berserker`!")
-        
-                
-        # Increase the winner's bounty (random amount between 1,000 and 3,000 Berries)
-        bounty_increase = random.randint(1000, 2000)
+    async def _handle_battle_rewards(self, ctx, winner, loser):
+        """Handle post-battle rewards and stat updates."""
+        # Update bounties
+        bounty_increase = random.randint(1000, 3000)
+        bounties = load_bounties()
         winner_id = str(winner["member"].id)
         
-        # Get current bounty and update it
-        bounties = await self.config.guild(ctx.guild).bounties()
-        bounties[winner_id] = bounties.get(winner_id, {"amount": 0})
-        bounties[winner_id]["amount"] += bounty_increase
-        
-        # Save the new bounty
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
-
-        # Check if the user unlocks a new title
-        new_title = self.get_bounty_title(winner_bounty)
-        current_title = await self.config.member(winner["member"]).equipped_title()
-        
-        if new_title != current_title:
-            await self.config.member(winner["member"]).equipped_title.set(new_title)
-            await ctx.send(f"🏴‍☠️ **{winner['name']}** has earned the new title: `{new_title}`!")
+        if winner_id in bounties:
+            bounties[winner_id]["amount"] += bounty_increase
+            save_bounties(bounties)
             
-        # Update the existing embed to show the final result
-        embed.title = "🏆 Victory!"
-        embed.description = (
-            f"**{winner['name']}** has won the battle!\n\n"
-            f"💰 **Bounty Increased:** `{bounty_increase:,} Berries`\n"
-            f"🏴‍☠️ **New Bounty:** `{bounties[winner_id]['amount']:,} Berries`"
-        )
-        embed.color = discord.Color.gold()
-        embed.set_field_at(2, name="⚔️ Battle Over", value=f"Winner: **{winner['name']}**", inline=False)
-        embed.set_footer(text="The battle has ended.")
-        
-        await message.edit(embed=embed)  # Instead of sending a new embed, update the existing one.
+            # Announce bounty increase
+            await ctx.send(
+                f"💰 **{winner['name']}**'s bounty increased by `{bounty_increase:,}` Berries!\n"
+                f"New Bounty: `{bounties[winner_id]['amount']:,}` Berries"
+            )
 
-        # Update stats for the winner
-        await self.check_achievements(winner["member"])
-        # Update stats for the loser
-        await self.check_achievements(loser["member"])
-        # Update stats for the winner and loser
+        # Update stats
         await self.config.member(winner["member"]).wins.set(
             await self.config.member(winner["member"]).wins() + 1
         )
@@ -2010,256 +1948,8 @@ class BountyBattle(commands.Cog):
             await self.config.member(loser["member"]).losses() + 1
         )
 
-        # Decrease the loser's bounty (random amount between 500 and 1500 Berries)
-        bounty_decrease = random.randint(500, 1500)
-        loser_id = str(loser["member"].id)
-        
-        # Get current bounty and update it
-        bounties[loser_id] = bounties.get(loser_id, {"amount": 0})
-        bounties[loser_id]["amount"] = max(0, bounties[loser_id]["amount"] - bounty_decrease)
-        
-        # Save the new bounty
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(loser["member"]).bounty.set(bounties[loser_id]["amount"])
-
-        # Update the existing embed to show the final result for the loser
-        embed.add_field(
-            name="💀 Defeat!",
-            value=(
-                f"**{loser['name']}** has lost the battle!\n\n"
-                f"💸 **Bounty Decreased:** `{bounty_decrease:,} Berries`\n"
-                f"🏴‍☠️ **New Bounty:** `{bounties[loser_id]['amount']:,} Berries`"
-            ),
-            inline=False,
-        )
-        
-        await message.edit(embed=embed)
-
-    async def apply_devil_fruit_effect(self, attacker, defender, damage, move, fruit_data, embed):
-        """Apply devil fruit effects and return any effect messages."""
-        if not fruit_data:
-            return damage  # No fruit, no effect
-
-        fruit_type = fruit_data.get("type", "")
-        fruit_effect = fruit_data.get("effect", "")
-        effect_message = None
-
-        # Ensure defender has a status dictionary
-        defender.setdefault("status", {})
-
-        # Handle different fruit types
-        if fruit_type == "Logia":
-            damage, effect_message = await self.handle_logia_effects(attacker, defender, damage, fruit_effect)
-        elif "Zoan" in fruit_type:
-            damage, effect_message = await self.handle_zoan_effects(attacker, defender, damage, fruit_effect, move)
-        elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self.handle_paramecia_effects(attacker, defender, damage, fruit_effect, move)
-
-        # Add effect message to embed if it exists
-        if effect_message:
-            if embed.description is None:
-                embed.description = effect_message
-            else:
-                embed.description += f"\n{effect_message}"
-
-        return damage
-
-    async def handle_logia_effects(self, attacker, defender, damage, effect):
-        """Handle all Logia-type devil fruit effects."""
-        effect_message = None
-        
-        if effect == "fire":
-            if random.randint(1, 100) <= 30:
-                defender["status"]["burn"] += 2
-                damage *= 2  # Double damage from fire attacks
-                effect_message = f"🔥 **{attacker['name']}**'s ability burned **{defender['name']}**!"
-
-        elif effect == "lightning":
-            if random.randint(1, 100) <= 20:
-                defender["status"]["stun"] = True
-                effect_message = f"⚡ **{attacker['name']}**'s ability stunned **{defender['name']}**!"
-
-        elif effect == "smoke":
-            if random.randint(1, 100) <= 15:
-                damage = 0
-                effect_message = f"💨 **{attacker['name']}**'s ability made them immune to the attack!"
-
-        elif effect == "ice":
-            if random.randint(1, 100) <= 25:
-                defender["status"]["frozen"] = True
-                effect_message = f"❄️ **{attacker['name']}**'s ability froze **{defender['name']}**!"
-
-        elif effect == "light":
-            damage *= 1.2  # 20% more damage from light speed
-            effect_message = f"✨ **{attacker['name']}**'s ability strikes with blinding speed!"
-
-        elif effect == "magma":
-            if random.randint(1, 100) <= 45:
-                defender["status"]["burn"] += 3
-                damage *= 1.5  # 50% more damage from magma attacks
-                effect_message = f"🌋 **{attacker['name']}**'s ability scorched **{defender['name']}**!"
-
-        elif effect == "sand":
-            if random.randint(1, 100) <= 10:
-                drain = int(defender["hp"] * 0.1)
-                defender["hp"] -= drain
-                attacker["hp"] = min(100, attacker["hp"] + drain)
-                effect_message = f"🏖️ **{attacker['name']}**'s ability drained {drain} HP!"
-
-        elif effect == "darkness":
-            if random.randint(1, 100) <= 15:
-                heal = int(damage * 0.15)
-                attacker["hp"] = min(100, attacker["hp"] + heal)
-                effect_message = f"🌑 **{attacker['name']}**'s ability absorbed {heal} damage!"
-
-        return damage, effect_message
-    
-    async def handle_zoan_effects(self, attacker, defender, damage, effect, move):
-            """Handle all Zoan-type devil fruit effects."""
-            effect_message = None
-            
-            if "Model Leopard" in effect:
-                damage *= 1.2  # 20% more damage from increased speed
-                effect_message = f"🐆 **{attacker['name']}**'s ability strikes with incredible speed!"
-
-            elif "Model Azure Dragon" in effect:
-                if random.randint(1, 100) <= 25:
-                    damage *= 1.5  # Powerful dragon attack
-                    effect_message = f"🐉 **{attacker['name']}**'s ability unleashes dragon's fury!"
-
-            elif "Model Phoenix" in effect:
-                if attacker["hp"] < 50:  # Below 50% HP
-                    heal = 20
-                    attacker["hp"] = min(100, attacker["hp"] + heal)
-                    effect_message = f"🦅 **{attacker['name']}** regenerated {heal} HP!"
-
-            elif "Model Nika" in effect:
-                effect_type = random.choice(["damage", "heal", "dodge"])
-                if effect_type == "damage":
-                    damage *= 1.5
-                    effect_message = f"⚡ **{attacker['name']}**'s ability enhanced their attack!"
-                elif effect_type == "heal":
-                    heal = 15
-                    attacker["hp"] = min(100, attacker["hp"] + heal)
-                    effect_message = f"💖 **{attacker['name']}** received healing!"
-                else:
-                    damage = 0
-                    effect_message = f"💨 **{attacker['name']}** dodged the attack!"
-            
-            return damage, effect_message
-
-    async def handle_paramecia_effects(self, attacker, defender, damage, fruit_data, move):
-            """Handle all Paramecia-type devil fruit effects."""
-            effect_message = None
-            
-            fruit_type = fruit_data["type"]
-            fruit_effect = fruit_data["effect"]
-
-            if fruit_type in ["Paramecia", "Special Paramecia"]:
-                if fruit_effect == "rubber":
-                    if random.randint(1, 100) <= 50:
-                        damage = 0
-                        effect_message = f"💪 **{attacker['name']}**'s ability made them immune to blunt attacks!"
-
-                elif fruit_effect == "surgical":
-                    if random.randint(1, 100) <= 10:
-                        # Note: You'll need to modify this to work with the current battle structure
-                        effect_message = f"🏥 **{attacker['name']}**'s ability attempted to swap positions!"
-
-                elif fruit_effect == "explosion":
-                    damage = int(damage * 1.3)
-                    effect_message = f"💥 **{attacker['name']}**'s ability increased damage!"
-
-                elif fruit_effect == "barrier":
-                    damage = int(damage * 0.6)  # Reduce incoming damage by 40%
-                    effect_message = f"🛡️ **{attacker['name']}**'s ability reduced the damage!"
-
-                elif fruit_effect == "poison":
-                    defender["status"]["poison"] = 3
-                    effect_message = f"☠️ **{attacker['name']}**'s ability poisoned **{defender['name']}**!"
-
-                elif fruit_effect == "sound waves":
-                    if random.randint(1, 100) <= 25:
-                        defender["status"]["stun"] = True
-                        damage *= 1.2
-                        effect_message = f"🔊 **{attacker['name']}**'s ability unleashed a sonic blast!"
-
-                elif fruit_effect == "shadows":
-                    if random.randint(1, 100) <= 20:
-                        defender["status"]["accuracy_reduction"] = 30
-                        defender["status"]["accuracy_turns"] = 2
-                        effect_message = f"👥 **{attacker['name']}**'s ability stole **{defender['name']}**'s shadow!"
-            
-            return damage, effect_message
-
-    async def process_status_effects(self, defender, embed):
-            """Process all status effects and return effect messages."""
-            status_messages = []
-            
-            # Poison damage
-            if defender["status"].get("poison", 0) > 0:
-                poison_damage = 5
-                defender["hp"] = max(0, defender["hp"] - poison_damage)
-                defender["status"]["poison"] -= 1
-                status_messages.append(f"☠️ **{defender['name']}** took {poison_damage} poison damage!")
-
-            # Accuracy reduction tracking
-            if defender["status"].get("accuracy_reduction", 0) > 0:
-                defender["status"]["accuracy_turns"] -= 1
-                if defender["status"]["accuracy_turns"] <= 0:
-                    defender["status"]["accuracy_reduction"] = 0
-                    status_messages.append(f"👁️ **{defender['name']}**'s accuracy has returned to normal!")
-
-            # Defense reduction tracking
-            if defender["status"].get("defense_down", 0) > 0:
-                defender["status"]["defense_down"] -= 1
-                status_messages.append(f"🛡️ **{defender['name']}**'s defense is weakened!")
-
-            # Movement restriction tracking
-            if defender["status"].get("movement_restricted", 0) > 0:
-                defender["status"]["movement_restricted"] -= 1
-                status_messages.append(f"🦶 **{defender['name']}**'s movement is restricted!")
-
-            return "\n".join(status_messages) if status_messages else None # Check for battle end
-        
-    def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
-        """Generate a health bar using Discord emotes based on current HP."""
-        filled_length = int(length * current_hp // max_hp)
-        bar = "🟩" * filled_length + "⬜" * (length - filled_length)
-        return f"{bar}"
-
-    async def apply_burn_damage(self, player: dict) -> int:
-        """Apply burn damage to a player based on their burn stacks."""
-        burn_stacks = player["status"].get("burn", 0)
-        if burn_stacks > 0:
-            burn_damage = 5 * burn_stacks
-            player["hp"] = max(0, player["hp"] - burn_damage)
-            player["status"]["burn"] = max(0, burn_stacks - 1)
-            return burn_damage
-        return 0
-
-    async def update_stats(self, attacker, defender, damage, move, stats):
-        """Update the statistics for achievements and overall tracking."""
-        if damage >= 30:  # Big hit condition
-            stats["big_hit"] = stats.get("big_hit", 0) + 1
-        if move.get("effect") == "burn":
-            stats["burns_applied"] = stats.get("burns_applied", 0) + 1
-        if defender["hp"] <= 0 and stats.get("clutch_block", 0) == 0:  # Clutch block logic
-            stats["clutch_block"] = 1
-        stats["damage_dealt"] = stats.get("damage_dealt", 0) + damage
-        stats["total_damage_dealt"] = stats.get("total_damage_dealt", 0) + damage
-
-    async def reset_player_stats(self, member):
-        """Reset a player's statistics for testing or fairness."""
-        await self.config.member(member).set({"wins": 0, "losses": 0, "damage_dealt": 0, "blocks": 0, "achievements": []})
-
-    async def reset_all_stats(self, guild):
-        """Reset all statistics in the guild."""
-        all_members = await self.config.all_members(guild)
-        for member_id in all_members:
-            member = guild.get_member(member_id)
-            if member:
-                await self.reset_player_stats(member)
+        # Check achievements
+        await self.check_achievements(winner["member"])
             
     @commands.group(name="deathboard", invoke_without_command=True)
     async def deathboard(self, ctx: commands.Context):
