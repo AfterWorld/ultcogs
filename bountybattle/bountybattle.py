@@ -1518,7 +1518,7 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
-    def generate_health_bar(self, current_hp: int, max_hp: int = 100, length: int = 10) -> str:
+    def generate_health_bar(self, current_hp: int, max_hp: int = 300, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
@@ -1848,10 +1848,10 @@ class BountyBattle(commands.Cog):
         challenger_fruit = await self.config.member(challenger).devil_fruit()
         opponent_fruit = await self.config.member(opponent).devil_fruit()
         
-        # Initialize player data
+        # Initialize player data with 300 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 100,
+            "hp": 300,
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1877,7 +1877,7 @@ class BountyBattle(commands.Cog):
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 100,
+            "hp": 300,
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1918,7 +1918,7 @@ class BountyBattle(commands.Cog):
             embed.add_field(
                 name=f"🏴‍☠️ {challenger_data['name']}",
                 value=(
-                    f"❤️ HP: {challenger_data['hp']}/100\n"
+                    f"❤️ HP: {challenger_data['hp']}/300\n"
                     f"{challenger_health}\n"
                     f"✨ Status: {challenger_status}{challenger_fruit_text}"
                 ),
@@ -1936,7 +1936,7 @@ class BountyBattle(commands.Cog):
             embed.add_field(
                 name=f"🏴‍☠️ {opponent_data['name']}",
                 value=(
-                    f"❤️ HP: {opponent_data['hp']}/100\n"
+                    f"❤️ HP: {opponent_data['hp']}/300\n"
                     f"{opponent_health}\n"
                     f"✨ Status: {opponent_status}{opponent_fruit_text}"
                 ),
@@ -1945,6 +1945,9 @@ class BountyBattle(commands.Cog):
 
         update_player_fields()
         message = await ctx.send(embed=embed)
+
+        # Battle log message
+        battle_log = await ctx.send("📜 **Battle Log:**")
         
         # Battle loop
         turn = 0
@@ -1966,10 +1969,7 @@ class BountyBattle(commands.Cog):
             # Process status effects
             status_message = await self.process_status_effects(attacker, defender)
             if status_message:
-                embed.description = status_message
-                embed.clear_fields()
-                update_player_fields()
-                await message.edit(embed=embed)
+                await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
                 await asyncio.sleep(2)
 
             # Select and modify move
@@ -1993,7 +1993,7 @@ class BountyBattle(commands.Cog):
                         move_copy,
                         turn
                     )
-                if fruit_effect:
+                    if fruit_effect:
                         # Create dramatic Devil Fruit activation message
                         fruit_embed = discord.Embed(
                             title="🌟 DEVIL FRUIT POWER ACTIVATED 🌟",
@@ -2012,19 +2012,12 @@ class BountyBattle(commands.Cog):
                 f"💥 Dealt **{final_damage}** damage!"
             )
             
-            # Update embed
-            embed.description = action_description
+            # Update battle log
+            await battle_log.edit(content=f"{battle_log.content}\n{action_description}")
+            
+            # Update main embed
             embed.clear_fields()
             update_player_fields()
-            
-            # Add battle log
-            if len(embed.fields) < 25:  # Discord's embed field limit
-                embed.add_field(
-                    name="📜 Battle Log",
-                    value=f"Turn {turn}: {action_description}",
-                    inline=False
-                )
-                
             await message.edit(embed=embed)
             await asyncio.sleep(3)
             
@@ -2038,10 +2031,13 @@ class BountyBattle(commands.Cog):
         # Update stats and handle rewards
         await self._handle_battle_rewards(ctx, winner, loser)
         
-        # Final embed update
-        embed.title = "🏆 Battle Complete!"
-        embed.description = f"**{winner['name']}** is victorious!"
-        await message.edit(embed=embed)
+        # Final embed update - Clean victory message
+        victory_embed = discord.Embed(
+            title="🏆 Battle Complete!",
+            description=f"**{winner['name']}** is victorious!",
+            color=discord.Color.gold()
+        )
+        await message.edit(embed=victory_embed)
 
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
