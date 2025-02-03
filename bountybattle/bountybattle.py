@@ -1998,7 +1998,7 @@ class BountyBattle(commands.Cog):
             )
 
             await message.edit(embed=embed)
-            await asyncio.sleep(2)
+            await asyncio.sleep(4)
 
             # Switch turns
             current_player = 1 - current_player
