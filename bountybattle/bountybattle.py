@@ -486,6 +486,24 @@ class BountyBattle(commands.Cog):
         await self.config.member(hunter).last_active.set(current_time)
         await self.config.member(target).last_active.set(current_time)
         
+    async def sync_bounty(self, member):
+        """Sync bounty between Config and bounties.json."""
+        user_id = str(member.id)
+        bounties = load_bounties()
+        
+        # If member exists in bounties.json, use that as source of truth
+        if user_id in bounties:
+            bounty_amount = bounties[user_id]["amount"]
+            # Update Config to match bounties.json
+            await self.config.member(member).bounty.set(bounty_amount)
+        else:
+            # If not in bounties.json, create entry from Config
+            config_bounty = await self.config.member(member).bounty()
+            bounties[user_id] = {"amount": config_bounty, "fruit": None}
+            save_bounties(bounties)
+        
+        return bounties[user_id]["amount"]
+        
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -1054,6 +1072,7 @@ class BountyBattle(commands.Cog):
         bounty_amount = bounties[user_id].get("amount", 0)
         await ctx.send(f"🏴‍☠️ {ctx.author.display_name}, yer bounty is `{bounty_amount:,}` Berries!")
 
+    
     @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)
     async def dailybounty(self, ctx):
@@ -1071,14 +1090,12 @@ class BountyBattle(commands.Cog):
                 minutes, _ = divmod(remainder, 60)
                 return await ctx.send(f"Ye can't claim yer daily bounty yet! Try again in {hours} hours and {minutes} minutes! ⏳")
 
-        bounties = await self.config.guild(ctx.guild).bounties()
-        user_id = str(user.id)
-
-        if user_id not in bounties:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`! and `.eatfruit`!")
-
-        increase = random.randint(1000, 5000)
+        # Sync bounty before processing
+        current_bounty = await self.sync_bounty(user)
         
+        if not current_bounty and current_bounty != 0:
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+
         await ctx.send(f"Ahoy, {user.display_name}! Ye found a treasure chest! Do ye want to open it? (yes/no)")
         try:
             def check(m):
@@ -1089,14 +1106,21 @@ class BountyBattle(commands.Cog):
             return await ctx.send("Ye let the treasure slip through yer fingers! Try again tomorrow, ye landlubber!")
 
         if msg.content.lower() == "yes":
+            increase = random.randint(1000, 5000)
+            bounties = load_bounties()
+            user_id = str(user.id)
+            
+            # Update both storage systems
             bounties[user_id]["amount"] += increase
-            await self.config.guild(ctx.guild).bounties.set(bounties)
+            save_bounties(bounties)
             await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+            await self.config.member(user).last_daily_claim.set(now.isoformat())
+            
             new_bounty = bounties[user_id]["amount"]
             new_title = self.get_bounty_title(new_bounty)
-            await self.config.member(user).last_daily_claim.set(now.isoformat())
+            
             await ctx.send(f"💰 Ye claimed {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                           f"Current Title: {new_title}")
+                        f"Current Title: {new_title}")
 
             # Announce if the user reaches a significant rank
             if new_bounty >= 900000000:
@@ -1104,7 +1128,7 @@ class BountyBattle(commands.Cog):
         else:
             await self.config.member(user).last_daily_claim.set(None)
             await ctx.send("Ye decided not to open the chest. The Sea Kings must've scared ye off!")
-
+            
     @commands.command()
     async def wanted(self, ctx, member: discord.Member = None):
         """Display a wanted poster with the user's avatar, username, and bounty."""
@@ -2144,7 +2168,11 @@ class BountyBattle(commands.Cog):
     async def _handle_battle_rewards(self, ctx, winner, loser):
         """Handle post-battle rewards and updates."""
         try:
-            # Update bounties
+            # Sync both players' bounties first
+            await self.sync_bounty(winner["member"])
+            await self.sync_bounty(loser["member"])
+            
+            # Load current bounty data
             bounties = load_bounties()
             winner_id = str(winner["member"].id)
             loser_id = str(loser["member"].id)
@@ -2153,32 +2181,19 @@ class BountyBattle(commands.Cog):
             bounty_increase = random.randint(1000, 3000)
             bounty_decrease = random.randint(500, 1500)
             
-            # Update winner's bounty
-            if winner_id in bounties:
-                bounties[winner_id]["amount"] += bounty_increase
-                
-            # Update loser's bounty
-            if loser_id in bounties:
-                current_bounty = bounties[loser_id].get("amount", 0)
-                bounties[loser_id]["amount"] = max(0, current_bounty - bounty_decrease)
+            # Update winner's bounty in both systems
+            bounties[winner_id]["amount"] += bounty_increase
+            await self.config.member(winner["member"]).bounty.set(bounties[winner_id]["amount"])
+            
+            # Update loser's bounty in both systems
+            current_bounty = bounties[loser_id].get("amount", 0)
+            bounties[loser_id]["amount"] = max(0, current_bounty - bounty_decrease)
+            await self.config.member(loser["member"]).bounty.set(bounties[loser_id]["amount"])
             
             # Save bounty changes
             save_bounties(bounties)
             
-            # Update stats
-            await self.config.member(winner["member"]).wins.set(
-                await self.config.member(winner["member"]).wins() + 1
-            )
-            await self.config.member(loser["member"]).losses.set(
-                await self.config.member(loser["member"]).losses() + 1
-            )
-            
-            # Update last active time
-            current_time = datetime.utcnow().isoformat()
-            await self.config.member(winner["member"]).last_active.set(current_time)
-            await self.config.member(loser["member"]).last_active.set(current_time)
-            
-            # Announce results
+            # Create results embed
             embed = discord.Embed(
                 title="🏆 Battle Results",
                 color=discord.Color.gold()
@@ -2206,10 +2221,23 @@ class BountyBattle(commands.Cog):
             
             await ctx.send(embed=embed)
             
+            # Update stats
+            await self.config.member(winner["member"]).wins.set(
+                await self.config.member(winner["member"]).wins() + 1
+            )
+            await self.config.member(loser["member"]).losses.set(
+                await self.config.member(loser["member"]).losses() + 1
+            )
+            
+            # Update last active time
+            current_time = datetime.utcnow().isoformat()
+            await self.config.member(winner["member"]).last_active.set(current_time)
+            await self.config.member(loser["member"]).last_active.set(current_time)
+            
             # Check achievements
             await self.check_achievements(winner["member"])
             await self.check_achievements(loser["member"])
-            
+                
         except Exception as e:
             logger.error(f"Error in battle rewards: {str(e)}")
             await ctx.send("❌ An error occurred while processing battle rewards!")
