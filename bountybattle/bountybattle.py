@@ -788,15 +788,27 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"🏴‍☠️ **{member.display_name}** now has a bounty of **{amount:,}** berries!")
 
     @commands.command()
-    @commands.is_owner()
+    @commands.has_permissions(administrator=True)  # Allow admins to use the command
     async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
-        """Give a user a Devil Fruit (Admin only)."""
+        """Give a user a Devil Fruit (Admin or Owner only)."""
+        # Check if user is either admin or bot owner
+        is_owner = await self.bot.is_owner(ctx.author)
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_owner or is_admin):
+            return await ctx.send("❌ Only administrators and bot owners can use this command!")
+
         fruit = fruit.strip().title()  # Normalize case & remove spaces
         all_fruits = {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}
         fruit_names = {name.lower(): name for name in all_fruits}  # Convert keys to lowercase
 
         if fruit.lower() not in fruit_names:
-            return await ctx.send("❌ That Devil Fruit does not exist in the current list.")
+            # Create helpful error message with closest matching fruit
+            closest_matches = difflib.get_close_matches(fruit.lower(), fruit_names.keys(), n=3, cutoff=0.5)
+            error_msg = f"❌ That Devil Fruit does not exist in the current list."
+            if closest_matches:
+                error_msg += f"\n\nDid you mean one of these?\n" + "\n".join([f"• {fruit_names[match]}" for match in closest_matches])
+            return await ctx.send(error_msg)
 
         # Check both sources for existing fruit
         bounties = load_bounties()
@@ -811,6 +823,14 @@ class BountyBattle(commands.Cog):
 
         # Assign the correctly formatted fruit name to both sources
         fruit_name = fruit_names[fruit.lower()]
+
+        # Check if it's a rare fruit and if it's already taken
+        if fruit_name in DEVIL_FRUITS["Rare"]:
+            taken_rare_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
+            if fruit_name in taken_rare_fruits:
+                return await ctx.send(f"❌ The `{fruit_name}` is already owned by another player! Rare fruits can only be owned by one person at a time.")
+
+        # Assign fruit to config
         await self.config.member(member).devil_fruit.set(fruit_name)
         
         # Initialize or update bounties entry
@@ -820,7 +840,20 @@ class BountyBattle(commands.Cog):
             bounties[user_id]["fruit"] = fruit_name
         save_bounties(bounties)
 
-        await ctx.send(f"🍏 **{member.display_name}** has been given the `{fruit_name}`!")
+        # Create success embed
+        embed = discord.Embed(
+            title="🍎 Devil Fruit Given!",
+            description=f"**{member.display_name}** has been given the `{fruit_name}`!",
+            color=discord.Color.green()
+        )
+        
+        # Add fruit info
+        fruit_data = all_fruits[fruit_name]
+        embed.add_field(name="Type", value=fruit_data["type"], inline=True)
+        embed.add_field(name="Effect", value=fruit_data["effect"], inline=True)
+        embed.add_field(name="Bonus", value=fruit_data["bonus"], inline=False)
+
+        await ctx.send(embed=embed)
         
     @commands.command()
     async def myfruit(self, ctx):
@@ -1518,7 +1551,7 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
-    def generate_health_bar(self, current_hp: int, max_hp: int = 300, length: int = 10) -> str:
+    def generate_health_bar(self, current_hp: int, max_hp: int = 250, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
@@ -1848,10 +1881,10 @@ class BountyBattle(commands.Cog):
         challenger_fruit = await self.config.member(challenger).devil_fruit()
         opponent_fruit = await self.config.member(opponent).devil_fruit()
         
-        # Initialize player data with 300 HP
+        # Initialize player data with 250 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 300,
+            "hp": 250,  # Integer HP
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1877,7 +1910,7 @@ class BountyBattle(commands.Cog):
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 300,
+            "hp": 250,  # Integer HP
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1908,47 +1941,13 @@ class BountyBattle(commands.Cog):
             color=discord.Color.blue()
         )
 
-        # Add player info fields
-        def update_player_fields():
-            # Challenger field
-            challenger_status = self.get_status_icons(challenger_data)
-            challenger_health = self.generate_health_bar(challenger_data["hp"])
-            challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
-            
-            embed.add_field(
-                name=f"🏴‍☠️ {challenger_data['name']}",
-                value=(
-                    f"❤️ HP: {challenger_data['hp']}/300\n"
-                    f"{challenger_health}\n"
-                    f"✨ Status: {challenger_status}{challenger_fruit_text}"
-                ),
-                inline=True
-            )
+        def update_hp(player, amount, is_damage=True):
+            """Update HP with proper rounding."""
+            if is_damage:
+                player["hp"] = max(0, int(round(player["hp"] - amount)))
+            else:
+                player["hp"] = min(250, int(round(player["hp"] + amount)))
 
-            # VS Separator
-            embed.add_field(name="⚔️", value="VS", inline=True)
-
-            # Opponent field
-            opponent_status = self.get_status_icons(opponent_data)
-            opponent_health = self.generate_health_bar(opponent_data["hp"])
-            opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
-            
-            embed.add_field(
-                name=f"🏴‍☠️ {opponent_data['name']}",
-                value=(
-                    f"❤️ HP: {opponent_data['hp']}/300\n"
-                    f"{opponent_health}\n"
-                    f"✨ Status: {opponent_status}{opponent_fruit_text}"
-                ),
-                inline=True
-            )
-
-        update_player_fields()
-        message = await ctx.send(embed=embed)
-
-        # Battle log message
-        battle_log = await ctx.send("📜 **Battle Log:**")
-        
         # Battle loop
         turn = 0
         players = [challenger_data, opponent_data]
@@ -1993,23 +1992,20 @@ class BountyBattle(commands.Cog):
                         move_copy,
                         turn
                     )
-                    if fruit_effect:
-                        # Create dramatic Devil Fruit activation message
-                        fruit_embed = discord.Embed(
-                            title="🌟 DEVIL FRUIT POWER ACTIVATED 🌟",
-                            description=fruit_effect,
-                            color=discord.Color.purple()
-                        )
-                        activation_msg = await ctx.send(embed=fruit_embed)
-                        await asyncio.sleep(2)
-                        await activation_msg.delete()
 
-            # Update HP and create action description
-            defender["hp"] = max(0, defender["hp"] - final_damage)
+            # Update HP using new function
+            update_hp(defender, final_damage, is_damage=True)
+            
+            # Process healing or other HP changes
+            if move_copy.get("effect") == "heal":
+                heal_amount = int(round(move_copy.get("heal", 10)))  # Round heal amount
+                update_hp(attacker, heal_amount, is_damage=False)
+
+            # Create action description
             action_description = (
                 f"**{attacker['name']}** used **{move_copy['name']}**!\n"
                 f"{move_copy['description']}\n"
-                f"💥 Dealt **{final_damage}** damage!"
+                f"💥 Dealt **{int(final_damage)}** damage!"
             )
             
             # Update battle log
