@@ -766,83 +766,185 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
-        """Attempt to steal a percentage of another user's bounty."""
+        """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
         hunter = ctx.author
-        bounties = load_bounties()  # ✅ Use JSON-based storage
+        
+        # Initial validation checks
+        if hunter == target:
+            return await ctx.send("❌ Ye can't hunt yer own bounty, ye scallywag!")
+        
+        if target.bot:
+            return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
 
-        hunter_id = str(hunter.id)
-        target_id = str(target.id)
+        try:
+            # Load bounty data
+            bounties = load_bounties()
+            hunter_id = str(hunter.id)
+            target_id = str(target.id)
 
-        if hunter_id not in bounties or target_id not in bounties:
-            return await ctx.send("Both you and your target must have a bounty to participate!")
+            # Validate participants
+            if not all(uid in bounties for uid in [hunter_id, target_id]):
+                return await ctx.send("🏴‍☠️ Both you and your target must have a bounty to participate!")
 
-        if hunter_id == target_id:
-            return await ctx.send("Ye can't hunt yer own bounty, ye scallywag!")
+            target_bounty = bounties[target_id].get("amount", 0)
+            hunter_bounty = bounties[hunter_id].get("amount", 0)
 
-        target_bounty = bounties[target_id].get("amount", 0)
-        hunter_bounty = bounties[hunter_id].get("amount", 0)
+            # Check minimum bounty requirements
+            min_bounty = 1000
+            if target_bounty < min_bounty:
+                return await ctx.send(f"💰 **{target.display_name}** is too broke to be worth hunting! (Minimum: {min_bounty:,} Berries)")
 
-        if target_bounty < 1000:
-            return await ctx.send(f"{target.display_name} is too broke to be worth hunting!")
+            # Generate dynamic lock-picking challenge
+            patterns = {
+                "Easy": ["🔒🔑", "🔑🔒"],
+                "Medium": ["🔒🔑🔑", "🔑🔒🔑", "🔑🔑🔒"],
+                "Hard": ["🔒🔑🔑🔒", "🔑🔒🔒🔑", "🔑🔑🔒🔒"]
+            }
+            
+            # Difficulty scales with target's bounty
+            if target_bounty > 1_000_000:
+                difficulty = "Hard"
+            elif target_bounty > 100_000:
+                difficulty = "Medium"
+            else:
+                difficulty = "Easy"
 
-        # ✅ Add a critical failure chance (5% chance to lose bounty instead of stealing)
-        critical_failure = random.randint(1, 100) <= 5
-        success = random.choice([True, False])
+            lock_code = random.choice(patterns[difficulty])
+            time_limit = {"Easy": 12, "Medium": 10, "Hard": 8}[difficulty]
 
-        # ✅ Ensure bounty stolen is never 0 (minimum 500 Berries)
-        steal_amount = max(int(random.uniform(0.05, 0.20) * target_bounty), 500)
+            # Create challenge embed
+            challenge_embed = discord.Embed(
+                title="🏴‍☠️ Bounty Hunt Attempt!",
+                description=(
+                    f"**{hunter.display_name}** is attempting to break into **{target.display_name}**'s safe! 🔐\n\n"
+                    f"**Difficulty:** {difficulty}\n"
+                    f"**Time Limit:** {time_limit} seconds\n"
+                    f"**Pattern to Match:** `{lock_code}`"
+                ),
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=challenge_embed)
 
-        if success and not critical_failure:
-            bounties[hunter_id]["amount"] += steal_amount
-            bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
+            # Wait for response
+            try:
+                msg = await self.bot.wait_for(
+                    "message",
+                    check=lambda m: m.author == hunter and m.channel == ctx.channel,
+                    timeout=time_limit
+                )
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⌛ Time's Up!",
+                    description=f"**{hunter.display_name}** took too long! {target.display_name} was alerted!",
+                    color=discord.Color.red()
+                )
+                return await ctx.send(embed=timeout_embed)
 
-            save_bounties(bounties)  # ✅ Save to JSON
+            # Check response and handle outcomes
+            if msg.content.strip() != lock_code:
+                fail_embed = discord.Embed(
+                    title="❌ Lock Pick Failed!",
+                    description=f"**{hunter.display_name}** failed to pick the lock! {target.display_name} was alerted!",
+                    color=discord.Color.red()
+                )
+                return await ctx.send(embed=fail_embed)
 
-            # ✅ Track stats
-            await self.config.member(hunter).last_active.set(datetime.utcnow().isoformat())
-            await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
+            # Calculate success chance and critical failure
+            success = random.random() < 0.6  # 60% base success rate
+            critical_failure = random.random() < 0.05  # 5% critical failure chance
 
+            # Calculate steal amount with minimum guarantee
+            base_steal = random.uniform(0.05, 0.20)
+            steal_amount = max(int(base_steal * target_bounty), 500)
+
+            if success and not critical_failure:
+                # Handle successful theft
+                bounties[hunter_id]["amount"] += steal_amount
+                bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
+                save_bounties(bounties)
+
+                # Update stats and activity
+                await self._update_hunter_stats(hunter, steal_amount)
+                await self._update_activity(hunter, target)
+
+                # Create success embed
+                success_embed = discord.Embed(
+                    title="🏴‍☠️ Bounty Hunt Success!",
+                    description=f"💰 **{hunter.display_name}** successfully infiltrated **{target.display_name}**'s vault!",
+                    color=discord.Color.green()
+                )
+                success_embed.add_field(
+                    name="💎 Stolen Amount",
+                    value=f"`{steal_amount:,} Berries`",
+                    inline=False
+                )
+                success_embed.add_field(
+                    name="🏆 New Hunter Bounty",
+                    value=f"`{bounties[hunter_id]['amount']:,} Berries`",
+                    inline=True
+                )
+                success_embed.add_field(
+                    name="💀 New Target Bounty",
+                    value=f"`{bounties[target_id]['amount']:,} Berries`",
+                    inline=True
+                )
+                await ctx.send(embed=success_embed)
+
+            elif critical_failure:
+                # Handle critical failure
+                penalty = max(int(hunter_bounty * 0.10), 1000)
+                bounties[hunter_id]["amount"] = max(0, hunter_bounty - penalty)
+                save_bounties(bounties)
+
+                failure_embed = discord.Embed(
+                    title="💥 Critical Failure!",
+                    description=(
+                        f"**{hunter.display_name}** got caught in a trap while trying to rob "
+                        f"**{target.display_name}**!\n\n"
+                        f"*The Marines were alerted and imposed a fine!*"
+                    ),
+                    color=discord.Color.red()
+                )
+                failure_embed.add_field(
+                    name="💸 Fine Amount",
+                    value=f"`{penalty:,} Berries`",
+                    inline=False
+                )
+                failure_embed.add_field(
+                    name="🏴‍☠️ Remaining Bounty",
+                    value=f"`{bounties[hunter_id]['amount']:,} Berries`",
+                    inline=True
+                )
+                await ctx.send(embed=failure_embed)
+
+            else:
+                # Handle normal failure
+                await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
+
+        except Exception as e:
+            logger.error(f"Error in bountyhunt command: {str(e)}")
+            await ctx.send("❌ An error occurred during the bounty hunt!")
+            self.bot.dispatch("command_error", ctx, e)
+
+        async def _update_hunter_stats(self, hunter, steal_amount):
+            """Update hunter's statistics and check for title unlocks."""
             current_stolen = await self.config.member(hunter).bounty_hunted() or 0
             total_stolen = current_stolen + steal_amount
             await self.config.member(hunter).bounty_hunted.set(total_stolen)
 
-            # ✅ Unlock "The Bounty Hunter" title
             if total_stolen >= 100_000:
                 unlocked_titles = await self.config.member(hunter).titles()
                 if "The Bounty Hunter" not in unlocked_titles:
                     unlocked_titles.append("The Bounty Hunter")
                     await self.config.member(hunter).titles.set(unlocked_titles)
-                    await ctx.send(f"💰 **{hunter.display_name}** has unlocked the secret title: `The Bounty Hunter`! 🎖️")
+                    return True
+            return False
 
-            # ✅ Use an embed for a cleaner response
-            embed = discord.Embed(
-                title="🏴‍☠️ Bounty Hunt Success!",
-                description=f"💰 **{hunter.display_name}** successfully hunted **{target.display_name}**!",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="💰 Stolen Amount", value=f"`{steal_amount:,} Berries`", inline=False)
-            embed.add_field(name="🏆 New Hunter Bounty", value=f"`{bounties[hunter_id]['amount']:,} Berries`", inline=True)
-            embed.add_field(name="💀 New Target Bounty", value=f"`{bounties[target_id]['amount']:,} Berries`", inline=True)
-            await ctx.send(embed=embed)
-
-        elif critical_failure:
-            # ✅ 5% chance for the hunter to lose bounty instead of stealing!
-            penalty = max(int(hunter_bounty * 0.10), 1000)  # Lose 10% of bounty or at least 1,000 Berries
-            bounties[hunter_id]["amount"] = max(0, hunter_bounty - penalty)
-            save_bounties(bounties)
-
-            embed = discord.Embed(
-                title="❌ Critical Failure!",
-                description=f"💀 **{hunter.display_name}** tried to steal from **{target.display_name}** but got caught!",
-                color=discord.Color.red()
-            )
-            embed.add_field(name="📉 Lost Bounty", value=f"`{penalty:,} Berries`", inline=False)
-            embed.add_field(name="🏴‍☠️ Remaining Bounty", value=f"`{bounties[hunter_id]['amount']:,} Berries`", inline=True)
-            await ctx.send(embed=embed)
-
-        else:
-            # ❌ Normal failure
-            await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
+        async def _update_activity(self, hunter, target):
+            """Update last active timestamp for both participants."""
+            current_time = datetime.utcnow().isoformat()
+            await self.config.member(hunter).last_active.set(current_time)
+            await self.config.member(target).last_active.set(current_time)
             
     @commands.command()
     async def mybounty(self, ctx):
