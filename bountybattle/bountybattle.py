@@ -689,7 +689,7 @@ class BountyBattle(commands.Cog):
         )
 
     @commands.command()
-    @commands.cooldown(1, 60, commands.BucketType.user)
+    @commands.cooldown(1, 86400, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty."""
         hunter = ctx.author
@@ -698,6 +698,7 @@ class BountyBattle(commands.Cog):
         hunter_id = str(hunter.id)
         target_id = str(target.id)
 
+        # Check if both have bounties
         if hunter_id not in bounties or target_id not in bounties:
             return await ctx.send("Both you and your target must have a bounty to participate!")
 
@@ -708,21 +709,29 @@ class BountyBattle(commands.Cog):
         if target_bounty < 1000:
             return await ctx.send(f"{target.display_name} is too broke to be worth hunting!")
 
+        # 50% chance to succeed
         success = random.choice([True, False])
+        # Random amount between 5-20% of target's bounty
         steal_amount = int(random.uniform(0.05, 0.20) * target_bounty)
 
         if success:
+            # Update bounties
             bounties[hunter_id]["amount"] += steal_amount
             bounties[target_id]["amount"] = max(0, bounties[target_id]["amount"] - steal_amount)
             
+            # Save the updated bounties
             await self.config.guild(ctx.guild).bounties.set(bounties)
+
+            # Track the last active time for both players
             await self.config.member(ctx.author).last_active.set(datetime.utcnow().isoformat())
             await self.config.member(target).last_active.set(datetime.utcnow().isoformat())
 
+            # Track total bounty hunted
             current_stolen = await self.config.member(hunter).bounty_hunted() or 0
             total_stolen = current_stolen + steal_amount
             await self.config.member(hunter).bounty_hunted.set(total_stolen)
             
+            # Check for "The Bounty Hunter" title
             if total_stolen >= 100_000:
                 unlocked_titles = await self.config.member(hunter).titles()
                 if "The Bounty Hunter" not in unlocked_titles:
