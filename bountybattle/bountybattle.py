@@ -956,6 +956,39 @@ class BountyBattle(commands.Cog):
 
         await ctx.send(f"✅ Bounty and Devil Fruit data has been successfully saved to `{file_path}`!")
 
+    @commands.command()
+    async def check(self, ctx, member: discord.Member = None):
+        """Check a user's bounty and Devil Fruit."""
+        if member is None:
+            member = ctx.author
+
+        # Load bounty data
+        base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle"
+        file_path = os.path.join(base_path, "bounties.json")
+
+        # Ensure the file exists before trying to read it
+        if not os.path.exists(file_path):
+            return await ctx.send("❌ No bounty data found! Try running `.getdata` first.")
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            bounties = json.load(f)
+
+        user_id = str(member.id)
+
+        # Check if user has a bounty entry
+        if user_id not in bounties:
+            return await ctx.send(f"{member.display_name} has no bounty record! They need to start with `.startbounty`.")
+
+        # Get bounty and fruit info
+        bounty_amount = bounties[user_id].get("amount", 0)
+        devil_fruit = bounties[user_id].get("fruit", "None")
+
+        # Format message
+        embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
+        embed.add_field(name="💰 Bounty", value=f"`{bounty_amount:,} Berries`", inline=False)
+        embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`" if devil_fruit else "`None`", inline=False)
+
+        await ctx.send(embed=embed)
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
