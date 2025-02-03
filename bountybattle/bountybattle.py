@@ -486,23 +486,38 @@ class BountyBattle(commands.Cog):
         await self.config.member(hunter).last_active.set(current_time)
         await self.config.member(target).last_active.set(current_time)
         
-    async def sync_bounty(self, member):
-        """Sync bounty between Config and bounties.json."""
-        user_id = str(member.id)
+    async def sync_all_bounties(self, ctx):
+        """Synchronize all bounties between Config and bounties.json."""
+        # Load current bounties from file
         bounties = load_bounties()
         
-        # If member exists in bounties.json, use that as source of truth
-        if user_id in bounties:
-            bounty_amount = bounties[user_id]["amount"]
-            # Update Config to match bounties.json
-            await self.config.member(member).bounty.set(bounty_amount)
-        else:
-            # If not in bounties.json, create entry from Config
-            config_bounty = await self.config.member(member).bounty()
-            bounties[user_id] = {"amount": config_bounty, "fruit": None}
-            save_bounties(bounties)
+        # Get all members from Config
+        all_members = await self.config.all_members(ctx.guild)
         
-        return bounties[user_id]["amount"]
+        # Create a new synchronized bounties dictionary
+        synced_bounties = {}
+        
+        for member_id, member_data in all_members.items():
+            member = ctx.guild.get_member(int(member_id))
+            if not member:
+                continue
+                
+            # Get both bounty values
+            config_bounty = member_data.get("bounty", 0)
+            json_bounty = bounties.get(str(member_id), {}).get("amount", 0)
+            
+            # Use the higher value as the source of truth
+            true_bounty = max(config_bounty, json_bounty)
+            
+            # Update both systems
+            synced_bounties[str(member_id)] = {
+                "amount": true_bounty,
+                "fruit": bounties.get(str(member_id), {}).get("fruit", None)
+            }
+            await self.config.member(member).bounty.set(true_bounty)
+        
+        # Save synchronized bounties back to file
+        save_bounties(synced_bounties)
         
     # ------------------ Bounty System ------------------
 
@@ -1099,17 +1114,36 @@ class BountyBattle(commands.Cog):
             self.bot.dispatch("command_error", ctx, e)
             
     @commands.command()
+    async def syncbounties(self, ctx):
+        """Synchronize all bounties in the system."""
+        try:
+            await self.sync_all_bounties(ctx)
+            await ctx.send("✅ Successfully synchronized all bounties!")
+        except Exception as e:
+            await ctx.send(f"❌ An error occurred while synchronizing bounties: {str(e)}")
+
+    # Modify mybounty command to always sync first
+    @commands.command()
     async def mybounty(self, ctx):
         """Check your bounty amount."""
-        user_id = str(ctx.author.id)
+        user = ctx.author
+        user_id = str(user.id)
+        
+        # Sync bounties first
         bounties = load_bounties()
-
-        if user_id not in bounties:
-            await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Use `.startbounty`.")
-            return
-
-        bounty_amount = bounties[user_id].get("amount", 0)
-        await ctx.send(f"🏴‍☠️ {ctx.author.display_name}, yer bounty is `{bounty_amount:,}` Berries!")
+        config_bounty = await self.config.member(user).bounty()
+        json_bounty = bounties.get(user_id, {}).get("amount", 0)
+        
+        # Use the higher value
+        true_bounty = max(config_bounty, json_bounty)
+        
+        # Update both systems
+        bounties[user_id] = bounties.get(user_id, {})
+        bounties[user_id]["amount"] = true_bounty
+        save_bounties(bounties)
+        await self.config.member(user).bounty.set(true_bounty)
+        
+        await ctx.send(f"🏴‍☠️ {user.display_name}, yer bounty is `{true_bounty:,}` Berries!")
 
     
     @commands.command()
@@ -2992,36 +3026,41 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
-        """Check a player's deathmatch stats, including exclusive titles."""
+        """Check a player's deathmatch stats."""
         member = member or ctx.author
-    
-        # Retrieve stats from config
+        
+        # Sync bounty first
+        bounties = load_bounties()
+        config_bounty = await self.config.member(member).bounty()
+        json_bounty = bounties.get(str(member.id), {}).get("amount", 0)
+        true_bounty = max(config_bounty, json_bounty)
+        
+        # Update both systems
+        bounties[str(member.id)] = bounties.get(str(member.id), {})
+        bounties[str(member.id)]["amount"] = true_bounty
+        save_bounties(bounties)
+        await self.config.member(member).bounty.set(true_bounty)
+        
+        # Get other stats
         stats = await self.config.member(member).all()
         wins = stats.get("wins", 0)
         losses = stats.get("losses", 0)
-    
-        # ✅ Retrieve bounty from the same source as `mostwanted`
-        bounties = await self.config.guild(ctx.guild).bounties()
-        bounty = bounties.get(str(member.id), {}).get("amount", 0)
-    
-        # ✅ Get the correct title based on bounty
-        title = self.get_bounty_title(bounty) or "Unknown Pirate"
-    
-        # ✅ Check for hidden/exclusive titles and prevent NoneType errors
-        hidden_titles = await self.config.member(member).titles() or []
+        hidden_titles = stats.get("titles", [])
+        
+        # Get title based on synced bounty
+        title = self.get_bounty_title(true_bounty) or "Unknown Pirate"
         if hidden_titles:
             title += f" / {', '.join(hidden_titles)}"
-    
-        # Create embed
+        
         embed = discord.Embed(
             title=f"⚔️ Deathmatch Stats for {member.display_name}",
             color=discord.Color.red()
         )
         embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
         embed.add_field(name="💀 Losses", value=str(losses), inline=True)
-        embed.add_field(name="💰 Bounty", value=f"{bounty:,} Berries", inline=True)
+        embed.add_field(name="💰 Bounty", value=f"{true_bounty:,} Berries", inline=True)
         embed.add_field(name="🎖️ Titles", value=title, inline=False)
-    
+        
         await ctx.send(embed=embed)
 
     async def update_winner(self, ctx, winner):
