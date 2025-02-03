@@ -1851,7 +1851,7 @@ class BountyBattle(commands.Cog):
         # Initialize player data with 300 HP
         challenger_data = {
             "name": challenger.display_name,
-            "hp": 300,
+            "hp": 250,
             "member": challenger,
             "fruit": challenger_fruit,
             "status": {
@@ -1877,7 +1877,7 @@ class BountyBattle(commands.Cog):
 
         opponent_data = {
             "name": opponent.display_name,
-            "hp": 300,
+            "hp": 250,
             "member": opponent,
             "fruit": opponent_fruit,
             "status": {
@@ -1918,7 +1918,7 @@ class BountyBattle(commands.Cog):
             embed.add_field(
                 name=f"🏴‍☠️ {challenger_data['name']}",
                 value=(
-                    f"❤️ HP: {challenger_data['hp']}/300\n"
+                    f"❤️ HP: {challenger_data['hp']}/250\n"
                     f"{challenger_health}\n"
                     f"✨ Status: {challenger_status}{challenger_fruit_text}"
                 ),
