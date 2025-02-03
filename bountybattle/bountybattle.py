@@ -2234,6 +2234,7 @@ class BountyBattle(commands.Cog):
         """Handle Logia-type combat effects with dramatic announcements."""
         effect = fruit_data["effect"]
         effect_message = None
+        move_name = move_copy["name"]
 
         # Fire Logia
         if effect == "fire":
@@ -2242,7 +2243,7 @@ class BountyBattle(commands.Cog):
                 damage *= 2
                 effect_message = (
                     f"🔥 **FLAME EMPEROR'S WRATH**! 🔥\n"
-                    f"**{attacker['name']}**'s flames burn with devastating power using {move_copy}!\n"
+                    f"**{attacker['name']}**'s flames burn with devastating power using {move_name}!\n"
                     f"💥 Double Damage + Intense Burn Effect!"
                 )
 
@@ -2252,7 +2253,7 @@ class BountyBattle(commands.Cog):
                 defender["status"]["stun"] = True
                 effect_message = (
                     f"⚡ **THUNDER GOD'S JUDGEMENT**! ⚡\n"
-                    f"**{attacker['name']}** channels divine lightning with {move_copy}!\n"
+                    f"**{attacker['name']}** channels divine lightning with {move_name}!\n"
                     f"💫 Enemy Paralyzed by Lightning!"
                 )
 
@@ -2262,7 +2263,7 @@ class BountyBattle(commands.Cog):
                 damage = 0
                 effect_message = (
                     f"💨 **WHITE SCREEN**! 💨\n"
-                    f"**{attacker['name']}** dissolves into smoke with {move_copy}!\n"
+                    f"**{attacker['name']}** dissolves into smoke with {move_name}!\n"
                     f"✨ Attack Completely Avoided!"
                 )
 
@@ -2270,7 +2271,7 @@ class BountyBattle(commands.Cog):
         if turn % 5 == 0:
             effect_message = (
                 f"🌪️ **SPECIAL TURN EFFECT**! 🌪️\n"
-                f"**{attacker['name']}** gains a special boost on turn {turn} using {move_copy}!\n"
+                f"**{attacker['name']}** gains a special boost on turn {turn} using {move_name}!\n"
                 f"✨ Special Effect Activated!"
             )
 
