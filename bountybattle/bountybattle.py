@@ -2194,6 +2194,7 @@ class BountyBattle(commands.Cog):
     
     async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
         """Apply Devil Fruit effects to combat."""
+        fruit_effect = None  # Initialize fruit_effect to None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
         if not fruit:
             return damage, None
