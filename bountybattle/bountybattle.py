@@ -2214,11 +2214,12 @@ class BountyBattle(commands.Cog):
 
         # Apply type-specific effects
         if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data)
+            damage, effect_message = await self._handle_logia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy)
         elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data)
+            damage, effect_message = await self._handle_zoan_combat(self, attacker, defender, damage, fruit_data, turn, move_copy)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data)
+            turn = 1  # Define the turn variable
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn, move_copy)
 
         return damage, effect_message
 
