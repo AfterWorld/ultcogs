@@ -2404,22 +2404,52 @@ class BountyBattle(commands.Cog):
                 f"💥 Damage Enhanced!"
             )
 
-        elif "Model Nika" in effect:
-            boost_type = random.choice(["attack", "speed", "defense"])
-            if boost_type == "attack":
-                damage *= 1.5
-                effect_message = (
-                    f"🔥 **NIKA'S AWAKENING**! 🔥\n"
-                    f"**{attacker['name']}** unleashes freedom's power!\n"
-                    f"💥 Attack Enhanced!"
-                )
-            elif boost_type == "defense":
-                attacker["status"]["protected"] = True
-                effect_message = (
-                    f"✨ **NIKA'S LIBERATION**! ✨\n"
-                    f"**{attacker['name']}** moves with complete freedom!\n"
-                    f"🛡️ Defense Boosted!"
-                )
+        # Handle Nika specifically
+        if effect == "nika":  # Hito Hito no Mi: Model Nika
+            # Higher activation chance due to awakened nature
+            if random.random() < 0.4:  # 40% activation chance
+                # Nika has multiple possible effects
+                nika_effect = random.choice([
+                    "drumbeat",
+                    "giant",
+                    "lightning",
+                    "freedom"
+                ])
+
+                if nika_effect == "drumbeat":
+                    damage *= 2.5
+                    effect_message = (
+                        f"💥 **DRUMS OF LIBERATION**! 💥\n"
+                        f"**{attacker['name']}** awakens their heartbeat!\n"
+                        f"🥁 Massive Damage Boost!"
+                    )
+                elif nika_effect == "giant":
+                    damage *= 2
+                    defender["status"]["stun"] = True
+                    effect_message = (
+                        f"🌟 **GIANT WARRIOR**! 🌟\n"
+                        f"**{attacker['name']}** grows to massive size!\n"
+                        f"👊 Double Damage + Stun!"
+                    )
+                elif nika_effect == "lightning":
+                    attacker["status"]["dodge_active"] = 2
+                    damage *= 1.5
+                    effect_message = (
+                        f"⚡ **LIGHTNING SPEED**! ⚡\n"
+                        f"**{attacker['name']}** moves with impossible freedom!\n"
+                        f"💨 Enhanced Speed + Damage!"
+                    )
+                elif nika_effect == "freedom":
+                    # Clear all negative status effects
+                    attacker["status"]["burn"] = 0
+                    attacker["status"]["stun"] = False
+                    attacker["status"]["frozen"] = 0
+                    damage *= 1.8
+                    effect_message = (
+                        f"🌈 **WARRIOR OF LIBERATION**! 🌈\n"
+                        f"**{attacker['name']}** breaks free of all limitations!\n"
+                        f"✨ Status Effects Cleared + Damage Boost!"
+                    )
 
         # Ancient Zoan Types
         elif "Model Spinosaurus" in effect:
