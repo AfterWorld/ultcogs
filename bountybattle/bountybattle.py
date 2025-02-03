@@ -1945,10 +1945,6 @@ class BountyBattle(commands.Cog):
                     # Create dramatic announcement if there was an effect
                     if fruit_effect:
                         fruit_effect = await self._create_devil_fruit_announcement(attacker, fruit_data, fruit_effect)
-                        # Send separate announcement
-                        await ctx.send(fruit_effect)
-                        await asyncio.sleep(2)
-                        
                         # Add to effect messages for the battle embed
                         effect_messages.append(fruit_effect)
             else:
