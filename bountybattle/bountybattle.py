@@ -708,7 +708,7 @@ class BountyBattle(commands.Cog):
         )
 
     @commands.command()
-    @commands.cooldown(1, 86400, commands.BucketType.user)
+    @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty."""
         hunter = ctx.author
@@ -997,7 +997,7 @@ class BountyBattle(commands.Cog):
 
 
     @commands.command()
-    @commands.cooldown(1, 3600, commands.BucketType.user)
+    @commands.cooldown(1, 600, commands.BucketType.user)
     async def berryflip(self, ctx, bet: int = None):
         """Flip a coin to potentially increase your bounty."""
         user = ctx.author
@@ -1060,7 +1060,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.cooldown(1, 86400, commands.BucketType.user)
+    @commands.cooldown(1, 1800, commands.BucketType.user)
     async def completemission(self, ctx, mission_number: int):
         """Complete a mission to earn bounty."""
         missions = [
