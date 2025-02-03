@@ -1864,9 +1864,17 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
+            },
+            "stats": {
+                "damage": 0,
+                "heal": 0,
+                "critical_hits": 0,
+                "blocks": 0,
+                "burns_applied": 0,
+                "stuns_applied": 0
             }
         }
-        
+
         opponent_data = {
             "name": opponent.display_name,
             "hp": 100,
@@ -1882,6 +1890,14 @@ class BountyBattle(commands.Cog):
                 "accuracy_reduction": 0,
                 "accuracy_turns": 0,
                 "elements_used": set()
+            },
+            "stats": {
+                "damage": 0,
+                "heal": 0,
+                "critical_hits": 0,
+                "blocks": 0,
+                "burns_applied": 0,
+                "stuns_applied": 0
             }
         }
 
