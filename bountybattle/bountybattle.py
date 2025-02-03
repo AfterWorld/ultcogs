@@ -1742,65 +1742,82 @@ class BountyBattle(commands.Cog):
         hazard_message = None
 
         if environment == "Skypiea" and random.random() < 0.3:  # 30% chance
-            hazard_message = "⚡ A lightning bolt strikes, dealing 15 damage to both players!"
+            hazard_damage = random.randint(10, 15)
             for player in players:
-                player["hp"] = max(0, player["hp"] - 15)
-        elif environment == "Alabasta" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🌪️ A sandstorm reduces accuracy by 20% for 3 turns!"
+                player["hp"] = max(0, player["hp"] - hazard_damage)
+            hazard_message = f"⚡ **DIVINE LIGHTNING!** A bolt strikes from above, dealing `{hazard_damage}` damage to both players!"
+
+        elif environment == "Alabasta" and random.random() < 0.3:
             for player in players:
                 player["status"]["accuracy_reduction"] = 0.2
                 player["status"]["accuracy_turns"] = 3
-        elif environment == "Wano" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🗡️ A samurai's spirit empowers strong attacks, increasing their damage temporarily!"
+            hazard_message = "🌪️ **SANDSTORM RAGES!** A fierce sandstorm reduces accuracy by 20% for 3 turns!"
+
+        elif environment == "Wano" and random.random() < 0.3:
             for player in players:
                 player["status"]["strong_damage_boost"] = 5
                 player["status"]["boost_turns"] = 3
-        elif environment == "Punk Hazard" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🔥❄️ The extreme elements amplify burn and stun effects!"
+            hazard_message = "🗡️ **SAMURAI SPIRITS!** The legends of Wano empower strong attacks!"
+
+        elif environment == "Punk Hazard" and random.random() < 0.3:
+            hazard_damage = random.randint(5, 10)
             for player in players:
+                player["hp"] = max(0, player["hp"] - hazard_damage)
                 player["status"]["burn_amplification"] = 0.1
-                player["status"]["stun_chance_boost"] = True
-        elif environment == "Fishman Island" and random.random() < 0.4:  # 40% chance
-            hazard_message = "🌊 A soothing wave heals both players for 10 HP!"
+            hazard_message = f"🔥❄️ **EXTREME CLIMATE!** The harsh environment deals `{hazard_damage}` damage and amplifies burn effects!"
+
+        elif environment == "Fishman Island" and random.random() < 0.4:
+            heal_amount = random.randint(10, 20)
             for player in players:
-                player["hp"] = min(100, player["hp"] + 10)
-        elif environment == "Dressrosa" and random.random() < 0.3:  # 30% chance
-            hazard_message = "✨ A dazzling aura increases crit chance for both players!"
+                player["hp"] = min(250, player["hp"] + heal_amount)
+            hazard_message = f"🌊 **HEALING WATERS!** The sacred waters restore `{heal_amount}` HP to both players!"
+
+        elif environment == "Dressrosa" and random.random() < 0.3:
             for player in players:
                 player["status"]["crit_chance_boost"] = 0.1
                 player["status"]["boost_turns"] = 3
-        elif environment == "Whole Cake Island" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🍰 The sweetness restores 15 HP for both players!"
+            hazard_message = "✨ **COLOSSEUM SPIRIT!** The fighting spirit increases critical hit chance!"
+
+        elif environment == "Whole Cake Island" and random.random() < 0.3:
+            heal_amount = random.randint(15, 25)
             for player in players:
-                player["hp"] = min(100, player["hp"] + 15)
-        elif environment == "Marineford" and random.random() < 0.3:  # 30% chance
-            hazard_message = "⚔️ The battlefield empowers strong attacks, increasing their damage!"
+                player["hp"] = min(250, player["hp"] + heal_amount)
+            hazard_message = f"🍰 **SWEET ENERGY!** The sugar rush heals both players for `{heal_amount}` HP!"
+
+        elif environment == "Marineford" and random.random() < 0.3:
             for player in players:
                 player["status"]["strong_damage_boost"] = 10
                 player["status"]["boost_turns"] = 3
-        elif environment == "Enies Lobby" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🛡️ Justice prevails, enhancing block effects for both players!"
+            hazard_message = "⚔️ **BATTLEFIELD FURY!** The historic grounds empower all attacks!"
+
+        elif environment == "Enies Lobby" and random.random() < 0.3:
             for player in players:
                 player["status"]["block_amplification"] = True
-        elif environment == "Amazon Lily" and random.random() < 0.3:  # 30% chance
-            hazard_message = "💖 The charm of the island enhances healing moves!"
+            hazard_message = "🛡️ **GATES OF JUSTICE!** Defense is enhanced for both players!"
+
+        elif environment == "Amazon Lily" and random.random() < 0.3:
+            heal_amount = random.randint(10, 15)
             for player in players:
-                player["status"]["heal_boost"] = 10
-        elif environment == "Zou" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🐘 The island enhances all elemental abilities!"
+                player["hp"] = min(250, player["hp"] + heal_amount)
+            hazard_message = f"💖 **MAIDEN'S BLESSING!** The island's power heals both players for `{heal_amount}` HP!"
+
+        elif environment == "Zou" and random.random() < 0.3:
             for player in players:
                 player["status"]["elemental_boost"] = 0.1
-        elif environment == "Elbaf" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🔨 The land of giants amplifies physical attack damage!"
+            hazard_message = "🐘 **MINK TRIBE'S POWER!** The ancient power enhances elemental abilities!"
+
+        elif environment == "Elbaf" and random.random() < 0.3:
             for player in players:
                 player["status"]["physical_damage_boost"] = 15
                 player["status"]["boost_turns"] = 3
-        elif environment == "Raftel" and random.random() < 0.3:  # 30% chance
-            hazard_message = "🏝️ The legendary island boosts all stats for both players!"
+            hazard_message = "🔨 **GIANT'S STRENGTH!** Physical attacks are greatly enhanced!"
+
+        elif environment == "Raftel" and random.random() < 0.3:
             for player in players:
                 player["status"]["crit_chance_boost"] = 0.1
                 player["status"]["burn_amplification"] = 0.1
                 player["status"]["heal_boost"] = 10
+            hazard_message = "🏝️ **LOST HISTORY!** The power of the ancient weapons enhances all abilities!"
 
         return hazard_message
 
@@ -2035,16 +2052,18 @@ class BountyBattle(commands.Cog):
             attacker = players[current_player]
             defender = players[1 - current_player]
 
-            # Update turn survival stat
-            attacker["stats"]["turns_survived"] = turn
-            defender["stats"]["turns_survived"] = turn
-            
-            # Check for battle stop
-            if self.battle_stopped:
-                embed.title = "⚠️ Battle Stopped!"
-                embed.description = "The fight has been forcibly ended!"
-                await message.edit(embed=embed)
-                return
+            # Apply environmental effects at the start of each turn
+            if turn % 3 == 0:  # Check every 3 turns
+                hazard_message = await self.apply_environmental_hazard(environment, players)
+                if hazard_message:
+                    # Update battle log with environment effect
+                    await battle_log.edit(content=f"{battle_log.content}\n\n{hazard_message}")
+                    
+                    # Update display after environment effects
+                    embed.clear_fields()
+                    update_player_fields()
+                    await message.edit(embed=embed)
+                    await asyncio.sleep(2)
 
             # Process status effects
             status_message = await self.process_status_effects(attacker, defender)
@@ -2055,8 +2074,15 @@ class BountyBattle(commands.Cog):
             # Select and modify move
             move = random.choice(MOVES)
             move_copy = move.copy()
+
+            # Apply environment effects to the move
             if environment_data['effect']:
                 environment_data['effect'](move_copy, attacker["stats"])
+                
+                # Add environment bonus message if damage was modified
+                if move_copy.get('damage', 0) > 0:
+                    env_bonus = f"\n⚡ {environment} Effect: Damage Enhanced!"
+                    await battle_log.edit(content=f"{battle_log.content}{env_bonus}")
 
             # Calculate base damage
             base_damage = self.calculate_damage(move_copy["type"], turn_number=turn)
