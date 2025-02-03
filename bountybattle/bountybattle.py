@@ -1518,7 +1518,7 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
-    def generate_health_bar(self, current_hp: int, max_hp: int = 300, length: int = 10) -> str:
+    def generate_health_bar(self, current_hp: int, max_hp: int = 250, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
         bar = "🥩" * filled_length + "🦴" * (length - filled_length)
