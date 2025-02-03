@@ -581,7 +581,7 @@ class BountyBattle(commands.Cog):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
     
         # ✅ Get all rare fruits currently taken
-        all_taken_fruits = set(fruit for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"])
+        all_taken_fruits = {data["fruit"] for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
     
         # ✅ Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
