@@ -917,93 +917,46 @@ class BountyBattle(commands.Cog):
         
         guild = ctx.guild
         all_members = await self.config.all_members(guild)
-    
+
         if not all_members:
             return await ctx.send("❌ No bounty data found for this guild.")
-    
+
         # Define the file path
         base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle"
         file_path = os.path.join(base_path, "bounties.json")
-    
+
         # Ensure the directory exists
         os.makedirs(base_path, exist_ok=True)
-    
+
         # Structure the data
         bounties_data = {}
-    
+
         rare_fruit_owners = set()  # Track users who own rare fruits
-    
+
         for user_id, data in all_members.items():
             bounty_amount = data.get("bounty", 0)
             devil_fruit = data.get("devil_fruit", None)
-    
+
             # Ensure only one user can have a rare fruit
             if devil_fruit and devil_fruit in DEVIL_FRUITS["Rare"]:
                 if devil_fruit in rare_fruit_owners:
                     devil_fruit = None  # Remove duplicate rare fruit assignment
                 else:
                     rare_fruit_owners.add(devil_fruit)
-    
+
             # Save user data
             bounties_data[user_id] = {
                 "amount": bounty_amount,
                 "fruit": devil_fruit,
             }
-    
+
         # Save data to bounties.json
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(bounties_data, f, indent=4)
-    
+
         await ctx.send(f"✅ Bounty and Devil Fruit data has been successfully saved to `{file_path}`!")
 
 
-        @commands.command()
-        @commands.admin_or_permissions(administrator=True)  # Restrict to admins
-        async def getdata(self, ctx):
-            """Retrieve the current guild's bounty and devil fruit data and save it to bounties.json."""
-            
-            guild = ctx.guild
-            all_members = await self.config.all_members(guild)
-        
-            if not all_members:
-                return await ctx.send("❌ No bounty data found for this guild.")
-        
-            # Define the file path
-            base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle"
-            file_path = os.path.join(base_path, "bounties.json")
-        
-            # Ensure the directory exists
-            os.makedirs(base_path, exist_ok=True)
-        
-            # Structure the data
-            bounties_data = {}
-        
-            rare_fruit_owners = set()  # Track users who own rare fruits
-        
-            for user_id, data in all_members.items():
-                bounty_amount = data.get("bounty", 0)
-                devil_fruit = data.get("devil_fruit", None)
-        
-                # Ensure only one user can have a rare fruit
-                if devil_fruit and devil_fruit in DEVIL_FRUITS["Rare"]:
-                    if devil_fruit in rare_fruit_owners:
-                        devil_fruit = None  # Remove duplicate rare fruit assignment
-                    else:
-                        rare_fruit_owners.add(devil_fruit)
-        
-                # Save user data
-                bounties_data[user_id] = {
-                    "amount": bounty_amount,
-                    "fruit": devil_fruit,
-                }
-        
-            # Save data to bounties.json
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(bounties_data, f, indent=4)
-        
-            await ctx.send(f"✅ Bounty and Devil Fruit data has been successfully saved to `{file_path}`!")
-
-    
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def berryflip(self, ctx, bet: int = None):
