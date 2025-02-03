@@ -7,8 +7,27 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import logging
 import aiohttp
-import io  # Required for handling images
+import io  
+import json
 
+# Define file path
+BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
+
+# Ensure directory exists
+os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
+
+# Load and save functions
+def load_data(file):
+    try:
+        with open(file, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_data(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f, indent=4)
+	    
 # Initialize logger
 logger = logging.getLogger("red.bounty")
 logger.setLevel(logging.INFO)
@@ -431,16 +450,17 @@ class BountyBattle(commands.Cog):
     async def startbounty(self, ctx):
         """Start your bounty journey."""
         user = ctx.author
-        bounties = await self.config.guild(ctx.guild).bounties()
+        bounties = load_data(BOUNTY_FILE)
         user_id = str(user.id)
-
+    
         if user_id in bounties:
             return await ctx.send("Ye already have a bounty, ye scallywag!")
-
-        bounties[user_id] = {"amount": random.randint(50, 100)}
-        await self.config.guild(ctx.guild).bounties.set(bounties)
-        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+    
+        bounties[user_id] = {"amount": random.randint(50, 100), "fruit": None}
+        save_data(BOUNTY_FILE, bounties)
+        
         await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
+        
         # ✅ If beta is active, give "BETA TESTER" title
         beta_active = await self.config.guild(ctx.guild).beta_active()
         if beta_active:
@@ -550,38 +570,38 @@ class BountyBattle(commands.Cog):
     async def eatfruit(self, ctx):
         """Consume a random Devil Fruit! Some rare fruits are unique and globally announced."""
         user = ctx.author
-        current_fruit = await self.config.member(user).devil_fruit()
-
-        if current_fruit:
-            return await ctx.send(f"❌ You already have the `{current_fruit}`! You can only eat one Devil Fruit!")
-
+        bounties = load_data(BOUNTY_FILE)
+        user_id = str(user.id)
+    
+        if user_id not in bounties:
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+    
+        if bounties[user_id].get("fruit"):
+            return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
+    
         # ✅ Get all rare fruits currently taken
-        all_taken_fruits = set()
-        all_bounties = await self.config.all_members(ctx.guild)
-
-        for user_id, data in all_bounties.items():
-            if "devil_fruit" in data and data["devil_fruit"] in DEVIL_FRUITS["Rare"]:
-                all_taken_fruits.add(data["devil_fruit"])
-
+        all_taken_fruits = set(fruit for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"])
+    
         # ✅ Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
-
+    
         # ✅ Determine fruit type (90% Common, 10% Rare if available)
         is_rare = available_rare_fruits and random.randint(1, 100) <= 10
-
+    
         if is_rare:
             new_fruit = random.choice(available_rare_fruits)
             fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
         else:
             new_fruit = random.choice(list(DEVIL_FRUITS["Common"].keys()))
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
-
+    
         fruit_type = fruit_data["type"]
         effect = fruit_data["bonus"]
-
-        # ✅ Save the fruit to the player's profile
-        await self.config.member(user).devil_fruit.set(new_fruit)
-
+    
+        # ✅ Save the fruit to bounties.json
+        bounties[user_id]["fruit"] = new_fruit
+        save_data(BOUNTY_FILE, bounties)
+    
         # ✅ ANNOUNCE IF RARE FRUIT
         if is_rare:
             announcement = (
@@ -597,8 +617,6 @@ class BountyBattle(commands.Cog):
                 f"🔥 **New Power:** {effect}\n\n"
                 f"⚠️ *You cannot eat another Devil Fruit!*"
             )
-
-    
         # Assign the fruit to the player
         await self.config.member(user).devil_fruit.set(new_fruit)
 
@@ -795,23 +813,22 @@ class BountyBattle(commands.Cog):
         """Display a wanted poster with the user's avatar, username, and bounty."""
         if member is None:
             member = ctx.author
-
-        bounties = await self.config.guild(ctx.guild).bounties()
+    
+        bounties = load_data(BOUNTY_FILE)
         user_id = str(member.id)
-
+    
         if user_id not in bounties:
             return await ctx.send(f"{member.display_name} needs to start their bounty journey first by typing `.startbounty`!")
-
-        bounties = await self.config.guild(ctx.guild).bounties()
-        bounty_amount = bounties.get(str(member.id), {}).get("amount", 0)
+    
+        bounty_amount = bounties[user_id].get("amount", 0)
         avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
-
+    
         async with aiohttp.ClientSession() as session:
             async with session.get(avatar_url) as response:
                 if response.status != 200:
                     return await ctx.send("Failed to retrieve avatar.")
                 avatar_data = await response.read()
-
+    
         wanted_poster = await self.create_wanted_poster(member.display_name, bounty_amount, avatar_data)
         if isinstance(wanted_poster, str):
             return await ctx.send(wanted_poster)
@@ -820,27 +837,32 @@ class BountyBattle(commands.Cog):
     async def create_wanted_poster(self, username, bounty_amount, avatar_data):
         """Create a wanted poster with the user's avatar, username, and bounty."""
         
-        wanted_poster_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/wanted.png"
-        font_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"  # ✅ Define font path
+        # Define dynamic paths (works across different setups)
+        base_path = os.path.join("data", "bountybattle")
+        wanted_poster_path = os.path.join(base_path, "wanted.png")
+        font_path = os.path.join(base_path, "onepiece.ttf")
     
-        # Open the local wanted poster template
+        # Ensure the template and font exist
+        if not os.path.exists(wanted_poster_path):
+            return "⚠️ Wanted poster template not found! Ensure `wanted.png` exists in the bountybattle folder."
+        if not os.path.exists(font_path):
+            return "⚠️ Font file not found! Ensure `onepiece.ttf` exists in the bountybattle folder."
+    
+        # Load images
         poster_image = Image.open(wanted_poster_path)
-        
-        # Open the user's avatar image
-        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((625, 455))
-        avatar_image = avatar_image.convert("RGBA")
+        avatar_image = Image.open(io.BytesIO(avatar_data)).resize((625, 455)).convert("RGBA")
     
-        # Paste the avatar onto the wanted poster
+        # Paste avatar onto the poster
         poster_image.paste(avatar_image, (65, 223), avatar_image)
     
         # Draw text (name & bounty)
         draw = ImageDraw.Draw(poster_image)
-    
-        # ✅ Define font before using it
         try:
-            font = ImageFont.truetype(font_path, 100)
+            # Dynamically adjust font size based on name length
+            font_size = 100 if len(username) <= 12 else 80
+            font = ImageFont.truetype(font_path, font_size)
         except OSError:
-            return "⚠️ Font file not found! Ensure `onepiece.ttf` exists in the fonts folder."
+            return "⚠️ Font loading error! Ensure `onepiece.ttf` is a valid TrueType font."
     
         draw.text((150, 750), username, font=font, fill="black")
         draw.text((150, 870), f"{bounty_amount:,} Berries", font=font, fill="black")
@@ -884,6 +906,31 @@ class BountyBattle(commands.Cog):
                 if bounty_amount >= condition["bounty"]:
                     return title
             return "Unknown Pirate"
+
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)  # Restrict to admins
+    async def getdata(self, ctx):
+        """Retrieve the current guild's bounty data and save it to bounties.json."""
+        
+        guild = ctx.guild
+        bounties = await self.config.guild(guild).bounties()
+        
+        if not bounties:
+            return await ctx.send("❌ No bounty data found for this guild.")
+    
+        # Define the file path
+        base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle"
+        file_path = os.path.join(base_path, "bounties.json")
+    
+        # Ensure the directory exists
+        os.makedirs(base_path, exist_ok=True)
+    
+        # Save data to bounties.json
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(bounties, f, indent=4)
+    
+        await ctx.send(f"✅ Bounty data has been successfully saved to `{file_path}`!")
+
     
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.user)
