@@ -466,6 +466,26 @@ class BountyBattle(commands.Cog):
         self.battle_stopped = False  # Track if a battle was stopped
         self.config.register_member(bounty_hunted=0)
 
+    async def update_hunter_stats(self, hunter, steal_amount):
+        """Update hunter's statistics and check for title unlocks."""
+        current_stolen = await self.config.member(hunter).bounty_hunted() or 0
+        total_stolen = current_stolen + steal_amount
+        await self.config.member(hunter).bounty_hunted.set(total_stolen)
+
+        if total_stolen >= 100_000:
+            unlocked_titles = await self.config.member(hunter).titles()
+            if "The Bounty Hunter" not in unlocked_titles:
+                unlocked_titles.append("The Bounty Hunter")
+                await self.config.member(hunter).titles.set(unlocked_titles)
+                return True
+        return False
+
+    async def update_activity(self, hunter, target):
+        """Update last active timestamp for both participants."""
+        current_time = datetime.utcnow().isoformat()
+        await self.config.member(hunter).last_active.set(current_time)
+        await self.config.member(target).last_active.set(current_time)
+        
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -864,8 +884,8 @@ class BountyBattle(commands.Cog):
                 save_bounties(bounties)
 
                 # Update stats and activity
-                await self._update_hunter_stats(hunter, steal_amount)
-                await self._update_activity(hunter, target)
+                await self.update_hunter_stats(hunter, steal_amount)
+                await self.update_activity(hunter, target)
 
                 # Create success embed
                 success_embed = discord.Embed(
@@ -925,26 +945,6 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in bountyhunt command: {str(e)}")
             await ctx.send("❌ An error occurred during the bounty hunt!")
             self.bot.dispatch("command_error", ctx, e)
-
-        async def _update_hunter_stats(self, hunter, steal_amount):
-            """Update hunter's statistics and check for title unlocks."""
-            current_stolen = await self.config.member(hunter).bounty_hunted() or 0
-            total_stolen = current_stolen + steal_amount
-            await self.config.member(hunter).bounty_hunted.set(total_stolen)
-
-            if total_stolen >= 100_000:
-                unlocked_titles = await self.config.member(hunter).titles()
-                if "The Bounty Hunter" not in unlocked_titles:
-                    unlocked_titles.append("The Bounty Hunter")
-                    await self.config.member(hunter).titles.set(unlocked_titles)
-                    return True
-            return False
-
-        async def _update_activity(self, hunter, target):
-            """Update last active timestamp for both participants."""
-            current_time = datetime.utcnow().isoformat()
-            await self.config.member(hunter).last_active.set(current_time)
-            await self.config.member(target).last_active.set(current_time)
             
     @commands.command()
     async def mybounty(self, ctx):
