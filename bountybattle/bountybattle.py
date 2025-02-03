@@ -1548,21 +1548,21 @@ class BountyBattle(commands.Cog):
     def calculate_damage(self, move_type: str, crit_chance: float = 0.2, turn_number: int = 1, stats=None) -> int:
         """Calculate balanced damage for each move type."""
         base_damage = 0
-    
+
         if move_type == "regular":
             base_damage = random.randint(5, 10)
         elif move_type == "strong":
             base_damage = random.randint(10, 20)
         elif move_type == "critical":
             base_damage = random.randint(15, 25)
-    
+
             # Apply critical hit chance
             if random.random() < crit_chance:
                 base_damage *= 2
-    
+
             # Scale critical damage by turn number
             base_damage += turn_number * 2
-    
+
         return base_damage
 
     def generate_fight_card(self, user1, user2):
@@ -1979,7 +1979,7 @@ class BountyBattle(commands.Cog):
                 environment_data['effect'](move_copy, attacker["stats"])
 
             # Calculate base damage
-            base_damage = self.calculate_damage(move_copy["type"])
+            base_damage = self.calculate_damage(move_copy["type"], turn_number=turn)
             final_damage = base_damage
             
             # Apply Devil Fruit effects
