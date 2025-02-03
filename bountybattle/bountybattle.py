@@ -9,6 +9,7 @@ import logging
 import aiohttp
 import io  
 import json
+import os
 
 # Define file path
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
