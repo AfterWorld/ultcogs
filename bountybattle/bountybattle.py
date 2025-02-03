@@ -1984,10 +1984,16 @@ class BountyBattle(commands.Cog):
             
             # Apply Devil Fruit effects
             if attacker["fruit"]:
-                fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
-                if fruit_data:
-                    final_damage, fruit_effect = await self.apply_devil_fruit_effects(attacker, defender, base_damage, move_copy)
-                    if fruit_effect:
+            fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
+            if fruit_data:
+                final_damage, fruit_effect = await self.apply_devil_fruit_effects(
+                    attacker, 
+                    defender, 
+                    base_damage, 
+                    move_copy,
+                    turn  # Add turn number here
+                )
+                if fruit_effect:
                         # Create dramatic Devil Fruit activation message
                         fruit_embed = discord.Embed(
                             title="🌟 DEVIL FRUIT POWER ACTIVATED 🌟",
@@ -2193,7 +2199,7 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error unlocking achievement: {str(e)}")
     
-    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy):
+    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy, turn_number):
         """Apply Devil Fruit effects to combat."""
         fruit_effect = None  # Initialize fruit_effect to None
         fruit = await self.config.member(attacker["member"]).devil_fruit()
@@ -2215,11 +2221,11 @@ class BountyBattle(commands.Cog):
 
         # Apply type-specific effects
         if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn, move_copy)
+            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
         elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn, move_copy)
+            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
         elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn, move_copy)
+            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
 
         return damage, effect_message  # Return tuple with effect_message (may be None)
 
