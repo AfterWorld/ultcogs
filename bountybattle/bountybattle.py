@@ -479,7 +479,7 @@ class BountyBattle(commands.Cog):
             return await ctx.send("Ye already have a bounty, ye scallywag!")
     
         bounties[user_id] = {"amount": random.randint(50, 100), "fruit": None}
-        save_data(BOUNTY_FILE, bounties)
+        save_bounties(bounties)  # ✅ Use save_bounties() instead
         
         await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
         
@@ -663,7 +663,7 @@ class BountyBattle(commands.Cog):
         # ✅ Owners remove the fruit for free
         if is_owner:
             bounties[user_id]["fruit"] = None
-            save_data(BOUNTY_FILE, bounties)  # Save changes
+            save_bounties(bounties)  # ✅ Use save_bounties() instead  # Save changes
             return await ctx.send(f"🛡️ **{user.display_name}** removed `{fruit}` from **{member.display_name}** for free!")
 
         # Normal users must pay
@@ -676,7 +676,7 @@ class BountyBattle(commands.Cog):
         # Deduct cost and remove fruit
         await self.config.member(user).berries.set(berries - cost)
         bounties[user_id]["fruit"] = None
-        save_data(BOUNTY_FILE, bounties)  # Save changes
+        save_bounties(bounties)  # ✅ Use save_bounties() instead  # Save changes
 
         await ctx.send(
             f"💰 **{user.display_name}** paid **{cost:,}** berries to remove `{fruit}` from **{member.display_name}**!\n"
