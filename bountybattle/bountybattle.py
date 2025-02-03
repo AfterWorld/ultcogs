@@ -16,22 +16,29 @@ BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBatt
 # Ensure directory exists
 os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
 
-def load_bounties():
-    """Load bounty data safely from file."""
-    if not os.path.exists(BOUNTY_FILE):
-        return {}  # If file doesn't exist, return empty dict
-    
+def load_json(file_path):
+    """Safely load JSON data from a file."""
+    if not os.path.exists(file_path):
+        return {}
+
     try:
-        with open(BOUNTY_FILE, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
-        return {}  # If file is corrupted, return empty dict
+        return {}
+
+def save_json(file_path, data):
+    """Safely save JSON data to a file."""
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+# ✅ Shortcut functions for bounties
+def load_bounties():
+    return load_json(BOUNTY_FILE)
 
 def save_bounties(data):
-    """Save bounty data safely to file."""
-    os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)  # Ensure directory exists
-    with open(BOUNTY_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    save_json(BOUNTY_FILE, data)
 
 # Initialize logger
 logger = logging.getLogger("red.bounty")
