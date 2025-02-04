@@ -2530,6 +2530,11 @@ class BountyBattle(commands.Cog):
     async def dailybounty(self, ctx):
         """Claim your daily bounty increase."""
         user = ctx.author
+        
+        # Sync bounty data first, allowing zero bounty
+        current_bounty = await self.config.member(user).bounty()
+        
+        # Check last claim time
         last_claim = await self.config.member(user).last_daily_claim()
         now = datetime.utcnow()
 
@@ -2542,12 +2547,7 @@ class BountyBattle(commands.Cog):
                 minutes, _ = divmod(remainder, 60)
                 return await ctx.send(f"Ye can't claim yer daily bounty yet! Try again in {hours} hours and {minutes} minutes! ⏳")
 
-        # Sync bounty before processing
-        current_bounty = await self.sync_bounty(user)
-        
-        if not current_bounty and current_bounty != 0:
-            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
-
+        # Prompt for treasure chest
         await ctx.send(f"Ahoy, {user.display_name}! Ye found a treasure chest! Do ye want to open it? (yes/no)")
         try:
             def check(m):
@@ -2559,23 +2559,19 @@ class BountyBattle(commands.Cog):
 
         if msg.content.lower() == "yes":
             increase = random.randint(1000, 5000)
+            
+            # Ensure user has a bounty record, creating one if not
             bounties = load_bounties()
             user_id = str(user.id)
             
-            try:
-                bounties[user_id]["amount"] += increase
-                save_bounties(bounties)
-                await self.config.member(user).bounty.set(bounties[user_id]["amount"])
-                await self.config.member(user).last_daily_claim.set(now.isoformat())
-            except Exception as e:
-                logger.error(f"Failed to save daily bounty data: {e}")
-                ctx.command.reset_cooldown(ctx)  # Reset cooldown if save fails
-                await ctx.send("⚠️ Failed to claim daily bounty. Please try again.")
-                return
+            if user_id not in bounties:
+                bounties[user_id] = {"amount": 0, "fruit": None}
             
-            # Update both storage systems
+            # Update bounty
             bounties[user_id]["amount"] += increase
             save_bounties(bounties)
+            
+            # Update config
             await self.config.member(user).bounty.set(bounties[user_id]["amount"])
             await self.config.member(user).last_daily_claim.set(now.isoformat())
             
@@ -3372,70 +3368,89 @@ class BountyBattle(commands.Cog):
 
         return hazard_message
 
-    @commands.hybrid_command(name="deathbattle")
+    @commands.hybrid_command(name="db")
     async def deathbattle(self, ctx: commands.Context, opponent: discord.Member = None):
         """
         Start a One Piece deathmatch against another user with a bounty.
         """
         try:
-            # ✅ Retrieve the bounty list
-            bounties = await self.config.guild(ctx.guild).bounties()
-
-            # ✅ If no opponent is provided, choose a random bounty holder
+            # Sync data for the challenger
+            user_bounty = await self.sync_user_data(ctx.author)
+            
+            # If no opponent is provided, choose a random bounty holder
             if opponent is None:
-                valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
+                # Use sync_user_data to get accurate bounties for all members
+                valid_opponents = []
+                all_members = await self.config.all_members(ctx.guild)
+                
+                for member_id, data in all_members.items():
+                    try:
+                        member = ctx.guild.get_member(int(member_id))
+                        if member and member != ctx.author:
+                            # Sync each potential opponent's bounty
+                            opponent_bounty = await self.sync_user_data(member)
+                            
+                            if opponent_bounty and opponent_bounty > 0:
+                                valid_opponents.append(member)
+                    except Exception as e:
+                        logger.error(f"Error checking opponent bounty: {e}")
 
                 if not valid_opponents:
                     return await ctx.send("❌ **There are no users with a bounty to challenge!**")
 
-                opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
+                opponent = random.choice(valid_opponents)
 
-            # ✅ Ensure the opponent has a bounty
-            elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
-                return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
+            # Sync opponent's bounty
+            opponent_bounty = await self.sync_user_data(opponent)
+            
+            # Ensure both users have a valid bounty
+            if user_bounty <= 0:
+                return await ctx.send(f"❌ **{ctx.author.display_name}** needs to start their bounty journey first by typing `.startbounty`!")
 
-            # ✅ Prevent invalid matches
+            if opponent_bounty <= 0:
+                return await ctx.send(f"❌ **{opponent.display_name}** does not have a bounty to challenge!")
+            
+            # Prevent self-challenges and bot challenges
             if ctx.author == opponent:
                 return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
             if opponent.bot:
                 return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
             
-            # ✅ Check if a battle is already in progress
+            # Check if a battle is already in progress
             if ctx.channel.id in self.active_channels:
                 return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
 
-            # ✅ Mark the channel as active
+            # Mark the channel as active
             self.active_channels.add(ctx.channel.id)
 
-            # ✅ Generate fight card
+            # Generate fight card
             fight_card = self.generate_fight_card(ctx.author, opponent)
 
-            # ✅ Send the dynamically generated fight card image
+            # Send the dynamically generated fight card image
             await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
 
             try:
-                # ✅ Call the fight function and update bounty only for the initiator
+                # Call the fight function
                 await self.fight(ctx, ctx.author, opponent)
             except Exception as e:
                 await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
                 self.log.error(f"Battle error: {str(e)}")
             finally:
-                # ✅ Always attempt to remove the channel ID, even if an error occurs
+                # Always attempt to remove the channel ID
                 if ctx.channel.id in self.active_channels:
                     self.active_channels.remove(ctx.channel.id)
 
         except Exception as e:
-            # ✅ Catch any unexpected errors
+            # Catch any unexpected errors
             await ctx.send(f"❌ An unexpected error occurred: {str(e)}")
             self.log.error(f"Deathbattle command error: {str(e)}")
             
-            # ✅ Ensure channel is removed from active channels if an error occurs
+            # Ensure channel is removed from active channels if an error occurs
             if ctx.channel.id in self.active_channels:
                 self.active_channels.remove(ctx.channel.id)
 
-            # ✅ Re-raise the exception for further handling
+            # Re-raise the exception for further handling
             raise
-
         
     @commands.command(name="stopbattle")
     @commands.admin_or_permissions(administrator=True)
