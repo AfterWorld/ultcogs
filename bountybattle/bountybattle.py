@@ -1642,17 +1642,36 @@ class BountyBattle(commands.Cog):
             save_bounties(bounties)
             await self.config.member(member).bounty.set(true_bounty)
             
-            # Sync devil fruit
+            # Sync devil fruit with validation
             config_fruit = await self.config.member(member).devil_fruit()
             json_fruit = bounties[user_id].get("fruit")
             
-            if config_fruit or json_fruit:
-                true_fruit = config_fruit or json_fruit
-                bounties[user_id]["fruit"] = true_fruit
-                await self.config.member(member).devil_fruit.set(true_fruit)
+            # Validate fruits
+            def is_valid_fruit(fruit):
+                return (
+                    fruit in DEVIL_FRUITS.get('Common', {}) or 
+                    fruit in DEVIL_FRUITS.get('Rare', {})
+                )
             
-            # Update last active timestamp
-            await self.config.member(member).last_active.set(datetime.utcnow().isoformat())
+            # Choose a valid fruit, prioritizing config if valid
+            valid_fruit = None
+            if is_valid_fruit(config_fruit):
+                valid_fruit = config_fruit
+            elif is_valid_fruit(json_fruit):
+                valid_fruit = json_fruit
+            
+            # Update both systems with valid fruit
+            if valid_fruit:
+                bounties[user_id]["fruit"] = valid_fruit
+                await self.config.member(member).devil_fruit.set(valid_fruit)
+            else:
+                # Clear invalid fruits
+                if user_id in bounties:
+                    bounties[user_id]["fruit"] = None
+                await self.config.member(member).devil_fruit.set(None)
+            
+            # Save changes
+            save_bounties(bounties)
             
             return true_bounty
             
@@ -1869,7 +1888,40 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error in startbounty: {str(e)}")
             await ctx.send("⚠️ An error occurred while starting your bounty journey. Please try again.")
-            
+    
+    @commands.command()
+    async def debugfruit(self, ctx):
+        """Diagnostic tool for Devil Fruits"""
+        user_data = await self.config.member(ctx.author).all()
+        bounties = load_bounties()
+        
+        user_id = str(ctx.author.id)
+        
+        embed = discord.Embed(title="🍎 Devil Fruit Debug", color=discord.Color.blue())
+        
+        # Config fruit
+        config_fruit = user_data.get('devil_fruit')
+        embed.add_field(name="Config Fruit", value=str(config_fruit), inline=False)
+        
+        # Bounties JSON fruit
+        json_fruit = bounties.get(user_id, {}).get('fruit')
+        embed.add_field(name="Bounties JSON Fruit", value=str(json_fruit), inline=False)
+        
+        # Fruit validation
+        def is_valid_fruit(fruit):
+            return (
+                fruit in DEVIL_FRUITS.get('Common', {}) or 
+                fruit in DEVIL_FRUITS.get('Rare', {})
+            )
+        
+        config_valid = is_valid_fruit(config_fruit) if config_fruit else False
+        json_valid = is_valid_fruit(json_fruit) if json_fruit else False
+        
+        embed.add_field(name="Config Fruit Valid", value=str(config_valid), inline=False)
+        embed.add_field(name="JSON Fruit Valid", value=str(json_valid), inline=False)
+        
+        await ctx.send(embed=embed)
+                
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
     async def betaover(self, ctx):
