@@ -517,6 +517,65 @@ class BountyBattle(commands.Cog):
             logger.error(f"{error_message}: {e}")
             await ctx.send(f"⚠️ {error_message}. Please try again.")
             return False
+        
+    def update_cooldowns(self, player_data: dict):
+        """
+        Update cooldowns at the start of a player's turn.
+        
+        Parameters:
+        -----------
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        # Create a copy of the keys to avoid modifying dict during iteration
+        moves = list(player_data["moves_on_cooldown"].keys())
+        
+        for move in moves:
+            player_data["moves_on_cooldown"][move] -= 1
+            if player_data["moves_on_cooldown"][move] <= 0:
+                del player_data["moves_on_cooldown"][move]
+
+    def is_move_available(self, move_name, player_data):
+        """Check if a move is available to use."""
+        return move_name not in player_data["moves_on_cooldown"]
+
+    def set_move_cooldown(self, move_name: str, cooldown: int, player_data: dict):
+        """
+        Set a cooldown for a move on a player.
+        
+        Parameters:
+        -----------
+        move_name : str
+            The name of the move to put on cooldown
+        cooldown : int
+            Number of turns the move should be on cooldown
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        player_data["moves_on_cooldown"][move_name] = cooldown
+        player_data["stats"]["cooldowns_managed"] += 1
+
+    def apply_burn_effect(self, defender_data):
+        """Apply burn damage and reduce stacks."""
+        if defender_data["status"]["burn"] > 0:
+            burn_damage = 5 * defender_data["status"]["burn"]
+            defender_data["hp"] -= burn_damage
+            defender_data["status"]["burn"] -= 1
+            return burn_damage
+        return 0
+
+    def apply_stun_effect(self, attacker_data):
+        """Check and apply stun effect."""
+        if attacker_data["status"]["stun"]:
+            attacker_data["status"]["stun"] = False
+            return True
+        return False
+
+    def apply_healing_effect(self, attacker_data, heal_amount):
+        """Apply healing with proper bounds."""
+        original_hp = attacker_data["hp"]
+        attacker_data["hp"] = min(250, attacker_data["hp"] + heal_amount)
+        return attacker_data["hp"] - original_hp
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -1691,66 +1750,6 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
-    
-    def update_cooldowns(self, player_data: dict):
-        """
-        Update cooldowns at the start of a player's turn.
-        
-        Parameters:
-        -----------
-        player_data : dict
-            The player's data dictionary containing their moves_on_cooldown
-        """
-        # Create a copy of the keys to avoid modifying dict during iteration
-        moves = list(player_data["moves_on_cooldown"].keys())
-        
-        for move in moves:
-            player_data["moves_on_cooldown"][move] -= 1
-            if player_data["moves_on_cooldown"][move] <= 0:
-                del player_data["moves_on_cooldown"][move]
-
-    def is_move_available(self, move_name, player_data):
-        """Check if a move is available to use."""
-        return move_name not in player_data["moves_on_cooldown"]
-
-    def set_move_cooldown(self, move_name: str, cooldown: int, player_data: dict):
-        """
-        Set a cooldown for a move on a player.
-        
-        Parameters:
-        -----------
-        move_name : str
-            The name of the move to put on cooldown
-        cooldown : int
-            Number of turns the move should be on cooldown
-        player_data : dict
-            The player's data dictionary containing their moves_on_cooldown
-        """
-        player_data["moves_on_cooldown"][move_name] = cooldown
-        player_data["stats"]["cooldowns_managed"] += 1
-
-    def apply_burn_effect(self, defender_data):
-        """Apply burn damage and reduce stacks."""
-        if defender_data["status"]["burn"] > 0:
-            burn_damage = 5 * defender_data["status"]["burn"]
-            defender_data["hp"] -= burn_damage
-            defender_data["status"]["burn"] -= 1
-            return burn_damage
-        return 0
-
-    def apply_stun_effect(self, attacker_data):
-        """Check and apply stun effect."""
-        if attacker_data["status"]["stun"]:
-            attacker_data["status"]["stun"] = False
-            return True
-        return False
-
-    def apply_healing_effect(self, attacker_data, heal_amount):
-        """Apply healing with proper bounds."""
-        original_hp = attacker_data["hp"]
-        attacker_data["hp"] = min(250, attacker_data["hp"] + heal_amount)
-        return attacker_data["hp"] - original_hp
-    
     def generate_health_bar(self, current_hp: int, max_hp: int = 250, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
