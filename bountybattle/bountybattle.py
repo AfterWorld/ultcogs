@@ -438,18 +438,17 @@ class BountyBattle(commands.Cog):
 
         # Store both bounty and deathmatch stats
         default_member = {
-            "bounty": 0,
-            "last_daily_claim": None,
-            "wins": 0,
-            "losses": 0,
-            "damage_dealt": 0,
-            "achievements": [],
-            "titles": [],  # List of unlocked titles
-            "current_title": None,  # Equipped title
-            "devil_fruit": None,
-            "last_active": None,
-            "equipped_title": "Unknown Pirate",  # ✅ Now registered!
-        }
+        "bounty": 0,
+        "last_daily_claim": None,
+        "wins": 0,
+        "losses": 0,
+        "damage_dealt": 0,
+        "achievements": [],
+        "titles": [],  # List of unlocked titles
+        "current_title": None,  # Single source of truth for equipped title
+        "devil_fruit": None,
+        "last_active": None
+    }
         self.config.register_member(**default_member)
 
         default_guild = {
@@ -517,41 +516,59 @@ class BountyBattle(commands.Cog):
         
         return true_bounty
         
+    async def safe_save_bounties(self, ctx, bounties, error_message="Failed to save bounty data"):
+        """Utility function for safely saving bounties with error handling."""
+        try:
+            save_bounties(bounties)
+            return True
+        except Exception as e:
+            logger.error(f"{error_message}: {e}")
+            await ctx.send(f"⚠️ {error_message}. Please try again.")
+            return False
     # ------------------ Bounty System ------------------
 
     @commands.command()
     async def startbounty(self, ctx):
         """Start your bounty journey."""
         user = ctx.author
-        bounties = load_bounties()  # ✅ Use load_bounties() instead
+        bounties = load_bounties()
         user_id = str(user.id)
-    
+
         if user_id in bounties:
             return await ctx.send("Ye already have a bounty, ye scallywag!")
-    
-        bounties[user_id] = {"amount": random.randint(50, 100), "fruit": None}
-        save_bounties(bounties)  # ✅ Use save_bounties() instead
-        
-        await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
-        
-        # ✅ If beta is active, give "BETA TESTER" title
-        beta_active = await self.config.guild(ctx.guild).beta_active()
-        if beta_active:
-            unlocked_titles = await self.config.member(ctx.author).titles()
-            if "BETA TESTER" not in unlocked_titles:
-                unlocked_titles.append("BETA TESTER")
-                await self.config.member(ctx.author).titles.set(unlocked_titles)
-                await ctx.send(f"🎖️ **{ctx.author.display_name}** has received the exclusive title: `BETA TESTER`!")
 
-    @commands.command()
-    @commands.is_owner()  # ✅ Only the bot owner can use this
-    async def betaover(self, ctx):
-        """End the beta test, preventing new players from getting the 'BETA TESTER' title."""
-        beta_active = await self.config.guild(ctx.guild).beta_active()
+        bounties[user_id] = {"amount": random.randint(50, 100), "fruit": None}
+        
+        try:
+            save_bounties(bounties)
+            await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {bounties[user_id]['amount']} Berries!")
+            
+            # Beta tester title check
+            beta_active = await self.config.guild(ctx.guild).beta_active()
+            if beta_active:
+                unlocked_titles = await self.config.member(ctx.author).titles()
+                if "BETA TESTER" not in unlocked_titles:
+                    unlocked_titles.append("BETA TESTER")
+                    await self.config.member(ctx.author).titles.set(unlocked_titles)
+                    await ctx.send(f"🎖️ **{ctx.author.display_name}** has received the exclusive title: `BETA TESTER`!")
+        except Exception as e:
+            logger.error(f"Failed to save bounty data in startbounty: {e}")
+            await ctx.send("⚠️ Failed to start your bounty journey. Please try again.")
+            return
     
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
+    async def betaover(self, ctx):
+        """End the beta test (Admin/Owner only)."""
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+
+        beta_active = await self.config.guild(ctx.guild).beta_active()
+        
         if not beta_active:
             return await ctx.send("❌ Beta is already over!")
-    
+        
         await self.config.guild(ctx.guild).beta_active.set(False)
         await ctx.send("🚨 **The beta test is now officially over!**\nNo new players will receive the `BETA TESTER` title.")
     
@@ -764,6 +781,10 @@ class BountyBattle(commands.Cog):
         is_owner = await self.bot.is_owner(user)
         is_admin = ctx.author.guild_permissions.administrator
 
+        # Add permissions message for removing other people's fruits
+        if member != user and not (is_owner or is_admin):
+            return await ctx.send("❌ You can only remove your own Devil Fruit unless you're an admin!")
+
         # Load both data sources
         bounties = load_bounties()
         user_id = str(member.id)
@@ -808,28 +829,35 @@ class BountyBattle(commands.Cog):
 
         
     @commands.command()
-    @commands.is_owner()
+    @commands.admin_or_permissions(administrator=True)  # Allow both admins and owner
     async def setbounty(self, ctx, member: discord.Member, amount: int):
-        """Set a user's bounty (Admin only)."""
+        """Set a user's bounty (Admin/Owner only)."""
         if amount < 0:
             return await ctx.send("❌ Bounty cannot be negative.")
-
+        
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+        
         try:
-            # Load current bounties
             bounties = load_bounties()
             user_id = str(member.id)
 
-            # Initialize user in bounties if they don't exist
             if user_id not in bounties:
                 bounties[user_id] = {
                     "amount": 0,
                     "fruit": None
                 }
 
-            # Update bounty in both systems
             bounties[user_id]["amount"] = amount
-            save_bounties(bounties)
-            await self.config.member(member).bounty.set(amount)
+            
+            try:
+                save_bounties(bounties)
+                await self.config.member(member).bounty.set(amount)
+            except Exception as e:
+                logger.error(f"Failed to save bounty data in setbounty: {e}")
+                await ctx.send("⚠️ Failed to set bounty. Please try again.")
+                return
 
             # Create embed for response
             embed = discord.Embed(
@@ -858,19 +886,12 @@ class BountyBattle(commands.Cog):
             await ctx.send(f"❌ An error occurred while setting the bounty: {str(e)}")
             
     @commands.command()
-    @commands.has_permissions(administrator=True)  # Allow admins to use the command
+    @commands.admin_or_permissions(administrator=True)
     async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
-        """Give a user a Devil Fruit (Admin or Owner only)."""
-        # Check if user is either admin or bot owner
-        is_owner = await self.bot.is_owner(ctx.author)
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_owner or is_admin):
-            return await ctx.send("❌ Only administrators and bot owners can use this command!")
-
-        fruit = fruit.strip().title()  # Normalize case & remove spaces
-        all_fruits = {**DEVIL_FRUITS["Common"], **DEVIL_FRUITS["Rare"]}
-        fruit_names = {name.lower(): name for name in all_fruits}  # Convert keys to lowercase
+        """Give a user a Devil Fruit (Admin/Owner only)."""
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
 
         if fruit.lower() not in fruit_names:
             # Create helpful error message with closest matching fruit
@@ -1043,14 +1064,18 @@ class BountyBattle(commands.Cog):
             steal_amount = max(int(base_steal * target_bounty), 500)
 
             if success and not critical_failure:
-                # Handle successful theft
-                bounties[hunter_id]["amount"] += steal_amount
-                bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
-                save_bounties(bounties)
+                try:
+                    bounties[hunter_id]["amount"] += steal_amount
+                    bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
+                    save_bounties(bounties)
 
-                # Update stats and activity
-                await self.update_hunter_stats(hunter, steal_amount)
-                await self.update_activity(hunter, target)
+                    # Update stats and activity
+                    await self.update_hunter_stats(hunter, steal_amount)
+                    await self.update_activity(hunter, target)
+                except Exception as e:
+                    logger.error(f"Failed to save bounty data in bountyhunt: {e}")
+                    await ctx.send("⚠️ Failed to process bounty hunt rewards. Please try again.")
+                    return
 
                 # Create success embed
                 success_embed = discord.Embed(
@@ -1181,6 +1206,17 @@ class BountyBattle(commands.Cog):
             bounties = load_bounties()
             user_id = str(user.id)
             
+            try:
+                bounties[user_id]["amount"] += increase
+                save_bounties(bounties)
+                await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+                await self.config.member(user).last_daily_claim.set(now.isoformat())
+            except Exception as e:
+                logger.error(f"Failed to save daily bounty data: {e}")
+                ctx.command.reset_cooldown(ctx)  # Reset cooldown if save fails
+                await ctx.send("⚠️ Failed to claim daily bounty. Please try again.")
+                return
+            
             # Update both storage systems
             bounties[user_id]["amount"] += increase
             save_bounties(bounties)
@@ -1291,20 +1327,14 @@ class BountyBattle(commands.Cog):
             "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
             "King of the Pirates": {"bounty": 5_000_000_000},
         }
-        
-        def get_bounty_title(self, bounty_amount):
-            """Get the highest earned bounty title based on the bounty amount."""
-            for title, condition in reversed(TITLES.items()):
-                if bounty_amount >= condition["bounty"]:
-                    return title
-            return "Unknown Pirate"
-
-    
 
     @commands.command()
-    @commands.admin_or_permissions(administrator=True)  # Restrict to admins
+    @commands.admin_or_permissions(administrator=True)
     async def getdata(self, ctx):
-        """Retrieve the current guild's bounty and devil fruit data and save it to bounties.json."""
+        """Retrieve the current guild's bounty data (Admin/Owner only)."""
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
         
         guild = ctx.guild
         all_members = await self.config.all_members(guild)
@@ -1974,9 +2004,11 @@ class BountyBattle(commands.Cog):
     @commands.command(name="stopbattle")
     @commands.admin_or_permissions(administrator=True)
     async def stopbattle(self, ctx: commands.Context):
-        """
-        Stop an ongoing battle in the current channel with a One Piece joke.
-        """
+        """Stop an ongoing battle (Admin/Owner only)."""
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+
         if ctx.channel.id not in self.active_channels:
             return await ctx.send("❌ There is no ongoing battle in this channel.")
     
@@ -2337,6 +2369,7 @@ class BountyBattle(commands.Cog):
             except Exception as save_error:
                 logger.error(f"Bounty save error: {save_error}")
                 await ctx.send("⚠️ Could not save updated bounty information!")
+                return
 
             # Create results embed
             try:
@@ -2989,9 +3022,12 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.admin_or_permissions(administrator=True)  # ✅ Admin-only command
+    @commands.admin_or_permissions(administrator=True)
     async def resetstats(self, ctx, member: discord.Member = None):
-        """Reset all users' stats (default) or reset a specific user with `[p]resetstats @user`."""
+        """Reset all users' stats (Admin/Owner only)."""
+        # Add permission check message
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
     
         if member is None:  # ✅ Default to full server reset if no user is mentioned
             await ctx.send("⚠️ **Are you sure you want to reset ALL players' stats?** Type `confirm` to proceed.")
@@ -3158,39 +3194,6 @@ class BountyBattle(commands.Cog):
             embed.add_field(name=achievement, value="✅ Unlocked!", inline=False)
 
         await ctx.send(embed=embed)
-
-    async def check_achievements(self, member):
-        """Check and unlock achievements for the member."""
-        stats = await self.config.member(member).all()  # Get stats inside the function
-        user_achievements = stats.get("achievements", [])
-        unlocked_titles = stats.get("titles", [])
-        unlocked = []
-    
-        for key, data in ACHIEVEMENTS.items():
-            if key in user_achievements:
-                continue  # Already unlocked
-    
-            current_stat = stats.get(data["condition"], 0)  # Use .get() to avoid KeyError
-            required_count = data["count"]
-    
-            if isinstance(required_count, str) and required_count == "all":
-                required_count = float('inf')  # "all" means infinite
-    
-            if current_stat >= required_count:
-                user_achievements.append(key)
-                unlocked.append(data["description"])
-    
-                if "title" in data and data["title"] not in unlocked_titles:
-                    unlocked_titles.append(data["title"])
-                    try:
-                        await member.send(f"🎉 Congratulations! You've unlocked the title: **{data['title']}**")
-                    except discord.Forbidden:
-                        self.log.warning(f"Could not send DM to {member.display_name}. They might have DMs disabled.")
-    
-        await self.config.member(member).achievements.set(user_achievements)
-        await self.config.member(member).titles.set(unlocked_titles)
-    
-        return unlocked
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
