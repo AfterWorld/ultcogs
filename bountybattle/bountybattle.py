@@ -1302,6 +1302,7 @@ class BountyBattle(commands.Cog):
 
     def get_bounty_title(self, bounty_amount):
         """Get the bounty title based on the bounty amount."""
+        # Define titles and their required bounties
         titles = {
             "Small-time Pirate": {"bounty": 10_000},
             "Rookie Pirate": {"bounty": 50_000},
@@ -1319,6 +1320,14 @@ class BountyBattle(commands.Cog):
             "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
             "King of the Pirates": {"bounty": 5_000_000_000},
         }
+        
+        # Find the highest title the bounty qualifies for
+        current_title = "Unknown Pirate"
+        for title, requirements in titles.items():
+            if bounty_amount >= requirements["bounty"]:
+                current_title = title
+                
+        return current_title
 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
@@ -2090,7 +2099,7 @@ class BountyBattle(commands.Cog):
             "hp": 250,
             "member": challenger,
             "fruit": challenger_fruit,
-            "moves_on_cooldown": {},  # New: Track move cooldowns
+            "moves_on_cooldown": {},
             "status": {
                 "burn": 0,
                 "stun": False,
@@ -2113,7 +2122,7 @@ class BountyBattle(commands.Cog):
                 "damage_taken": 0,
                 "healing_done": 0,
                 "turns_survived": 0,
-                "cooldowns_managed": 0  # New: Track successful cooldown management
+                "cooldowns_managed": 0
             }
         }
 
@@ -2122,7 +2131,7 @@ class BountyBattle(commands.Cog):
             "hp": 250,
             "member": opponent,
             "fruit": opponent_fruit,
-            "moves_on_cooldown": {},  # New: Track move cooldowns
+            "moves_on_cooldown": {},
             "status": {
                 "burn": 0,
                 "stun": False,
@@ -2145,7 +2154,7 @@ class BountyBattle(commands.Cog):
                 "damage_taken": 0,
                 "healing_done": 0,
                 "turns_survived": 0,
-                "cooldowns_managed": 0  # New: Track successful cooldown management
+                "cooldowns_managed": 0
             }
         }
 
@@ -2172,6 +2181,8 @@ class BountyBattle(commands.Cog):
             challenger_status = self.get_status_icons(challenger_data)
             challenger_health = self.generate_health_bar(int(challenger_data["hp"]), max_hp=250)
             challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
+            
+            embed.clear_fields()  # Clear fields before adding new ones
             
             embed.add_field(
                 name=f"🏴‍☠️ {challenger_data['name']}",
@@ -2201,11 +2212,9 @@ class BountyBattle(commands.Cog):
                 inline=True
             )
 
-        # Now we can call update_player_fields and send the initial message
+        # Initialize the battle
         update_player_fields()
         message = await ctx.send(embed=embed)
-
-        # Create the battle log message
         battle_log = await ctx.send("📜 **Battle Log:**")
         
         # Battle loop
@@ -2217,104 +2226,97 @@ class BountyBattle(commands.Cog):
             turn += 1
             attacker = players[current_player]
             defender = players[1 - current_player]
-
-            # Add this at the start of each turn
+            
+            # Update cooldowns at the start of each turn
             self.update_cooldowns(attacker)
 
-            # Select and modify move
-            available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
+            # Select move from available moves
+            available_moves = [move for move in MOVES 
+                             if move["name"] not in attacker["moves_on_cooldown"]]
             if not available_moves:
-                available_moves = [move for move in MOVES if move["type"] == "regular"]  # Fallback to regular moves
+                available_moves = [move for move in MOVES if move["type"] == "regular"]
             
-            move = random.choice(available_moves)
-            move_copy = move.copy()
+            selected_move = random.choice(available_moves)
+            move = selected_move.copy()  # Create a copy to modify
 
-            # Calculate base damage using the updated method
-            base_damage = self.calculate_damage(move_copy["type"], move_copy.get("crit_chance", 0.2), turn)
-            final_damage = base_damage
+            # Calculate damage and get the damage message
+            final_damage, damage_message = self.calculate_damage(
+                move=move,
+                attacker_data=attacker,
+                defender_data=defender,
+                turn=turn,
+                environment=environment_data
+            )
 
-            # After applying damage, set the cooldown
-            if move_copy.get("cooldown", 0) > 0:
-                attacker["moves_on_cooldown"][move_copy["name"]] = move_copy["cooldown"]
+            # Apply environment effects if any
+            if environment_data.get('effect'):
+                environment_data['effect'](move, attacker["stats"])
 
-            # Apply environmental effects at the start of each turn
-            if turn % 3 == 0:  # Check every 3 turns
-                hazard_message = await self.apply_environmental_hazard(environment, players)
-                if hazard_message:
-                    # Update battle log with environment effect
-                    await battle_log.edit(content=f"{battle_log.content}\n\n{hazard_message}")
-                    
-                    # Update display after environment effects
-                    embed.clear_fields()
-                    update_player_fields()
-                    await message.edit(embed=embed)
-                    await asyncio.sleep(2)
+            # Set cooldown for the move
+            if move.get("cooldown", 0) > 0:
+                self.set_move_cooldown(move["name"], move["cooldown"], attacker)
 
-            # Process status effects
-            status_message = await self.process_status_effects(attacker, defender)
-            if status_message:
-                await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
-                await asyncio.sleep(2)
-
-            # Apply environment effects to the move
-            if environment_data['effect']:
-                environment_data['effect'](move_copy, attacker["stats"])
-                
-                # Add environment bonus message if damage was modified
-                if move_copy.get('damage', 0) > 0:
-                    env_bonus = f"\n⚡ {environment} Effect: Damage Enhanced!"
-                    await battle_log.edit(content=f"{battle_log.content}{env_bonus}")
-            
-            # Apply Devil Fruit effects
-            if attacker["fruit"]:
-                fruit_data = DEVIL_FRUITS["Common"].get(attacker["fruit"]) or DEVIL_FRUITS["Rare"].get(attacker["fruit"])
-                if fruit_data:
-                    final_damage, fruit_effect = await self.apply_devil_fruit_effects(
-                        attacker, 
-                        defender, 
-                        base_damage, 
-                        move_copy,
-                        turn
-                    )
-                    if fruit_effect:
-                        await battle_log.edit(content=f"{battle_log.content}\n{fruit_effect}")
-
-            # Update stats and HP
-            attacker["stats"]["damage_dealt"] += final_damage
+            # Apply the damage
             update_hp(defender, final_damage, is_damage=True)
-            
-            # Process healing or other HP changes
-            if move_copy.get("effect") == "heal":
-                heal_amount = int(round(move_copy.get("heal", 10)))
+            attacker["stats"]["damage_dealt"] += final_damage
+
+            # Handle healing if the move has healing effects
+            if move.get("effect") == "heal":
+                heal_amount = move.get("heal_amount", 10)
                 update_hp(attacker, heal_amount, is_damage=False)
 
             # Create action description
             action_description = (
-                f"**{attacker['name']}** used **{move_copy['name']}**!\n"
-                f"{move_copy['description']}\n"
-                f"💥 Dealt **{int(final_damage)}** damage!"
+                f"**{attacker['name']}** used **{move['name']}**!\n"
+                f"{move['description']}"
             )
             
-            # Update battle log with the latest action
-            await battle_log.edit(content=f"{battle_log.content}\n{action_description}")
+            if damage_message:
+                action_description += f"\n{damage_message}"
             
-            # Update main embed
-            embed.clear_fields()
+            action_description += f"\n💥 Dealt **{int(final_damage)}** damage!"
+
+            # Apply Devil Fruit effects if applicable
+            if attacker["fruit"]:
+                fruit_effect = None
+                if isinstance(attacker["fruit"], str):
+                    fruit_data = (DEVIL_FRUITS["Common"].get(attacker["fruit"]) or 
+                                DEVIL_FRUITS["Rare"].get(attacker["fruit"]))
+                    if fruit_data:
+                        bonus_damage, fruit_effect = await self.apply_devil_fruit_effects(
+                            attacker, 
+                            defender, 
+                            final_damage,
+                            move,
+                            turn
+                        )
+                        if fruit_effect:
+                            action_description += f"\n{fruit_effect}"
+                        final_damage += bonus_damage
+
+            # Update battle log
+            await battle_log.edit(content=f"{battle_log.content}\n{action_description}")
+
+            # Update the display
             update_player_fields()
             await message.edit(embed=embed)
-            await asyncio.sleep(3)
-            
+            await asyncio.sleep(2)
+
             # Switch turns
             current_player = 1 - current_player
 
-        # Determine winner
+            # Check for battle_stopped flag
+            if self.battle_stopped:
+                break
+
+        # Determine winner and handle end of battle
         winner = players[0] if players[0]["hp"] > 0 else players[1]
         loser = players[1] if players[0]["hp"] > 0 else players[0]
 
         # Update stats and handle rewards
         await self._handle_battle_rewards(ctx, winner, loser)
         
-        # Final embed update - Clean victory message
+        # Final victory message
         victory_embed = discord.Embed(
             title="🏆 Battle Complete!",
             description=f"**{winner['name']}** is victorious!",
