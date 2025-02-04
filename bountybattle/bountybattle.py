@@ -419,6 +419,214 @@ ENVIRONMENTS = {
     },
 }
 
+class EnvironmentManager:
+    """Manages environment effects in battles."""
+    
+    def __init__(self):
+        self.EFFECT_COOLDOWNS = {
+            "Skypiea": 3,      # Lightning effects every 3 turns
+            "Alabasta": 2,     # Sandstorm effects every 2 turns
+            "Punk Hazard": 4,  # Extreme climate every 4 turns
+            "Raftel": 5,      # Ancient weapon effects every 5 turns
+        }
+        
+        self.current_cooldowns = {}
+        self.active_effects = {}
+        
+    async def apply_environment_effect(self, environment: str, players: list, turn: int) -> tuple[list[str], dict]:
+        """Apply environment effects with proper cooldown management."""
+        messages = []
+        effect_data = {}
+        
+        # Check cooldown
+        if self.current_cooldowns.get(environment, 0) > 0:
+            self.current_cooldowns[environment] -= 1
+            return messages, effect_data
+            
+        # Reset cooldown
+        self.current_cooldowns[environment] = self.EFFECT_COOLDOWNS.get(environment, 2)
+        
+        if environment == "Skypiea":
+            if random.random() < 0.3:  # 30% chance
+                damage = random.randint(10, 15)
+                effect_data = {
+                    "type": "lightning",
+                    "damage": damage,
+                    "duration": 1
+                }
+                messages.append(f"⚡ Divine lightning strikes for {damage} damage!")
+                
+        elif environment == "Alabasta":
+            if random.random() < 0.3:
+                effect_data = {
+                    "type": "sandstorm",
+                    "accuracy_reduction": 0.2,
+                    "duration": 2
+                }
+                messages.append("🌪️ Sandstorm reduces accuracy by 20% for 2 turns!")
+                
+        elif environment == "Punk Hazard":
+            if random.random() < 0.3:
+                damage = random.randint(5, 10)
+                effect_data = {
+                    "type": "extreme_climate",
+                    "damage": damage,
+                    "burn_amplification": 1.5,
+                    "duration": 2
+                }
+                messages.append(f"🔥❄️ Extreme climate deals {damage} damage and amplifies burns!")
+                
+        elif environment == "Raftel":
+            if random.random() < 0.2:  # Rare but powerful
+                effect_data = {
+                    "type": "ancient_weapon",
+                    "damage_boost": 1.3,
+                    "healing_boost": 1.3,
+                    "duration": 1
+                }
+                messages.append("🏺 Ancient weapon power enhances all abilities!")
+                
+        return messages, effect_data
+        
+    async def calculate_environment_modifiers(self, environment: str, move_data: dict) -> tuple[dict, list[str]]:
+        """Calculate move modifications based on environment."""
+        messages = []
+        modified_move = move_data.copy()
+        
+        # Get active effects
+        active_effect = self.active_effects.get(environment, {})
+        
+        if environment == "Skypiea" and "lightning" in move_data.get("effect", ""):
+            modified_move["damage"] = int(modified_move.get("damage", 0) * 1.2)
+            messages.append("⚡ Lightning enhanced by Skypiea's atmosphere!")
+            
+        elif environment == "Alabasta" and "burn" in move_data.get("effect", ""):
+            modified_move["burn_chance"] = modified_move.get("burn_chance", 0) + 0.1
+            messages.append("🔥 Burn chance increased in the desert heat!")
+            
+        elif environment == "Punk Hazard":
+            if active_effect.get("type") == "extreme_climate":
+                if "burn" in move_data.get("effect", ""):
+                    modified_move["burn_chance"] = modified_move.get("burn_chance", 0) * 1.5
+                    messages.append("🌋 Burn effects amplified by extreme climate!")
+                    
+        elif environment == "Raftel":
+            if active_effect.get("type") == "ancient_weapon":
+                modified_move["damage"] = int(modified_move.get("damage", 0) * 1.3)
+                if "heal" in move_data.get("effect", ""):
+                    modified_move["heal_amount"] = int(modified_move.get("heal_amount", 0) * 1.3)
+                messages.append("🏺 Move enhanced by ancient weapon power!")
+                
+        return modified_move, messages
+        
+    def clear_environment_effects(self):
+        """Clear all active environment effects."""
+        self.active_effects = {}
+        self.current_cooldowns = {}
+
+class StatusEffectManager:
+    """Manages all status effects in battles."""
+    
+    def __init__(self):
+        self.MAX_BURN_STACKS = 3
+        self.MAX_STUN_DURATION = 2
+        self.MAX_FREEZE_DURATION = 2
+        
+    async def apply_effect(self, effect_type: str, target: dict, value: int = 1, duration: int = 1):
+        """Apply a status effect with proper stacking rules."""
+        if "status" not in target:
+            target["status"] = {}
+            
+        if effect_type == "burn":
+            # Burn stacks up to MAX_BURN_STACKS
+            current_stacks = target["status"].get("burn", 0)
+            target["status"]["burn"] = min(current_stacks + value, self.MAX_BURN_STACKS)
+            return f"🔥 Burn stacks: {target['status']['burn']}"
+            
+        elif effect_type == "stun":
+            # Stun doesn't stack duration but refreshes
+            if not target["status"].get("stun", False):
+                target["status"]["stun"] = min(duration, self.MAX_STUN_DURATION)
+                return "⚡ Stunned!"
+            return None
+            
+        elif effect_type == "freeze":
+            # Freeze extends duration up to MAX_FREEZE_DURATION
+            current_freeze = target["status"].get("freeze", 0)
+            target["status"]["freeze"] = min(current_freeze + duration, self.MAX_FREEZE_DURATION)
+            return f"❄️ Frozen for {target['status']['freeze']} turns!"
+            
+        elif effect_type == "protect":
+            # Protection doesn't stack, just refreshes
+            target["status"]["protected"] = True
+            target["status"]["protect_duration"] = duration
+            return "🛡️ Protected!"
+            
+        return None
+
+    async def process_effects(self, player: dict) -> tuple[list[str], int]:
+        """Process all status effects on a player's turn."""
+        if "status" not in player:
+            return [], 0
+            
+        messages = []
+        total_damage = 0
+        
+        # Process burn
+        if player["status"].get("burn", 0) > 0:
+            damage = 5 * player["status"]["burn"]  # 5 damage per burn stack
+            total_damage += damage
+            messages.append(f"🔥 Burn deals {damage} damage!")
+            player["status"]["burn"] -= 1  # Reduce burn stacks
+            
+        # Process stun
+        if player["status"].get("stun", 0) > 0:
+            messages.append("⚡ Stunned - Skip turn!")
+            player["status"]["stun"] -= 1
+            
+        # Process freeze
+        if player["status"].get("freeze", 0) > 0:
+            messages.append("❄️ Frozen - Skip turn!")
+            player["status"]["freeze"] -= 1
+            
+        # Process protection
+        if player["status"].get("protected", False):
+            if player["status"].get("protect_duration", 0) > 0:
+                messages.append("🛡️ Protected from damage!")
+                player["status"]["protect_duration"] -= 1
+            else:
+                player["status"]["protected"] = False
+                
+        return messages, total_damage
+
+    async def calculate_damage_with_effects(self, base_damage: int, attacker: dict, defender: dict) -> tuple[int, list[str]]:
+        """Calculate final damage considering all status effects."""
+        messages = []
+        final_damage = base_damage
+        
+        # Check defender's protection
+        if defender["status"].get("protected", False):
+            final_damage = int(final_damage * 0.5)  # 50% damage reduction
+            messages.append("🛡️ Damage reduced by protection!")
+            
+        # Apply attacker's bonuses
+        if attacker["status"].get("empowered", False):
+            final_damage = int(final_damage * 1.2)  # 20% damage boost
+            messages.append("💪 Damage boosted by empowerment!")
+            
+        return max(0, final_damage), messages
+        
+    def clear_all_effects(self, player: dict):
+        """Clear all status effects from a player."""
+        if "status" in player:
+            player["status"] = {}
+            
+    def get_effect_duration(self, player: dict, effect_type: str) -> int:
+        """Get the remaining duration of a specific effect."""
+        if "status" not in player:
+            return 0
+        return player["status"].get(effect_type, 0)
+
 class BattleStateManager:
     def __init__(self):
         self.active_battles = {}
@@ -487,6 +695,8 @@ class BountyBattle(commands.Cog):
         self.battle_lock = Lock()
         self.data_lock = Lock()
         self.battle_manager = BattleStateManager()
+        self.status_manager = StatusEffectManager()  
+        self.environment_manager = EnvironmentManager()
 
         # Store both bounty and deathmatch stats
         default_member = {
@@ -2497,7 +2707,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
     async def fight(self, ctx, challenger, opponent):
-        """Enhanced fight system with improved memory management."""
+        """Enhanced fight system with proper effect management."""
         try:
             channel_id = ctx.channel.id
             
@@ -2521,6 +2731,11 @@ class BountyBattle(commands.Cog):
             battle_state["environment"] = environment
             environment_data = ENVIRONMENTS[environment]
 
+            # Clear any lingering effects
+            self.status_manager.clear_all_effects(challenger_data)
+            self.status_manager.clear_all_effects(opponent_data)
+            self.environment_manager.clear_environment_effects()
+
             # Create initial battle embed
             embed = discord.Embed(
                 title="⚔️ EPIC ONE PIECE BATTLE ⚔️",
@@ -2531,39 +2746,23 @@ class BountyBattle(commands.Cog):
             # Initialize display
             def update_player_fields():
                 embed.clear_fields()
-                
-                # Challenger field
-                challenger_status = self.get_status_icons(challenger_data)
-                challenger_health = self.generate_health_bar(challenger_data["hp"])
-                challenger_fruit_text = f"\n🍎 *{challenger_data['fruit']}*" if challenger_data['fruit'] else ""
-                
-                embed.add_field(
-                    name=f"🏴‍☠️ {challenger_data['name']}",
-                    value=(
-                        f"❤️ HP: {challenger_data['hp']}/250\n"
-                        f"{challenger_health}\n"
-                        f"✨ Status: {challenger_status}{challenger_fruit_text}"
-                    ),
-                    inline=True
-                )
-
-                # VS Separator
-                embed.add_field(name="⚔️", value="VS", inline=True)
-
-                # Opponent field
-                opponent_status = self.get_status_icons(opponent_data)
-                opponent_health = self.generate_health_bar(opponent_data["hp"])
-                opponent_fruit_text = f"\n🍎 *{opponent_data['fruit']}*" if opponent_data['fruit'] else ""
-                
-                embed.add_field(
-                    name=f"🏴‍☠️ {opponent_data['name']}",
-                    value=(
-                        f"❤️ HP: {opponent_data['hp']}/250\n"
-                        f"{opponent_health}\n"
-                        f"✨ Status: {opponent_status}{opponent_fruit_text}"
-                    ),
-                    inline=True
-                )
+                for player in [challenger_data, opponent_data]:
+                    status = self.get_status_icons(player)
+                    health = self.generate_health_bar(player["hp"])
+                    fruit_text = f"\n🍎 *{player['fruit']}*" if player['fruit'] else ""
+                    
+                    embed.add_field(
+                        name=f"🏴‍☠️ {player['name']}",
+                        value=(
+                            f"❤️ HP: {player['hp']}/250\n"
+                            f"{health}\n"
+                            f"✨ Status: {status}{fruit_text}"
+                        ),
+                        inline=True
+                    )
+                    
+                    if player == challenger_data:
+                        embed.add_field(name="⚔️", value="VS", inline=True)
 
             # Send initial battle state
             update_player_fields()
@@ -2580,63 +2779,89 @@ class BountyBattle(commands.Cog):
                 attacker = players[current_player]
                 defender = players[1 - current_player]
 
+                # Process environment effects
+                env_messages, env_effects = await self.environment_manager.apply_environment_effect(
+                    environment, players, turn
+                )
+                
+                if env_messages:
+                    await battle_log.edit(content=f"{battle_log.content}\n{''.join(env_messages)}")
+
                 # Process status effects
-                status_message = await self.process_status_effects(attacker, defender)
-                if status_message:
-                    await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
+                status_messages, status_damage = await self.status_manager.process_effects(attacker)
+                if status_damage > 0:
+                    attacker["hp"] = max(0, attacker["hp"] - status_damage)
+                    attacker["stats"]["damage_taken"] += status_damage
+                
+                if status_messages:
+                    await battle_log.edit(content=f"{battle_log.content}\n{''.join(status_messages)}")
 
-                # Update cooldowns
-                self.update_cooldowns(attacker)
+                # Check if attacker can move
+                if self.status_manager.get_effect_duration(attacker, "stun") > 0 or \
+                   self.status_manager.get_effect_duration(attacker, "freeze") > 0:
+                    await battle_log.edit(content=f"{battle_log.content}\n⚠️ **{attacker['name']}** is unable to move!")
+                    
+                else:
+                    # Get available moves
+                    available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
+                    if not available_moves:
+                        available_moves = [move for move in MOVES if move["type"] == "regular"]
 
-                # Get available moves
-                available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
-                if not available_moves:
-                    available_moves = [move for move in MOVES if move["type"] == "regular"]
-
-                # Select and execute move
-                selected_move = random.choice(available_moves)
-                damage, damage_message = self.calculate_damage(selected_move, attacker, turn)
-
-                # Apply effects
-                await self.apply_effects(selected_move, attacker, defender)
-                environment_message = await self.apply_environmental_hazard(environment, [attacker, defender])
-
-                # Apply Devil Fruit effects
-                if attacker["fruit"]:
-                    bonus_damage, fruit_message = await self.apply_devil_fruit_effects(
-                        attacker, defender, damage, selected_move, turn
+                    # Select move and apply environment modifications
+                    selected_move = random.choice(available_moves)
+                    modified_move, env_move_messages = await self.environment_manager.calculate_environment_modifiers(
+                        environment, selected_move
                     )
-                    if bonus_damage:
-                        damage += bonus_damage
 
-                # Update HP and stats
-                defender["hp"] = max(0, defender["hp"] - damage)
-                defender["stats"]["damage_taken"] += damage
-                attacker["stats"]["damage_dealt"] += damage
+                    # Calculate base damage
+                    base_damage, damage_message = self.calculate_damage(modified_move, attacker, turn)
+                    
+                    # Calculate final damage with status effects
+                    final_damage, effect_messages = await self.status_manager.calculate_damage_with_effects(
+                        base_damage, attacker, defender
+                    )
 
-                # Update battle log
-                turn_message = f"\nTurn {turn}: **{attacker['name']}** used **{selected_move['name']}**!"
-                if damage_message:
-                    turn_message += f"\n{damage_message}"
-                if environment_message:
-                    turn_message += f"\n{environment_message}"
-                if 'fruit_message' in locals() and fruit_message:
-                    turn_message += f"\n{fruit_message}"
-                turn_message += f"\n💥 Dealt **{damage}** damage!"
+                    # Apply damage and effects
+                    if final_damage > 0:
+                        defender["hp"] = max(0, defender["hp"] - final_damage)
+                        defender["stats"]["damage_taken"] += final_damage
+                        attacker["stats"]["damage_dealt"] += final_damage
 
-                await battle_log.edit(content=f"{battle_log.content}\n{turn_message}")
+                    # Apply move effects
+                    if "effect" in modified_move:
+                        effect_result = await self.status_manager.apply_effect(
+                            modified_move["effect"],
+                            defender,
+                            value=modified_move.get("effect_value", 1),
+                            duration=modified_move.get("effect_duration", 1)
+                        )
+                        if effect_result:
+                            effect_messages.append(effect_result)
+
+                    # Create turn message
+                    turn_message = [f"\nTurn {turn}: **{attacker['name']}** used **{modified_move['name']}**!"]
+                    if damage_message:
+                        turn_message.append(damage_message)
+                    if env_move_messages:
+                        turn_message.extend(env_move_messages)
+                    if effect_messages:
+                        turn_message.extend(effect_messages)
+                    turn_message.append(f"💥 Dealt **{final_damage}** damage!")
+
+                    # Update battle log
+                    await battle_log.edit(content=f"{battle_log.content}\n{''.join(turn_message)}")
 
                 # Update display
                 update_player_fields()
                 await message.edit(embed=embed)
-                
+
                 # Add delay between turns
                 await asyncio.sleep(2)
 
                 # Switch turns
                 current_player = 1 - current_player
 
-            # After battle ends, determine winner
+            # After battle ends
             winner_data = next((p for p in players if p["hp"] > 0), players[0])
             loser_data = players[1] if winner_data == players[0] else players[0]
 
@@ -2655,8 +2880,10 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in fight: {str(e)}")
             await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
         finally:
-            # Always clean up
+            # Clean up
             await self.battle_manager.end_battle(channel_id)
+            if ctx.channel.id in self.active_channels:
+                self.active_channels.remove(ctx.channel.id)
         
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
