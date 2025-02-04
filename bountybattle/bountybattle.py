@@ -1170,45 +1170,56 @@ class BountyBattle(commands.Cog):
         try:
             winner = winner_data["member"]
             loser = loser_data["member"]
-            
+
             # Calculate rewards
             bounty_increase = random.randint(1000, 3000)
             bounty_decrease = random.randint(500, 1500)
 
-            # Update bounties safely
+            # Get current bounties and ensure they are numeric
             bounties = load_bounties()
             winner_id = str(winner.id)
             loser_id = str(loser.id)
 
-            # Initialize if needed
+            # Initialize or get current bounty values
             if winner_id not in bounties:
                 bounties[winner_id] = {"amount": 0, "fruit": None}
             if loser_id not in bounties:
                 bounties[loser_id] = {"amount": 0, "fruit": None}
 
-            # Ensure we're working with numeric values
+            # Get current bounty amounts, ensuring they are integers
             winner_current_bounty = int(bounties[winner_id].get("amount", 0))
             loser_current_bounty = int(bounties[loser_id].get("amount", 0))
 
-            # Update amounts
-            bounties[winner_id]["amount"] = winner_current_bounty + bounty_increase
-            bounties[loser_id]["amount"] = max(0, loser_current_bounty - bounty_decrease)
+            # Calculate new bounties
+            winner_new_bounty = winner_current_bounty + bounty_increase
+            loser_new_bounty = max(0, loser_current_bounty - bounty_decrease)
 
-            # Save bounties
-            save_bounties(bounties)
+            # Update bounties dictionary
+            bounties[winner_id]["amount"] = winner_new_bounty
+            bounties[loser_id]["amount"] = loser_new_bounty
 
-            # Update config
-            async with self.data_lock:
-                await self.config.member(winner).bounty.set(bounties[winner_id]["amount"])
-                await self.config.member(loser).bounty.set(bounties[loser_id]["amount"])
+            # Save updated bounties
+            try:
+                save_bounties(bounties)
+            except Exception as e:
+                logger.error(f"Failed to save bounties: {e}")
+                raise
 
-                # Update wins/losses
-                await self.config.member(winner).wins.set(
-                    (await self.config.member(winner).wins()) + 1
-                )
-                await self.config.member(loser).losses.set(
-                    (await self.config.member(loser).losses()) + 1
-                )
+            # Update config values
+            try:
+                async with self.data_lock:
+                    await self.config.member(winner).bounty.set(winner_new_bounty)
+                    await self.config.member(loser).bounty.set(loser_new_bounty)
+
+                    # Update wins/losses
+                    winner_wins = await self.config.member(winner).wins()
+                    loser_losses = await self.config.member(loser).losses()
+                    
+                    await self.config.member(winner).wins.set(winner_wins + 1)
+                    await self.config.member(loser).losses.set(loser_losses + 1)
+            except Exception as e:
+                logger.error(f"Failed to update config: {e}")
+                raise
 
             # Create victory embed
             embed = discord.Embed(
@@ -1222,8 +1233,8 @@ class BountyBattle(commands.Cog):
                 name="Winner Rewards",
                 value=(
                     f"💰 Gained: `{bounty_increase:,}` Berries\n"
-                    f"📈 New Bounty: `{bounties[winner_id]['amount']:,}` Berries\n"
-                    f"🎯 Total Wins: `{await self.config.member(winner).wins()}`"
+                    f"📈 New Bounty: `{winner_new_bounty:,}` Berries\n"
+                    f"🎯 Total Wins: `{winner_wins + 1}`"
                 ),
                 inline=False
             )
@@ -1233,8 +1244,8 @@ class BountyBattle(commands.Cog):
                 name="Loser Penalties",
                 value=(
                     f"💰 Lost: `{bounty_decrease:,}` Berries\n"
-                    f"📉 New Bounty: `{bounties[loser_id]['amount']:,}` Berries\n"
-                    f"💀 Total Losses: `{await self.config.member(loser).losses()}`"
+                    f"📉 New Bounty: `{loser_new_bounty:,}` Berries\n"
+                    f"💀 Total Losses: `{loser_losses + 1}`"
                 ),
                 inline=False
             )
@@ -1253,9 +1264,8 @@ class BountyBattle(commands.Cog):
             await ctx.send(embed=embed)
 
             # Check for title changes and announce if significant
-            new_winner_bounty = bounties[winner_id]["amount"]
-            if isinstance(new_winner_bounty, (int, float)) and new_winner_bounty >= 900_000_000:
-                new_winner_title = self.get_bounty_title(new_winner_bounty)
+            if winner_new_bounty >= 900_000_000:
+                new_winner_title = self.get_bounty_title(winner_new_bounty)
                 await self.announce_rank(ctx.guild, winner, new_winner_title)
 
             # Update last active time
@@ -1266,6 +1276,7 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error processing victory: {str(e)}")
             await ctx.send("⚠️ There was an error processing the victory rewards.")
+            raise  # Re-raise the exception for debugging purposes
             
     async def _initialize_player_data(self, member):
         """Initialize player data with proper memory management."""
