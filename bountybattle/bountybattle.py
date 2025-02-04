@@ -1749,24 +1749,43 @@ class BountyBattle(commands.Cog):
         return final_damage, message
 
     # Add method to update cooldowns at the start of each turn
-    def update_cooldowns(self, player_data):
-        """Update cooldowns at the start of each turn."""
-        cooldowns = player_data["moves_on_cooldown"]
-        for move in list(cooldowns.keys()):
-            cooldowns[move] -= 1
-            if cooldowns[move] <= 0:
-                del cooldowns[move]
-                player_data["stats"]["cooldowns_managed"] += 1
+    def update_cooldowns(self, player_data: dict):
+        """
+        Update cooldowns at the start of a player's turn.
+        
+        Parameters:
+        -----------
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        # Create a copy of the keys to avoid modifying dict during iteration
+        moves = list(player_data["moves_on_cooldown"].keys())
+        
+        for move in moves:
+            player_data["moves_on_cooldown"][move] -= 1
+            if player_data["moves_on_cooldown"][move] <= 0:
+                del player_data["moves_on_cooldown"][move]
 
     # Also ensure these helper methods include self:
     def is_move_available(self, move_name, player_data):
         """Check if a move is available to use."""
         return move_name not in player_data["moves_on_cooldown"]
 
-    def set_move_cooldown(self, move_name, cooldown, player_data):
-        """Put a move on cooldown."""
-        if cooldown > 0:
-            player_data["moves_on_cooldown"][move_name] = cooldown
+    def set_move_cooldown(self, move_name: str, cooldown: int, player_data: dict):
+        """
+        Set a cooldown for a move on a player.
+        
+        Parameters:
+        -----------
+        move_name : str
+            The name of the move to put on cooldown
+        cooldown : int
+            Number of turns the move should be on cooldown
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        player_data["moves_on_cooldown"][move_name] = cooldown
+        player_data["stats"]["cooldowns_managed"] += 1
 
     # Add these helper functions for status effects
     def apply_burn_effect(self, defender_data):
@@ -2249,7 +2268,8 @@ class BountyBattle(commands.Cog):
 
             # Set cooldown for the move
             if move.get("cooldown", 0) > 0:
-                self.set_move_cooldown(move["name"], move["cooldown"], attacker)
+                attacker["moves_on_cooldown"][move["name"]] = move["cooldown"]
+                attacker["stats"]["cooldowns_managed"] += 1
 
             # Apply the damage
             update_hp(defender, final_damage, is_damage=True)
