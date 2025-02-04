@@ -487,10 +487,7 @@ class DevilFruitManager:
                 burn_stacks = 2 if effect == "magma" else 1
                 await self.status_manager.apply_effect("burn", defender, value=burn_stacks)
                 bonus_damage = int(move.get("damage", 0) * 0.5)
-                effect_message = (
-                    f"🔥 **{effect.upper()} BURST**!\n"
-                    f"**{attacker['name']}**'s {effect} intensifies!"
-                )
+                effect_message = f"🔥 **{effect.upper()} BURST**!\n**{attacker['name']}**'s {effect} intensifies!"
 
         elif effect == "lightning":
             if random.random() < 0.3:
@@ -502,6 +499,37 @@ class DevilFruitManager:
             if random.random() < 0.25:
                 await self.status_manager.apply_effect("freeze", defender, duration=2)
                 effect_message = "❄️ **FROZEN SOLID**!"
+                
+        elif effect == "darkness":
+            absorb_amount = int(move.get("damage", 0) * 0.15)
+            attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
+            effect_message = f"🌑 **DARKNESS ABSORPTION**!\nAbsorbed {absorb_amount} HP!"
+            
+        elif effect == "smoke":
+            if random.random() < 0.15:
+                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                effect_message = "💨 **SMOKE FORM**!\nDodged the attack!"
+                
+        elif effect == "sand":
+            if random.random() < 0.10:
+                drain_amount = int(defender["hp"] * 0.1)
+                defender["hp"] -= drain_amount
+                attacker["hp"] = min(250, attacker["hp"] + drain_amount)
+                effect_message = f"🏜️ **SAND DRAIN**!\nDrained {drain_amount} HP!"
+                
+        elif effect == "light":
+            bonus_damage = int(move.get("damage", 0) * 0.2)
+            effect_message = "✨ **LIGHT SPEED**!\nAttack pierces defenses!"
+            
+        elif effect == "forest":
+            if random.random() < 0.25:
+                await self.status_manager.apply_effect("root", defender, duration=2)
+                effect_message = "🌳 **ROOT BIND**!\nTarget immobilized!"
+                
+        elif effect == "wind":
+            if random.random() < 0.20:
+                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                effect_message = "🌪️ **WIND EVASION**!\nDodged incoming attack!"
 
         # Environment interactions
         if environment == "Punk Hazard" and (effect == "fire" or effect == "ice"):
@@ -517,13 +545,49 @@ class DevilFruitManager:
 
         if "Model Phoenix" in effect:
             if random.random() < 0.3:
-                heal_amount = 30
+                heal_amount = int(attacker["hp"] * 0.1)
                 attacker["hp"] = min(250, attacker["hp"] + heal_amount)
                 effect_message = f"🦅 **PHOENIX REGENERATION**!\nHealed for {heal_amount} HP!"
 
         elif "Model Azure Dragon" in effect:
-            bonus_damage = int(move.get("damage", 0) * 0.3)
-            effect_message = "🐉 **DRAGON'S MIGHT**!"
+            if random.random() < 0.25:
+                bonus_damage = int(move.get("damage", 0) * 0.3)
+                effect_message = "🐉 **DRAGON'S MIGHT**!"
+
+        elif "Model Spinosaurus" in effect:
+            attacker["max_hp"] = int(attacker["max_hp"] * 1.2)
+            effect_message = "🦕 **ANCIENT POWER**!\nMax HP increased!"
+            
+        elif "Model Pteranodon" in effect:
+            if random.random() < 0.15:
+                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                effect_message = "🦅 **AERIAL MANEUVER**!\nEvaded attack!"
+
+        elif "Model Okuchi no Makami" in effect:
+            heal_amount = int(move.get("heal_amount", 0) * 2)
+            if heal_amount > 0:
+                attacker["hp"] = min(250, attacker["hp"] + heal_amount)
+                effect_message = f"🐺 **DIVINE HEALING**!\nHealing doubled to {heal_amount}!"
+                
+        elif "Model Thunderbird" in effect:
+            if "lightning" in move.get("effect", ""):
+                bonus_damage = int(move.get("damage", 0) * 0.3)
+                effect_message = "⚡ **THUNDER STRIKE**!\nLightning damage amplified!"
+                
+        elif "Model Daibutsu" in effect:
+            await self.status_manager.apply_effect("protect", attacker, duration=2)
+            bonus_damage = int(move.get("damage", 0) * 0.2)
+            effect_message = "🗿 **BUDDHA'S BLESSING**!\nDefense and attack boosted!"
+                
+        elif "Model Cerberus" in effect:
+            if random.random() < 0.3:
+                bonus_damage = int(move.get("damage", 0))  # Double damage
+                effect_message = "🐕 **TRIPLE STRIKE**!\nAttacked twice!"
+                
+        elif "Model Yamata no Orochi" in effect:
+            if turn % 3 == 0:  # Every 3rd turn
+                bonus_damage = int(move.get("damage", 0) * 0.5) * 2  # Two extra attacks
+                effect_message = "🐍 **EIGHT-HEADED ASSAULT**!\nGained 2 extra attacks!"
 
         elif effect == "nika":
             if random.random() < 0.4:
@@ -549,15 +613,42 @@ class DevilFruitManager:
             bonus_damage = int(move.get("damage", 0) * 0.4)
             effect_message = "💥 **SEISMIC SHOCK**!"
 
-        elif effect == "string":
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("bind", defender, duration=2)
-                effect_message = "🕸️ **STRING BIND**!"
-
+        elif effect == "mochi":
+            if turn % 4 == 0:  # Every 4th turn
+                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                effect_message = "🍡 **MOCHI DEFENSE**!\nDodged attack!"
+                
+        elif effect == "gravity":
+            if random.random() < 0.20:
+                await self.status_manager.apply_effect("stun", defender, duration=1)
+                effect_message = "🌌 **GRAVITY CRUSH**!\nEnemy stunned!"
+                
         elif effect == "barrier":
             if random.random() < 0.4:
                 await self.status_manager.apply_effect("protect", attacker, duration=2)
                 effect_message = "🛡️ **BARRIER RAISED**!"
+                
+        elif effect == "poison":
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("poison", defender, value=2, duration=3)
+                effect_message = "☠️ **TOXIC BURST**!\nPoison applied!"
+                
+        elif effect == "diamond":
+            if not attacker.get("diamond_boost"):
+                attacker["defense_boost"] = 0.3
+                attacker["diamond_boost"] = True
+                effect_message = "💎 **DIAMOND FORM**!\nDefense increased by 30%!"
+                
+        elif effect == "stone":
+            if random.random() < 0.25:
+                await self.status_manager.apply_effect("stun", defender, duration=1)
+                effect_message = "🪨 **STONE PRISON**!\nEnemy trapped!"
+                
+        elif effect == "dehydration":
+            if random.random() < 0.3:
+                drain_amount = int(defender["hp"] * 0.15)
+                defender["hp"] -= drain_amount
+                effect_message = f"💧 **MOISTURE DRAIN**!\nDrained {drain_amount} HP!"
 
         # Environment interactions
         if environment == "Marineford":
