@@ -804,6 +804,141 @@ class BountyBattle(commands.Cog):
             }
         }
     
+    async def cleanup_inactive_fruits(self, ctx, days_inactive: int = 30):
+        """Clean up Devil Fruits from inactive players."""
+        try:
+            current_time = datetime.utcnow()
+            bounties = load_bounties()
+            cleaned_fruits = []
+
+            for user_id, data in bounties.items():
+                # Skip if no fruit
+                if not data.get("fruit"):
+                    continue
+
+                try:
+                    member = ctx.guild.get_member(int(user_id))
+                    if not member:
+                        continue
+
+                    last_active = await self.config.member(member).last_active()
+                    if not last_active:
+                        continue
+
+                    last_active_date = datetime.fromisoformat(last_active)
+                    days_since_active = (current_time - last_active_date).days
+
+                    # Remove fruit if inactive for specified period
+                    if days_since_active >= days_inactive:
+                        fruit_name = data["fruit"]
+                        bounties[user_id]["fruit"] = None
+                        await self.config.member(member).devil_fruit.set(None)
+                        cleaned_fruits.append((member.display_name, fruit_name))
+
+                except (ValueError, AttributeError) as e:
+                    logger.error(f"Error processing user {user_id}: {e}")
+                    continue
+
+            # Save changes
+            save_bounties(bounties)
+
+            # Create report embed
+            if cleaned_fruits:
+                embed = discord.Embed(
+                    title="🍎 Devil Fruit Cleanup Report",
+                    description=f"Removed fruits from {len(cleaned_fruits)} inactive players.",
+                    color=discord.Color.blue()
+                )
+                
+                for name, fruit in cleaned_fruits:
+                    embed.add_field(
+                        name=f"Removed from {name}",
+                        value=f"Fruit: `{fruit}`",
+                        inline=False
+                    )
+                
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("✅ No inactive Devil Fruit users found!")
+
+        except Exception as e:
+            logger.error(f"Error in cleanup_inactive_fruits: {e}")
+            await ctx.send("❌ An error occurred during fruit cleanup.")
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        """Handle Devil Fruit cleanup when a member leaves the server."""
+        try:
+            bounties = load_bounties()
+            user_id = str(member.id)
+
+            if user_id in bounties and bounties[user_id].get("fruit"):
+                fruit_name = bounties[user_id]["fruit"]
+                
+                # Check if it's a rare fruit
+                is_rare = fruit_name in DEVIL_FRUITS["Rare"]
+                
+                # Remove the fruit
+                bounties[user_id]["fruit"] = None
+                save_bounties(bounties)
+                await self.config.member(member).devil_fruit.set(None)
+
+                # Announce if it was a rare fruit
+                if is_rare:
+                    for guild in self.bot.guilds:
+                        channel = discord.utils.get(guild.text_channels, name="devil-fruits")
+                        if channel:
+                            embed = discord.Embed(
+                                title="🌟 Rare Devil Fruit Available!",
+                                description=(
+                                    f"The `{fruit_name}` has returned to circulation!\n"
+                                    f"Previous owner left the server."
+                                ),
+                                color=discord.Color.gold()
+                            )
+                            await channel.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error handling member remove: {e}")
+
+    async def validate_fruit_transfer(self, ctx, member: discord.Member, fruit_name: str) -> bool:
+        """Validate if a fruit can be transferred to a member."""
+        try:
+            bounties = load_bounties()
+            
+            # Check if the fruit exists
+            fruit_exists = False
+            fruit_rarity = None
+            
+            for rarity, fruits in DEVIL_FRUITS.items():
+                if fruit_name in fruits:
+                    fruit_exists = True
+                    fruit_rarity = rarity
+                    break
+                    
+            if not fruit_exists:
+                await ctx.send(f"❌ The fruit `{fruit_name}` does not exist!")
+                return False
+
+            # Check if member already has a fruit
+            user_id = str(member.id)
+            if user_id in bounties and bounties[user_id].get("fruit"):
+                await ctx.send(f"❌ {member.display_name} already has the `{bounties[user_id]['fruit']}`!")
+                return False
+
+            # Check if it's a rare fruit and if it's already taken
+            if fruit_rarity == "Rare":
+                for user_data in bounties.values():
+                    if user_data.get("fruit") == fruit_name:
+                        await ctx.send(f"❌ The rare fruit `{fruit_name}` is already owned by another player!")
+                        return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in validate_fruit_transfer: {e}")
+            await ctx.send("❌ An error occurred while validating the fruit transfer.")
+            return False
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -850,6 +985,15 @@ class BountyBattle(commands.Cog):
         
         await self.config.guild(ctx.guild).beta_active.set(False)
         await ctx.send("🚨 **The beta test is now officially over!**\nNo new players will receive the `BETA TESTER` title.")
+        
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)
+    async def fruitcleanup(self, ctx, days: int = 30):
+        """Clean up Devil Fruits from inactive players (Admin/Owner only)."""
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+            
+        await self.cleanup_inactive_fruits(ctx, days)
     
     @commands.command()
     async def mostwanted(self, ctx):
@@ -996,24 +1140,26 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def eatfruit(self, ctx):
-        """Consume a random Devil Fruit! Some rare fruits are unique and globally announced."""
+        """Consume a random Devil Fruit!"""
         user = ctx.author
-        bounties = load_bounties()  # ✅ Use load_bounties() instead
+        
+        # Validate current state
+        if not await self.validate_fruit_transfer(ctx, user, None):
+            return
+            
+        bounties = load_bounties()
         user_id = str(user.id)
 
         if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
-        if bounties[user_id].get("fruit"):
-            return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
-
-        # ✅ Get all rare fruits currently taken
+        # Get all rare fruits currently taken
         all_taken_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
 
-        # ✅ Remove taken rare fruits from available list
+        # Remove taken rare fruits from available list
         available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
 
-        # ✅ Determine fruit type (90% Common, 10% Rare if available)
+        # Determine fruit type (90% Common, 10% Rare if available)
         is_rare = available_rare_fruits and random.randint(1, 100) <= 10
 
         if is_rare:
@@ -1023,31 +1169,29 @@ class BountyBattle(commands.Cog):
             new_fruit = random.choice(list(DEVIL_FRUITS["Common"].keys()))
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
 
-        fruit_type = fruit_data["type"]
-        effect = fruit_data["bonus"]
-
-        # ✅ Save the fruit to bounties.json
+        # Save the fruit
         bounties[user_id]["fruit"] = new_fruit
-        save_bounties(bounties)  # ✅ Use save_bounties() instead
+        save_bounties(bounties)
+        await self.config.member(user).devil_fruit.set(new_fruit)
+        await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
 
-        # ✅ ANNOUNCE IF RARE FRUIT
+        # Create announcement
         if is_rare:
             announcement = (
                 f"🚨 **Breaking News from the Grand Line!** 🚨\n"
-                f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**! ({fruit_type} Type)\n"
-                f"🔥 **New Power:** {effect}\n\n"
-                f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it unless they remove it!*"
+                f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**!\n"
+                f"Type: {fruit_data['type']}\n"
+                f"🔥 Power: {fruit_data['bonus']}\n\n"
+                f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it!*"
             )
             await ctx.send(announcement)
         else:
             await ctx.send(
-                f"🍎 **{user.display_name}** has eaten the **{new_fruit}**! ({fruit_type} Type)\n"
-                f"🔥 **New Power:** {effect}\n\n"
+                f"🍎 **{user.display_name}** has eaten the **{new_fruit}**!\n"
+                f"Type: {fruit_data['type']}\n"
+                f"🔥 Power: {fruit_data['bonus']}\n\n"
                 f"⚠️ *You cannot eat another Devil Fruit!*"
             )
-
-        # Assign the fruit to the player in Redbot's Config
-        await self.config.member(user).devil_fruit.set(new_fruit)
 
 
     @commands.command()
@@ -1166,62 +1310,39 @@ class BountyBattle(commands.Cog):
             
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
-    async def givefruit(self, ctx, member: discord.Member, *, fruit: str):
+    async def givefruit(self, ctx, member: discord.Member, *, fruit_name: str):
         """Give a user a Devil Fruit (Admin/Owner only)."""
-        # Add permission check message
         if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
             return await ctx.send("❌ You need administrator permissions to use this command!")
 
-        if fruit.lower() not in fruit_names:
-            # Create helpful error message with closest matching fruit
-            closest_matches = difflib.get_close_matches(fruit.lower(), fruit_names.keys(), n=3, cutoff=0.5)
-            error_msg = f"❌ That Devil Fruit does not exist in the current list."
-            if closest_matches:
-                error_msg += f"\n\nDid you mean one of these?\n" + "\n".join([f"• {fruit_names[match]}" for match in closest_matches])
-            return await ctx.send(error_msg)
+        # Validate the fruit transfer
+        if not await self.validate_fruit_transfer(ctx, member, fruit_name):
+            return
 
-        # Check both sources for existing fruit
+        # Assign fruit
         bounties = load_bounties()
         user_id = str(member.id)
-        config_fruit = await self.config.member(member).devil_fruit()
-        bounty_fruit = bounties.get(user_id, {}).get("fruit", None)
-
-        # If either source has a fruit, prevent giving new fruit
-        if config_fruit or bounty_fruit:
-            existing_fruit = config_fruit or bounty_fruit
-            return await ctx.send(f"❌ **{member.display_name}** already has `{existing_fruit}`! They must remove it first.")
-
-        # Assign the correctly formatted fruit name to both sources
-        fruit_name = fruit_names[fruit.lower()]
-
-        # Check if it's a rare fruit and if it's already taken
-        if fruit_name in DEVIL_FRUITS["Rare"]:
-            taken_rare_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit") in DEVIL_FRUITS["Rare"]}
-            if fruit_name in taken_rare_fruits:
-                return await ctx.send(f"❌ The `{fruit_name}` is already owned by another player! Rare fruits can only be owned by one person at a time.")
-
-        # Assign fruit to config
-        await self.config.member(member).devil_fruit.set(fruit_name)
         
-        # Initialize or update bounties entry
         if user_id not in bounties:
             bounties[user_id] = {"amount": 0, "fruit": fruit_name}
         else:
             bounties[user_id]["fruit"] = fruit_name
+            
         save_bounties(bounties)
+        await self.config.member(member).devil_fruit.set(fruit_name)
+        await self.config.member(member).last_active.set(datetime.utcnow().isoformat())
 
+        # Get fruit data
+        fruit_data = DEVIL_FRUITS["Rare"].get(fruit_name) or DEVIL_FRUITS["Common"].get(fruit_name)
+        
         # Create success embed
         embed = discord.Embed(
             title="🍎 Devil Fruit Given!",
             description=f"**{member.display_name}** has been given the `{fruit_name}`!",
             color=discord.Color.green()
         )
-        
-        # Add fruit info
-        fruit_data = all_fruits[fruit_name]
         embed.add_field(name="Type", value=fruit_data["type"], inline=True)
-        embed.add_field(name="Effect", value=fruit_data["effect"], inline=True)
-        embed.add_field(name="Bonus", value=fruit_data["bonus"], inline=False)
+        embed.add_field(name="Power", value=fruit_data["bonus"], inline=False)
 
         await ctx.send(embed=embed)
         
