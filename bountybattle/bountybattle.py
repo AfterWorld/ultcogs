@@ -1166,107 +1166,53 @@ class BountyBattle(commands.Cog):
         return attacker_data["hp"] - original_hp
     
     async def _process_victory(self, ctx, winner_data, loser_data):
-        """Process victory rewards and announcements."""
+        """Process victory rewards with simplified logic."""
         try:
+            # Get member objects
             winner = winner_data["member"]
             loser = loser_data["member"]
+            
+            # Simple reward calculations
+            bounty_increase = 1000  # Fixed increase for now
+            bounty_decrease = 500   # Fixed decrease for now
+            
+            # Update winner's bounty
+            async with self.config.member(winner).all() as winner_data:
+                current_bounty = winner_data.get("bounty", 0)
+                if not isinstance(current_bounty, int):
+                    current_bounty = 0
+                new_bounty = current_bounty + bounty_increase
+                winner_data["bounty"] = new_bounty
+                winner_data["wins"] = winner_data.get("wins", 0) + 1
 
-            # Calculate rewards
-            bounty_increase = random.randint(1000, 3000)
-            bounty_decrease = random.randint(500, 1500)
+            # Update loser's bounty
+            async with self.config.member(loser).all() as loser_data:
+                current_bounty = loser_data.get("bounty", 0)
+                if not isinstance(current_bounty, int):
+                    current_bounty = 0
+                new_bounty = max(0, current_bounty - bounty_decrease)
+                loser_data["bounty"] = new_bounty
+                loser_data["losses"] = loser_data.get("losses", 0) + 1
 
-            # Get current bounties and ensure they are numeric
-            bounties = load_bounties()
-            winner_id = str(winner.id)
-            loser_id = str(loser.id)
-
-            # Initialize or get current bounty values
-            if winner_id not in bounties:
-                bounties[winner_id] = {"amount": 0, "fruit": None}
-            if loser_id not in bounties:
-                bounties[loser_id] = {"amount": 0, "fruit": None}
-
-            # Get current bounty amounts, ensuring they are integers
-            winner_current_bounty = int(bounties[winner_id].get("amount", 0))
-            loser_current_bounty = int(bounties[loser_id].get("amount", 0))
-
-            # Calculate new bounties
-            winner_new_bounty = winner_current_bounty + bounty_increase
-            loser_new_bounty = max(0, loser_current_bounty - bounty_decrease)
-
-            # Update bounties dictionary
-            bounties[winner_id]["amount"] = winner_new_bounty
-            bounties[loser_id]["amount"] = loser_new_bounty
-
-            # Save updated bounties
-            try:
-                save_bounties(bounties)
-            except Exception as e:
-                logger.error(f"Failed to save bounties: {e}")
-                raise
-
-            # Update config values
-            try:
-                async with self.data_lock:
-                    await self.config.member(winner).bounty.set(winner_new_bounty)
-                    await self.config.member(loser).bounty.set(loser_new_bounty)
-
-                    # Update wins/losses
-                    winner_wins = await self.config.member(winner).wins()
-                    loser_losses = await self.config.member(loser).losses()
-                    
-                    await self.config.member(winner).wins.set(winner_wins + 1)
-                    await self.config.member(loser).losses.set(loser_losses + 1)
-            except Exception as e:
-                logger.error(f"Failed to update config: {e}")
-                raise
-
-            # Create victory embed
+            # Create simple victory message
             embed = discord.Embed(
-                title="🏆 Victory Rewards",
-                description=f"**{winner.display_name}** has defeated **{loser.display_name}**!",
+                title="🏆 Battle Results",
                 color=discord.Color.gold()
             )
-
-            # Add winner details
+            
             embed.add_field(
-                name="Winner Rewards",
-                value=(
-                    f"💰 Gained: `{bounty_increase:,}` Berries\n"
-                    f"📈 New Bounty: `{winner_new_bounty:,}` Berries\n"
-                    f"🎯 Total Wins: `{winner_wins + 1}`"
-                ),
+                name=f"Winner: {winner.display_name}",
+                value=f"Gained {bounty_increase:,} Berries\nNew Bounty: {new_bounty:,} Berries",
                 inline=False
             )
-
-            # Add loser details
+            
             embed.add_field(
-                name="Loser Penalties",
-                value=(
-                    f"💰 Lost: `{bounty_decrease:,}` Berries\n"
-                    f"📉 New Bounty: `{loser_new_bounty:,}` Berries\n"
-                    f"💀 Total Losses: `{loser_losses + 1}`"
-                ),
+                name=f"Loser: {loser.display_name}",
+                value=f"Lost {bounty_decrease:,} Berries\nNew Bounty: {new_bounty:,} Berries",
                 inline=False
             )
-
-            # Check for achievements
-            unlocked_achievements = await self.check_achievements(winner)
-            if unlocked_achievements:
-                achievements_text = "\n".join([f"🏆 {ach}" for ach in unlocked_achievements])
-                embed.add_field(
-                    name="🎉 New Achievements!",
-                    value=achievements_text,
-                    inline=False
-                )
-
-            # Send the victory announcement
+            
             await ctx.send(embed=embed)
-
-            # Check for title changes and announce if significant
-            if winner_new_bounty >= 900_000_000:
-                new_winner_title = self.get_bounty_title(winner_new_bounty)
-                await self.announce_rank(ctx.guild, winner, new_winner_title)
 
             # Update last active time
             current_time = datetime.utcnow().isoformat()
@@ -1274,9 +1220,8 @@ class BountyBattle(commands.Cog):
             await self.config.member(loser).last_active.set(current_time)
 
         except Exception as e:
-            logger.error(f"Error processing victory: {str(e)}")
-            await ctx.send("⚠️ There was an error processing the victory rewards.")
-            raise  # Re-raise the exception for debugging purposes
+            logger.error(f"Error in _process_victory: {str(e)}")
+            await ctx.send("An error occurred while processing rewards.")
             
     async def _initialize_player_data(self, member):
         """Initialize player data with proper memory management."""
@@ -3021,7 +2966,7 @@ class BountyBattle(commands.Cog):
         """Enhanced fight system with all manager integrations."""
         try:
             channel_id = ctx.channel.id
-            
+                
             # Check if channel is already in battle
             if self.battle_manager.is_channel_in_battle(channel_id):
                 return await ctx.send("❌ A battle is already in progress in this channel!")
@@ -3109,7 +3054,7 @@ class BountyBattle(commands.Cog):
 
                 # Check if attacker can move (status effects might prevent action)
                 if self.status_manager.get_effect_duration(attacker, "stun") > 0 or \
-                   self.status_manager.get_effect_duration(attacker, "freeze") > 0:
+                self.status_manager.get_effect_duration(attacker, "freeze") > 0:
                     await battle_log.edit(content=f"{battle_log.content}\n⚠️ **{attacker['name']}** is unable to move!")
                     
                 else:
@@ -3185,29 +3130,80 @@ class BountyBattle(commands.Cog):
                     break
 
             # After battle ends, determine winner
-            winner_data = next((p for p in players if p["hp"] > 0), players[0])
-            loser_data = players[1] if winner_data == players[0] else players[0]
+            if not self.battle_stopped:
+                winner = next((p for p in players if p["hp"] > 0), players[0])
+                loser = players[1] if winner == players[0] else players[0]
 
-            # Create victory embed
-            victory_embed = discord.Embed(
-                title="🏆 Battle Complete!",
-                description=f"**{winner_data['name']}** is victorious!",
-                color=discord.Color.gold()
-            )
-            await message.edit(embed=victory_embed)
+                # Create victory embed
+                victory_embed = discord.Embed(
+                    title="🏆 Battle Complete!",
+                    description=f"**{winner['name']}** is victorious!",
+                    color=discord.Color.gold()
+                )
+                await message.edit(embed=victory_embed)
 
-            # Process victory rewards
-            await self._process_victory(ctx, winner_data, loser_data)
+                # Process victory using the simplified processing method
+                try:
+                    # Get member objects
+                    winner_member = winner["member"]
+                    loser_member = loser["member"]
+                    
+                    # Simple reward calculations
+                    bounty_increase = random.randint(1000, 3000)
+                    bounty_decrease = random.randint(500, 1500)
+                    
+                    # Update winner
+                    async with self.config.member(winner_member).all() as winner_data:
+                        winner_current_bounty = int(winner_data.get("bounty", 0))
+                        winner_new_bounty = winner_current_bounty + bounty_increase
+                        winner_data["bounty"] = winner_new_bounty
+                        winner_data["wins"] = winner_data.get("wins", 0) + 1
+
+                    # Update loser
+                    async with self.config.member(loser_member).all() as loser_data:
+                        loser_current_bounty = int(loser_data.get("bounty", 0))
+                        loser_new_bounty = max(0, loser_current_bounty - bounty_decrease)
+                        loser_data["bounty"] = loser_new_bounty
+                        loser_data["losses"] = loser_data.get("losses", 0) + 1
+
+                    # Create reward embed
+                    reward_embed = discord.Embed(
+                        title="💰 Battle Rewards",
+                        color=discord.Color.gold()
+                    )
+                    
+                    reward_embed.add_field(
+                        name=f"Winner: {winner['name']}",
+                        value=f"Gained {bounty_increase:,} Berries\nNew Bounty: {winner_new_bounty:,} Berries",
+                        inline=False
+                    )
+                    
+                    reward_embed.add_field(
+                        name=f"Loser: {loser['name']}",
+                        value=f"Lost {bounty_decrease:,} Berries\nNew Bounty: {loser_new_bounty:,} Berries",
+                        inline=False
+                    )
+                    
+                    await ctx.send(embed=reward_embed)
+
+                    # Update activity timestamps
+                    current_time = datetime.utcnow().isoformat()
+                    await self.config.member(winner_member).last_active.set(current_time)
+                    await self.config.member(loser_member).last_active.set(current_time)
+
+                except Exception as e:
+                    logger.error(f"Error processing victory rewards: {str(e)}")
+                    await ctx.send("An error occurred while processing rewards.")
 
         except Exception as e:
             logger.error(f"Error in fight: {str(e)}")
-            await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
+            await ctx.send(f"An error occurred during the battle: {str(e)}")
         finally:
             # Clean up all managers
             await self.battle_manager.end_battle(channel_id)
             if ctx.channel.id in self.active_channels:
                 self.active_channels.remove(ctx.channel.id)
-        
+            
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
         status_messages = []
