@@ -486,38 +486,34 @@ class BountyBattle(commands.Cog):
         await self.config.member(hunter).last_active.set(current_time)
         await self.config.member(target).last_active.set(current_time)
         
-    async def sync_all_bounties(self, ctx):
-        """Synchronize all bounties between Config and bounties.json."""
-        # Load current bounties from file
+    async def sync_bounty(self, user):
+        """
+        Synchronize bounty data for a user between config and bounties.json.
+        
+        Returns the synchronized bounty amount.
+        """
+        # Load current bounty data
         bounties = load_bounties()
+        user_id = str(user.id)
         
-        # Get all members from Config
-        all_members = await self.config.all_members(ctx.guild)
+        # Get bounty from config and bounties.json
+        config_bounty = await self.config.member(user).bounty()
+        json_bounty = bounties.get(user_id, {}).get("amount", 0)
         
-        # Create a new synchronized bounties dictionary
-        synced_bounties = {}
+        # Use the higher value as the source of truth
+        true_bounty = max(config_bounty, json_bounty)
         
-        for member_id, member_data in all_members.items():
-            member = ctx.guild.get_member(int(member_id))
-            if not member:
-                continue
-                
-            # Get both bounty values
-            config_bounty = member_data.get("bounty", 0)
-            json_bounty = bounties.get(str(member_id), {}).get("amount", 0)
-            
-            # Use the higher value as the source of truth
-            true_bounty = max(config_bounty, json_bounty)
-            
-            # Update both systems
-            synced_bounties[str(member_id)] = {
-                "amount": true_bounty,
-                "fruit": bounties.get(str(member_id), {}).get("fruit", None)
-            }
-            await self.config.member(member).bounty.set(true_bounty)
+        # Update both systems
+        bounties[user_id] = bounties.get(user_id, {})
+        bounties[user_id]["amount"] = true_bounty
         
-        # Save synchronized bounties back to file
-        save_bounties(synced_bounties)
+        # Save back to file
+        save_bounties(bounties)
+        
+        # Update config
+        await self.config.member(user).bounty.set(true_bounty)
+        
+        return true_bounty
         
     # ------------------ Bounty System ------------------
 
