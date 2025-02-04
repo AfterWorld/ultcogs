@@ -2085,7 +2085,6 @@ class BountyBattle(commands.Cog):
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
 
-        try:
             # Load bounty data
             bounties = load_bounties()
             hunter_id = str(hunter.id)
@@ -2134,7 +2133,6 @@ class BountyBattle(commands.Cog):
             )
             await ctx.send(embed=challenge_embed)
 
-            # Wait for response
             try:
                 msg = await self.bot.wait_for(
                     "message",
@@ -2149,7 +2147,6 @@ class BountyBattle(commands.Cog):
                 )
                 return await ctx.send(embed=timeout_embed)
 
-            # Check response and handle outcomes
             if msg.content.strip() != lock_code:
                 fail_embed = discord.Embed(
                     title="❌ Lock Pick Failed!",
@@ -2202,7 +2199,7 @@ class BountyBattle(commands.Cog):
                     inline=True
                 )
                 await ctx.send(embed=success_embed)
-
+            
             elif critical_failure:
                 # Handle critical failure
                 penalty = max(int(hunter_bounty * 0.10), 1000)
@@ -2229,7 +2226,7 @@ class BountyBattle(commands.Cog):
                     inline=True
                 )
                 await ctx.send(embed=failure_embed)
-
+            
             else:
                 # Handle normal failure
                 await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
