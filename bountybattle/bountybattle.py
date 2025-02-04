@@ -2089,8 +2089,8 @@ class BountyBattle(commands.Cog):
         challenger_data = {
             "name": challenger.display_name,
             "hp": 250,
-            "member": player,
-            "fruit": player_fruit,
+            "member": challenger,
+            "fruit": challenger_fruit,
             "moves_on_cooldown": {},  # New: Track move cooldowns
             "status": {
                 "burn": 0,
@@ -2121,8 +2121,8 @@ class BountyBattle(commands.Cog):
         opponent_data = {
             "name": opponent.display_name,
             "hp": 250,
-            "member": player,
-            "fruit": player_fruit,
+            "member": opponent,
+            "fruit": opponent_fruit,
             "moves_on_cooldown": {},  # New: Track move cooldowns
             "status": {
                 "burn": 0,
