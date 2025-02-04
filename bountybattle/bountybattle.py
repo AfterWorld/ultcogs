@@ -2248,14 +2248,14 @@ class BountyBattle(commands.Cog):
             defender = players[1 - current_player]
             
             # Update cooldowns at the start of each turn
-            moves_to_remove = []
-            for move_name, cooldown in attacker["moves_on_cooldown"].items():
+            cooldowns_to_remove = []
+            for move_name in attacker["moves_on_cooldown"]:
                 attacker["moves_on_cooldown"][move_name] -= 1
                 if attacker["moves_on_cooldown"][move_name] <= 0:
-                    moves_to_remove.append(move_name)
+                    cooldowns_to_remove.append(move_name)
             
             # Remove expired cooldowns
-            for move_name in moves_to_remove:
+            for move_name in cooldowns_to_remove:
                 del attacker["moves_on_cooldown"][move_name]
 
             # Select move from available moves
@@ -2274,12 +2274,12 @@ class BountyBattle(commands.Cog):
             if environment_data.get('effect'):
                 environment_data['effect'](move, attacker["stats"])
 
-            # Set cooldown for the move directly
+            # Set cooldown directly
             if move.get("cooldown", 0) > 0:
                 attacker["moves_on_cooldown"][move["name"]] = move["cooldown"]
                 attacker["stats"]["cooldowns_managed"] += 1
 
-            # Apply the damage
+            # Apply the damage and update stats
             update_hp(defender, final_damage, is_damage=True)
             attacker["stats"]["damage_dealt"] += final_damage
 
