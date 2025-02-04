@@ -2915,15 +2915,13 @@ class BountyBattle(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             logger.error(f"Error in berryflip command: {str(e)}")
             await ctx.send("❌ An error occurred during the gamble!")
-    
-        # Move this error handler INSIDE the method
-        @berryflip.error
-        async def berryflip_error(self, ctx, error):
-            """Custom error handler for berryflip command."""
-            if isinstance(error, commands.CommandOnCooldown):
-                # Only send the cooldown message once
-                minutes, seconds = divmod(int(error.retry_after), 60)
-                await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
+
+    async def berryflip_error(self, ctx, error):
+        """Custom error handler for berryflip command."""
+        if isinstance(error, commands.CommandOnCooldown):
+            # Only send the cooldown message once
+            minutes, seconds = divmod(int(error.retry_after), 60)
+            await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
         
     @commands.command()
     async def missions(self, ctx):
