@@ -11,6 +11,7 @@ import io
 import json
 import os
 import difflib
+from typing import Optional
 
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
@@ -1404,7 +1405,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
-    async def berryflip(self, ctx, bet: int = None):
+    async def berryflip(self, ctx, bet: Optional[int] = None):
         """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
         try:
             user = ctx.author
@@ -1419,11 +1420,21 @@ class BountyBattle(commands.Cog):
             # Validate bet amount
             if bet is None:
                 bet = min(current_bounty, 10000)  # Default to 10k or max bounty
+            elif not isinstance(bet, int):
+                # Remove cooldown if input is invalid
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Bet must be a valid number of Berries!")
             elif bet < 100:
+                # Remove cooldown if bet is too low
+                ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ Minimum bet is `100` Berries! Don't be stingy!")
             elif bet > current_bounty:
+                # Remove cooldown if bet exceeds current bounty
+                ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"❌ Ye only have `{current_bounty:,}` Berries to bet!")
 
+            # Rest of the berryflip implementation remains the same...
+            
             # Create initial embed
             embed = discord.Embed(
                 title="🎲 Berry Flip Gamble",
@@ -1523,12 +1534,16 @@ class BountyBattle(commands.Cog):
             await message.edit(embed=embed)
 
         except Exception as e:
+            # Remove cooldown if an unexpected error occurs
+            ctx.command.reset_cooldown(ctx)
             logger.error(f"Error in berryflip command: {str(e)}")
             await ctx.send("❌ An error occurred during the gamble!")
 
     @berryflip.error
     async def berryflip_error(self, ctx, error):
+        """Custom error handler for berryflip command."""
         if isinstance(error, commands.CommandOnCooldown):
+            # Only send the cooldown message once
             minutes = int(error.retry_after / 60)
             seconds = int(error.retry_after % 60)
             await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
