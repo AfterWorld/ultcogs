@@ -886,7 +886,7 @@ class BountyBattle(commands.Cog):
                 # Announce if it was a rare fruit
                 if is_rare:
                     for guild in self.bot.guilds:
-                        channel = discord.utils.get(guild.text_channels, name="devil-fruits")
+                        channel = discord.utils.get(guild.text_channels, name="bot-commands")
                         if channel:
                             embed = discord.Embed(
                                 title="🌟 Rare Devil Fruit Available!",
