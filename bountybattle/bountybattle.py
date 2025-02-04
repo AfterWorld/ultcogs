@@ -2426,30 +2426,30 @@ class BountyBattle(commands.Cog):
                     description=(
                         f"**{hunter.display_name}** got caught in a trap while trying to rob "
                         f"**{target.display_name}**!\n\n"
-                            f"*The Marines were alerted and imposed a fine!*"
-                        ),
-                        color=discord.Color.red()
-                    )
-                    failure_embed.add_field(
-                        name="💸 Fine Amount",
-                        value=f"`{penalty:,} Berries`",
-                        inline=False
-                    )
-                    failure_embed.add_field(
-                        name="🏴‍☠️ Remaining Bounty",
-                        value=f"`{bounties[hunter_id]['amount']:,} Berries`",
-                        inline=True
-                    )
-                    await ctx.send(embed=failure_embed)
+                        f"*The Marines were alerted and imposed a fine!*"
+                    ),
+                    color=discord.Color.red()
+                )
+                failure_embed.add_field(
+                    name="💸 Fine Amount",
+                    value=f"`{penalty:,}` Berries",
+                    inline=False
+                )
+                failure_embed.add_field(
+                    name="🏴‍☠️ Remaining Bounty",
+                    value=f"`{bounties[hunter_id]['amount']:,}` Berries",
+                    inline=True
+                )
+                await ctx.send(embed=failure_embed)
 
-                else:
-                    # Handle normal failure
-                    await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
+            else:
+                # Handle normal failure
+                await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
 
-            except Exception as e:
-                logger.error(f"Error in bountyhunt command: {str(e)}")
-                await ctx.send("❌ An error occurred during the bounty hunt!")
-                self.bot.dispatch("command_error", ctx, e)
+        except Exception as e:
+            logger.error(f"Error in bountyhunt command: {str(e)}")
+            await ctx.send("❌ An error occurred during the bounty hunt!")
+            self.bot.dispatch("command_error", ctx, e)
             
     @commands.command()
     async def syncbounties(self, ctx):
