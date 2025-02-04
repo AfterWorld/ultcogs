@@ -419,6 +419,162 @@ ENVIRONMENTS = {
     },
 }
 
+class DevilFruitManager:
+    """Manages Devil Fruit effects and their interactions with status effects."""
+    
+    def __init__(self, status_manager, environment_manager):
+        self.status_manager = status_manager
+        self.environment_manager = environment_manager
+        self.active_transformations = {}
+        
+        # Effect cooldowns for Devil Fruits
+        self.fruit_cooldowns = {
+            "Mera Mera no Mi": 3,      # Fire abilities
+            "Goro Goro no Mi": 4,      # Lightning abilities
+            "Hie Hie no Mi": 3,        # Ice abilities
+            "Yami Yami no Mi": 5,      # Darkness abilities
+            "Ope Ope no Mi": 4,        # Room abilities
+            "Pika Pika no Mi": 3,      # Light abilities
+            "Magu Magu no Mi": 4,      # Magma abilities
+            "Gura Gura no Mi": 5,      # Quake abilities
+        }
+    
+    async def process_devil_fruit_effect(self, attacker, defender, move, environment):
+        """Process Devil Fruit effects with proper interaction handling."""
+        if not attacker.get("fruit"):
+            return 0, None
+            
+        fruit_name = attacker["fruit"]
+        bonus_damage = 0
+        effect_message = None
+        
+        # Get fruit data from either Common or Rare categories
+        fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+        if not fruit_data:
+            return 0, None
+
+        fruit_type = fruit_data["type"]
+        effect = fruit_data["effect"]
+
+        # Track fruit usage for achievements
+        if "elements_used" not in attacker:
+            attacker["elements_used"] = set()
+        attacker["elements_used"].add(fruit_type)
+
+        # Process based on fruit type
+        if fruit_type == "Logia":
+            bonus_damage, effect_message = await self._handle_logia_effects(
+                attacker, defender, effect, move, environment
+            )
+        elif "Zoan" in fruit_type:
+            bonus_damage, effect_message = await self._handle_zoan_effects(
+                attacker, defender, effect, move, environment
+            )
+        elif fruit_type in ["Paramecia", "Special Paramecia"]:
+            bonus_damage, effect_message = await self._handle_paramecia_effects(
+                attacker, defender, effect, move, environment
+            )
+
+        return bonus_damage, effect_message
+
+    async def _handle_logia_effects(self, attacker, defender, effect, move, environment):
+        """Handle Logia-type Devil Fruit effects."""
+        bonus_damage = 0
+        effect_message = None
+        
+        if effect == "fire" or effect == "magma":
+            if random.random() < 0.4:  # 40% chance
+                burn_stacks = 2 if effect == "magma" else 1
+                await self.status_manager.apply_effect("burn", defender, value=burn_stacks)
+                bonus_damage = int(move.get("damage", 0) * 0.5)
+                effect_message = (
+                    f"🔥 **{effect.upper()} BURST**!\n"
+                    f"**{attacker['name']}**'s {effect} intensifies!"
+                )
+
+        elif effect == "lightning":
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("stun", defender, duration=1)
+                bonus_damage = int(move.get("damage", 0) * 0.3)
+                effect_message = "⚡ **LIGHTNING STRIKE**!"
+
+        elif effect == "ice":
+            if random.random() < 0.25:
+                await self.status_manager.apply_effect("freeze", defender, duration=2)
+                effect_message = "❄️ **FROZEN SOLID**!"
+
+        # Environment interactions
+        if environment == "Punk Hazard" and (effect == "fire" or effect == "ice"):
+            bonus_damage = int(bonus_damage * 1.5)
+            effect_message = f"{effect_message}\n🌋 Power enhanced by Punk Hazard!"
+
+        return bonus_damage, effect_message
+
+    async def _handle_zoan_effects(self, attacker, defender, effect, move, environment):
+        """Handle Zoan-type Devil Fruit effects."""
+        bonus_damage = 0
+        effect_message = None
+
+        if "Model Phoenix" in effect:
+            if random.random() < 0.3:
+                heal_amount = 30
+                attacker["hp"] = min(250, attacker["hp"] + heal_amount)
+                effect_message = f"🦅 **PHOENIX REGENERATION**!\nHealed for {heal_amount} HP!"
+
+        elif "Model Azure Dragon" in effect:
+            bonus_damage = int(move.get("damage", 0) * 0.3)
+            effect_message = "🐉 **DRAGON'S MIGHT**!"
+
+        elif effect == "nika":
+            if random.random() < 0.4:
+                effect_choice = random.choice(["damage", "speed", "transform"])
+                if effect_choice == "damage":
+                    bonus_damage = int(move.get("damage", 0) * 0.8)
+                    effect_message = "💥 **DRUMS OF LIBERATION**!"
+                elif effect_choice == "speed":
+                    await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
+                    effect_message = "⚡ **GEAR SHIFT**!"
+                else:
+                    bonus_damage = int(move.get("damage", 0) * 0.5)
+                    effect_message = "✨ **AWAKENED FORM**!"
+
+        return bonus_damage, effect_message
+
+    async def _handle_paramecia_effects(self, attacker, defender, effect, move, environment):
+        """Handle Paramecia-type Devil Fruit effects."""
+        bonus_damage = 0
+        effect_message = None
+
+        if effect == "quake":
+            bonus_damage = int(move.get("damage", 0) * 0.4)
+            effect_message = "💥 **SEISMIC SHOCK**!"
+
+        elif effect == "string":
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("bind", defender, duration=2)
+                effect_message = "🕸️ **STRING BIND**!"
+
+        elif effect == "barrier":
+            if random.random() < 0.4:
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                effect_message = "🛡️ **BARRIER RAISED**!"
+
+        # Environment interactions
+        if environment == "Marineford":
+            bonus_damage = int(bonus_damage * 1.2)
+            if effect_message:
+                effect_message += "\n⚔️ Power enhanced by Marineford!"
+
+        return bonus_damage, effect_message
+
+    def get_fruit_cooldown(self, fruit_name):
+        """Get the cooldown for a Devil Fruit ability."""
+        return self.fruit_cooldowns.get(fruit_name, 3)
+
+    def is_fruit_on_cooldown(self, attacker, fruit_name):
+        """Check if a Devil Fruit ability is on cooldown."""
+        return fruit_name in attacker.get("fruit_cooldowns", {})
+
 class EnvironmentManager:
     """Manages environment effects in battles."""
     
@@ -694,9 +850,12 @@ class BountyBattle(commands.Cog):
         self.bounty_lock = Lock()
         self.battle_lock = Lock()
         self.data_lock = Lock()
+        
+        # Initialize managers
         self.battle_manager = BattleStateManager()
-        self.status_manager = StatusEffectManager()  
+        self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
+        self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
 
         # Store both bounty and deathmatch stats
         default_member = {
@@ -1352,34 +1511,46 @@ class BountyBattle(commands.Cog):
     async def eatfruit(self, ctx):
         """Consume a random Devil Fruit!"""
         user = ctx.author
-        
-        # Validate current state
-        if not await self.validate_fruit_transfer(ctx, user, None):
-            return
-            
         bounties = load_bounties()
         user_id = str(user.id)
 
         if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
-        # Get all rare fruits currently taken
-        all_taken_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
+        if bounties[user_id].get("fruit"):
+            return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
 
-        # Remove taken rare fruits from available list
-        available_rare_fruits = [fruit for fruit in DEVIL_FRUITS["Rare"] if fruit not in all_taken_fruits]
+        # Get all currently taken fruits
+        all_taken_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit")}
 
-        # Determine fruit type (90% Common, 10% Rare if available)
-        is_rare = available_rare_fruits and random.randint(1, 100) <= 10
+        # Get available rare fruits (removing taken ones)
+        available_rare_fruits = [
+            fruit for fruit in DEVIL_FRUITS["Rare"].keys() 
+            if fruit not in all_taken_fruits
+        ]
 
-        if is_rare:
+        # Get available common fruits
+        available_common_fruits = [
+            fruit for fruit in DEVIL_FRUITS["Common"].keys() 
+            if fruit not in all_taken_fruits
+        ]
+
+        if not available_rare_fruits and not available_common_fruits:
+            return await ctx.send("❌ There are no Devil Fruits available right now! Try again later.")
+
+        # 10% chance for rare fruit if available
+        if available_rare_fruits and random.random() < 0.10:
             new_fruit = random.choice(available_rare_fruits)
             fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
+            is_rare = True
         else:
-            new_fruit = random.choice(list(DEVIL_FRUITS["Common"].keys()))
+            if not available_common_fruits:
+                return await ctx.send("❌ No common Devil Fruits are available right now! Try again later.")
+            new_fruit = random.choice(available_common_fruits)
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
+            is_rare = False
 
-        # Save the fruit
+        # Save the fruit to the user
         bounties[user_id]["fruit"] = new_fruit
         save_bounties(bounties)
         await self.config.member(user).devil_fruit.set(new_fruit)
@@ -2707,7 +2878,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
     async def fight(self, ctx, challenger, opponent):
-        """Enhanced fight system with proper effect management."""
+        """Enhanced fight system with all manager integrations."""
         try:
             channel_id = ctx.channel.id
             
@@ -2731,7 +2902,7 @@ class BountyBattle(commands.Cog):
             battle_state["environment"] = environment
             environment_data = ENVIRONMENTS[environment]
 
-            # Clear any lingering effects
+            # Clear any lingering effects from all managers
             self.status_manager.clear_all_effects(challenger_data)
             self.status_manager.clear_all_effects(opponent_data)
             self.environment_manager.clear_environment_effects()
@@ -2779,7 +2950,7 @@ class BountyBattle(commands.Cog):
                 attacker = players[current_player]
                 defender = players[1 - current_player]
 
-                # Process environment effects
+                # Process environment effects first
                 env_messages, env_effects = await self.environment_manager.apply_environment_effect(
                     environment, players, turn
                 )
@@ -2796,13 +2967,14 @@ class BountyBattle(commands.Cog):
                 if status_messages:
                     await battle_log.edit(content=f"{battle_log.content}\n{''.join(status_messages)}")
 
-                # Check if attacker can move
+                # Check if attacker can move (status effects might prevent action)
                 if self.status_manager.get_effect_duration(attacker, "stun") > 0 or \
                    self.status_manager.get_effect_duration(attacker, "freeze") > 0:
                     await battle_log.edit(content=f"{battle_log.content}\n⚠️ **{attacker['name']}** is unable to move!")
                     
                 else:
-                    # Get available moves
+                    # Update cooldowns and get available moves
+                    self.update_cooldowns(attacker)
                     available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
                     if not available_moves:
                         available_moves = [move for move in MOVES if move["type"] == "regular"]
@@ -2815,19 +2987,24 @@ class BountyBattle(commands.Cog):
 
                     # Calculate base damage
                     base_damage, damage_message = self.calculate_damage(modified_move, attacker, turn)
+
+                    # Process Devil Fruit effects
+                    devil_fruit_bonus, fruit_message = await self.devil_fruit_manager.process_devil_fruit_effect(
+                        attacker, defender, modified_move, environment
+                    )
                     
-                    # Calculate final damage with status effects
+                    # Calculate final damage with all effects
                     final_damage, effect_messages = await self.status_manager.calculate_damage_with_effects(
-                        base_damage, attacker, defender
+                        base_damage + devil_fruit_bonus, attacker, defender
                     )
 
-                    # Apply damage and effects
+                    # Apply final damage
                     if final_damage > 0:
                         defender["hp"] = max(0, defender["hp"] - final_damage)
                         defender["stats"]["damage_taken"] += final_damage
                         attacker["stats"]["damage_dealt"] += final_damage
 
-                    # Apply move effects
+                    # Apply move effects through status manager
                     if "effect" in modified_move:
                         effect_result = await self.status_manager.apply_effect(
                             modified_move["effect"],
@@ -2838,12 +3015,14 @@ class BountyBattle(commands.Cog):
                         if effect_result:
                             effect_messages.append(effect_result)
 
-                    # Create turn message
+                    # Compile turn message
                     turn_message = [f"\nTurn {turn}: **{attacker['name']}** used **{modified_move['name']}**!"]
                     if damage_message:
                         turn_message.append(damage_message)
                     if env_move_messages:
                         turn_message.extend(env_move_messages)
+                    if fruit_message:
+                        turn_message.append(fruit_message)
                     if effect_messages:
                         turn_message.extend(effect_messages)
                     turn_message.append(f"💥 Dealt **{final_damage}** damage!")
@@ -2861,7 +3040,11 @@ class BountyBattle(commands.Cog):
                 # Switch turns
                 current_player = 1 - current_player
 
-            # After battle ends
+                # Check if anyone is defeated
+                if any(p["hp"] <= 0 for p in players):
+                    break
+
+            # After battle ends, determine winner
             winner_data = next((p for p in players if p["hp"] > 0), players[0])
             loser_data = players[1] if winner_data == players[0] else players[0]
 
@@ -2880,7 +3063,7 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in fight: {str(e)}")
             await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
         finally:
-            # Clean up
+            # Clean up all managers
             await self.battle_manager.end_battle(channel_id)
             if ctx.channel.id in self.active_channels:
                 self.active_channels.remove(ctx.channel.id)
@@ -3035,480 +3218,36 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error unlocking achievement: {str(e)}")
     
-    async def apply_devil_fruit_effects(self, attacker, defender, damage, move_copy, turn_number=1):
-        """Apply Devil Fruit effects to combat."""
-        fruit_effect = None  # Initialize fruit_effect to None
-        fruit = await self.config.member(attacker["member"]).devil_fruit()
-        if not fruit:
-            return damage, fruit_effect
+    async def apply_devil_fruit_effects(self, attacker, defender, damage, move, turn_number=1):
+        """Apply Devil Fruit effects using the Devil Fruit manager."""
+        try:
+            # Ensure attacker has a fruit
+            fruit = attacker.get("fruit")
+            if not fruit:
+                return 0, None
 
-        # Get fruit data from either Common or Rare categories
-        fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
-        if not fruit_data:
-            return damage, fruit_effect
-
-        effect_message = None
-        fruit_type = fruit_data["type"]
-        
-        # Track fruit usage for achievements
-        if "elements_used" not in attacker:
-            attacker["elements_used"] = set()
-        attacker["elements_used"].add(fruit_type)
-
-        # Apply type-specific effects - Making sure move_copy is passed to all handlers
-        if fruit_type == "Logia":
-            damage, effect_message = await self._handle_logia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
-        elif "Zoan" in fruit_type:
-            damage, effect_message = await self._handle_zoan_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
-        elif fruit_type in ["Paramecia", "Special Paramecia"]:
-            damage, effect_message = await self._handle_paramecia_combat(attacker, defender, damage, fruit_data, turn_number, move_copy)
-
-        return damage, effect_message
-
-    async def _create_devil_fruit_announcement(self, attacker, fruit_data, effect_message):
-        """Create a dramatic Devil Fruit ability announcement."""
-        fruit_type = fruit_data["type"]
-        fruit_name = attacker["fruit"]
-
-        # Create type-specific emoji and formatting
-        type_formatting = {
-            "Logia": "🌀",
-            "Paramecia": "✨",
-            "Special Paramecia": "💫",
-            "Mythical Zoan": "🐉",
-            "Ancient Zoan": "🦕",
-            "Zoan": "🐾"
-        }
-
-        emoji = type_formatting.get(fruit_type, "⚔️")
-        
-        announcement = (
-            f"{emoji} **DEVIL FRUIT ABILITY!** {emoji}\n"
-            f"**{fruit_name}** Activated!\n"
-            f"{effect_message}"
-        )
-        
-        return announcement
-    
-    async def _handle_logia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
-        """Handle Logia-type combat effects."""
-        effect = fruit_data["effect"]
-        effect_message = None
-
-        # Fire/Magma Logia
-        if effect in ["fire", "magma"]:
-            if random.random() < 0.4:  # 40% chance
-                defender["status"]["burn"] += 2
-                damage *= 2
-                effect_message = (
-                    f"🔥 **FLAME EMPEROR'S WRATH**! 🔥\n"
-                    f"**{attacker['name']}**'s flames burn with devastating power using {move_copy['name']}!\n"
-                    f"💥 Double Damage + Intense Burn!"
-                )
-
-        # Lightning Logia
-        elif effect == "lightning":
-            if random.random() < 0.2:
-                defender["status"]["stun"] = True
-                effect_message = (
-                    f"⚡ **THUNDER GOD'S JUDGEMENT**! ⚡\n"
-                    f"**{attacker['name']}** channels divine lightning!\n"
-                    f"💫 Enemy Paralyzed!"
-                )
-
-        # Ice Logia
-        elif effect == "ice":
-            if random.random() < 0.25:
-                defender["status"]["frozen"] = 2
-                effect_message = (
-                    f"❄️ **ABSOLUTE ZERO**! ❄️\n"
-                    f"**{attacker['name']}** unleashes freezing power!\n"
-                    f"🥶 Enemy Frozen Solid!"
-                )
-
-        # Light Logia
-        elif effect == "light":
-            if random.random() < 0.2:
-                damage *= 2
-                effect_message = (
-                    f"✨ **SACRED YASAKANI**! ✨\n"
-                    f"**{attacker['name']}** moves at light speed!\n"
-                    f"⚡ Double Strike!"
-                )
-
-        # Darkness Logia
-        elif effect == "darkness":
-            absorbed = int(damage * 0.15)
-            attacker["hp"] = min(100, attacker["hp"] + absorbed)
-            effect_message = (
-                f"🌑 **BLACK HOLE**! 🌑\n"
-                f"**{attacker['name']}** commands darkness itself!\n"
-                f"⚫ Absorbed {absorbed} HP!"
+            # Process the effect through our manager
+            bonus_damage, effect_message = await self.devil_fruit_manager.process_devil_fruit_effect(
+                attacker,
+                defender,
+                move,
+                self.current_environment
             )
 
-        # Sand Logia
-        elif effect == "sand":
-            if random.random() < 0.1:
-                drain = int(defender["hp"] * 0.1)
-                defender["hp"] -= drain
-                attacker["hp"] = min(100, attacker["hp"] + drain)
-                effect_message = (
-                    f"🏖️ **DESERT COFFIN**! 🏖️\n"
-                    f"**{attacker['name']}** drains life through desert sands!\n"
-                    f"💀 Absorbed {drain} HP!"
-                )
+            # Track usage for achievements
+            if "elements_used" not in attacker:
+                attacker["elements_used"] = set()
                 
-        # Ice Logia
-        elif effect == "ice":
-            if random.random() < 0.25:
-                defender["status"]["frozen"] = 2
-                effect_message = (
-                    f"❄️ **ABSOLUTE ZERO**! ❄️\n"
-                    f"**{attacker['name']}** unleashes freezing power!\n"
-                    f"🥶 Enemy Frozen Solid!"
-                )
+            # Get fruit type from data
+            fruit_data = DEVIL_FRUITS["Common"].get(fruit) or DEVIL_FRUITS["Rare"].get(fruit)
+            if fruit_data:
+                attacker["elements_used"].add(fruit_data["type"])
 
-        # Light Logia
-        elif effect == "light":
-            damage *= 1.2
-            if random.random() < 0.2:
-                damage *= 2
-                effect_message = (
-                    f"✨ **SACRED YASAKANI**! ✨\n"
-                    f"**{attacker['name']}** moves at light speed!\n"
-                    f"⚡ Double Strike at Light Speed!"
-                )
+            return bonus_damage, effect_message
 
-        # Darkness Logia
-        elif effect == "darkness":
-            absorbed = int(damage * 0.15)
-            attacker["hp"] = min(100, attacker["hp"] + absorbed)
-            effect_message = (
-                f"🌑 **BLACK HOLE**! 🌑\n"
-                f"**{attacker['name']}** commands darkness itself!\n"
-                f"⚫ Absorbed {absorbed} HP Through Void!"
-            )
-
-        # Magma Logia
-        elif effect == "magma":
-            defender["status"]["burn"] += 3
-            effect_message = (
-                f"🌋 **GREAT ERUPTION**! 🌋\n"
-                f"**{attacker['name']}** unleashes molten destruction!\n"
-                f"🔥 Inflicts Devastating Burns!"
-            )
-
-        # Forest Logia
-        elif effect == "forest":
-            if random.random() < 0.3:
-                defender["status"]["movement_restricted"] = 2
-                effect_message = (
-                    f"🌳 **FOREST PRISON**! 🌳\n"
-                    f"**{attacker['name']}** binds with ancient roots!\n"
-                    f"🌿 Enemy Movement Restricted!"
-                )
-
-        # Wind Logia
-        elif effect == "wind":
-            if random.random() < 0.2:
-                damage = 0
-                effect_message = (
-                    f"🌪️ **DIVINE WIND**! 🌪️\n"
-                    f"**{attacker['name']}** becomes one with the wind!\n"
-                    f"💨 Attack Completely Evaded!"
-                )
-
-        return damage, effect_message
-
-    async def _handle_zoan_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
-        """Handle Zoan-type combat effects."""
-        effect = fruit_data["effect"]
-        effect_message = None
-
-        # Mythical Zoan Types
-        if "Model Phoenix" in effect:
-            if turn % 3 == 0:
-                heal = int(attacker["hp"] * 0.1)
-                attacker["hp"] = min(100, attacker["hp"] + heal)
-                effect_message = (
-                    f"🦅 **FLAMES OF RESTORATION**! 🦅\n"
-                    f"**{attacker['name']}** rises from the ashes!\n"
-                    f"💚 Regenerated {heal} HP!"
-                )
-
-        elif "Model Azure Dragon" in effect:
-            damage *= 1.3
-            effect_message = (
-                f"🐉 **AZURE DRAGON'S MIGHT**! 🐉\n"
-                f"**{attacker['name']}** channels celestial power!\n"
-                f"💥 Damage Enhanced!"
-            )
-
-        # Handle Nika specifically
-        if effect == "nika":  # Hito Hito no Mi: Model Nika
-            # Higher activation chance due to awakened nature
-            if random.random() < 0.4:  # 40% activation chance
-                # Nika has multiple possible effects
-                nika_effect = random.choice([
-                    "drumbeat",
-                    "giant",
-                    "lightning",
-                    "freedom"
-                ])
-
-                if nika_effect == "drumbeat":
-                    damage *= 2.5
-                    effect_message = (
-                        f"💥 **DRUMS OF LIBERATION**! 💥\n"
-                        f"**{attacker['name']}** awakens their heartbeat!\n"
-                        f"🥁 Massive Damage Boost!"
-                    )
-                elif nika_effect == "giant":
-                    damage *= 2
-                    defender["status"]["stun"] = True
-                    effect_message = (
-                        f"🌟 **GIANT WARRIOR**! 🌟\n"
-                        f"**{attacker['name']}** grows to massive size!\n"
-                        f"👊 Double Damage + Stun!"
-                    )
-                elif nika_effect == "lightning":
-                    attacker["status"]["dodge_active"] = 2
-                    damage *= 1.5
-                    effect_message = (
-                        f"⚡ **LIGHTNING SPEED**! ⚡\n"
-                        f"**{attacker['name']}** moves with impossible freedom!\n"
-                        f"💨 Enhanced Speed + Damage!"
-                    )
-                elif nika_effect == "freedom":
-                    # Clear all negative status effects
-                    attacker["status"]["burn"] = 0
-                    attacker["status"]["stun"] = False
-                    attacker["status"]["frozen"] = 0
-                    damage *= 1.8
-                    effect_message = (
-                        f"🌈 **WARRIOR OF LIBERATION**! 🌈\n"
-                        f"**{attacker['name']}** breaks free of all limitations!\n"
-                        f"✨ Status Effects Cleared + Damage Boost!"
-                    )
-
-        # Ancient Zoan Types
-        elif "Model Spinosaurus" in effect:
-            if turn % 2 == 0:
-                damage *= 1.4
-                effect_message = (
-                    f"🦕 **ANCIENT PREDATOR**! 🦕\n"
-                    f"**{attacker['name']}** channels prehistoric might!\n"
-                    f"💥 Damage Amplified!"
-                )
-
-        elif "Model Yamata no Orochi" in effect:  # Hebi Hebi no Mi: Model Yamata no Orochi
-            if random.random() < 0.3:
-                multi_strike = random.randint(2, 4)
-                damage *= multi_strike
-                effect_message = (
-                    f"🐍 **EIGHT-HEADED SERPENT STRIKE**! 🐍\n"
-                    f"**{attacker['name']}** attacks with multiple heads!\n"
-                    f"💥 {multi_strike}x Damage!"
-                )
-
-        elif "Model Rosamygale Grauvogeli" in effect:  # Ancient Spider
-            if random.random() < 0.35:
-                defender["status"]["movement_restricted"] = 2
-                damage *= 1.3
-                effect_message = (
-                    f"🕷️ **ANCIENT SPIDER'S HUNTING TECHNIQUE**! 🕷️\n"
-                    f"**{attacker['name']}** traps and strikes!\n"
-                    f"🕸️ Enemy Ensnared!"
-                )
-
-        elif "Model Seiryu" in effect:  # Uo Uo no Mi
-            if random.random() < 0.3:
-                damage *= 1.4
-                attacker["status"]["elemental_boost"] = True
-                effect_message = (
-                    f"🐉 **AZURE DRAGON'S MIGHT**! 🐉\n"
-                    f"**{attacker['name']}** channels divine power!\n"
-                    f"⚡ Damage Enhanced!"
-                )
-
-        elif "Model Allosaurus" in effect:
-            if random.random() < 0.25:
-                damage *= 1.5
-                effect_message = (
-                    f"🦖 **PREHISTORIC HUNTER**! 🦖\n"
-                    f"**{attacker['name']}** unleashes ancient might!\n"
-                    f"💥 Damage Boosted!"
-                )
-
-        return damage, effect_message
-
-    async def _handle_paramecia_combat(self, attacker, defender, damage, fruit_data, turn, move_copy):
-        """Handle Paramecia-type combat effects."""
-        effect = fruit_data["effect"]
-        effect_message = None
-
-        # Rubber Paramecia
-        if effect == "rubber":
-            if move_copy.get("type") == "strong":
-                damage *= 1.5
-                effect_message = (
-                    f"💫 **RUBBER ENHANCEMENT**! 💫\n"
-                    f"**{attacker['name']}** stretches for extra power!\n"
-                    f"💥 Attack Amplified!"
-                )
-
-        # Surgical Paramecia
-        elif effect == "surgical":
-            if random.random() < 0.2:
-                defender["status"]["stun"] = True
-                effect_message = (
-                    f"🏥 **ROOM: SHAMBLES**! 🏥\n"
-                    f"**{attacker['name']}** performs surgical precision!\n"
-                    f"✨ Enemy Disoriented!"
-                )
-
-        # Quake Paramecia
-        elif effect == "quake":
-            damage *= 1.8
-            effect_message = (
-                f"🌋 **SEISMIC FORCE**! 🌋\n"
-                f"**{attacker['name']}** shatters reality!\n"
-                f"💥 Massive Damage Boost!"
-            )
-
-        # Barrier Paramecia
-        elif effect == "barrier":
-            if random.random() < 0.4:
-                attacker["status"]["protected"] = True
-                effect_message = (
-                    f"🛡️ **BARRIER FORTRESS**! 🛡️\n"
-                    f"**{attacker['name']}** creates an impenetrable wall!\n"
-                    f"✨ Defense Activated!"
-                )
-
-        # String Paramecia
-        elif effect == "string":
-            if random.random() < 0.3:
-                defender["status"]["movement_restricted"] = 2
-                effect_message = (
-                    f"🕸️ **STRING BIND**! 🕸️\n"
-                    f"**{attacker['name']}** restricts the enemy's movement!\n"
-                    f"⛓️ Enemy Movement Limited!"
-                )
-
-        # Mochi Paramecia
-        elif effect == "mochi":
-            if turn % 4 == 0:
-                damage *= 1.5
-                effect_message = (
-                    f"🍡 **MOCHI STRIKE**! 🍡\n"
-                    f"**{attacker['name']}** launches a powerful mochi attack!\n"
-                    f"💥 Special Turn Damage Boost!"
-                )
-
-        elif effect == "barrier balls":  # Beri Beri no Mi
-            if random.random() < 0.3:
-                damage = 0
-                effect_message = (
-                    f"🔮 **BERRY BARRIER**! 🔮\n"
-                    f"**{attacker['name']}** splits into barrier balls!\n"
-                    f"✨ Attack Completely Evaded!"
-                )
-
-        elif effect == "copy":  # Mane Mane no Mi
-            if random.random() < 0.25:
-                damage *= 2
-                effect_message = (
-                    f"👥 **PERFECT MIMICRY**! 👥\n"
-                    f"**{attacker['name']}** copies the enemy's technique!\n"
-                    f"💥 Double Damage!"
-                )
-
-        elif effect == "multiple limbs":  # Hana Hana no Mi
-            if random.random() < 0.3:
-                extra_hits = random.randint(1, 3)
-                damage *= (1 + (0.5 * extra_hits))
-                effect_message = (
-                    f"🌸 **FLEUR CASCADE**! 🌸\n"
-                    f"**{attacker['name']}** sprouts multiple limbs!\n"
-                    f"👊 {extra_hits} Extra Attacks!"
-                )
-
-        elif effect == "weight":  # Kilo Kilo no Mi
-            if random.random() < 0.35:
-                if random.random() < 0.5:  # 50% chance for either effect
-                    damage *= 2
-                    effect_message = (
-                        f"⚖️ **WEIGHT CRUSH**! ⚖️\n"
-                        f"**{attacker['name']}** increases weight for devastating impact!\n"
-                        f"💥 Double Damage!"
-                    )
-                else:
-                    damage = 0
-                    effect_message = (
-                        f"🪶 **WEIGHTLESS DODGE**! 🪶\n"
-                        f"**{attacker['name']}** becomes weightless to evade!\n"
-                        f"✨ Attack Dodged!"
-                    )
-
-        elif effect == "feet":  # Ashi Ashi no Mi
-            if random.random() < 0.4:
-                damage *= 1.5
-                effect_message = (
-                    f"👣 **LIGHTNING FEET**! 👣\n"
-                    f"**{attacker['name']}** strikes with enhanced speed!\n"
-                    f"⚡ Damage Boosted!"
-                )
-
-        elif effect == "wheels":  # Shari Shari no Mi
-            if random.random() < 0.3:
-                damage *= 1.8
-                effect_message = (
-                    f"🎡 **WHEEL RUSH**! 🎡\n"
-                    f"**{attacker['name']}** transforms into a deadly wheel!\n"
-                    f"💨 Enhanced Strike!"
-                )
-
-        elif effect == "binding":  # Ori Ori no Mi
-            if random.random() < 0.25:
-                defender["status"]["movement_restricted"] = 2
-                effect_message = (
-                    f"⛓️ **BINDING PRISON**! ⛓️\n"
-                    f"**{attacker['name']}** restrains the enemy!\n"
-                    f"🔒 Movement Restricted!"
-                )
-
-        elif effect == "spider":  # Kumo Kumo no Mi
-            if random.random() < 0.3:
-                defender["status"]["movement_restricted"] = 2
-                defender["status"]["accuracy_reduction"] = 0.2
-                effect_message = (
-                    f"🕷️ **SPIDER'S WEB**! 🕷️\n"
-                    f"**{attacker['name']}** traps the enemy in sticky webs!\n"
-                    f"🕸️ Movement and Accuracy Reduced!"
-                )
-
-        elif effect == "honey":  # Mitsu Mitsu no Mi
-            if random.random() < 0.35:
-                defender["status"]["movement_restricted"] = 2
-                effect_message = (
-                    f"🍯 **HONEY TRAP**! 🍯\n"
-                    f"**{attacker['name']}** ensnares with sticky honey!\n"
-                    f"🌟 Enemy Movement Restricted!"
-                )
-
-        elif effect == "rust":  # Sabi Sabi no Mi
-            if random.random() < 0.3:
-                damage *= 1.5
-                defender["status"]["defense_reduced"] = True
-                effect_message = (
-                    f"🔨 **RUST DECAY**! 🔨\n"
-                    f"**{attacker['name']}** corrodes the enemy's defenses!\n"
-                    f"💫 Defense Reduced!"
-                )
-
-        return damage, effect_message
-
+        except Exception as e:
+            logger.error(f"Error in apply_devil_fruit_effects: {str(e)}")
+            return 0, None
     
     @commands.group(name="deathboard", invoke_without_command=True)
     async def deathboard(self, ctx: commands.Context):
