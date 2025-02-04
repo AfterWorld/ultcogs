@@ -419,6 +419,62 @@ ENVIRONMENTS = {
     },
 }
 
+class BattleStateManager:
+    def __init__(self):
+        self.active_battles = {}
+        self.battle_locks = {}
+        self._cleanup_threshold = 100  # Maximum number of stored battle states
+        self._max_duration = 300  # Maximum battle duration in seconds
+
+    async def create_battle(self, channel_id: int, challenger_data: dict, opponent_data: dict):
+        """Create a new battle state."""
+        if len(self.active_battles) >= self._cleanup_threshold:
+            await self._cleanup_old_battles()
+        
+        battle_state = {
+            "start_time": datetime.utcnow(),
+            "last_activity": datetime.utcnow(),
+            "challenger": challenger_data,
+            "opponent": opponent_data,
+            "turn": 0,
+            "current_player": 0,
+            "environment": None,
+            "battle_log": [],
+            "is_finished": False
+        }
+        
+        self.active_battles[channel_id] = battle_state
+        self.battle_locks[channel_id] = asyncio.Lock()
+        
+        return battle_state
+
+    async def end_battle(self, channel_id: int):
+        """Clean up battle state after it ends."""
+        if channel_id in self.active_battles:
+            async with self.battle_locks[channel_id]:
+                battle_state = self.active_battles[channel_id]
+                battle_state["is_finished"] = True
+                
+                # Clean up
+                del self.active_battles[channel_id]
+                del self.battle_locks[channel_id]
+
+    def is_channel_in_battle(self, channel_id: int) -> bool:
+        """Check if a channel has an active battle."""
+        return channel_id in self.active_battles
+
+    async def _cleanup_old_battles(self):
+        """Remove old or inactive battles."""
+        current_time = datetime.utcnow()
+        channels_to_remove = []
+
+        for channel_id, battle in self.active_battles.items():
+            battle_age = (current_time - battle["start_time"]).total_seconds()
+            if battle_age > self._max_duration:
+                channels_to_remove.append(channel_id)
+
+        for channel_id in channels_to_remove:
+            await self.end_battle(channel_id)
 
 class BountyBattle(commands.Cog):
     """A combined One Piece RPG cog with Bounties & Deathmatches."""
@@ -430,6 +486,7 @@ class BountyBattle(commands.Cog):
         self.bounty_lock = Lock()
         self.battle_lock = Lock()
         self.data_lock = Lock()
+        self.battle_manager = BattleStateManager()
 
         # Store both bounty and deathmatch stats
         default_member = {
@@ -644,16 +701,17 @@ class BountyBattle(commands.Cog):
             save_bounties(bounties)
 
             # Update config
-            await self.config.member(winner).bounty.set(bounties[winner_id]["amount"])
-            await self.config.member(loser).bounty.set(bounties[loser_id]["amount"])
+            async with self.data_lock:
+                await self.config.member(winner).bounty.set(bounties[winner_id]["amount"])
+                await self.config.member(loser).bounty.set(bounties[loser_id]["amount"])
 
-            # Update wins/losses
-            await self.config.member(winner).wins.set(
-                (await self.config.member(winner).wins()) + 1
-            )
-            await self.config.member(loser).losses.set(
-                (await self.config.member(loser).losses()) + 1
-            )
+                # Update wins/losses
+                await self.config.member(winner).wins.set(
+                    (await self.config.member(winner).wins()) + 1
+                )
+                await self.config.member(loser).losses.set(
+                    (await self.config.member(loser).losses()) + 1
+                )
 
             # Create victory embed
             embed = discord.Embed(
@@ -662,31 +720,89 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.gold()
             )
 
+            # Add winner details
             embed.add_field(
                 name="Winner Rewards",
-                value=f"💰 +`{bounty_increase:,}` Berries\n"
-                    f"📈 New Bounty: `{bounties[winner_id]['amount']:,}` Berries",
+                value=(
+                    f"💰 Gained: `{bounty_increase:,}` Berries\n"
+                    f"📈 New Bounty: `{bounties[winner_id]['amount']:,}` Berries\n"
+                    f"🎯 Total Wins: `{await self.config.member(winner).wins()}`"
+                ),
                 inline=False
             )
 
+            # Add loser details
             embed.add_field(
                 name="Loser Penalties",
-                value=f"💰 -`{bounty_decrease:,}` Berries\n"
-                    f"📉 New Bounty: `{bounties[loser_id]['amount']:,}` Berries",
+                value=(
+                    f"💰 Lost: `{bounty_decrease:,}` Berries\n"
+                    f"📉 New Bounty: `{bounties[loser_id]['amount']:,}` Berries\n"
+                    f"💀 Total Losses: `{await self.config.member(loser).losses()}`"
+                ),
                 inline=False
             )
 
-            # Send victory announcement
+            # Check for achievements
+            unlocked_achievements = await self.check_achievements(winner)
+            if unlocked_achievements:
+                achievements_text = "\n".join([f"🏆 {ach}" for ach in unlocked_achievements])
+                embed.add_field(
+                    name="🎉 New Achievements!",
+                    value=achievements_text,
+                    inline=False
+                )
+
+            # Send the victory announcement
             await ctx.send(embed=embed)
 
-            # Check for title changes
+            # Check for title changes and announce if significant
             new_winner_title = self.get_bounty_title(bounties[winner_id]["amount"])
             if bounties[winner_id]["amount"] >= 900_000_000:
                 await self.announce_rank(ctx.guild, winner, new_winner_title)
 
+            # Update last active time
+            current_time = datetime.utcnow().isoformat()
+            await self.config.member(winner).last_active.set(current_time)
+            await self.config.member(loser).last_active.set(current_time)
+
         except Exception as e:
             logger.error(f"Error processing victory: {str(e)}")
             await ctx.send("⚠️ There was an error processing the victory rewards.")
+            
+    async def _initialize_player_data(self, member):
+        """Initialize player data with proper memory management."""
+        devil_fruit = await self.config.member(member).devil_fruit()
+        return {
+            "name": member.display_name,
+            "hp": 250,
+            "member": member,
+            "fruit": devil_fruit,
+            "moves_on_cooldown": {},
+            "status": {
+                "burn": 0,
+                "stun": False,
+                "frozen": 0,
+                "transformed": 0,
+                "protected": False,
+                "block_active": False,
+                "accuracy_reduction": 0,
+                "accuracy_turns": 0,
+                "elements_used": set()
+            },
+            "stats": {
+                "damage": 0,
+                "heal": 0,
+                "critical_hits": 0,
+                "blocks": 0,
+                "burns_applied": 0,
+                "stuns_applied": 0,
+                "damage_dealt": 0,
+                "damage_taken": 0,
+                "healing_done": 0,
+                "turns_survived": 0,
+                "cooldowns_managed": 0
+            }
+        }
     
     # ------------------ Bounty System ------------------
 
@@ -2260,80 +2376,29 @@ class BountyBattle(commands.Cog):
         await ctx.send(f"{reason}\n\n🏴‍☠️ **The battle has been forcibly ended.** No winner was declared!")
 
     async def fight(self, ctx, challenger, opponent):
-        """Enhanced fight system with improved visual display."""
+        """Enhanced fight system with improved memory management."""
         try:
+            channel_id = ctx.channel.id
+            
+            # Check if channel is already in battle
+            if self.battle_manager.is_channel_in_battle(channel_id):
+                return await ctx.send("❌ A battle is already in progress in this channel!")
+
+            # Initialize player data
+            challenger_data = await self._initialize_player_data(challenger)
+            opponent_data = await self._initialize_player_data(opponent)
+
+            # Create battle state
+            battle_state = await self.battle_manager.create_battle(
+                channel_id,
+                challenger_data,
+                opponent_data
+            )
+
             # Initialize environment
             environment = self.choose_environment()
+            battle_state["environment"] = environment
             environment_data = ENVIRONMENTS[environment]
-            
-            # Get Devil Fruit info
-            challenger_fruit = await self.config.member(challenger).devil_fruit()
-            opponent_fruit = await self.config.member(opponent).devil_fruit()
-            
-            # Initialize player data with 250 HP
-            challenger_data = {
-                "name": challenger.display_name,
-                "hp": 250,
-                "member": challenger,
-                "fruit": challenger_fruit,
-                "moves_on_cooldown": {},
-                "status": {
-                    "burn": 0,
-                    "stun": False,
-                    "frozen": 0,
-                    "transformed": 0,
-                    "protected": False,
-                    "block_active": False,
-                    "accuracy_reduction": 0,
-                    "accuracy_turns": 0,
-                    "elements_used": set()
-                },
-                "stats": {
-                    "damage": 0,
-                    "heal": 0,
-                    "critical_hits": 0,
-                    "blocks": 0,
-                    "burns_applied": 0,
-                    "stuns_applied": 0,
-                    "damage_dealt": 0,
-                    "damage_taken": 0,
-                    "healing_done": 0,
-                    "turns_survived": 0,
-                    "cooldowns_managed": 0
-                }
-            }
-
-            opponent_data = {
-                "name": opponent.display_name,
-                "hp": 250,
-                "member": opponent,
-                "fruit": opponent_fruit,
-                "moves_on_cooldown": {},
-                "status": {
-                    "burn": 0,
-                    "stun": False,
-                    "frozen": 0,
-                    "transformed": 0,
-                    "protected": False,
-                    "block_active": False,
-                    "accuracy_reduction": 0,
-                    "accuracy_turns": 0,
-                    "elements_used": set()
-                },
-                "stats": {
-                    "damage": 0,
-                    "heal": 0,
-                    "critical_hits": 0,
-                    "blocks": 0,
-                    "burns_applied": 0,
-                    "stuns_applied": 0,
-                    "damage_dealt": 0,
-                    "damage_taken": 0,
-                    "healing_done": 0,
-                    "turns_survived": 0,
-                    "cooldowns_managed": 0
-                }
-            }
 
             # Create initial battle embed
             embed = discord.Embed(
@@ -2342,25 +2407,14 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.blue()
             )
 
-            # Define the update_hp function
-            def update_hp(player, amount, is_damage=True):
-                """Update HP with proper rounding."""
-                if is_damage:
-                    player["hp"] = max(0, player["hp"] - amount)
-                    player["stats"]["damage_taken"] += amount
-                else:
-                    player["hp"] = min(250, player["hp"] + amount)
-                    player["stats"]["healing_done"] += amount
-
-            # Define the update_player_fields function
+            # Initialize display
             def update_player_fields():
-                # Clear existing fields
                 embed.clear_fields()
                 
                 # Challenger field
                 challenger_status = self.get_status_icons(challenger_data)
                 challenger_health = self.generate_health_bar(challenger_data["hp"])
-                challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
+                challenger_fruit_text = f"\n🍎 *{challenger_data['fruit']}*" if challenger_data['fruit'] else ""
                 
                 embed.add_field(
                     name=f"🏴‍☠️ {challenger_data['name']}",
@@ -2378,7 +2432,7 @@ class BountyBattle(commands.Cog):
                 # Opponent field
                 opponent_status = self.get_status_icons(opponent_data)
                 opponent_health = self.generate_health_bar(opponent_data["hp"])
-                opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
+                opponent_fruit_text = f"\n🍎 *{opponent_data['fruit']}*" if opponent_data['fruit'] else ""
                 
                 embed.add_field(
                     name=f"🏴‍☠️ {opponent_data['name']}",
@@ -2390,11 +2444,11 @@ class BountyBattle(commands.Cog):
                     inline=True
                 )
 
-            # Initialize the battle
+            # Send initial battle state
             update_player_fields()
             message = await ctx.send(embed=embed)
             battle_log = await ctx.send("📜 **Battle Log:**")
-            
+
             # Battle loop
             turn = 0
             players = [challenger_data, opponent_data]
@@ -2405,7 +2459,7 @@ class BountyBattle(commands.Cog):
                 attacker = players[current_player]
                 defender = players[1 - current_player]
 
-                # Process status effects at start of turn
+                # Process status effects
                 status_message = await self.process_status_effects(attacker, defender)
                 if status_message:
                     await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
@@ -2414,7 +2468,7 @@ class BountyBattle(commands.Cog):
                 self.update_cooldowns(attacker)
 
                 # Get available moves
-                available_moves = [move for move in MOVES if not move["name"] in attacker["moves_on_cooldown"]]
+                available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
                 if not available_moves:
                     available_moves = [move for move in MOVES if move["type"] == "regular"]
 
@@ -2422,10 +2476,8 @@ class BountyBattle(commands.Cog):
                 selected_move = random.choice(available_moves)
                 damage, damage_message = self.calculate_damage(selected_move, attacker, turn)
 
-                # Apply move effects
+                # Apply effects
                 await self.apply_effects(selected_move, attacker, defender)
-
-                # Apply environment effects
                 environment_message = await self.apply_environmental_hazard(environment, [attacker, defender])
 
                 # Apply Devil Fruit effects
@@ -2437,39 +2489,33 @@ class BountyBattle(commands.Cog):
                         damage += bonus_damage
 
                 # Update HP and stats
-                if damage > 0:
-                    defender["hp"] = max(0, defender["hp"] - damage)
-                    defender["stats"]["damage_taken"] += damage
-                    attacker["stats"]["damage_dealt"] += damage
+                defender["hp"] = max(0, defender["hp"] - damage)
+                defender["stats"]["damage_taken"] += damage
+                attacker["stats"]["damage_dealt"] += damage
 
-                # Create turn message
+                # Update battle log
                 turn_message = f"\nTurn {turn}: **{attacker['name']}** used **{selected_move['name']}**!"
                 if damage_message:
                     turn_message += f"\n{damage_message}"
                 if environment_message:
                     turn_message += f"\n{environment_message}"
-                if fruit_message:
+                if 'fruit_message' in locals() and fruit_message:
                     turn_message += f"\n{fruit_message}"
                 turn_message += f"\n💥 Dealt **{damage}** damage!"
 
-                # Update battle log
                 await battle_log.edit(content=f"{battle_log.content}\n{turn_message}")
 
                 # Update display
                 update_player_fields()
                 await message.edit(embed=embed)
-
+                
                 # Add delay between turns
                 await asyncio.sleep(2)
 
                 # Switch turns
                 current_player = 1 - current_player
 
-                # Check if either player is defeated
-                if any(p["hp"] <= 0 for p in players):
-                    break
-
-            # After the battle loop ends, determine the winner
+            # After battle ends, determine winner
             winner_data = next((p for p in players if p["hp"] > 0), players[0])
             loser_data = players[1] if winner_data == players[0] else players[0]
 
@@ -2484,16 +2530,12 @@ class BountyBattle(commands.Cog):
             # Process victory rewards
             await self._process_victory(ctx, winner_data, loser_data)
 
-            # Remove from active channels
-            if ctx.channel.id in self.active_channels:
-                self.active_channels.remove(ctx.channel.id)
-
         except Exception as e:
             logger.error(f"Error in fight: {str(e)}")
             await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
-            if ctx.channel.id in self.active_channels:
-                self.active_channels.remove(ctx.channel.id)
-            raise
+        finally:
+            # Always clean up
+            await self.battle_manager.end_battle(channel_id)
         
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
