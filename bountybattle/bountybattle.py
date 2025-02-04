@@ -606,6 +606,7 @@ class DevilFruitManager:
 
     async def _handle_zoan_effects(self, attacker, defender, effect, move, environment):
         """Handle Zoan-type Devil Fruit effects."""
+        logger.info(f"Processing Zoan effect: {effect}")  # Add this line
         bonus_damage = 0
         effect_message = None
 
@@ -644,11 +645,18 @@ class DevilFruitManager:
 
         # Spinosaurus Zoan (Ryu Ryu no Mi: Model Spinosaurus)
         elif "Spinosaurus" in effect:
-            attacker["max_hp"] = int(attacker["max_hp"] * 1.2)
+            # Increase base HP by 20%
+            if "max_hp" not in attacker:
+                attacker["max_hp"] = 250  # Default max HP
+            
+            hp_increase = int(attacker["max_hp"] * 0.2)
+            attacker["max_hp"] += hp_increase
+            attacker["hp"] += hp_increase  # Also increase current HP
+            
             effect_message = (
                 f"🦕 **ANCIENT WARRIOR'S ENDURANCE**! 🦕\n"
                 f"**{attacker['name']}** taps into prehistoric might!\n"
-                f"❤️ Maximum HP increased!"
+                f"❤️ Maximum HP increased by {hp_increase}!"
             )
 
         # Pteranodon Zoan (Ryu Ryu no Mi: Model Pteranodon)
