@@ -1740,7 +1740,7 @@ class BountyBattle(commands.Cog):
         return final_damage, message
 
     # Add method to update cooldowns at the start of each turn
-    def update_cooldowns(player_data):
+    def update_cooldowns(self, player_data):
         """Update cooldowns at the start of each turn."""
         cooldowns = player_data["moves_on_cooldown"]
         for move in list(cooldowns.keys()):
@@ -1749,13 +1749,12 @@ class BountyBattle(commands.Cog):
                 del cooldowns[move]
                 player_data["stats"]["cooldowns_managed"] += 1
 
-    # New helper function to check if a move is available
-    def is_move_available(move_name, player_data):
+    # Also ensure these helper methods include self:
+    def is_move_available(self, move_name, player_data):
         """Check if a move is available to use."""
         return move_name not in player_data["moves_on_cooldown"]
 
-    # New helper function to put a move on cooldown
-    def set_move_cooldown(move_name, cooldown, player_data):
+    def set_move_cooldown(self, move_name, cooldown, player_data):
         """Put a move on cooldown."""
         if cooldown > 0:
             player_data["moves_on_cooldown"][move_name] = cooldown
