@@ -2219,6 +2219,25 @@ class BountyBattle(commands.Cog):
             attacker = players[current_player]
             defender = players[1 - current_player]
 
+            # Add this at the start of each turn
+            self.update_cooldowns(attacker)
+
+            # Select and modify move
+            available_moves = [move for move in MOVES if move["name"] not in attacker["moves_on_cooldown"]]
+            if not available_moves:
+                available_moves = [move for move in MOVES if move["type"] == "regular"]  # Fallback to regular moves
+            
+            move = random.choice(available_moves)
+            move_copy = move.copy()
+
+            # Calculate base damage using the updated method
+            base_damage = self.calculate_damage(move_copy["type"], move_copy.get("crit_chance", 0.2), turn)
+            final_damage = base_damage
+
+            # After applying damage, set the cooldown
+            if move_copy.get("cooldown", 0) > 0:
+                attacker["moves_on_cooldown"][move_copy["name"]] = move_copy["cooldown"]
+
             # Apply environmental effects at the start of each turn
             if turn % 3 == 0:  # Check every 3 turns
                 hazard_message = await self.apply_environmental_hazard(environment, players)
@@ -2238,10 +2257,6 @@ class BountyBattle(commands.Cog):
                 await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
                 await asyncio.sleep(2)
 
-            # Select and modify move
-            move = random.choice(MOVES)
-            move_copy = move.copy()
-
             # Apply environment effects to the move
             if environment_data['effect']:
                 environment_data['effect'](move_copy, attacker["stats"])
@@ -2250,10 +2265,6 @@ class BountyBattle(commands.Cog):
                 if move_copy.get('damage', 0) > 0:
                     env_bonus = f"\n⚡ {environment} Effect: Damage Enhanced!"
                     await battle_log.edit(content=f"{battle_log.content}{env_bonus}")
-
-            # Calculate base damage
-            base_damage = self.calculate_damage(move_copy["type"], turn_number=turn)
-            final_damage = base_damage
             
             # Apply Devil Fruit effects
             if attacker["fruit"]:
