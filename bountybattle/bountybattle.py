@@ -10,6 +10,7 @@ import aiohttp
 import io  
 import json
 import os
+import difflib
 
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
