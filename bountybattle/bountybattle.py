@@ -201,56 +201,48 @@ ACHIEVEMENTS = {
     },
 }
 
+# Define move types with base properties
+MOVE_TYPES = {
+    "regular": {
+        "base_damage_range": (5, 15),
+        "crit_chance": 0.15,
+        "cooldown": 0
+    },
+    "strong": {
+        "base_damage_range": (15, 25),
+        "crit_chance": 0.20,
+        "cooldown": 2
+    },
+    "critical": {
+        "base_damage_range": (25, 35),
+        "crit_chance": 0.25,
+        "cooldown": 4
+    }
+}
+
 MOVES = [
-    {"name": "Rubber Rocket", "type": "regular", "description": "Luffy's stretchy punch!", "effect": "crit"},
-    {"name": "Santoryu Onigiri", "type": "strong", "description": "Zoro's sword slash!", "effect": "crit"},
-    {"name": "Diable Jambe", "type": "regular", "description": "Sanji's fiery kick!", "effect": "burn", "burn_chance": 0.30},
-    {"name": "Clown Bombs", "type": "regular", "description": "Buggy's explosive prank!", "effect": "burn", "burn_chance": 0.20},
-    {"name": "Heavy Point", "type": "strong", "description": "Chopper smashes his enemy!", "effect": "heal"},
-    {"name": "Thunder Bagua", "type": "critical", "description": "Kaido delivers a devastating blow!", "effect": "crit"},
-    {"name": "Soul Solid", "type": "regular", "description": "Brook plays a chilling tune!", "effect": "stun"},
-    {"name": "Pop Green", "type": "regular", "description": "Usopp's plant barrage!", "effect": "burn", "burn_chance": 0.15},
-    {"name": "Hiken", "type": "strong", "description": "Ace's fiery punch!", "effect": "burn", "burn_chance": 0.40},
-    {"name": "Room Shambles", "type": "critical", "description": "Law's surgical strike!", "effect": "stun"},
-    {"name": "Dark Vortex", "type": "strong", "description": "Blackbeard's gravity attack!", "effect": "crit"},
-    {"name": "Conqueror's Haki", "type": "critical", "description": "Overwhelms your opponent!", "effect": "stun"},
-    {"name": "Red Hawk", "type": "strong", "description": "Luffy's fiery attack!", "effect": "burn", "burn_chance": 0.25},
-    {"name": "Ice Age", "type": "regular", "description": "Aokiji freezes the battlefield!", "effect": "stun"},
-    {"name": "Magma Fist", "type": "strong", "description": "Akainu's devastating magma punch!", "effect": "burn", "burn_chance": 0.45},
-    {"name": "Coup de Vent", "type": "regular", "description": "Franky's air cannon!", "effect": "crit"},
-    {"name": "Clutch", "type": "regular", "description": "Robin's multi-hand grab!", "effect": "stun"},
-    {"name": "Elephant Gun", "type": "strong", "description": "Luffy's giant fist!", "effect": "crit"},
-    {"name": "Enel's Judgement", "type": "critical", "description": "Thunder god's ultimate strike!", "effect": "burn", "burn_chance": 0.15},
-    {"name": "Pirate King's Will", "type": "regular", "description": "A legendary strike filled with willpower!", "effect": "crit"},
-    {"name": "Gomu Gomu no Bazooka", "type": "strong", "description": "Luffy's iconic double-handed smash!", "effect": "crit"},
-    {"name": "Hiryu Kaen", "type": "critical", "description": "Zoro's flaming dragon slash!", "effect": "burn", "burn_chance": 0.40},
-    {"name": "Hell Memories", "type": "critical", "description": "Sanji unleashes a fiery kick fueled by rage!", "effect": "burn", "burn_chance": 0.50},
-    {"name": "Takt", "type": "regular", "description": "Law telekinetically slams debris onto the opponent!", "effect": "crit"},
-    {"name": "Shigan", "type": "regular", "description": "Lucci's powerful finger pistol technique!", "effect": "crit"},
-    {"name": "Yasakani no Magatama", "type": "strong", "description": "Kizaru rains down a flurry of light-based attacks!", "effect": "crit"},
-    {"name": "Venom Demon: Hell's Judgement", "type": "critical", "description": "Magellan unleashes a devastating poisonous assault!", "effect": "burn", "burn_chance": 0.45},
-    {"name": "King Kong Gun", "type": "critical", "description": "Luffy's massive Gear Fourth punch!", "effect": "crit"},
-    {"name": "Black Hole", "type": "strong", "description": "Blackbeard absorbs everything into darkness!", "effect": "crit"},
-    {"name": "Raging Tiger", "type": "regular", "description": "Jinbei punches with the force of a tidal wave!", "effect": "crit"},
-    {"name": "Rokushiki: Rokuogan", "type": "critical", "description": "Lucci unleashes a devastating shockwave with pure power!", "effect": "crit"},
-    {"name": "Raigo", "type": "critical", "description": "Enel calls down a massive thunder strike!", "effect": "burn", "burn_chance": 0.35},
-    {"name": "Ashura: Ichibugin", "type": "critical", "description": "Zoro's nine-sword style cuts through everything in its path!", "effect": "crit"},
-    {"name": "Divine Departure", "type": "critical", "description": "Gol D. Roger's legendary strike devastates the battlefield!", "effect": "stun"},
-    {"name": "Red Roc", "type": "critical", "description": "Luffy launches a fiery Haki-infused punch!", "effect": "burn", "burn_chance": 0.40},
-    {"name": "Puncture Wille", "type": "critical", "description": "Law pierces his enemy with a massive Haki-enhanced attack!", "effect": "stun"},
-    {"name": "Shin Tenjin", "type": "critical", "description": "Franky's ultimate laser cannon obliterates everything in its path!", "effect": "crit"},
-    {"name": "Meteors of Destruction", "type": "critical", "description": "Fujitora summons a rain of meteors to crush his enemies!", "effect": "burn", "burn_chance": 0.30},
-    {"name": "Dragon Twister: Gale of Destruction", "type": "critical", "description": "Kaido spins in a tornado of destruction!", "effect": "crit"},
-    {"name": "Yoru Strike: Eternal Night", "type": "critical", "description": "Mihawk's ultimate slash creates darkness and devastation!", "effect": "stun"},
-    {"name": "Healing Rain", "type": "regular", "description": "A soothing rain that restores vitality!", "effect": "heal"},
-    {"name": "Phoenix Flames", "type": "strong", "description": "Marco's regenerative flames heal the wounds of battle!", "effect": "heal"},
-    {"name": "Chopper's Doctor Care", "type": "regular", "description": "Chopper's medical expertise rejuvenates health!", "effect": "heal"},
-    {"name": "Sunny’s Energy Cola", "type": "regular", "description": "Franky energizes with cola to restore stamina!", "effect": "heal"},
-    {"name": "Tactical Recovery", "type": "regular", "description": "Law's ROOM skill restores some health to himself!", "effect": "heal"},
-    {"name": "Life Return", "type": "strong", "description": "A technique that uses energy control to recover health!", "effect": "heal"},
-    {"name": "Wings of Regeneration", "type": "critical", "description": "Marco's wings glow as they heal him completely!", "effect": "heal"},
-    {"name": "Herb Shot", "type": "regular", "description": "Usopp launches a healing plant extract to recover!", "effect": "heal"},
-    {"name": "Soul Serenade", "type": "regular", "description": "Brook's music restores vitality to the soul!", "effect": "heal"},
+    # Regular Attacks (No Cooldown)
+    {"name": "Rubber Rocket", "type": "regular", "description": "Luffy's stretchy punch!", "effect": "crit", "crit_chance": 0.20, "cooldown": 0},
+    {"name": "Soul Solid", "type": "regular", "description": "Brook plays a chilling tune!", "effect": "stun", "stun_chance": 0.15, "cooldown": 0},
+    {"name": "Coup de Vent", "type": "regular", "description": "Franky's air cannon!", "effect": "crit", "crit_chance": 0.20, "cooldown": 0},
+    {"name": "Clutch", "type": "regular", "description": "Robin's multi-hand grab!", "effect": "stun", "stun_chance": 0.15, "cooldown": 0},
+    
+    # Strong Attacks (2 Turn Cooldown)
+    {"name": "Santoryu Onigiri", "type": "strong", "description": "Zoro's sword slash!", "effect": "crit", "crit_chance": 0.25, "cooldown": 2},
+    {"name": "Hiken", "type": "strong", "description": "Ace's fiery punch!", "effect": "burn", "burn_chance": 0.40, "cooldown": 2},
+    {"name": "Dark Vortex", "type": "strong", "description": "Blackbeard's gravity attack!", "effect": "crit", "crit_chance": 0.25, "cooldown": 2},
+    {"name": "Elephant Gun", "type": "strong", "description": "Luffy's giant fist!", "effect": "crit", "crit_chance": 0.30, "cooldown": 2},
+    
+    # Critical Attacks (4 Turn Cooldown)
+    {"name": "Thunder Bagua", "type": "critical", "description": "Kaido delivers a devastating blow!", "effect": "crit", "crit_chance": 0.35, "cooldown": 4},
+    {"name": "King Kong Gun", "type": "critical", "description": "Luffy's massive Gear Fourth punch!", "effect": "crit", "crit_chance": 0.35, "cooldown": 4},
+    {"name": "Divine Departure", "type": "critical", "description": "Gol D. Roger's legendary strike devastates the battlefield!", "effect": "stun", "stun_chance": 0.40, "cooldown": 4},
+    {"name": "Ashura: Ichibugin", "type": "critical", "description": "Zoro's nine-sword style cuts through everything in its path!", "effect": "crit", "crit_chance": 0.35, "cooldown": 4},
+
+    # Healing Moves (3 Turn Cooldown)
+    {"name": "Phoenix Flames", "type": "strong", "description": "Marco's regenerative flames heal wounds!", "effect": "heal", "heal_amount": 30, "cooldown": 3},
+    {"name": "Healing Rain", "type": "regular", "description": "A soothing rain that restores vitality!", "effect": "heal", "heal_amount": 20, "cooldown": 3},
+    {"name": "Life Return", "type": "strong", "description": "A technique that uses energy control to recover health!", "effect": "heal", "heal_amount": 25, "cooldown": 3}
 ]
 
 DEVIL_FRUITS = {
@@ -1717,25 +1709,79 @@ class BountyBattle(commands.Cog):
                     
         return " ".join(status_icons) if status_icons else "✨ None"
 
-    def calculate_damage(self, move_type: str, crit_chance: float = 0.2, turn_number: int = 1, stats=None) -> int:
-        """Calculate balanced damage for each move type."""
-        base_damage = 0
+    def calculate_damage(self, move, attacker_data, turn_number):
+        """Calculate balanced damage considering cooldowns and effects."""
+        # Check if move is on cooldown
+        if move["name"] in attacker_data["moves_on_cooldown"]:
+            if attacker_data["moves_on_cooldown"][move["name"]] > 0:
+                return 0, "Move is on cooldown!"
 
-        if move_type == "regular":
-            base_damage = random.randint(5, 10)
-        elif move_type == "strong":
-            base_damage = random.randint(10, 20)
-        elif move_type == "critical":
-            base_damage = random.randint(15, 25)
+        move_type = MOVE_TYPES[move["type"]]
+        base_min, base_max = move_type["base_damage_range"]
+        base_damage = random.randint(base_min, base_max)
 
-            # Apply critical hit chance
-            if random.random() < crit_chance:
-                base_damage *= 2
+        # Critical hit calculation
+        crit_chance = move.get("crit_chance", move_type["crit_chance"])
+        if random.random() < crit_chance:
+            base_damage *= 1.5
+            message = "Critical hit!"
+            attacker_data["stats"]["critical_hits"] += 1
+        else:
+            message = None
 
-            # Scale critical damage by turn number
-            base_damage += turn_number * 2
+        # Apply scaling with turn number for longer battles
+        turn_scaling = 1 + (turn_number * 0.05)  # 5% increase per turn
+        final_damage = int(base_damage * turn_scaling)
 
-        return base_damage
+        # Set cooldown if the move has one
+        if move["cooldown"] > 0:
+            set_move_cooldown(move["name"], move["cooldown"], attacker_data)
+
+        return final_damage, message
+
+    # Add method to update cooldowns at the start of each turn
+    def update_cooldowns(player_data):
+        """Update cooldowns at the start of each turn."""
+        cooldowns = player_data["moves_on_cooldown"]
+        for move in list(cooldowns.keys()):
+            cooldowns[move] -= 1
+            if cooldowns[move] <= 0:
+                del cooldowns[move]
+                player_data["stats"]["cooldowns_managed"] += 1
+
+    # New helper function to check if a move is available
+    def is_move_available(move_name, player_data):
+        """Check if a move is available to use."""
+        return move_name not in player_data["moves_on_cooldown"]
+
+    # New helper function to put a move on cooldown
+    def set_move_cooldown(move_name, cooldown, player_data):
+        """Put a move on cooldown."""
+        if cooldown > 0:
+            player_data["moves_on_cooldown"][move_name] = cooldown
+
+    # Add these helper functions for status effects
+    def apply_burn_effect(self, defender_data):
+        """Apply burn damage and reduce stacks."""
+        if defender_data["status"]["burn"] > 0:
+            burn_damage = 5 * defender_data["status"]["burn"]
+            defender_data["hp"] -= burn_damage
+            defender_data["status"]["burn"] -= 1
+            return burn_damage
+        return 0
+
+    def apply_stun_effect(self, attacker_data):
+        """Check and apply stun effect."""
+        if attacker_data["status"]["stun"]:
+            attacker_data["status"]["stun"] = False
+            return True
+        return False
+
+    def apply_healing_effect(self, attacker_data, heal_amount):
+        """Apply healing with proper bounds."""
+        original_hp = attacker_data["hp"]
+        attacker_data["hp"] = min(250, attacker_data["hp"] + heal_amount)
+        return attacker_data["hp"] - original_hp
 
     def generate_fight_card(self, user1, user2):
         """
@@ -2043,8 +2089,9 @@ class BountyBattle(commands.Cog):
         challenger_data = {
             "name": challenger.display_name,
             "hp": 250,
-            "member": challenger,
-            "fruit": challenger_fruit,
+            "member": player,
+            "fruit": player_fruit,
+            "moves_on_cooldown": {},  # New: Track move cooldowns
             "status": {
                 "burn": 0,
                 "stun": False,
@@ -2056,7 +2103,7 @@ class BountyBattle(commands.Cog):
                 "accuracy_turns": 0,
                 "elements_used": set()
             },
-            "stats": {  # Added stats dictionary
+            "stats": {
                 "damage": 0,
                 "heal": 0,
                 "critical_hits": 0,
@@ -2066,15 +2113,17 @@ class BountyBattle(commands.Cog):
                 "damage_dealt": 0,
                 "damage_taken": 0,
                 "healing_done": 0,
-                "turns_survived": 0
+                "turns_survived": 0,
+                "cooldowns_managed": 0  # New: Track successful cooldown management
             }
         }
 
         opponent_data = {
             "name": opponent.display_name,
             "hp": 250,
-            "member": opponent,
-            "fruit": opponent_fruit,
+            "member": player,
+            "fruit": player_fruit,
+            "moves_on_cooldown": {},  # New: Track move cooldowns
             "status": {
                 "burn": 0,
                 "stun": False,
@@ -2086,7 +2135,7 @@ class BountyBattle(commands.Cog):
                 "accuracy_turns": 0,
                 "elements_used": set()
             },
-            "stats": {  # Added stats dictionary
+            "stats": {
                 "damage": 0,
                 "heal": 0,
                 "critical_hits": 0,
@@ -2096,7 +2145,8 @@ class BountyBattle(commands.Cog):
                 "damage_dealt": 0,
                 "damage_taken": 0,
                 "healing_done": 0,
-                "turns_survived": 0
+                "turns_survived": 0,
+                "cooldowns_managed": 0  # New: Track successful cooldown management
             }
         }
 
