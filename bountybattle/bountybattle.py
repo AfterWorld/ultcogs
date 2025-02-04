@@ -2937,6 +2937,76 @@ class BountyBattle(commands.Cog):
         for i, mission in enumerate(missions, start=1):
             embed.add_field(name=f"Mission {i}", value=f"{mission['description']} - Reward: {mission['reward']} Berries", inline=False)
         await ctx.send(embed=embed)
+        
+    @commands.command(name="rarefruits")
+    async def rare_fruits_status(self, ctx):
+        """Show the status of all rare Devil Fruits."""
+        # Load bounties data
+        bounties = load_bounties()
+        
+        # Separate rare fruits
+        rare_fruits = DEVIL_FRUITS["Rare"]
+        
+        # Track fruit ownership
+        owned_fruits = {}
+        available_fruits = []
+        
+        # Check which rare fruits are owned
+        for user_id, data in bounties.items():
+            fruit = data.get("fruit")
+            if fruit in rare_fruits:
+                try:
+                    member = ctx.guild.get_member(int(user_id))
+                    if member:
+                        owned_fruits[fruit] = member.display_name
+                except:
+                    continue
+        
+        # Determine available fruits
+        available_fruits = [fruit for fruit in rare_fruits if fruit not in owned_fruits]
+        
+        # Create embed
+        embed = discord.Embed(
+            title="🍎 Rare Devil Fruit Status 🍎",
+            color=discord.Color.gold()
+        )
+        
+        # Add owned fruits section
+        if owned_fruits:
+            owned_text = "\n".join(f"• **{fruit}** - Owned by {owner}" for fruit, owner in owned_fruits.items())
+            embed.add_field(
+                name="🏴‍☠️ Currently Owned Rare Fruits",
+                value=owned_text,
+                inline=False
+            )
+        
+        # Add available fruits section
+        if available_fruits:
+            available_text = "\n".join(f"• `{fruit}`" for fruit in available_fruits)
+            embed.add_field(
+                name="🌟 Available Rare Fruits",
+                value=available_text,
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🌟 Available Rare Fruits",
+                value="No rare fruits are currently available!",
+                inline=False
+            )
+        
+        # Add total counts
+        embed.add_field(
+            name="📊 Fruit Statistics",
+            value=(
+                f"Total Rare Fruits: `{len(rare_fruits)}`\n"
+                f"Owned Fruits: `{len(owned_fruits)}`\n"
+                f"Available Fruits: `{len(available_fruits)}`"
+            ),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
 
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
