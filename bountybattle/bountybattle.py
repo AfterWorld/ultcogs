@@ -435,8 +435,15 @@ class DataValidator:
         Returns True if initialized, False otherwise.
         """
         try:
+            # First check bounties.json
+            bounties = load_bounties()
+            user_id = str(user.id)
+            if user_id in bounties and bounties[user_id].get("amount", 0) > 0:
+                return True
+                
+            # If not found in bounties.json, check config
             bounties = await self.cog.safe_read_bounty(user)
-            return bounties is not None
+            return bounties is not None and bounties > 0
         except Exception as e:
             self.cog.log.error(f"Error validating user initialization: {e}")
             return False
