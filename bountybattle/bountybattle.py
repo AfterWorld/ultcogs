@@ -1170,7 +1170,7 @@ class BountyBattle(commands.Cog):
         try:
             winner = winner_data["member"]
             loser = loser_data["member"]
-
+            
             # Calculate rewards
             bounty_increase = random.randint(1000, 3000)
             bounty_decrease = random.randint(500, 1500)
@@ -1186,9 +1186,13 @@ class BountyBattle(commands.Cog):
             if loser_id not in bounties:
                 bounties[loser_id] = {"amount": 0, "fruit": None}
 
+            # Ensure we're working with numeric values
+            winner_current_bounty = int(bounties[winner_id].get("amount", 0))
+            loser_current_bounty = int(bounties[loser_id].get("amount", 0))
+
             # Update amounts
-            bounties[winner_id]["amount"] += bounty_increase
-            bounties[loser_id]["amount"] = max(0, bounties[loser_id]["amount"] - bounty_decrease)
+            bounties[winner_id]["amount"] = winner_current_bounty + bounty_increase
+            bounties[loser_id]["amount"] = max(0, loser_current_bounty - bounty_decrease)
 
             # Save bounties
             save_bounties(bounties)
@@ -1249,8 +1253,9 @@ class BountyBattle(commands.Cog):
             await ctx.send(embed=embed)
 
             # Check for title changes and announce if significant
-            new_winner_title = self.get_bounty_title(bounties[winner_id]["amount"])
-            if bounties[winner_id]["amount"] >= 900_000_000:
+            new_winner_bounty = bounties[winner_id]["amount"]
+            if isinstance(new_winner_bounty, (int, float)) and new_winner_bounty >= 900_000_000:
+                new_winner_title = self.get_bounty_title(new_winner_bounty)
                 await self.announce_rank(ctx.guild, winner, new_winner_title)
 
             # Update last active time
