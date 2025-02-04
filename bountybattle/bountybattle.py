@@ -483,6 +483,14 @@ class DataValidator:
     async def validate_battle_participants(self, ctx, challenger, opponent) -> tuple[bool, str]:
         """Validates participants for a battle."""
         try:
+            # First verify both members exist
+            if not challenger or not opponent:
+                return False, "❌ Could not find one or both players!"
+                
+            # Verify members are still in the guild
+            if not isinstance(challenger, discord.Member) or not isinstance(opponent, discord.Member):
+                return False, "❌ One or both players are not valid guild members!"
+
             # Debug logging
             bounties = load_bounties()
             challenger_id = str(challenger.id)
@@ -496,20 +504,21 @@ class DataValidator:
                 self.cog.log.info(f"Challenger bounty: {bounties[challenger_id].get('amount', 0)}")
             if opponent_id in bounties:
                 self.cog.log.info(f"Opponent bounty: {bounties[opponent_id].get('amount', 0)}")
-
-            # Rest of validation code remains the same
+                
             if challenger == opponent:
                 return False, "❌ You cannot challenge yourself!"
                 
             if opponent.bot:
                 return False, "❌ You cannot challenge a bot!"
                 
+            # Check if both users are in the bounties file and have positive amounts
             if challenger_id not in bounties or bounties[challenger_id].get("amount", 0) <= 0:
                 return False, f"❌ {challenger.display_name} needs to start their bounty journey first! Use `.startbounty`"
                 
             if opponent_id not in bounties or bounties[opponent_id].get("amount", 0) <= 0:
                 return False, f"❌ {opponent.display_name} needs to start their bounty journey first!"
                 
+            # Check for active battles
             active_channels = set(self.cog.active_channels)
             if challenger.id in active_channels or opponent.id in active_channels:
                 return False, "❌ One or both players are already in a battle!"
@@ -517,6 +526,7 @@ class DataValidator:
             return True, ""
         except Exception as e:
             self.cog.log.error(f"Error validating battle participants: {str(e)}")
+            self.cog.log.error(f"Challenger: {challenger}, Opponent: {opponent}")  # Additional debug info
             return False, "❌ An error occurred validating the battle participants!"
             
     async def validate_devil_fruit_action(self, ctx, user, action_type: str) -> tuple[bool, str]:
@@ -2080,16 +2090,16 @@ class BountyBattle(commands.Cog):
         """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
         try:
             # Initial validation
-            is_valid, error_msg = await self.validator.validate_bounty_modification(
+            valid, error_msg = await self.validator.validate_bounty_modification(
                 ctx, ctx.author, 0, "hunt"  # 0 amount for just checking initialization
             )
-            if not is_valid:
+            if not valid:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send(error_msg)
-                
+                    
             # Validate target has bounty
-            is_valid, error_msg = await self.validator.validate_user_initialized(ctx, target)
-            if not is_valid:
+            valid, error_msg = await self.validator.validate_user_initialized(ctx, target)
+            if not valid:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"❌ {target.display_name} has no bounty to hunt!")
 
