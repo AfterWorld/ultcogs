@@ -1691,6 +1691,66 @@ class BountyBattle(commands.Cog):
     # ------------------ Deathmatch System ------------------
 
     # --- Helper Functions ---
+    
+    def update_cooldowns(self, player_data: dict):
+        """
+        Update cooldowns at the start of a player's turn.
+        
+        Parameters:
+        -----------
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        # Create a copy of the keys to avoid modifying dict during iteration
+        moves = list(player_data["moves_on_cooldown"].keys())
+        
+        for move in moves:
+            player_data["moves_on_cooldown"][move] -= 1
+            if player_data["moves_on_cooldown"][move] <= 0:
+                del player_data["moves_on_cooldown"][move]
+
+    def is_move_available(self, move_name, player_data):
+        """Check if a move is available to use."""
+        return move_name not in player_data["moves_on_cooldown"]
+
+    def set_move_cooldown(self, move_name: str, cooldown: int, player_data: dict):
+        """
+        Set a cooldown for a move on a player.
+        
+        Parameters:
+        -----------
+        move_name : str
+            The name of the move to put on cooldown
+        cooldown : int
+            Number of turns the move should be on cooldown
+        player_data : dict
+            The player's data dictionary containing their moves_on_cooldown
+        """
+        player_data["moves_on_cooldown"][move_name] = cooldown
+        player_data["stats"]["cooldowns_managed"] += 1
+
+    def apply_burn_effect(self, defender_data):
+        """Apply burn damage and reduce stacks."""
+        if defender_data["status"]["burn"] > 0:
+            burn_damage = 5 * defender_data["status"]["burn"]
+            defender_data["hp"] -= burn_damage
+            defender_data["status"]["burn"] -= 1
+            return burn_damage
+        return 0
+
+    def apply_stun_effect(self, attacker_data):
+        """Check and apply stun effect."""
+        if attacker_data["status"]["stun"]:
+            attacker_data["status"]["stun"] = False
+            return True
+        return False
+
+    def apply_healing_effect(self, attacker_data, heal_amount):
+        """Apply healing with proper bounds."""
+        original_hp = attacker_data["hp"]
+        attacker_data["hp"] = min(250, attacker_data["hp"] + heal_amount)
+        return attacker_data["hp"] - original_hp
+    
     def generate_health_bar(self, current_hp: int, max_hp: int = 250, length: int = 10) -> str:
         """Generate a health bar using Discord emotes based on current HP."""
         filled_length = int(length * current_hp // max_hp)
@@ -1748,67 +1808,6 @@ class BountyBattle(commands.Cog):
 
         return final_damage, message
 
-    # Add method to update cooldowns at the start of each turn
-    def update_cooldowns(self, player_data: dict):
-        """
-        Update cooldowns at the start of a player's turn.
-        
-        Parameters:
-        -----------
-        player_data : dict
-            The player's data dictionary containing their moves_on_cooldown
-        """
-        # Create a copy of the keys to avoid modifying dict during iteration
-        moves = list(player_data["moves_on_cooldown"].keys())
-        
-        for move in moves:
-            player_data["moves_on_cooldown"][move] -= 1
-            if player_data["moves_on_cooldown"][move] <= 0:
-                del player_data["moves_on_cooldown"][move]
-
-    # Also ensure these helper methods include self:
-    def is_move_available(self, move_name, player_data):
-        """Check if a move is available to use."""
-        return move_name not in player_data["moves_on_cooldown"]
-
-    def set_move_cooldown(self, move_name: str, cooldown: int, player_data: dict):
-        """
-        Set a cooldown for a move on a player.
-        
-        Parameters:
-        -----------
-        move_name : str
-            The name of the move to put on cooldown
-        cooldown : int
-            Number of turns the move should be on cooldown
-        player_data : dict
-            The player's data dictionary containing their moves_on_cooldown
-        """
-        player_data["moves_on_cooldown"][move_name] = cooldown
-        player_data["stats"]["cooldowns_managed"] += 1
-
-    # Add these helper functions for status effects
-    def apply_burn_effect(self, defender_data):
-        """Apply burn damage and reduce stacks."""
-        if defender_data["status"]["burn"] > 0:
-            burn_damage = 5 * defender_data["status"]["burn"]
-            defender_data["hp"] -= burn_damage
-            defender_data["status"]["burn"] -= 1
-            return burn_damage
-        return 0
-
-    def apply_stun_effect(self, attacker_data):
-        """Check and apply stun effect."""
-        if attacker_data["status"]["stun"]:
-            attacker_data["status"]["stun"] = False
-            return True
-        return False
-
-    def apply_healing_effect(self, attacker_data, heal_amount):
-        """Apply healing with proper bounds."""
-        original_hp = attacker_data["hp"]
-        attacker_data["hp"] = min(250, attacker_data["hp"] + heal_amount)
-        return attacker_data["hp"] - original_hp
 
     def generate_fight_card(self, user1, user2):
         """
@@ -2247,16 +2246,8 @@ class BountyBattle(commands.Cog):
             attacker = players[current_player]
             defender = players[1 - current_player]
             
-            # Update cooldowns at the start of each turn
-            cooldowns_to_remove = []
-            for move_name in attacker["moves_on_cooldown"]:
-                attacker["moves_on_cooldown"][move_name] -= 1
-                if attacker["moves_on_cooldown"][move_name] <= 0:
-                    cooldowns_to_remove.append(move_name)
-            
-            # Remove expired cooldowns
-            for move_name in cooldowns_to_remove:
-                del attacker["moves_on_cooldown"][move_name]
+            # Use helper method to update cooldowns
+            self.update_cooldowns(attacker)
 
             # Select move from available moves
             available_moves = [move for move in MOVES 
@@ -2274,10 +2265,9 @@ class BountyBattle(commands.Cog):
             if environment_data.get('effect'):
                 environment_data['effect'](move, attacker["stats"])
 
-            # Set cooldown directly
+            # Use helper method to set cooldown
             if move.get("cooldown", 0) > 0:
-                attacker["moves_on_cooldown"][move["name"]] = move["cooldown"]
-                attacker["stats"]["cooldowns_managed"] += 1
+                self.set_move_cooldown(move["name"], move["cooldown"], attacker)
 
             # Apply the damage and update stats
             update_hp(defender, final_damage, is_damage=True)
@@ -2286,7 +2276,17 @@ class BountyBattle(commands.Cog):
             # Handle healing if the move has healing effects
             if move.get("effect") == "heal":
                 heal_amount = move.get("heal_amount", 10)
-                update_hp(attacker, heal_amount, is_damage=False)
+                healing_done = self.apply_healing_effect(attacker, heal_amount)
+                attacker["stats"]["healing_done"] += healing_done
+
+            # Handle burn effects
+            burn_damage = self.apply_burn_effect(defender)
+            if burn_damage > 0:
+                defender["stats"]["damage_taken"] += burn_damage
+
+            # Handle stun effects
+            if self.apply_stun_effect(defender):
+                attacker["stats"]["stuns_applied"] += 1
 
             # Create action description
             action_description = (
@@ -2346,7 +2346,7 @@ class BountyBattle(commands.Cog):
             color=discord.Color.gold()
         )
         await message.edit(embed=victory_embed)
-
+        
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
         status_messages = []
