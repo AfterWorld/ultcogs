@@ -2177,12 +2177,13 @@ class BountyBattle(commands.Cog):
 
         # Define the update_player_fields function
         def update_player_fields():
+            # Clear existing fields
+            embed.clear_fields()
+            
             # Challenger field
             challenger_status = self.get_status_icons(challenger_data)
             challenger_health = self.generate_health_bar(int(challenger_data["hp"]), max_hp=250)
             challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
-            
-            embed.clear_fields()  # Clear fields before adding new ones
             
             embed.add_field(
                 name=f"🏴‍☠️ {challenger_data['name']}",
@@ -2240,13 +2241,7 @@ class BountyBattle(commands.Cog):
             move = selected_move.copy()  # Create a copy to modify
 
             # Calculate damage and get the damage message
-            final_damage, damage_message = self.calculate_damage(
-                move=move,
-                attacker_data=attacker,
-                defender_data=defender,
-                turn=turn,
-                environment=environment_data
-            )
+            final_damage, damage_message = self.calculate_damage(move, attacker, turn)
 
             # Apply environment effects if any
             if environment_data.get('effect'):
