@@ -13,7 +13,6 @@ import json
 import os
 import difflib
 from typing import Optional
-from functools import wraps
 
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
@@ -419,163 +418,6 @@ ENVIRONMENTS = {
         ),
     },
 }
-
-class DataValidator:
-    """Handles data validation for BountyBattle commands."""
-    
-    def __init__(self, cog):
-        self.cog = cog
-        self.MAX_BOUNTY = 999_999_999_999  # Prevent integer overflow
-        self.MIN_BET = 100
-        self.MAX_LEVEL = 100
-        
-    async def validate_user_initialized(self, ctx, user) -> bool:
-        """
-        Verifies if a user has initialized their bounty data.
-        Returns True if initialized, False otherwise.
-        """
-        try:
-            # First check bounties.json
-            bounties = load_bounties()
-            user_id = str(user.id)
-            if user_id in bounties and bounties[user_id].get("amount", 0) > 0:
-                return True
-                
-            # If not found in bounties.json, check config
-            bounties = await self.cog.safe_read_bounty(user)
-            return bounties is not None and bounties > 0
-        except Exception as e:
-            self.cog.log.error(f"Error validating user initialization: {e}")
-            return False
-            
-    async def ensure_positive_number(self, number: int, error_msg: str = None) -> tuple[bool, str]:
-        """Validates that a number is positive and within bounds."""
-        if not isinstance(number, (int, float)):
-            return False, "Value must be a number!"
-        if number < 0:
-            return False, error_msg or "Value cannot be negative!"
-        if number > self.MAX_BOUNTY:
-            return False, f"Value cannot exceed {self.MAX_BOUNTY:,}!"
-        return True, ""
-        
-    async def validate_bet_amount(self, ctx, user, amount: int) -> tuple[bool, str]:
-        """Validates bet amounts for gambling commands."""
-        try:
-            # Check if amount is valid
-            is_valid, error_msg = await self.ensure_positive_number(amount)
-            if not is_valid:
-                return False, error_msg
-                
-            # Check minimum bet
-            if amount < self.MIN_BET:
-                return False, f"Minimum bet is {self.MIN_BET:,} Berries!"
-                
-            # Check user's current bounty
-            current_bounty = await self.cog.safe_read_bounty(user)
-            if amount > current_bounty:
-                return False, f"You only have {current_bounty:,} Berries!"
-                
-            return True, ""
-        except Exception as e:
-            self.cog.log.error(f"Error validating bet amount: {e}")
-            return False, "An error occurred validating your bet!"
-            
-    async def validate_battle_participants(self, ctx, challenger, opponent) -> tuple[bool, str]:
-        """Validates participants for a battle."""
-        try:
-            # First verify both members exist
-            if not challenger or not opponent:
-                return False, "❌ Could not find one or both players!"
-                
-            # Verify members are still in the guild
-            if not isinstance(challenger, discord.Member) or not isinstance(opponent, discord.Member):
-                return False, "❌ One or both players are not valid guild members!"
-
-            # Debug logging
-            bounties = load_bounties()
-            challenger_id = str(challenger.id)
-            opponent_id = str(opponent.id)
-            
-            self.cog.log.info(f"Validating battle: {challenger.name} vs {opponent.name}")
-            self.cog.log.info(f"Challenger ID {challenger_id} in bounties: {challenger_id in bounties}")
-            self.cog.log.info(f"Opponent ID {opponent_id} in bounties: {opponent_id in bounties}")
-            
-            if challenger_id in bounties:
-                self.cog.log.info(f"Challenger bounty: {bounties[challenger_id].get('amount', 0)}")
-            if opponent_id in bounties:
-                self.cog.log.info(f"Opponent bounty: {bounties[opponent_id].get('amount', 0)}")
-                
-            if challenger == opponent:
-                return False, "❌ You cannot challenge yourself!"
-                
-            if opponent.bot:
-                return False, "❌ You cannot challenge a bot!"
-                
-            # Check if both users are in the bounties file and have positive amounts
-            if challenger_id not in bounties or bounties[challenger_id].get("amount", 0) <= 0:
-                return False, f"❌ {challenger.display_name} needs to start their bounty journey first! Use `.startbounty`"
-                
-            if opponent_id not in bounties or bounties[opponent_id].get("amount", 0) <= 0:
-                return False, f"❌ {opponent.display_name} needs to start their bounty journey first!"
-                
-            # Check for active battles
-            active_channels = set(self.cog.active_channels)
-            if challenger.id in active_channels or opponent.id in active_channels:
-                return False, "❌ One or both players are already in a battle!"
-                
-            return True, ""
-        except Exception as e:
-            self.cog.log.error(f"Error validating battle participants: {str(e)}")
-            self.cog.log.error(f"Challenger: {challenger}, Opponent: {opponent}")  # Additional debug info
-            return False, "❌ An error occurred validating the battle participants!"
-            
-    async def validate_devil_fruit_action(self, ctx, user, action_type: str) -> tuple[bool, str]:
-        """Validates devil fruit related actions."""
-        try:
-            bounties = load_bounties()
-            user_id = str(user.id)
-            
-            # Check if user has started their journey
-            if user_id not in bounties:
-                return False, "Ye need to start yer bounty journey first! Use `.startbounty`"
-                
-            if action_type == "eat":
-                # Check if user already has a fruit
-                if bounties[user_id].get("fruit"):
-                    return False, f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!"
-                    
-            elif action_type == "remove":
-                # Check if user has a fruit to remove
-                if not bounties[user_id].get("fruit"):
-                    return False, "❌ You don't have a Devil Fruit to remove!"
-                    
-            return True, ""
-        except Exception as e:
-            self.cog.log.error(f"Error validating devil fruit action: {e}")
-            return False, "An error occurred validating the devil fruit action!"
-            
-    async def validate_bounty_modification(self, ctx, user, amount: int, operation: str) -> tuple[bool, str]:
-        """Validates bounty modifications."""
-        try:
-            # Validate amount
-            is_valid, error_msg = await self.ensure_positive_number(amount)
-            if not is_valid:
-                return False, error_msg
-                
-            current_bounty = await self.cog.safe_read_bounty(user)
-            
-            if operation == "subtract":
-                if amount > current_bounty:
-                    return False, f"Cannot subtract {amount:,} from bounty of {current_bounty:,}!"
-                    
-            elif operation == "add":
-                if current_bounty + amount > self.MAX_BOUNTY:
-                    return False, f"Resulting bounty would exceed {self.MAX_BOUNTY:,}!"
-                    
-            return True, ""
-        except Exception as e:
-            self.cog.log.error(f"Error validating bounty modification: {e}")
-            return False, "An error occurred validating the bounty modification!"
 
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
@@ -1154,9 +996,6 @@ class BountyBattle(commands.Cog):
         self.battle_lock = Lock()
         self.data_lock = Lock()
         
-        # Add the validator
-        self.validator = DataValidator(self)
-        
         # Initialize managers
         self.battle_manager = BattleStateManager()
         self.status_manager = StatusEffectManager()
@@ -1593,48 +1432,6 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in validate_fruit_transfer: {e}")
             await ctx.send("❌ An error occurred while validating the fruit transfer.")
             return False
-
-    def requires_account(error_message: str = None):
-        """Decorator to ensure user has initialized their account."""
-        async def predicate(ctx):
-            validator = ctx.cog.validator
-            is_valid = await validator.validate_user_initialized(ctx, ctx.author)
-            if not is_valid:
-                await ctx.send(error_message or "❌ You need to start your bounty journey first! Use `.startbounty`")
-            return is_valid
-            
-        return commands.check(predicate)
-
-    def validate_amounts(amounts_to_validate: list[str]):
-        """Decorator to validate numerical arguments."""
-        def decorator(func):
-            @wraps(func)
-            async def wrapper(self, ctx, *args, **kwargs):
-                validator = self.validator
-                
-                for arg_name in amounts_to_validate:
-                    value = kwargs.get(arg_name)
-                    if value is not None:
-                        is_valid, error_msg = await validator.ensure_positive_number(value)
-                        if not is_valid:
-                            await ctx.send(f"❌ Invalid {arg_name}: {error_msg}")
-                            return
-                            
-                return await func(self, ctx, *args, **kwargs)
-            return wrapper
-        return decorator
-
-    def validate_battle(func):
-        """Decorator to validate battle participants."""
-        @wraps(func)
-        async def wrapper(self, ctx, opponent: discord.Member = None, *args, **kwargs):
-            validator = self.validator
-            is_valid, error_msg = await validator.validate_battle_participants(ctx, ctx.author, opponent)
-            if not is_valid:
-                await ctx.send(error_msg)
-                return
-            return await func(self, ctx, opponent, *args, **kwargs)
-        return wrapper
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -1835,78 +1632,72 @@ class BountyBattle(commands.Cog):
             await ctx.send("✅ No bounties were decayed. Everyone is active!")
 
     @commands.command()
-    @requires_account()
     async def eatfruit(self, ctx):
         """Consume a random Devil Fruit!"""
-        try:
-            # Validate devil fruit action
-            is_valid, error_msg = await self.validator.validate_devil_fruit_action(
-                ctx, ctx.author, "eat"
+        user = ctx.author
+        bounties = load_bounties()
+        user_id = str(user.id)
+
+        if user_id not in bounties:
+            return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
+
+        if bounties[user_id].get("fruit"):
+            return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
+
+        # Get all currently taken fruits
+        all_taken_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit")}
+
+        # Get available rare fruits (removing taken ones)
+        available_rare_fruits = [
+            fruit for fruit in DEVIL_FRUITS["Rare"].keys() 
+            if fruit not in all_taken_fruits
+        ]
+
+        # Get available common fruits
+        available_common_fruits = [
+            fruit for fruit in DEVIL_FRUITS["Common"].keys() 
+            if fruit not in all_taken_fruits
+        ]
+
+        if not available_rare_fruits and not available_common_fruits:
+            return await ctx.send("❌ There are no Devil Fruits available right now! Try again later.")
+
+        # 10% chance for rare fruit if available
+        if available_rare_fruits and random.random() < 0.10:
+            new_fruit = random.choice(available_rare_fruits)
+            fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
+            is_rare = True
+        else:
+            if not available_common_fruits:
+                return await ctx.send("❌ No common Devil Fruits are available right now! Try again later.")
+            new_fruit = random.choice(available_common_fruits)
+            fruit_data = DEVIL_FRUITS["Common"][new_fruit]
+            is_rare = False
+
+        # Save the fruit to the user
+        bounties[user_id]["fruit"] = new_fruit
+        save_bounties(bounties)
+        await self.config.member(user).devil_fruit.set(new_fruit)
+        await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
+
+        # Create announcement
+        if is_rare:
+            announcement = (
+                f"🚨 **Breaking News from the Grand Line!** 🚨\n"
+                f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**!\n"
+                f"Type: {fruit_data['type']}\n"
+                f"🔥 Power: {fruit_data['bonus']}\n\n"
+                f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it!*"
             )
-            if not is_valid:
-                return await ctx.send(error_msg)
+            await ctx.send(announcement)
+        else:
+            await ctx.send(
+                f"🍎 **{user.display_name}** has eaten the **{new_fruit}**!\n"
+                f"Type: {fruit_data['type']}\n"
+                f"🔥 Power: {fruit_data['bonus']}\n\n"
+                f"⚠️ *You cannot eat another Devil Fruit!*"
+            )
 
-            user = ctx.author
-            bounties = load_bounties()
-            user_id = str(user.id)
-
-            # Get all currently taken fruits
-            all_taken_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit")}
-
-            # Get available rare fruits (removing taken ones)
-            available_rare_fruits = [
-                fruit for fruit in DEVIL_FRUITS["Rare"].keys() 
-                if fruit not in all_taken_fruits
-            ]
-
-            # Get available common fruits
-            available_common_fruits = [
-                fruit for fruit in DEVIL_FRUITS["Common"].keys() 
-                if fruit not in all_taken_fruits
-            ]
-
-            if not available_rare_fruits and not available_common_fruits:
-                return await ctx.send("❌ There are no Devil Fruits available right now! Try again later.")
-
-            # 10% chance for rare fruit if available
-            if available_rare_fruits and random.random() < 0.10:
-                new_fruit = random.choice(available_rare_fruits)
-                fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
-                is_rare = True
-            else:
-                if not available_common_fruits:
-                    return await ctx.send("❌ No common Devil Fruits are available right now! Try again later.")
-                new_fruit = random.choice(available_common_fruits)
-                fruit_data = DEVIL_FRUITS["Common"][new_fruit]
-                is_rare = False
-
-            # Save the fruit to the user
-            bounties[user_id]["fruit"] = new_fruit
-            await self.safe_save_bounties(bounties)
-            await self.config.member(user).devil_fruit.set(new_fruit)
-            await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
-
-            # Create announcement
-            if is_rare:
-                announcement = (
-                    f"🚨 **Breaking News from the Grand Line!** 🚨\n"
-                    f"🏴‍☠️ **{user.display_name}** has discovered and consumed the **{new_fruit}**!\n"
-                    f"Type: {fruit_data['type']}\n"
-                    f"🔥 Power: {fruit_data['bonus']}\n\n"
-                    f"⚠️ *This Devil Fruit is now **UNIQUE**! No one else can eat it!*"
-                )
-                await ctx.send(announcement)
-            else:
-                await ctx.send(
-                    f"🍎 **{user.display_name}** has eaten the **{new_fruit}**!\n"
-                    f"Type: {fruit_data['type']}\n"
-                    f"🔥 Power: {fruit_data['bonus']}\n\n"
-                    f"⚠️ *You cannot eat another Devil Fruit!*"
-                )
-
-        except Exception as e:
-            self.log.error(f"Error in eatfruit command: {str(e)}")
-            await ctx.send("❌ An error occurred while eating the Devil Fruit!")
 
     @commands.command()
     async def removefruit(self, ctx, member: discord.Member = None):
@@ -2084,36 +1875,19 @@ class BountyBattle(commands.Cog):
         )
 
     @commands.command()
-    @requires_account()
     @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
+        hunter = ctx.author
+        
+        # Initial validation checks
+        if hunter == target:
+            return await ctx.send("❌ Ye can't hunt yer own bounty, ye scallywag!")
+        
+        if target.bot:
+            return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
+
         try:
-            # Initial validation
-            valid, error_msg = await self.validator.validate_bounty_modification(
-                ctx, ctx.author, 0, "hunt"  # 0 amount for just checking initialization
-            )
-            if not valid:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(error_msg)
-                    
-            # Validate target has bounty
-            valid, error_msg = await self.validator.validate_user_initialized(ctx, target)
-            if not valid:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f"❌ {target.display_name} has no bounty to hunt!")
-
-            hunter = ctx.author
-            
-            # Additional validations
-            if hunter == target:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send("❌ Ye can't hunt yer own bounty, ye scallywag!")
-            
-            if target.bot:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
-
             # Load bounty data
             bounties = load_bounties()
             hunter_id = str(hunter.id)
@@ -2162,6 +1936,7 @@ class BountyBattle(commands.Cog):
             )
             await ctx.send(embed=challenge_embed)
 
+            # Wait for response
             try:
                 msg = await self.bot.wait_for(
                     "message",
@@ -2176,6 +1951,7 @@ class BountyBattle(commands.Cog):
                 )
                 return await ctx.send(embed=timeout_embed)
 
+            # Check response and handle outcomes
             if msg.content.strip() != lock_code:
                 fail_embed = discord.Embed(
                     title="❌ Lock Pick Failed!",
@@ -2228,7 +2004,7 @@ class BountyBattle(commands.Cog):
                     inline=True
                 )
                 await ctx.send(embed=success_embed)
-            
+
             elif critical_failure:
                 # Handle critical failure
                 penalty = max(int(hunter_bounty * 0.10), 1000)
@@ -2255,15 +2031,15 @@ class BountyBattle(commands.Cog):
                     inline=True
                 )
                 await ctx.send(embed=failure_embed)
-            
+
             else:
                 # Handle normal failure
                 await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
 
         except Exception as e:
-            ctx.command.reset_cooldown(ctx)
-            self.log.error(f"Error in bountyhunt command: {str(e)}")
+            logger.error(f"Error in bountyhunt command: {str(e)}")
             await ctx.send("❌ An error occurred during the bounty hunt!")
+            self.bot.dispatch("command_error", ctx, e)
             
     @commands.command()
     async def syncbounties(self, ctx):
@@ -2610,8 +2386,6 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
-    @requires_account()
-    @validate_amounts(["bet"])
     async def berryflip(self, ctx, bet: Optional[int] = None):
         """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
         try:
@@ -2619,17 +2393,29 @@ class BountyBattle(commands.Cog):
             bounties = load_bounties()
             user_id = str(user.id)
 
+            if user_id not in bounties:
+                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
+
             current_bounty = bounties[user_id]["amount"]
             
             # Validate bet amount
             if bet is None:
                 bet = min(current_bounty, 10000)  # Default to 10k or max bounty
-                
-            is_valid, error_msg = await self.validator.validate_bet_amount(ctx, user, bet)
-            if not is_valid:
+            elif not isinstance(bet, int):
+                # Remove cooldown if input is invalid
                 ctx.command.reset_cooldown(ctx)
-                return await ctx.send(error_msg)
+                return await ctx.send("❌ Bet must be a valid number of Berries!")
+            elif bet < 100:
+                # Remove cooldown if bet is too low
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Minimum bet is `100` Berries! Don't be stingy!")
+            elif bet > current_bounty:
+                # Remove cooldown if bet exceeds current bounty
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f"❌ Ye only have `{current_bounty:,}` Berries to bet!")
 
+            # Rest of the berryflip implementation remains the same...
+            
             # Create initial embed
             embed = discord.Embed(
                 title="🎲 Berry Flip Gamble",
@@ -2675,15 +2461,8 @@ class BountyBattle(commands.Cog):
                     multiplier = 1.5
                 
                 winnings = int(bet * multiplier)
-                
-                # Validate final amount doesn't exceed max
-                is_valid, error_msg = await self.validator.validate_bounty_modification(
-                    ctx, user, winnings, "add"
-                )
-                if not is_valid:
-                    return await ctx.send(error_msg)
-                    
                 bounties[user_id]["amount"] += winnings
+
                 bonus_text = f"💫 BONUS WIN! ({multiplier}x Multiplier)\n" if multiplier > 1 else ""
                 
                 embed.color = discord.Color.green()
@@ -2703,7 +2482,7 @@ class BountyBattle(commands.Cog):
                 )
 
             # Save updated bounties
-            await self.safe_save_bounties(bounties)
+            save_bounties(bounties)
 
             # Update Config as well for compatibility
             await self.config.member(user).bounty.set(bounties[user_id]["amount"])
@@ -2727,7 +2506,7 @@ class BountyBattle(commands.Cog):
                 await self.announce_rank(ctx.guild, user, new_title)
 
             # Log the gamble
-            self.log.info(
+            logger.info(
                 f"Berryflip: {user.display_name} bet {bet:,} Berries - "
                 f"{'Won' if won else 'Lost'} - New bounty: {new_bounty:,}"
             )
@@ -2738,7 +2517,7 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             # Remove cooldown if an unexpected error occurs
             ctx.command.reset_cooldown(ctx)
-            self.log.error(f"Error in berryflip command: {str(e)}")
+            logger.error(f"Error in berryflip command: {str(e)}")
             await ctx.send("❌ An error occurred during the gamble!")
 
     @berryflip.error
@@ -3129,65 +2908,70 @@ class BountyBattle(commands.Cog):
 
         return hazard_message
 
-    @commands.command()
-    @validate_battle
+    @commands.hybrid_command(name="deathbattle")
     async def deathbattle(self, ctx: commands.Context, opponent: discord.Member = None):
-        """Start a One Piece deathmatch against another user with a bounty."""
+        """
+        Start a One Piece deathmatch against another user with a bounty.
+        """
         try:
-            # Check if a battle is already in progress
+            # ✅ Retrieve the bounty list
+            bounties = await self.config.guild(ctx.guild).bounties()
+
+            # ✅ If no opponent is provided, choose a random bounty holder
+            if opponent is None:
+                valid_opponents = [ctx.guild.get_member(int(user_id)) for user_id, data in bounties.items() if data["amount"] > 0]
+
+                if not valid_opponents:
+                    return await ctx.send("❌ **There are no users with a bounty to challenge!**")
+
+                opponent = random.choice(valid_opponents)  # ✅ Randomly pick an eligible opponent
+
+            # ✅ Ensure the opponent has a bounty
+            elif str(opponent.id) not in bounties or bounties[str(opponent.id)]["amount"] <= 0:
+                return await ctx.send(f"❌ **{opponent.display_name} does not have a bounty!**")
+
+            # ✅ Prevent invalid matches
+            if ctx.author == opponent:
+                return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
+            if opponent.bot:
+                return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
+            
+            # ✅ Check if a battle is already in progress
             if ctx.channel.id in self.active_channels:
                 return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
 
-            # If no opponent specified, choose random one
-            if opponent is None:
-                # Load bounties
-                bounties = load_bounties()
-                valid_opponents = [
-                    ctx.guild.get_member(int(user_id)) 
-                    for user_id, data in bounties.items() 
-                    if data.get("amount", 0) > 0 
-                    and ctx.guild.get_member(int(user_id)) is not None 
-                    and ctx.guild.get_member(int(user_id)) != ctx.author
-                ]
-                
-                if not valid_opponents:
-                    return await ctx.send("❌ No valid opponents found!")
-                    
-                opponent = random.choice(valid_opponents)
-
-            # Initialize battle data with validation
-            challenger_data = await self._initialize_player_data(ctx.author)
-            opponent_data = await self._initialize_player_data(opponent)
-            
-            if not challenger_data or not opponent_data:
-                return await ctx.send("❌ Error initializing battle data!")
-
-            # Mark channel as active
+            # ✅ Mark the channel as active
             self.active_channels.add(ctx.channel.id)
 
-            try:
-                # Generate and send fight card
-                fight_card = self.generate_fight_card(ctx.author, opponent)
-                await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
+            # ✅ Generate fight card
+            fight_card = self.generate_fight_card(ctx.author, opponent)
 
-                # Start the battle
+            # ✅ Send the dynamically generated fight card image
+            await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
+
+            try:
+                # ✅ Call the fight function and update bounty only for the initiator
                 await self.fight(ctx, ctx.author, opponent)
-                
             except Exception as e:
                 await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
                 self.log.error(f"Battle error: {str(e)}")
-                
             finally:
-                # Always cleanup
+                # ✅ Always attempt to remove the channel ID, even if an error occurs
                 if ctx.channel.id in self.active_channels:
                     self.active_channels.remove(ctx.channel.id)
 
         except Exception as e:
+            # ✅ Catch any unexpected errors
             await ctx.send(f"❌ An unexpected error occurred: {str(e)}")
             self.log.error(f"Deathbattle command error: {str(e)}")
             
+            # ✅ Ensure channel is removed from active channels if an error occurs
             if ctx.channel.id in self.active_channels:
                 self.active_channels.remove(ctx.channel.id)
+
+            # ✅ Re-raise the exception for further handling
+            raise
+
         
     @commands.command(name="stopbattle")
     @commands.admin_or_permissions(administrator=True)
