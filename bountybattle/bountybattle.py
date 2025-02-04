@@ -1229,33 +1229,70 @@ class BountyBattle(commands.Cog):
     async def syncbounties(self, ctx):
         """Synchronize all bounties in the system."""
         try:
-            await self.sync_all_bounties(ctx)
+            # Load bounties from both sources
+            bounties = load_bounties()
+            guild_bounties = await self.config.guild(ctx.guild).bounties()
+
+            # Synchronize bounties for each user in the guild
+            for user_id, guild_bounty_data in guild_bounties.items():
+                try:
+                    # Get member object
+                    member = ctx.guild.get_member(int(user_id))
+                    if not member:
+                        continue
+
+                    # Get bounty from both sources
+                    config_bounty = await self.config.member(member).bounty()
+                    json_bounty = bounties.get(user_id, {}).get("amount", 0)
+
+                    # Use the higher bounty as the source of truth
+                    true_bounty = max(config_bounty, json_bounty)
+
+                    # Update both systems
+                    bounties[user_id] = bounties.get(user_id, {})
+                    bounties[user_id]["amount"] = true_bounty
+                    
+                    # Save to JSON
+                    save_bounties(bounties)
+                    
+                    # Update config
+                    await self.config.member(member).bounty.set(true_bounty)
+
+                except Exception as user_sync_error:
+                    logger.error(f"Error syncing bounty for user {user_id}: {user_sync_error}")
+                    continue
+
             await ctx.send("✅ Successfully synchronized all bounties!")
         except Exception as e:
+            logger.error(f"Error in syncbounties: {str(e)}")
             await ctx.send(f"❌ An error occurred while synchronizing bounties: {str(e)}")
 
-    # Modify mybounty command to always sync first
     @commands.command()
     async def mybounty(self, ctx):
         """Check your bounty amount."""
         user = ctx.author
         user_id = str(user.id)
         
-        # Sync bounties first
-        bounties = load_bounties()
-        config_bounty = await self.config.member(user).bounty()
-        json_bounty = bounties.get(user_id, {}).get("amount", 0)
+        try:
+            # Load bounties from both sources
+            bounties = load_bounties()
+            config_bounty = await self.config.member(user).bounty()
+            json_bounty = bounties.get(user_id, {}).get("amount", 0)
+            
+            # Use the higher value
+            true_bounty = max(config_bounty, json_bounty)
+            
+            # Update both systems
+            bounties[user_id] = bounties.get(user_id, {})
+            bounties[user_id]["amount"] = true_bounty
+            save_bounties(bounties)
+            await self.config.member(user).bounty.set(true_bounty)
+            
+            await ctx.send(f"🏴‍☠️ {user.display_name}, yer bounty is `{true_bounty:,}` Berries!")
         
-        # Use the higher value
-        true_bounty = max(config_bounty, json_bounty)
-        
-        # Update both systems
-        bounties[user_id] = bounties.get(user_id, {})
-        bounties[user_id]["amount"] = true_bounty
-        save_bounties(bounties)
-        await self.config.member(user).bounty.set(true_bounty)
-        
-        await ctx.send(f"🏴‍☠️ {user.display_name}, yer bounty is `{true_bounty:,}` Berries!")
+        except Exception as e:
+            logger.error(f"Error in mybounty: {str(e)}")
+            await ctx.send(f"❌ An error occurred while checking your bounty: {str(e)}")
 
     
     @commands.command()
@@ -1704,12 +1741,13 @@ class BountyBattle(commands.Cog):
         mission = missions[mission_number - 1]
         user = ctx.author
 
-        # Sync and validate user's bounty first
-        current_bounty = await self.sync_bounty(user)
-        
-        if current_bounty is None:
+        # Ensure user has started their bounty journey
+        bounties = load_bounties()
+        user_id = str(user.id)
+        if user_id not in bounties:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
+        # Validate mission completion based on mission type
         if mission["description"] == "Answer a trivia question":
             success = await self.handle_trivia_question(ctx, user)
         elif mission["description"] == "Share a fun fact":
@@ -1718,19 +1756,26 @@ class BountyBattle(commands.Cog):
             success = await self.handle_post_meme(ctx, user)
 
         if success:
-            # Use safe_modify_bounty to update bounty
-            new_bounty = await self.safe_modify_bounty(user, mission["reward"], "add")
-            
-            if new_bounty is not None:
-                new_title = self.get_bounty_title(new_bounty)
-                await ctx.send(f"🏆 Mission completed! Ye earned {mission['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                            f"Current Title: {new_title}")
+            # Get the reward amount
+            reward = mission["reward"]
 
-                # Announce if the user reaches a significant rank
-                if new_bounty >= 900000000:
-                    await self.announce_rank(ctx.guild, user, new_title)
-            else:
-                await ctx.send("⚠️ Failed to update bounty. Please try again.")
+            # Update bounties in JSON file
+            bounties[user_id]["amount"] = bounties[user_id].get("amount", 0) + reward
+            save_bounties(bounties)
+
+            # Update bounty in config
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+
+            # Get the new title based on the updated bounty
+            new_title = self.get_bounty_title(bounties[user_id]["amount"])
+
+            # Send confirmation message
+            await ctx.send(f"🏆 Mission completed! Ye earned {reward:,} Berries! Yer new bounty is {bounties[user_id]['amount']:,} Berries!\n"
+                        f"Current Title: {new_title}")
+
+            # Announce if the user reaches a significant rank
+            if bounties[user_id]["amount"] >= 900000000:
+                await self.announce_rank(ctx.guild, user, new_title)
 
     async def handle_trivia_question(self, ctx, user):
         """Handle the trivia question mission."""
