@@ -937,7 +937,61 @@ class BountyBattle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
-        self.config.register_member(berries=0)
+        
+        # Comprehensive default member settings
+        default_member = {
+            # Existing core values
+            "bounty": 0,
+            "berries": 0,
+            "last_daily_claim": None,
+            "wins": 0,
+            "losses": 0,
+            "damage_dealt": 0,
+            "achievements": [],
+            "titles": [],
+            "current_title": None,
+            "devil_fruit": None,
+            "last_active": None,
+            "bounty_hunted": 0,
+            
+            # New tracking stats (will be available but won't break existing code)
+            "win_streak": 0,
+            "damage_taken": 0,
+            "critical_hits": 0,
+            "healing_done": 0,
+            "turns_survived": 0,
+            "burns_applied": 0,
+            "stuns_applied": 0,
+            "blocks_performed": 0,
+            "damage_prevented": 0,
+            "elements_used": [],
+            "total_battles": 0,
+            "perfect_victories": 0,
+            "comebacks": 0,
+            "fastest_victory": None,
+            "longest_battle": None,
+            "devil_fruit_mastery": 0,
+            "successful_hunts": 0,
+            "failed_hunts": 0
+        }
+
+        # Existing guild settings with new additions
+        default_guild = {
+            "bounties": {},
+            "event": None,
+            "tournaments": {},
+            "beta_active": True,
+            "leaderboard_channel": None,
+            "announcement_channel": None,
+            "active_events": {},
+            "disabled_commands": []
+        }
+
+        # Register all defaults
+        self.config.register_member(**default_member)
+        self.config.register_guild(**default_guild)
+        
+        # Initialize locks
         self.bounty_lock = Lock()
         self.battle_lock = Lock()
         self.data_lock = Lock()
@@ -947,37 +1001,16 @@ class BountyBattle(commands.Cog):
         self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
-
-        # Store both bounty and deathmatch stats
-        default_member = {
-        "bounty": 0,
-        "last_daily_claim": None,
-        "wins": 0,
-        "losses": 0,
-        "damage_dealt": 0,
-        "achievements": [],
-        "titles": [],  # List of unlocked titles
-        "current_title": None,  # Single source of truth for equipped title
-        "devil_fruit": None,
-        "last_active": None
-    }
-        self.config.register_member(**default_member)
-
-        default_guild = {
-            "bounties": {},
-            "event": None,
-            "tournaments": {},
-            "beta_active": True,  # ✅ Stores whether beta is still running
-        }
-        self.config.register_guild(**default_guild)
-        self.config.register_member(**default_member)
-        self.active_channels = set()  # Track active battles by channel ID
-        self.tournaments = {}  # Track active tournaments
-        self.log = logging.getLogger("red.deathmatch")  # Log under the cog name
-        self.log.setLevel(logging.INFO)  # Set the log level
-        self.current_environment = None  # Track the current environment
-        self.battle_stopped = False  # Track if a battle was stopped
-        self.config.register_member(bounty_hunted=0)
+        
+        # Initialize tracking variables
+        self.active_channels = set()
+        self.tournaments = {}
+        self.current_environment = None
+        self.battle_stopped = False
+        
+        # Configure logging
+        self.log = logging.getLogger("red.deathmatch")
+        self.log.setLevel(logging.INFO)
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
