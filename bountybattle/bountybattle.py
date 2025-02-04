@@ -1803,10 +1803,9 @@ class BountyBattle(commands.Cog):
 
         # Set cooldown if the move has one
         if move["cooldown"] > 0:
-            set_move_cooldown(move["name"], move["cooldown"], attacker_data)
+            self.set_move_cooldown(move["name"], move["cooldown"], attacker_data)  # Changed this line to use self
 
         return final_damage, message
-
 
     def generate_fight_card(self, user1, user2):
         """
