@@ -1703,10 +1703,11 @@ class BountyBattle(commands.Cog):
 
         mission = missions[mission_number - 1]
         user = ctx.author
-        bounties = await self.config.guild(ctx.guild).bounties()
-        user_id = str(user.id)
 
-        if user_id not in bounties:
+        # Sync and validate user's bounty first
+        current_bounty = await self.sync_bounty(user)
+        
+        if current_bounty is None:
             return await ctx.send("Ye need to start yer bounty journey first by typing `.startbounty`!")
 
         if mission["description"] == "Answer a trivia question":
@@ -1717,17 +1718,19 @@ class BountyBattle(commands.Cog):
             success = await self.handle_post_meme(ctx, user)
 
         if success:
-            bounties[user_id]["amount"] += mission["reward"]
-            await self.config.guild(ctx.guild).bounties.set(bounties)
-            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
-            new_bounty = bounties[user_id]["amount"]
-            new_title = self.get_bounty_title(new_bounty)
-            await ctx.send(f"🏆 Mission completed! Ye earned {mission['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
-                           f"Current Title: {new_title}")
+            # Use safe_modify_bounty to update bounty
+            new_bounty = await self.safe_modify_bounty(user, mission["reward"], "add")
+            
+            if new_bounty is not None:
+                new_title = self.get_bounty_title(new_bounty)
+                await ctx.send(f"🏆 Mission completed! Ye earned {mission['reward']:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
+                            f"Current Title: {new_title}")
 
-            # Announce if the user reaches a significant rank
-            if bounties[user_id]["amount"] >= 900000000:
-                await self.announce_rank(ctx.guild, user, new_title)
+                # Announce if the user reaches a significant rank
+                if new_bounty >= 900000000:
+                    await self.announce_rank(ctx.guild, user, new_title)
+            else:
+                await ctx.send("⚠️ Failed to update bounty. Please try again.")
 
     async def handle_trivia_question(self, ctx, user):
         """Handle the trivia question mission."""
