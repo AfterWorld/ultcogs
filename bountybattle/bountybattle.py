@@ -491,15 +491,21 @@ class DataValidator:
             if opponent.bot:
                 return False, "❌ You cannot challenge a bot!"
                 
+            # Load bounties from JSON
+            bounties = load_bounties()
+            challenger_id = str(challenger.id)
+            opponent_id = str(opponent.id)
+
             # Verify both users have bounties
-            if not await self.validate_user_initialized(ctx, challenger):
+            if challenger_id not in bounties or bounties[challenger_id].get("amount", 0) <= 0:
                 return False, f"❌ {challenger.display_name} needs to start their bounty journey first! Use `.startbounty`"
                 
-            if not await self.validate_user_initialized(ctx, opponent):
+            if opponent_id not in bounties or bounties[opponent_id].get("amount", 0) <= 0:
                 return False, f"❌ {opponent.display_name} needs to start their bounty journey first!"
                 
             # Check if either user is in an active battle
-            if challenger.id in self.cog.active_channels or opponent.id in self.cog.active_channels:
+            active_channels = set(self.cog.active_channels)
+            if challenger.id in active_channels or opponent.id in active_channels:
                 return False, "❌ One or both players are already in a battle!"
                 
             return True, ""
