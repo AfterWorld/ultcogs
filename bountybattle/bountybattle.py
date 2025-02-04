@@ -2187,249 +2187,220 @@ class BountyBattle(commands.Cog):
 
     async def fight(self, ctx, challenger, opponent):
         """Enhanced fight system with improved visual display."""
-        # Initialize environment
-        environment = self.choose_environment()
-        environment_data = ENVIRONMENTS[environment]
-        
-        # Get Devil Fruit info
-        challenger_fruit = await self.config.member(challenger).devil_fruit()
-        opponent_fruit = await self.config.member(opponent).devil_fruit()
-        
-        # Initialize player data with 250 HP
-        challenger_data = {
-            "name": challenger.display_name,
-            "hp": 250,
-            "member": challenger,
-            "fruit": challenger_fruit,
-            "moves_on_cooldown": {},
-            "status": {
-                "burn": 0,
-                "stun": False,
-                "frozen": 0,
-                "transformed": 0,
-                "protected": False,
-                "block_active": False,
-                "accuracy_reduction": 0,
-                "accuracy_turns": 0,
-                "elements_used": set()
-            },
-            "stats": {
-                "damage": 0,
-                "heal": 0,
-                "critical_hits": 0,
-                "blocks": 0,
-                "burns_applied": 0,
-                "stuns_applied": 0,
-                "damage_dealt": 0,
-                "damage_taken": 0,
-                "healing_done": 0,
-                "turns_survived": 0,
-                "cooldowns_managed": 0
+        try:
+            # Initialize environment
+            environment = self.choose_environment()
+            environment_data = ENVIRONMENTS[environment]
+            
+            # Get Devil Fruit info
+            challenger_fruit = await self.config.member(challenger).devil_fruit()
+            opponent_fruit = await self.config.member(opponent).devil_fruit()
+            
+            # Initialize player data with 250 HP
+            challenger_data = {
+                "name": challenger.display_name,
+                "hp": 250,
+                "member": challenger,
+                "fruit": challenger_fruit,
+                "moves_on_cooldown": {},
+                "status": {
+                    "burn": 0,
+                    "stun": False,
+                    "frozen": 0,
+                    "transformed": 0,
+                    "protected": False,
+                    "block_active": False,
+                    "accuracy_reduction": 0,
+                    "accuracy_turns": 0,
+                    "elements_used": set()
+                },
+                "stats": {
+                    "damage": 0,
+                    "heal": 0,
+                    "critical_hits": 0,
+                    "blocks": 0,
+                    "burns_applied": 0,
+                    "stuns_applied": 0,
+                    "damage_dealt": 0,
+                    "damage_taken": 0,
+                    "healing_done": 0,
+                    "turns_survived": 0,
+                    "cooldowns_managed": 0
+                }
             }
-        }
 
-        opponent_data = {
-            "name": opponent.display_name,
-            "hp": 250,
-            "member": opponent,
-            "fruit": opponent_fruit,
-            "moves_on_cooldown": {},
-            "status": {
-                "burn": 0,
-                "stun": False,
-                "frozen": 0,
-                "transformed": 0,
-                "protected": False,
-                "block_active": False,
-                "accuracy_reduction": 0,
-                "accuracy_turns": 0,
-                "elements_used": set()
-            },
-            "stats": {
-                "damage": 0,
-                "heal": 0,
-                "critical_hits": 0,
-                "blocks": 0,
-                "burns_applied": 0,
-                "stuns_applied": 0,
-                "damage_dealt": 0,
-                "damage_taken": 0,
-                "healing_done": 0,
-                "turns_survived": 0,
-                "cooldowns_managed": 0
+            opponent_data = {
+                "name": opponent.display_name,
+                "hp": 250,
+                "member": opponent,
+                "fruit": opponent_fruit,
+                "moves_on_cooldown": {},
+                "status": {
+                    "burn": 0,
+                    "stun": False,
+                    "frozen": 0,
+                    "transformed": 0,
+                    "protected": False,
+                    "block_active": False,
+                    "accuracy_reduction": 0,
+                    "accuracy_turns": 0,
+                    "elements_used": set()
+                },
+                "stats": {
+                    "damage": 0,
+                    "heal": 0,
+                    "critical_hits": 0,
+                    "blocks": 0,
+                    "burns_applied": 0,
+                    "stuns_applied": 0,
+                    "damage_dealt": 0,
+                    "damage_taken": 0,
+                    "healing_done": 0,
+                    "turns_survived": 0,
+                    "cooldowns_managed": 0
+                }
             }
-        }
 
-        # Create initial battle embed
-        embed = discord.Embed(
-            title="⚔️ EPIC ONE PIECE BATTLE ⚔️",
-            description=f"Battle begins in **{environment}**!\n*{environment_data['description']}*",
-            color=discord.Color.blue()
-        )
-
-        # Define the update_hp function
-        def update_hp(player, amount, is_damage=True):
-            """Update HP with proper rounding."""
-            if is_damage:
-                player["hp"] = max(0, int(round(player["hp"] - amount)))
-                player["stats"]["damage_taken"] += amount
-            else:
-                player["hp"] = min(250, int(round(player["hp"] + amount)))
-                player["stats"]["healing_done"] += amount
-
-        # Define the update_player_fields function
-        def update_player_fields():
-            # Clear existing fields
-            embed.clear_fields()
-            
-            # Challenger field
-            challenger_status = self.get_status_icons(challenger_data)
-            challenger_health = self.generate_health_bar(int(challenger_data["hp"]), max_hp=250)
-            challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
-            
-            embed.add_field(
-                name=f"🏴‍☠️ {challenger_data['name']}",
-                value=(
-                    f"❤️ HP: {int(challenger_data['hp'])}/250\n"
-                    f"{challenger_health}\n"
-                    f"✨ Status: {challenger_status}{challenger_fruit_text}"
-                ),
-                inline=True
+            # Create initial battle embed
+            embed = discord.Embed(
+                title="⚔️ EPIC ONE PIECE BATTLE ⚔️",
+                description=f"Battle begins in **{environment}**!\n*{environment_data['description']}*",
+                color=discord.Color.blue()
             )
 
-            # VS Separator
-            embed.add_field(name="⚔️", value="VS", inline=True)
+            # Initialize the display
+            def update_player_fields():
+                embed.clear_fields()
+                
+                # Challenger field
+                challenger_status = self.get_status_icons(challenger_data)
+                challenger_health = self.generate_health_bar(challenger_data["hp"])
+                challenger_fruit_text = f"\n🍎 *{challenger_fruit}*" if challenger_fruit else ""
+                
+                embed.add_field(
+                    name=f"🏴‍☠️ {challenger_data['name']}",
+                    value=(
+                        f"❤️ HP: {challenger_data['hp']}/250\n"
+                        f"{challenger_health}\n"
+                        f"✨ Status: {challenger_status}{challenger_fruit_text}"
+                    ),
+                    inline=True
+                )
 
-            # Opponent field
-            opponent_status = self.get_status_icons(opponent_data)
-            opponent_health = self.generate_health_bar(int(opponent_data["hp"]), max_hp=250)
-            opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
-            
-            embed.add_field(
-                name=f"🏴‍☠️ {opponent_data['name']}",
-                value=(
-                    f"❤️ HP: {int(opponent_data['hp'])}/250\n"
-                    f"{opponent_health}\n"
-                    f"✨ Status: {opponent_status}{opponent_fruit_text}"
-                ),
-                inline=True
-            )
+                # VS Separator
+                embed.add_field(name="⚔️", value="VS", inline=True)
 
-        # Initialize the battle
-        update_player_fields()
-        message = await ctx.send(embed=embed)
-        battle_log = await ctx.send("📜 **Battle Log:**")
-        
-        # Battle loop
-        turn = 0
-        players = [challenger_data, opponent_data]
-        current_player = 0
-        
-        while players[0]["hp"] > 0 and players[1]["hp"] > 0:
-            turn += 1
-            attacker = players[current_player]
-            defender = players[1 - current_player]
-            
-            # Use helper method to update cooldowns
-            self.update_cooldowns(attacker)
+                # Opponent field
+                opponent_status = self.get_status_icons(opponent_data)
+                opponent_health = self.generate_health_bar(opponent_data["hp"])
+                opponent_fruit_text = f"\n🍎 *{opponent_fruit}*" if opponent_fruit else ""
+                
+                embed.add_field(
+                    name=f"🏴‍☠️ {opponent_data['name']}",
+                    value=(
+                        f"❤️ HP: {opponent_data['hp']}/250\n"
+                        f"{opponent_health}\n"
+                        f"✨ Status: {opponent_status}{opponent_fruit_text}"
+                    ),
+                    inline=True
+                )
 
-            # Select move from available moves
-            available_moves = [move for move in MOVES 
-                             if move["name"] not in attacker["moves_on_cooldown"]]
-            if not available_moves:
-                available_moves = [move for move in MOVES if move["type"] == "regular"]
-            
-            selected_move = random.choice(available_moves)
-            move = selected_move.copy()  # Create a copy to modify
-
-            # Calculate damage and get the damage message
-            final_damage, damage_message = self.calculate_damage(move, attacker, turn)
-
-            # Apply environment effects if any
-            if environment_data.get('effect'):
-                environment_data['effect'](move, attacker["stats"])
-
-            # Use helper method to set cooldown
-            if move.get("cooldown", 0) > 0:
-                self.set_move_cooldown(move["name"], move["cooldown"], attacker)
-
-            # Apply the damage and update stats
-            update_hp(defender, final_damage, is_damage=True)
-            attacker["stats"]["damage_dealt"] += final_damage
-
-            # Handle healing if the move has healing effects
-            if move.get("effect") == "heal":
-                heal_amount = move.get("heal_amount", 10)
-                healing_done = self.apply_healing_effect(attacker, heal_amount)
-                attacker["stats"]["healing_done"] += healing_done
-
-            # Handle burn effects
-            burn_damage = self.apply_burn_effect(defender)
-            if burn_damage > 0:
-                defender["stats"]["damage_taken"] += burn_damage
-
-            # Handle stun effects
-            if self.apply_stun_effect(defender):
-                attacker["stats"]["stuns_applied"] += 1
-
-            # Create action description
-            action_description = (
-                f"**{attacker['name']}** used **{move['name']}**!\n"
-                f"{move['description']}"
-            )
-            
-            if damage_message:
-                action_description += f"\n{damage_message}"
-            
-            action_description += f"\n💥 Dealt **{int(final_damage)}** damage!"
-
-            # Apply Devil Fruit effects if applicable
-            if attacker["fruit"]:
-                fruit_effect = None
-                if isinstance(attacker["fruit"], str):
-                    fruit_data = (DEVIL_FRUITS["Common"].get(attacker["fruit"]) or 
-                                DEVIL_FRUITS["Rare"].get(attacker["fruit"]))
-                    if fruit_data:
-                        bonus_damage, fruit_effect = await self.apply_devil_fruit_effects(
-                            attacker, 
-                            defender, 
-                            final_damage,
-                            move,
-                            turn
-                        )
-                        if fruit_effect:
-                            action_description += f"\n{fruit_effect}"
-                        final_damage += bonus_damage
-
-            # Update battle log
-            await battle_log.edit(content=f"{battle_log.content}\n{action_description}")
-
-            # Update the display
+            # Send initial battle state
             update_player_fields()
-            await message.edit(embed=embed)
-            await asyncio.sleep(2)
+            message = await ctx.send(embed=embed)
+            battle_log = await ctx.send("📜 **Battle Log:**")
 
-            # Switch turns
-            current_player = 1 - current_player
+            # Battle loop
+            turn = 0
+            players = [challenger_data, opponent_data]
+            current_player = 0
 
-            # Check for battle_stopped flag
-            if self.battle_stopped:
-                break
+            while all(p["hp"] > 0 for p in players) and not self.battle_stopped:
+                turn += 1
+                attacker = players[current_player]
+                defender = players[1 - current_player]
 
-        # Determine winner and handle end of battle
-        winner = players[0] if players[0]["hp"] > 0 else players[1]
-        loser = players[1] if players[0]["hp"] > 0 else players[0]
+                # Process status effects at start of turn
+                status_message = await self.process_status_effects(attacker, defender)
+                if status_message:
+                    await battle_log.edit(content=f"{battle_log.content}\n{status_message}")
 
-        # Update stats and handle rewards
-        await self._handle_battle_rewards(ctx, winner, loser)
-        
-        # Final victory message
-        victory_embed = discord.Embed(
-            title="🏆 Battle Complete!",
-            description=f"**{winner['name']}** is victorious!",
-            color=discord.Color.gold()
-        )
-        await message.edit(embed=victory_embed)
+                # Update cooldowns
+                self.update_cooldowns(attacker)
+
+                # Get available moves
+                available_moves = [move for move in MOVES if not move["name"] in attacker["moves_on_cooldown"]]
+                if not available_moves:
+                    available_moves = [move for move in MOVES if move["type"] == "regular"]
+
+                # Select and execute move
+                selected_move = random.choice(available_moves)
+                damage, damage_message = self.calculate_damage(selected_move, attacker, turn)
+
+                # Apply move effects
+                await self.apply_effects(selected_move, attacker, defender)
+
+                # Apply environment effects
+                environment_message = await self.apply_environmental_hazard(environment, [attacker, defender])
+
+                # Apply Devil Fruit effects
+                if attacker["fruit"]:
+                    bonus_damage, fruit_message = await self.apply_devil_fruit_effects(
+                        attacker, defender, damage, selected_move, turn
+                    )
+                    if bonus_damage:
+                        damage += bonus_damage
+
+                # Update HP and stats
+                if damage > 0:
+                    defender["hp"] = max(0, defender["hp"] - damage)
+                    defender["stats"]["damage_taken"] += damage
+                    attacker["stats"]["damage_dealt"] += damage
+
+                # Create turn message
+                turn_message = f"\n🎯 Turn {turn}: **{attacker['name']}** used **{selected_move['name']}**!"
+                if damage_message:
+                    turn_message += f"\n{damage_message}"
+                if environment_message:
+                    turn_message += f"\n{environment_message}"
+                if fruit_message:
+                    turn_message += f"\n{fruit_message}"
+                turn_message += f"\n💥 Dealt **{damage}** damage!"
+
+                # Update battle log
+                await battle_log.edit(content=f"{battle_log.content}\n{turn_message}")
+
+                # Update display
+                update_player_fields()
+                await message.edit(embed=embed)
+
+                # Add delay between turns
+                await asyncio.sleep(2)
+
+                # Switch turns
+                current_player = 1 - current_player
+
+            # Handle battle end
+            winner = next((p for p in players if p["hp"] > 0), players[0])
+            loser = players[1] if winner == players[0] else players[0]
+
+            # Process rewards and update stats
+            await self._handle_battle_rewards(ctx, winner, loser)
+
+            # Create victory embed
+            victory_embed = discord.Embed(
+                title="🏆 Battle Complete!",
+                description=f"**{winner['name']}** is victorious!",
+                color=discord.Color.gold()
+            )
+            await message.edit(embed=victory_embed)
+
+        except Exception as e:
+            logger.error(f"Error in fight: {str(e)}")
+            await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
+            if ctx.channel.id in self.active_channels:
+                self.active_channels.remove(ctx.channel.id)
+            raise
         
     async def process_status_effects(self, attacker, defender):
         """Process all status effects and return effect messages."""
