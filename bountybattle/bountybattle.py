@@ -1618,6 +1618,40 @@ class BountyBattle(commands.Cog):
             }
         }
     
+    async def sync_user_data(self, member):
+        """Synchronize all user data between config and JSON."""
+        try:
+            # Sync bounty
+            bounties = load_bounties()
+            user_id = str(member.id)
+            config_bounty = await self.config.member(member).bounty()
+            json_bounty = bounties.get(user_id, {}).get("amount", 0)
+            true_bounty = max(config_bounty, json_bounty)
+            
+            # Update both systems
+            bounties[user_id] = bounties.get(user_id, {})
+            bounties[user_id]["amount"] = true_bounty
+            save_bounties(bounties)
+            await self.config.member(member).bounty.set(true_bounty)
+            
+            # Sync devil fruit
+            config_fruit = await self.config.member(member).devil_fruit()
+            json_fruit = bounties[user_id].get("fruit")
+            
+            if config_fruit or json_fruit:
+                true_fruit = config_fruit or json_fruit
+                bounties[user_id]["fruit"] = true_fruit
+                await self.config.member(member).devil_fruit.set(true_fruit)
+            
+            # Update last active timestamp
+            await self.config.member(member).last_active.set(datetime.utcnow().isoformat())
+            
+            return true_bounty
+            
+        except Exception as e:
+            logger.error(f"Error in sync_user_data: {str(e)}")
+            return None
+    
     async def cleanup_inactive_fruits(self, ctx, days_inactive: int = 30):
         """Clean up Devil Fruits from inactive players."""
         try:
@@ -1760,30 +1794,74 @@ class BountyBattle(commands.Cog):
         """Start your bounty journey."""
         user = ctx.author
         
-        # Check if user already has a bounty
-        current_bounty = await self.safe_read_bounty(user)
-        if current_bounty > 0:
-            return await ctx.send("Ye already have a bounty, ye scallywag!")
-
-        # Set initial bounty
-        initial_bounty = random.randint(50, 100)
-        new_bounty = await self.safe_modify_bounty(user, initial_bounty, "set")
+        # Load bounties from both sources
+        bounties = load_bounties()
+        user_id = str(user.id)
         
-        if new_bounty is not None:
-            await ctx.send(f"🏴‍☠️ Ahoy, {user.display_name}! Ye have started yer bounty journey with {initial_bounty} Berries!")
+        # Check both config and JSON for existing bounty
+        config_bounty = await self.config.member(user).bounty()
+        json_bounty = bounties.get(user_id, {}).get("amount", 0)
+        
+        # If user has any bounty in either system, sync and return
+        if config_bounty > 0 or json_bounty > 0:
+            true_bounty = max(config_bounty, json_bounty)
             
-            # Beta tester title check
-            async with self.data_lock:
-                beta_active = await self.config.guild(ctx.guild).beta_active()
-                if beta_active:
-                    unlocked_titles = await self.config.member(ctx.author).titles()
-                    if "BETA TESTER" not in unlocked_titles:
-                        unlocked_titles.append("BETA TESTER")
-                        await self.config.member(ctx.author).titles.set(unlocked_titles)
-                        await ctx.send(f"🎖️ **{ctx.author.display_name}** has received the exclusive title: `BETA TESTER`!")
-        else:
-            await ctx.send("⚠️ Failed to start your bounty journey. Please try again.")
-    
+            # Sync both systems
+            bounties[user_id] = bounties.get(user_id, {})
+            bounties[user_id]["amount"] = true_bounty
+            save_bounties(bounties)
+            await self.config.member(user).bounty.set(true_bounty)
+            
+            return await ctx.send(f"Ye already have a bounty of `{true_bounty:,}` Berries, ye scallywag!")
+
+        # Set initial bounty for new players
+        initial_bounty = random.randint(50, 100)
+        
+        try:
+            # Update both systems
+            bounties[user_id] = {
+                "amount": initial_bounty,
+                "fruit": None
+            }
+            save_bounties(bounties)
+            await self.config.member(user).bounty.set(initial_bounty)
+            
+            # Initialize other stats
+            await self.config.member(user).wins.set(0)
+            await self.config.member(user).losses.set(0)
+            await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
+            
+            # Create welcome embed
+            embed = discord.Embed(
+                title="🏴‍☠️ Welcome to the Grand Line!",
+                description=f"**{user.display_name}** has started their pirate journey!",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="Initial Bounty",
+                value=f"`{initial_bounty:,}` Berries",
+                inline=False
+            )
+            
+            # Check for beta tester title
+            beta_active = await self.config.guild(ctx.guild).beta_active()
+            if beta_active:
+                unlocked_titles = await self.config.member(user).titles()
+                if "BETA TESTER" not in unlocked_titles:
+                    unlocked_titles.append("BETA TESTER")
+                    await self.config.member(user).titles.set(unlocked_titles)
+                    embed.add_field(
+                        name="🎖️ Special Title Unlocked",
+                        value="`BETA TESTER`",
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in startbounty: {str(e)}")
+            await ctx.send("⚠️ An error occurred while starting your bounty journey. Please try again.")
+            
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
     async def betaover(self, ctx):
@@ -2199,34 +2277,33 @@ class BountyBattle(commands.Cog):
     @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
-        hunter = ctx.author
-        
-        # Initial validation checks
-        if hunter == target:
-            return await ctx.send("❌ Ye can't hunt yer own bounty, ye scallywag!")
-        
-        if target.bot:
-            return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
-
         try:
-            # Load bounty data
-            bounties = load_bounties()
-            hunter_id = str(hunter.id)
-            target_id = str(target.id)
+            hunter = ctx.author
+            
+            # Initial validation checks
+            if hunter == target:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Ye can't hunt yer own bounty, ye scallywag!")
+            
+            if target.bot:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Ye can't steal from bots, they're too secure!")
 
-            # Validate participants
-            if not all(uid in bounties for uid in [hunter_id, target_id]):
-                return await ctx.send("🏴‍☠️ Both you and your target must have a bounty to participate!")
-
-            target_bounty = bounties[target_id].get("amount", 0)
-            hunter_bounty = bounties[hunter_id].get("amount", 0)
+            # Sync data for both hunter and target
+            hunter_bounty = await self.sync_user_data(hunter)
+            target_bounty = await self.sync_user_data(target)
+            
+            if hunter_bounty is None or target_bounty is None:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ An error occurred while checking bounties.")
 
             # Check minimum bounty requirements
             min_bounty = 1000
             if target_bounty < min_bounty:
+                ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"💰 **{target.display_name}** is too broke to be worth hunting! (Minimum: {min_bounty:,} Berries)")
 
-            # Generate dynamic lock-picking challenge
+            # Generate lock-picking challenge
             patterns = {
                 "Easy": ["🔒🔑", "🔑🔒"],
                 "Medium": ["🔒🔑🔑", "🔑🔒🔑", "🔑🔑🔒"],
@@ -2236,13 +2313,15 @@ class BountyBattle(commands.Cog):
             # Difficulty scales with target's bounty
             if target_bounty > 1_000_000:
                 difficulty = "Hard"
+                time_limit = 8
             elif target_bounty > 100_000:
                 difficulty = "Medium"
+                time_limit = 10
             else:
                 difficulty = "Easy"
+                time_limit = 12
 
             lock_code = random.choice(patterns[difficulty])
-            time_limit = {"Easy": 12, "Medium": 10, "Hard": 8}[difficulty]
 
             # Create challenge embed
             challenge_embed = discord.Embed(
@@ -2257,7 +2336,6 @@ class BountyBattle(commands.Cog):
             )
             await ctx.send(embed=challenge_embed)
 
-            # Wait for response
             try:
                 msg = await self.bot.wait_for(
                     "message",
@@ -2272,7 +2350,11 @@ class BountyBattle(commands.Cog):
                 )
                 return await ctx.send(embed=timeout_embed)
 
-            # Check response and handle outcomes
+            # Load bounties for updating
+            bounties = load_bounties()
+            hunter_id = str(hunter.id)
+            target_id = str(target.id)
+
             if msg.content.strip() != lock_code:
                 fail_embed = discord.Embed(
                     title="❌ Lock Pick Failed!",
@@ -2285,19 +2367,25 @@ class BountyBattle(commands.Cog):
             success = random.random() < 0.6  # 60% base success rate
             critical_failure = random.random() < 0.05  # 5% critical failure chance
 
-            # Calculate steal amount with minimum guarantee
-            base_steal = random.uniform(0.05, 0.20)
-            steal_amount = max(int(base_steal * target_bounty), 500)
-
             if success and not critical_failure:
+                # Calculate steal amount with minimum guarantee
+                base_steal = random.uniform(0.05, 0.20)
+                steal_amount = max(int(base_steal * target_bounty), 500)
+                
                 try:
                     bounties[hunter_id]["amount"] += steal_amount
                     bounties[target_id]["amount"] = max(0, target_bounty - steal_amount)
                     save_bounties(bounties)
 
-                    # Update stats and activity
-                    await self.update_hunter_stats(hunter, steal_amount)
-                    await self.update_activity(hunter, target)
+                    # Update both users in config
+                    await self.config.member(hunter).bounty.set(bounties[hunter_id]["amount"])
+                    await self.config.member(target).bounty.set(bounties[target_id]["amount"])
+                    
+                    # Update activity timestamps
+                    current_time = datetime.utcnow().isoformat()
+                    await self.config.member(hunter).last_active.set(current_time)
+                    await self.config.member(target).last_active.set(current_time)
+
                 except Exception as e:
                     logger.error(f"Failed to save bounty data in bountyhunt: {e}")
                     await ctx.send("⚠️ Failed to process bounty hunt rewards. Please try again.")
@@ -2311,17 +2399,17 @@ class BountyBattle(commands.Cog):
                 )
                 success_embed.add_field(
                     name="💎 Stolen Amount",
-                    value=f"`{steal_amount:,} Berries`",
+                    value=f"`{steal_amount:,}` Berries",
                     inline=False
                 )
                 success_embed.add_field(
                     name="🏆 New Hunter Bounty",
-                    value=f"`{bounties[hunter_id]['amount']:,} Berries`",
+                    value=f"`{bounties[hunter_id]['amount']:,}` Berries",
                     inline=True
                 )
                 success_embed.add_field(
                     name="💀 New Target Bounty",
-                    value=f"`{bounties[target_id]['amount']:,} Berries`",
+                    value=f"`{bounties[target_id]['amount']:,}` Berries",
                     inline=True
                 )
                 await ctx.send(embed=success_embed)
@@ -2331,36 +2419,37 @@ class BountyBattle(commands.Cog):
                 penalty = max(int(hunter_bounty * 0.10), 1000)
                 bounties[hunter_id]["amount"] = max(0, hunter_bounty - penalty)
                 save_bounties(bounties)
+                await self.config.member(hunter).bounty.set(bounties[hunter_id]["amount"])
 
                 failure_embed = discord.Embed(
                     title="💥 Critical Failure!",
                     description=(
                         f"**{hunter.display_name}** got caught in a trap while trying to rob "
                         f"**{target.display_name}**!\n\n"
-                        f"*The Marines were alerted and imposed a fine!*"
-                    ),
-                    color=discord.Color.red()
-                )
-                failure_embed.add_field(
-                    name="💸 Fine Amount",
-                    value=f"`{penalty:,} Berries`",
-                    inline=False
-                )
-                failure_embed.add_field(
-                    name="🏴‍☠️ Remaining Bounty",
-                    value=f"`{bounties[hunter_id]['amount']:,} Berries`",
-                    inline=True
-                )
-                await ctx.send(embed=failure_embed)
+                            f"*The Marines were alerted and imposed a fine!*"
+                        ),
+                        color=discord.Color.red()
+                    )
+                    failure_embed.add_field(
+                        name="💸 Fine Amount",
+                        value=f"`{penalty:,} Berries`",
+                        inline=False
+                    )
+                    failure_embed.add_field(
+                        name="🏴‍☠️ Remaining Bounty",
+                        value=f"`{bounties[hunter_id]['amount']:,} Berries`",
+                        inline=True
+                    )
+                    await ctx.send(embed=failure_embed)
 
-            else:
-                # Handle normal failure
-                await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
+                else:
+                    # Handle normal failure
+                    await ctx.send(f"💀 **{hunter.display_name}** failed to steal from **{target.display_name}**!")
 
-        except Exception as e:
-            logger.error(f"Error in bountyhunt command: {str(e)}")
-            await ctx.send("❌ An error occurred during the bounty hunt!")
-            self.bot.dispatch("command_error", ctx, e)
+            except Exception as e:
+                logger.error(f"Error in bountyhunt command: {str(e)}")
+                await ctx.send("❌ An error occurred during the bounty hunt!")
+                self.bot.dispatch("command_error", ctx, e)
             
     @commands.command()
     async def syncbounties(self, ctx):
@@ -2408,28 +2497,24 @@ class BountyBattle(commands.Cog):
     async def mybounty(self, ctx):
         """Check your bounty amount."""
         user = ctx.author
-        user_id = str(user.id)
         
-        try:
-            # Load bounties from both sources
-            bounties = load_bounties()
-            config_bounty = await self.config.member(user).bounty()
-            json_bounty = bounties.get(user_id, {}).get("amount", 0)
+        # Sync data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking your bounty.")
             
-            # Use the higher value
-            true_bounty = max(config_bounty, json_bounty)
-            
-            # Update both systems
-            bounties[user_id] = bounties.get(user_id, {})
-            bounties[user_id]["amount"] = true_bounty
-            save_bounties(bounties)
-            await self.config.member(user).bounty.set(true_bounty)
-            
-            await ctx.send(f"🏴‍☠️ {user.display_name}, yer bounty is `{true_bounty:,}` Berries!")
+        # Get current title based on synced bounty
+        current_title = self.get_bounty_title(true_bounty)
         
-        except Exception as e:
-            logger.error(f"Error in mybounty: {str(e)}")
-            await ctx.send(f"❌ An error occurred while checking your bounty: {str(e)}")
+        embed = discord.Embed(
+            title="🏴‍☠️ Bounty Status",
+            description=f"**{user.display_name}**'s current bounty:",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="💰 Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
+        embed.add_field(name="🎭 Title", value=f"`{current_title}`", inline=False)
+        
+        await ctx.send(embed=embed)
 
     
     @commands.command()
@@ -2504,23 +2589,23 @@ class BountyBattle(commands.Cog):
         """Display a wanted poster with the user's avatar, username, and bounty."""
         if member is None:
             member = ctx.author
-    
-        bounties = load_bounties()  # ✅ Use load_bounties() instead
-        user_id = str(member.id)
-    
-        if user_id not in bounties:
+            
+        # Sync data first
+        true_bounty = await self.sync_user_data(member)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while creating wanted poster.")
+
+        if true_bounty == 0:
             return await ctx.send(f"{member.display_name} needs to start their bounty journey first by typing `.startbounty`!")
-    
-        bounty_amount = bounties[user_id].get("amount", 0)
+
         avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
-    
         async with aiohttp.ClientSession() as session:
             async with session.get(avatar_url) as response:
                 if response.status != 200:
                     return await ctx.send("Failed to retrieve avatar.")
                 avatar_data = await response.read()
-    
-        wanted_poster = await self.create_wanted_poster(member.display_name, bounty_amount, avatar_data)
+
+        wanted_poster = await self.create_wanted_poster(member.display_name, true_bounty, avatar_data)
         if isinstance(wanted_poster, str):
             return await ctx.send(wanted_poster)
         await ctx.send(file=discord.File(wanted_poster, "wanted.png"))
@@ -2655,35 +2740,28 @@ class BountyBattle(commands.Cog):
         if member is None:
             member = ctx.author
 
+        # Sync data first
+        true_bounty = await self.sync_user_data(member)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking stats.")
+
+        # Get synced data
         bounties = load_bounties()
         user_id = str(member.id)
-
-        if user_id not in bounties:
-            return await ctx.send(f"🏴‍☠️ {member.display_name} has no bounty record! Use `.startbounty`.")
-
-        # Fetch bounty data
-        bounty_amount = bounties[user_id].get("amount", 0)
         devil_fruit = bounties[user_id].get("fruit", "None")
-
-        # Fetch user stats from config
         wins = await self.config.member(member).wins()
         losses = await self.config.member(member).losses()
         titles = await self.config.member(member).titles()
-        equipped_title = await self.config.member(member).equipped_title() or "None"
+        current_title = await self.config.member(member).current_title()
 
-        # Count remaining rare fruits
-        taken_rare_fruits = {data["fruit"] for data in bounties.values() if "fruit" in data and data["fruit"] in DEVIL_FRUITS["Rare"]}
-        remaining_rare_fruits = len(DEVIL_FRUITS["Rare"]) - len(taken_rare_fruits)
-
-        # Build embed
+        # Create embed
         embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
-        embed.add_field(name="💰 Bounty", value=f"`{bounty_amount:,} Berries`", inline=False)
-        embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`" if devil_fruit else "`None`", inline=False)
+        embed.add_field(name="💰 Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
+        embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`", inline=False)
         embed.add_field(name="🏆 Wins", value=f"`{wins}`", inline=True)
         embed.add_field(name="💀 Losses", value=f"`{losses}`", inline=True)
-        embed.add_field(name="🌟 Rare Fruits Left", value=f"`{remaining_rare_fruits}`", inline=False)
-        embed.add_field(name="🎖️ Titles", value=", ".join(titles) if titles else "`None`", inline=False)
-        embed.add_field(name="🎭 Equipped Title", value=f"`{equipped_title}`", inline=False)
+        embed.add_field(name="🎖️ Titles", value=", ".join(f"`{t}`" for t in titles) if titles else "`None`", inline=False)
+        embed.add_field(name="🎭 Current Title", value=f"`{current_title or 'None'}`", inline=False)
 
         await ctx.send(embed=embed)
 
@@ -2704,39 +2782,33 @@ class BountyBattle(commands.Cog):
 
         await ctx.send(embed=embed)
 
-
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
     async def berryflip(self, ctx, bet: Optional[int] = None):
         """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
         try:
             user = ctx.author
-            bounties = load_bounties()
-            user_id = str(user.id)
-
-            if user_id not in bounties:
-                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
-
-            current_bounty = bounties[user_id]["amount"]
             
+            # Sync data first
+            true_bounty = await self.sync_user_data(user)
+            if true_bounty is None:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ An error occurred while checking your bounty.")
+
+            if true_bounty == 0:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
+                
             # Validate bet amount
             if bet is None:
-                bet = min(current_bounty, 10000)  # Default to 10k or max bounty
-            elif not isinstance(bet, int):
-                # Remove cooldown if input is invalid
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send("❌ Bet must be a valid number of Berries!")
+                bet = min(true_bounty, 10000)  # Default to 10k or max bounty
             elif bet < 100:
-                # Remove cooldown if bet is too low
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ Minimum bet is `100` Berries! Don't be stingy!")
-            elif bet > current_bounty:
-                # Remove cooldown if bet exceeds current bounty
+            elif bet > true_bounty:
                 ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f"❌ Ye only have `{current_bounty:,}` Berries to bet!")
+                return await ctx.send(f"❌ Ye only have `{true_bounty:,}` Berries to bet!")
 
-            # Rest of the berryflip implementation remains the same...
-            
             # Create initial embed
             embed = discord.Embed(
                 title="🎲 Berry Flip Gamble",
@@ -2744,7 +2816,7 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.gold()
             )
             
-            # Calculate and show win probability
+            # Calculate win probability based on bet size
             if bet <= 1000:
                 win_probability = 0.75  # 75% chance
                 difficulty = "Easy"
@@ -2772,6 +2844,10 @@ class BountyBattle(commands.Cog):
 
             # Determine outcome
             won = random.random() < win_probability
+            
+            # Load bounties for updating
+            bounties = load_bounties()
+            user_id = str(user.id)
             
             if won:
                 # Calculate bonus multiplier based on risk
@@ -2804,8 +2880,6 @@ class BountyBattle(commands.Cog):
 
             # Save updated bounties
             save_bounties(bounties)
-
-            # Update Config as well for compatibility
             await self.config.member(user).bounty.set(bounties[user_id]["amount"])
             await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
 
@@ -2826,29 +2900,22 @@ class BountyBattle(commands.Cog):
             if new_bounty >= 900_000_000:
                 await self.announce_rank(ctx.guild, user, new_title)
 
-            # Log the gamble
-            logger.info(
-                f"Berryflip: {user.display_name} bet {bet:,} Berries - "
-                f"{'Won' if won else 'Lost'} - New bounty: {new_bounty:,}"
-            )
-
             # Update the embed
             await message.edit(embed=embed)
 
         except Exception as e:
-            # Remove cooldown if an unexpected error occurs
             ctx.command.reset_cooldown(ctx)
             logger.error(f"Error in berryflip command: {str(e)}")
             await ctx.send("❌ An error occurred during the gamble!")
 
-    @berryflip.error
-    async def berryflip_error(self, ctx, error):
-        """Custom error handler for berryflip command."""
-        if isinstance(error, commands.CommandOnCooldown):
-            # Only send the cooldown message once
-            minutes = int(error.retry_after / 60)
-            seconds = int(error.retry_after % 60)
-            await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
+        @berryflip.error
+        async def berryflip_error(self, ctx, error):
+            """Custom error handler for berryflip command."""
+            if isinstance(error, commands.CommandOnCooldown):
+                # Only send the cooldown message once
+                minutes = int(error.retry_after / 60)
+                seconds = int(error.retry_after % 60)
+                await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
         
     @commands.command()
     async def missions(self, ctx):
@@ -3861,48 +3928,30 @@ class BountyBattle(commands.Cog):
         
     @commands.command()
     async def titles(self, ctx, action: str = None, *, title: str = None):
-        """View or equip a previously unlocked title, including exclusive ones."""
+        """View or equip titles."""
         user = ctx.author
-        bounty = (await self.config.guild(ctx.guild).bounties()).get(str(user.id), {}).get("amount", 0)
+        
+        # Sync data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking titles.")
 
-        # Get all normal unlocked titles based on bounty
-        unlocked_titles = {t for t, c in TITLES.items() if bounty >= c["bounty"]}
-
-        # ✅ Add hidden & exclusive titles that have been unlocked, avoiding duplicates
+        # Get all titles based on synced bounty
+        unlocked_titles = {t for t, c in TITLES.items() if true_bounty >= c["bounty"]}
         user_titles = await self.config.member(user).titles()
-        unlocked_titles.update(user_titles)  # ✅ Ensures no duplicate titles
-
-        # ✅ Fetch `current_title` (NOT `equipped_title`)
-        equipped_title = await self.config.member(user).current_title()
-
-        # ✅ Convert all titles to lowercase for case-insensitive comparison
-        unlocked_titles_lower = {t.lower(): t for t in unlocked_titles}
-
-        # ✅ Ensure the equipped title is still valid
-        if equipped_title and equipped_title.lower() in unlocked_titles_lower:
-            equipped_title = unlocked_titles_lower[equipped_title.lower()]
-        else:
-            equipped_title = None  # Reset if the title isn't in the unlocked list
-            await self.config.member(user).current_title.set(None)  # ✅ Fix stored title
-
-        if not unlocked_titles:
-            return await ctx.send("🏴‍☠️ You haven't unlocked any titles yet!")
+        unlocked_titles.update(user_titles)
+        current_title = await self.config.member(user).current_title()
 
         if action == "equip" and title:
-            if title.lower() not in unlocked_titles_lower:
+            if title not in unlocked_titles:
                 return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
+            await self.config.member(user).current_title.set(title)
+            return await ctx.send(f"✅ Title equipped: `{title}`")
 
-            await self.config.member(user).current_title.set(unlocked_titles_lower[title.lower()])
-            return await ctx.send(f"✅ **{user.display_name}** has equipped the title `{unlocked_titles_lower[title.lower()]}`!")
-
-        # Show available titles
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
         embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
-        embed.add_field(name="Currently Equipped", value=equipped_title or "None Equipped", inline=False)
-        embed.set_footer(text='Use [p]equiptitle "<title>" to set a title!')
-
+        embed.add_field(name="Current Title", value=current_title or "None", inline=False)
         await ctx.send(embed=embed)
-
         
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, *, title: str):
@@ -3924,39 +3973,90 @@ class BountyBattle(commands.Cog):
         """Check a player's deathmatch stats."""
         member = member or ctx.author
         
-        # Sync bounty first
-        bounties = load_bounties()
-        config_bounty = await self.config.member(member).bounty()
-        json_bounty = bounties.get(str(member.id), {}).get("amount", 0)
-        true_bounty = max(config_bounty, json_bounty)
-        
-        # Update both systems
-        bounties[str(member.id)] = bounties.get(str(member.id), {})
-        bounties[str(member.id)]["amount"] = true_bounty
-        save_bounties(bounties)
-        await self.config.member(member).bounty.set(true_bounty)
-        
-        # Get other stats
-        stats = await self.config.member(member).all()
-        wins = stats.get("wins", 0)
-        losses = stats.get("losses", 0)
-        hidden_titles = stats.get("titles", [])
-        
-        # Get title based on synced bounty
-        title = self.get_bounty_title(true_bounty) or "Unknown Pirate"
-        if hidden_titles:
-            title += f" / {', '.join(hidden_titles)}"
-        
-        embed = discord.Embed(
-            title=f"⚔️ Deathmatch Stats for {member.display_name}",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="🏆 Wins", value=str(wins), inline=True)
-        embed.add_field(name="💀 Losses", value=str(losses), inline=True)
-        embed.add_field(name="💰 Bounty", value=f"{true_bounty:,} Berries", inline=True)
-        embed.add_field(name="🎖️ Titles", value=title, inline=False)
-        
-        await ctx.send(embed=embed)
+        try:
+            # Sync data first
+            true_bounty = await self.sync_user_data(member)
+            if true_bounty is None:
+                return await ctx.send("❌ An error occurred while checking stats.")
+
+            # Get comprehensive stats
+            stats = await self.config.member(member).all()
+            wins = stats.get("wins", 0)
+            losses = stats.get("losses", 0)
+            kdr = wins / losses if losses > 0 else wins if wins > 0 else 0.0
+            damage_dealt = stats.get("damage_dealt", 0)
+            damage_taken = stats.get("damage_taken", 0)
+            critical_hits = stats.get("critical_hits", 0)
+            
+            # Get titles and achievements
+            titles = stats.get("titles", [])
+            current_title = stats.get("current_title") or self.get_bounty_title(true_bounty)
+            achievements = stats.get("achievements", [])
+
+            # Create detailed embed
+            embed = discord.Embed(
+                title=f"⚔️ Battle Statistics for {member.display_name}",
+                color=discord.Color.blue()
+            )
+
+            # Combat Stats
+            embed.add_field(
+                name="Combat Record",
+                value=(
+                    f"🏆 Wins: `{wins}`\n"
+                    f"💀 Losses: `{losses}`\n"
+                    f"📊 K/D Ratio: `{kdr:.2f}`"
+                ),
+                inline=False
+            )
+
+            # Damage Stats
+            embed.add_field(
+                name="Damage Statistics",
+                value=(
+                    f"⚔️ Damage Dealt: `{damage_dealt:,}`\n"
+                    f"🛡️ Damage Taken: `{damage_taken:,}`\n"
+                    f"💥 Critical Hits: `{critical_hits}`"
+                ),
+                inline=False
+            )
+
+            # Bounty and Titles
+            embed.add_field(
+                name="Bounty & Titles",
+                value=(
+                    f"💰 Current Bounty: `{true_bounty:,}` Berries\n"
+                    f"👑 Current Title: `{current_title}`"
+                ),
+                inline=False
+            )
+
+            # Special Titles
+            if titles:
+                embed.add_field(
+                    name="🎖️ Special Titles Earned",
+                    value="\n".join(f"• `{title}`" for title in titles),
+                    inline=False
+                )
+
+            # Achievements
+            if achievements:
+                achieved = []
+                for ach in achievements:
+                    if ach in ACHIEVEMENTS:
+                        achieved.append(f"• {ACHIEVEMENTS[ach]['description']}")
+                if achieved:
+                    embed.add_field(
+                        name="🏆 Achievements Unlocked",
+                        value="\n".join(achieved),
+                        inline=False
+                    )
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error in deathstats command: {str(e)}")
+            await ctx.send("❌ An error occurred while retrieving battle statistics!")
 
     async def update_winner(self, ctx, winner):
         """Update bounty and stats for the winner."""
@@ -3979,15 +4079,27 @@ class BountyBattle(commands.Cog):
     async def achievements(self, ctx):
         """Show your unlocked achievements."""
         user = ctx.author
-        achievements = await self.config.member(user).achievements()
+        
+        # Sync data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking achievements.")
 
+        achievements = await self.config.member(user).achievements()
         if not achievements:
             return await ctx.send("Ye have no achievements yet! Win battles and increase yer bounty!")
 
-        embed = discord.Embed(title=f"🏆 {user.display_name}'s Achievements", color=discord.Color.green())
-
+        embed = discord.Embed(
+            title=f"🏆 {user.display_name}'s Achievements",
+            color=discord.Color.green()
+        )
         for achievement in achievements:
-            embed.add_field(name=achievement, value="✅ Unlocked!", inline=False)
+            if achievement in ACHIEVEMENTS:
+                embed.add_field(
+                    name=ACHIEVEMENTS[achievement]["description"],
+                    value=f"🎖️ Title Earned: `{ACHIEVEMENTS[achievement]['title']}`",
+                    inline=False
+                )
 
         await ctx.send(embed=embed)
 
