@@ -483,34 +483,40 @@ class DataValidator:
     async def validate_battle_participants(self, ctx, challenger, opponent) -> tuple[bool, str]:
         """Validates participants for a battle."""
         try:
-            # Check for self-challenge
-            if challenger == opponent:
-                return False, "❌ You cannot challenge yourself!"
-                
-            # Check if opponent is a bot
-            if opponent.bot:
-                return False, "❌ You cannot challenge a bot!"
-                
-            # Load bounties from JSON
+            # Debug logging
             bounties = load_bounties()
             challenger_id = str(challenger.id)
             opponent_id = str(opponent.id)
+            
+            self.cog.log.info(f"Validating battle: {challenger.name} vs {opponent.name}")
+            self.cog.log.info(f"Challenger ID {challenger_id} in bounties: {challenger_id in bounties}")
+            self.cog.log.info(f"Opponent ID {opponent_id} in bounties: {opponent_id in bounties}")
+            
+            if challenger_id in bounties:
+                self.cog.log.info(f"Challenger bounty: {bounties[challenger_id].get('amount', 0)}")
+            if opponent_id in bounties:
+                self.cog.log.info(f"Opponent bounty: {bounties[opponent_id].get('amount', 0)}")
 
-            # Verify both users have bounties
+            # Rest of validation code remains the same
+            if challenger == opponent:
+                return False, "❌ You cannot challenge yourself!"
+                
+            if opponent.bot:
+                return False, "❌ You cannot challenge a bot!"
+                
             if challenger_id not in bounties or bounties[challenger_id].get("amount", 0) <= 0:
                 return False, f"❌ {challenger.display_name} needs to start their bounty journey first! Use `.startbounty`"
                 
             if opponent_id not in bounties or bounties[opponent_id].get("amount", 0) <= 0:
                 return False, f"❌ {opponent.display_name} needs to start their bounty journey first!"
                 
-            # Check if either user is in an active battle
             active_channels = set(self.cog.active_channels)
             if challenger.id in active_channels or opponent.id in active_channels:
                 return False, "❌ One or both players are already in a battle!"
                 
             return True, ""
         except Exception as e:
-            self.cog.log.error(f"Error validating battle participants: {e}")
+            self.cog.log.error(f"Error validating battle participants: {str(e)}")
             return False, "❌ An error occurred validating the battle participants!"
             
     async def validate_devil_fruit_action(self, ctx, user, action_type: str) -> tuple[bool, str]:
