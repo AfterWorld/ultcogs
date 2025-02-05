@@ -755,11 +755,19 @@ class DevilFruitManager:
         bonus_damage = 0
         effect_message = None
 
+        # Get base damage from move
+        base_damage = move.get("damage", 0)
+        if base_damage == 0 and move.get("type") in MOVE_TYPES:
+            # If no damage specified, use the move type's base damage range
+            move_type = MOVE_TYPES[move["type"]]
+            min_damage, max_damage = move_type["base_damage_range"]
+            base_damage = (min_damage + max_damage) // 2
+
         # Mera Mera no Mi
         if effect == "fire":
             if random.random() < 0.4:
                 await self.status_manager.apply_effect("burn", defender, value=2)
-                bonus_damage = int(move.get("damage", 0) * 1.0)  # Double damage
+                bonus_damage = int(base_damage * 1.0)  # Double damage
                 effect_message = (
                     f"🔥 **FLAME EMPEROR**! 🔥\n"
                     f"**{attacker['name']}** unleashes an inferno!\n"
@@ -768,13 +776,13 @@ class DevilFruitManager:
 
         # Goro Goro no Mi
         elif effect == "lightning":
-            if random.random() < 0.2:
+            if random.random() < 0.3:  # Increased proc chance
                 await self.status_manager.apply_effect("stun", defender, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.5)
+                bonus_damage = int(base_damage * 0.7)  # Increased damage bonus
                 effect_message = (
                     f"⚡ **THUNDER GOD**! ⚡\n"
                     f"**{attacker['name']}** channels lightning!\n"
-                    f"💫 Stun effect + Bonus damage!"
+                    f"💫 Stun effect + {bonus_damage} bonus damage!"
                 )
 
         # Moku Moku no Mi
@@ -834,24 +842,30 @@ class DevilFruitManager:
 
         # Pika Pika no Mi
         elif effect == "light":
-            bonus_damage = int(move.get("damage", 0) * 0.4)
+            bonus_damage = int(base_damage * 0.8)  # Increased base bonus
             if random.random() < 0.2:
-                bonus_damage *= 2
+                bonus_damage *= 2  # Double bonus damage on crit
                 effect_message = (
                     f"✨ **SACRED YASAKANI**! ✨\n"
                     f"**{attacker['name']}** attacks at light speed!\n"
                     f"⚡ Double damage + Defense pierce!"
                 )
+            else:
+                effect_message = (
+                    f"💫 **LIGHT SPEED**! 💫\n"
+                    f"**{attacker['name']}** attacks with light!\n"
+                    f"⚡ {bonus_damage} bonus damage!"
+                )
 
         # Magu Magu no Mi
         elif effect == "magma":
-            await self.status_manager.apply_effect("burn", defender, value=3)
-            bonus_damage = int(move.get("damage", 0) * 0.6)
+            await self.status_manager.apply_effect("burn", defender, value=3, duration=3)
+            bonus_damage = int(base_damage * 0.6)
             effect_message = (
                 f"🌋 **GREAT ERUPTION**! 🌋\n"
                 f"**{attacker['name']}** unleashes magma!\n"
                 f"🔥 Maximum burn + Heavy damage!"
-            )
+        )
 
         # Mori Mori no Mi
         elif effect == "forest":
@@ -875,13 +889,13 @@ class DevilFruitManager:
                     f"💨 Evasion boost + Bonus damage!"
                 )
 
-        # Environment interactions
+        # Environment interactions with proper scaling
         if environment == "Punk Hazard" and effect in ["fire", "ice", "magma"]:
             bonus_damage = int(bonus_damage * 1.5)
             effect_message = f"{effect_message}\n🌋 Power amplified by Punk Hazard's climate!"
-        elif environment == "Alabasta" and effect == "sand":
+        elif environment == "Alabasta" and effect in ["fire", "magma"]:
             bonus_damage = int(bonus_damage * 1.3)
-            effect_message = f"{effect_message}\n🏜️ Desert environment enhances sand powers!"
+            effect_message = f"{effect_message}\n🏜️ Desert environment enhances fire powers!"
         elif environment == "Marineford":
             bonus_damage = int(bonus_damage * 1.2)
             effect_message = f"{effect_message}\n⚔️ Sacred battleground amplifies power!"
@@ -890,9 +904,13 @@ class DevilFruitManager:
 
     async def _handle_zoan_effects(self, attacker, defender, effect, move, environment):
         """Handle Zoan-type Devil Fruit effects."""
-        logger.info(f"Processing Zoan effect: {effect}")  # Add this line
         bonus_damage = 0
-        effect_message = None
+        base_damage = move.get("damage", 0)
+        if base_damage == 0 and move.get("type") in MOVE_TYPES:
+            move_type = MOVE_TYPES[move["type"]]
+            min_damage, max_damage = move_type["base_damage_range"]
+            base_damage = (min_damage + max_damage) // 2
+
 
         # Leopard Zoan (Neko Neko no Mi: Model Leopard)
         if effect == "leopard":
@@ -905,27 +923,26 @@ class DevilFruitManager:
                     f"⚡ Speed increased + Bonus damage!"
                 )
 
-        # Azure Dragon Zoan (Tatsu Tatsu no Mi: Model Azure Dragon)
+        # Model Azure Dragon
         elif "Azure Dragon" in effect:
-            if random.random() < 0.25:
-                bonus_damage = int(move.get("damage", 0) * 0.3)
-                await self.status_manager.apply_effect("elemental_resist", attacker, duration=2)
-                effect_message = (
-                    f"🐉 **CELESTIAL DRAGON'S MIGHT**! 🐉\n"
-                    f"**{attacker['name']}** channels divine power!\n"
-                    f"✨ Elemental resistance + Enhanced damage!"
-                )
+            bonus_damage = int(base_damage * 0.5)  # Increased damage bonus
+            await self.status_manager.apply_effect("protect", attacker, duration=2)
+            effect_message = (
+                f"🐉 **CELESTIAL DRAGON'S MIGHT**! 🐉\n"
+                f"**{attacker['name']}** channels divine power!\n"
+                f"✨ Protected + {bonus_damage} bonus damage!"
+            )
 
-        # Phoenix Zoan (Tori Tori no Mi: Model Phoenix)
-        elif "Phoenix" in effect:
-            if random.random() < 0.3:
-                heal_amount = int(attacker["hp"] * 0.1)
-                attacker["hp"] = min(250, attacker["hp"] + heal_amount)
-                effect_message = (
-                    f"🦅 **FLAMES OF RESTORATION**! 🦅\n"
-                    f"**{attacker['name']}** bathes in regenerative flames!\n"
-                    f"💚 Healed {heal_amount} HP through immortal fire!"
-                )
+        # Model Phoenix (Tori Tori no Mi: Model Phoenix)
+        if "Phoenix" in effect:
+            heal_amount = int(attacker["max_hp"] * 0.1)  # 10% max HP heal
+            attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
+            effect_message = (
+                f"🦅 **FLAMES OF RESTORATION**! 🦅\n"
+                f"**{attacker['name']}** bathes in regenerative flames!\n"
+                f"💚 Healed {heal_amount} HP!"
+            )
+            bonus_damage = int(base_damage * 0.3)  # Added damage bonus
 
         # Spinosaurus Zoan (Ryu Ryu no Mi: Model Spinosaurus)
         elif "Spinosaurus" in effect:
@@ -994,18 +1011,19 @@ class DevilFruitManager:
                     f"💥 Triple coordinated attack!"
                 )
 
-        # Nika Zoan (Hito Hito no Mi: Model Nika)
+        # Model Nika (Hito Hito no Mi: Model Nika)
         elif effect == "nika":
             if random.random() < 0.4:
                 effect_choice = random.choice(["drumbeat", "giant", "freedom"])
                 if effect_choice == "drumbeat":
-                    bonus_damage = int(move.get("damage", 0) * 0.8)
+                    bonus_damage = int(base_damage * 1.0)  # Full bonus damage
                     effect_message = (
                         f"💥 **DRUMS OF LIBERATION**! 💥\n"
                         f"**{attacker['name']}** awakens the rhythm of freedom!\n"
                         f"🥁 Massive damage boost through joy!"
                     )
                 elif effect_choice == "giant":
+                    bonus_damage = int(base_damage * 0.8)
                     await self.status_manager.apply_effect("transform", attacker, duration=2)
                     effect_message = (
                         f"🌟 **GIANT WARRIOR**! 🌟\n"
@@ -1013,7 +1031,7 @@ class DevilFruitManager:
                         f"👊 Size and power dramatically increased!"
                     )
                 elif effect_choice == "freedom":
-                    # Clear all negative status effects
+                    bonus_damage = int(base_damage * 0.5)
                     attacker["status"] = {k: v for k, v in attacker["status"].items() 
                                         if not isinstance(v, (bool, int)) or not v}
                     effect_message = (
@@ -1098,17 +1116,20 @@ class DevilFruitManager:
     async def _handle_paramecia_effects(self, attacker, defender, effect, move, environment):
         """Handle Paramecia-type Devil Fruit effects."""
         bonus_damage = 0
-        effect_message = None
+        base_damage = move.get("damage", 0)
+        if base_damage == 0 and move.get("type") in MOVE_TYPES:
+            move_type = MOVE_TYPES[move["type"]]
+            min_damage, max_damage = move_type["base_damage_range"]
+            base_damage = (min_damage + max_damage) // 2
 
         # Gomu Gomu no Mi
-        if effect == "rubber":
-            if move.get("type") == "strong":
-                bonus_damage = int(move.get("damage", 0) * 0.5)
-                effect_message = (
-                    f"💫 **RUBBER ENHANCEMENT**! 💫\n"
-                    f"**{attacker['name']}** stretches for maximum power!\n"
-                    f"💥 Attack power increased by elasticity!"
-                )
+        if effect == "rubber" and move.get("type") == "strong":
+            bonus_damage = int(base_damage * 0.8)  # Increased bonus
+            effect_message = (
+                f"💫 **RUBBER ENHANCEMENT**! 💫\n"
+                f"**{attacker['name']}** stretches for maximum power!\n"
+                f"💥 Attack power increased by elasticity!"
+            )
 
         # Ope Ope no Mi
         elif effect == "surgical":
@@ -1355,16 +1376,24 @@ class DevilFruitManager:
             
         # Mochi Mochi no Mi
         elif effect == "mochi":
-            if "dodge_cooldown" not in attacker:
+            if not hasattr(attacker, "dodge_cooldown"):
                 attacker["dodge_cooldown"] = 0
             
-            if attacker["dodge_cooldown"] <= 0 and random.random() < 0.25:
+            if attacker["dodge_cooldown"] <= 0:
+                bonus_damage = int(base_damage * 0.5)
                 await self.status_manager.apply_effect("dodge", attacker, duration=1)
-                attacker["dodge_cooldown"] = 4  # Reset cooldown
+                attacker["dodge_cooldown"] = 4
                 effect_message = (
                     f"🍡 **MOCHI DEFENSE**! 🍡\n"
                     f"**{attacker['name']}** becomes malleable!\n"
-                    f"✨ Attack evaded through mochi transformation!"
+                    f"✨ Dodge activated + {bonus_damage} bonus damage!"
+                )
+            else:
+                bonus_damage = int(base_damage * 0.3)
+                effect_message = (
+                    f"🍡 **MOCHI STRIKE**! 🍡\n"
+                    f"**{attacker['name']}** attacks with sticky mochi!\n"
+                    f"💥 {bonus_damage} bonus damage!"
                 )
             attacker["dodge_cooldown"] = max(0, attacker["dodge_cooldown"] - 1)
 
