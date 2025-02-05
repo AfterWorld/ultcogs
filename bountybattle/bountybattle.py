@@ -13,11 +13,25 @@ import json
 import os
 import difflib
 from typing import Optional
+import math
+
+# Initialize logger
+logger = logging.getLogger("red.bountybattle")
+logger.setLevel(logging.INFO)
 
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
 # Ensure directory exists
 os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
+
+
+handler = logging.FileHandler(
+    filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/logs/bountybattle.log",
+    encoding="utf-8",
+    mode="w"
+)
+handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+logger.addHandler(handler)
 
 def load_json(file_path):
     """Safely load JSON data from a file."""
@@ -52,13 +66,6 @@ def save_bounties(data):
     os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
     with open(BOUNTY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
-
-# Initialize logger
-logger = logging.getLogger("red.bounty")
-logger.setLevel(logging.INFO)
-handler = logging.FileHandler(filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/logs/bountybattle.log", encoding="utf-8", mode="w")
-handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
-logger.addHandler(handler)
 
 # --- Constants ---
 ACHIEVEMENTS = {
@@ -418,6 +425,381 @@ ENVIRONMENTS = {
         ),
     },
 }
+
+class EventManager:
+    def __init__(self, bot):
+        self.bot = bot
+        self.active_events = {}
+        self.scheduled_events = {}
+        
+        self.event_data = {
+            "Davy Back Fight": {
+                "duration": 3600,  # 1 hour
+                "min_participants": 4,
+                "rewards": {
+                    "first": 50000,
+                    "second": 25000,
+                    "third": 10000
+                },
+                "description": "Compete in various mini-games for glory and prizes!",
+                "type": "tournament"
+            },
+            "Marine Invasion": {
+                "duration": 7200,  # 2 hours
+                "min_participants": 2,
+                "rewards": {
+                    "berries": 75000,
+                    "bonus": "marine_rank_increase"
+                },
+                "description": "Marines have invaded! Defend your territory!",
+                "type": "invasion"
+            },
+            "Treasure Hunt": {
+                "duration": 3600,
+                "min_participants": 1,
+                "rewards": {
+                    "berries": 100000,
+                    "bonus": "rare_item"
+                },
+                "description": "Follow the clues to find hidden treasure!",
+                "type": "exploration"
+            },
+            "Tournament Arc": {
+                "duration": 14400,  # 4 hours
+                "min_participants": 8,
+                "rewards": {
+                    "first": 200000,
+                    "second": 100000,
+                    "third": 50000
+                },
+                "description": "Compete in a grand tournament of strength!",
+                "type": "tournament"
+            }
+        }
+
+    async def start_event(self, ctx, event_name):
+        """Start a special event."""
+        if event_name not in self.event_data:
+            return await ctx.send("❌ Invalid event name!")
+            
+        if ctx.channel.id in self.active_events:
+            return await ctx.send("❌ An event is already active in this channel!")
+            
+        event_data = self.event_data[event_name]
+        
+        # Initialize event
+        self.active_events[ctx.channel.id] = {
+            "name": event_name,
+            "participants": [],
+            "start_time": datetime.utcnow(),
+            "end_time": datetime.utcnow() + timedelta(seconds=event_data["duration"]),
+            "status": "registration",
+            "scores": {}
+        }
+        
+        # Create announcement embed
+        embed = discord.Embed(
+            title=f"🎉 {event_name} Event Starting!",
+            description=(
+                f"{event_data['description']}\n\n"
+                f"**Duration:** {event_data['duration'] // 3600} hour(s)\n"
+                f"**Minimum Participants:** {event_data['min_participants']}\n"
+                f"**Status:** Registration Open\n\n"
+                f"Type `.event join` to participate!"
+            ),
+            color=discord.Color.blue()
+        )
+        
+        # Add reward information
+        rewards = event_data["rewards"]
+        reward_text = []
+        
+        if "first" in rewards:
+            reward_text.extend([
+                "🏆 **Rewards:**",
+                f"🥇 1st Place: {rewards['first']:,} Berries",
+                f"🥈 2nd Place: {rewards['second']:,} Berries",
+                f"🥉 3rd Place: {rewards['third']:,} Berries"
+            ])
+        else:
+            reward_text.extend([
+                "🏆 **Rewards:**",
+                f"💰 Base Reward: {rewards['berries']:,} Berries"
+            ])
+            if "bonus" in rewards:
+                reward_text.append(f"✨ Bonus: {rewards['bonus'].replace('_', ' ').title()}")
+                
+        embed.add_field(name="Rewards", value="\n".join(reward_text), inline=False)
+        
+        await ctx.send(embed=embed)
+        
+        # Start event timer
+        self.bot.loop.create_task(self.event_timer(ctx.channel.id))
+
+    async def event_timer(self, channel_id):
+        """Handle event timing and completion."""
+        try:
+            while channel_id in self.active_events:
+                event = self.active_events[channel_id]
+                now = datetime.utcnow()
+                
+                # Check if event should end
+                if now >= event["end_time"]:
+                    channel = self.bot.get_channel(channel_id)
+                    await self.end_event(channel)
+                    break
+                    
+                # Wait before next check
+                await asyncio.sleep(60)
+                
+        except Exception as e:
+            logger.error(f"Error in event timer: {e}")
+
+    async def end_event(self, channel):
+        """End an event and distribute rewards."""
+        if channel.id not in self.active_events:
+            return
+            
+        event = self.active_events[channel.id]
+        event_data = self.event_data[event["name"]]
+        
+        # Create results embed
+        embed = discord.Embed(
+            title=f"🏁 {event['name']} Has Ended!",
+            color=discord.Color.gold()
+        )
+        
+        # Different handling based on event type
+        if event_data["type"] == "tournament":
+            # Sort participants by score
+            sorted_scores = sorted(
+                event["scores"].items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+            
+            # Distribute rewards
+            for i, (user_id, score) in enumerate(sorted_scores[:3]):
+                user = self.bot.get_user(user_id)
+                if user:
+                    reward = event_data["rewards"]["first"]
+                    if i == 1:
+                        reward = event_data["rewards"]["second"]
+                    elif i == 2:
+                        reward = event_data["rewards"]["third"]
+                        
+                    # Update user's berries
+                    current_berries = await self.bot.config.member(user).berries()
+                    await self.bot.config.member(user).berries.set(current_berries + reward)
+                    
+                    embed.add_field(
+                        name=f"{'🥇' if i==0 else '🥈' if i==1 else '🥉'} {user.display_name}",
+                        value=f"Score: {score}\nReward: {reward:,} Berries",
+                        inline=False
+                    )
+                    
+        else:  # Other event types
+            base_reward = event_data["rewards"]["berries"]
+            for participant in event["participants"]:
+                # Update participant's berries
+                current_berries = await self.bot.config.member(participant).berries()
+                await self.bot.config.member(participant).berries.set(current_berries + base_reward)
+                
+                embed.add_field(
+                    name=f"✨ {participant.display_name}",
+                    value=f"Reward: {base_reward:,} Berries",
+                    inline=False
+                )
+        
+        await channel.send(embed=embed)
+        
+        # Clean up
+        del self.active_events[channel.id]
+
+class GamblingManager:
+    """Manages gambling games and payouts."""
+    def __init__(self, bot):
+        self.bot = bot
+        self.active_games = {}
+        self.slot_symbols = ['🍒', '🍊', '🍋', '💎', '🎰', '7️⃣']
+        self.slot_payouts = {
+            '777': 10.0,  # Triple 7s
+            '💎💎💎': 7.0,  # Triple diamonds
+            '🎰🎰🎰': 5.0,  # Triple slots
+            'FRUIT': 3.0,  # Any three matching fruits
+            'ANY': 2.0    # Any three matching symbols
+        }
+
+class RaidBossManager:
+    def __init__(self, bot):
+        self.bot = bot
+        self.active_raids = {}
+        self.weekly_boss = None
+        self.monthly_boss = None
+        self.last_weekly_update = None
+        self.last_monthly_update = None
+        
+        self.boss_data = {
+            "Kaido": {
+                "hp": 1000,
+                "attacks": ["Thunder Bagua", "Dragon's Breath", "Boro Breath"],
+                "rewards": {"berries": 100000},
+                "image_url": "kaido_image_url",
+                "rarity": "monthly"
+            },
+            "Big Mom": {
+                "hp": 900,
+                "attacks": ["Ikoku", "Zeus Strike", "Prometheus Burst"],
+                "rewards": {"berries": 90000},
+                "image_url": "bigmom_image_url",
+                "rarity": "weekly"
+            },
+            "Blackbeard": {
+                "hp": 800,
+                "attacks": ["Black Hole", "Dark Matter", "Gura Quake"],
+                "rewards": {"berries": 80000},
+                "image_url": "blackbeard_image_url",
+                "rarity": "weekly"
+            },
+            "Akainu": {
+                "hp": 850,
+                "attacks": ["Great Eruption", "Meteor Volcano", "Hellhound"],
+                "rewards": {"berries": 85000},
+                "image_url": "akainu_image_url",
+                "rarity": "monthly"
+            }
+        }
+
+    async def update_rotating_bosses(self):
+        """Update weekly and monthly bosses."""
+        current_time = datetime.utcnow()
+        
+        # Update weekly boss
+        if (not self.last_weekly_update or 
+            current_time - self.last_weekly_update > timedelta(days=7)):
+            weekly_candidates = [boss for boss, data in self.boss_data.items() 
+                              if data["rarity"] == "weekly"]
+            self.weekly_boss = random.choice(weekly_candidates)
+            self.last_weekly_update = current_time
+            
+        # Update monthly boss
+        if (not self.last_monthly_update or 
+            current_time - self.last_monthly_update > timedelta(days=30)):
+            monthly_candidates = [boss for boss, data in self.boss_data.items() 
+                               if data["rarity"] == "monthly"]
+            self.monthly_boss = random.choice(monthly_candidates)
+            self.last_monthly_update = current_time
+
+    async def start_raid(self, ctx, partner: discord.Member = None):
+        """Start a raid boss battle."""
+        if ctx.channel.id in self.active_raids:
+            return await ctx.send("❌ A raid is already in progress in this channel!")
+            
+        # Random encounter chance (20%)
+        is_random_encounter = random.random() < 0.20
+        
+        if is_random_encounter:
+            boss_name = random.choice(list(self.boss_data.keys()))
+            encounter_type = "Random Encounter"
+        else:
+            # Choose between weekly and monthly boss
+            boss_name = self.monthly_boss if random.random() < 0.3 else self.weekly_boss
+            encounter_type = "Monthly Boss" if boss_name == self.monthly_boss else "Weekly Boss"
+        
+        boss_data = self.boss_data[boss_name]
+        boss_hp = boss_data["hp"]
+        
+        # Initialize raid data
+        self.active_raids[ctx.channel.id] = {
+            "boss_name": boss_name,
+            "boss_hp": boss_hp,
+            "max_hp": boss_hp,
+            "players": [ctx.author],
+            "type": encounter_type
+        }
+        
+        if partner:
+            self.active_raids[ctx.channel.id]["players"].append(partner)
+        
+        # Create raid announcement
+        embed = discord.Embed(
+            title=f"⚔️ {encounter_type}: {boss_name} Appears!",
+            description=(
+                f"A powerful enemy has appeared!\n"
+                f"**HP:** {boss_hp}/{boss_hp}\n"
+                f"**Reward Pool:** {boss_data['rewards']['berries']:,} Berries"
+            ),
+            color=discord.Color.red()
+        )
+        embed.add_field(
+            name="Participants",
+            value="\n".join([p.display_name for p in self.active_raids[ctx.channel.id]["players"]]),
+            inline=False
+        )
+        
+        return await ctx.send(embed=embed)
+
+    async def process_raid_attack(self, ctx, player_data):
+        """Process an attack against the raid boss."""
+        raid_data = self.active_raids.get(ctx.channel.id)
+        if not raid_data:
+            return False, "No active raid in this channel!"
+            
+        if ctx.author not in raid_data["players"]:
+            return False, "You are not part of this raid!"
+            
+        boss_name = raid_data["boss_name"]
+        boss_data = self.boss_data[boss_name]
+        
+        # Calculate damage
+        damage = random.randint(30, 50)
+        if player_data.get("fruit"):  # Bonus damage for Devil Fruit users
+            damage *= 1.2
+            
+        # Apply damage
+        raid_data["boss_hp"] -= damage
+        
+        # Boss counter-attack
+        boss_attack = random.choice(boss_data["attacks"])
+        counter_damage = random.randint(20, 35)
+        
+        # Check if raid is completed
+        if raid_data["boss_hp"] <= 0:
+            await self.complete_raid(ctx, raid_data)
+            return True, f"Dealt {damage} damage! {boss_name} has been defeated!"
+            
+        return True, f"Dealt {damage} damage! {boss_name} counters with {boss_attack} for {counter_damage} damage!"
+
+    async def complete_raid(self, ctx, raid_data):
+        """Handle raid completion and rewards."""
+        boss_data = self.boss_data[raid_data["boss_name"]]
+        total_reward = boss_data["rewards"]["berries"]
+        
+        # Split rewards among participants
+        reward_per_player = total_reward // len(raid_data["players"])
+        
+        embed = discord.Embed(
+            title="🎉 Raid Victory!",
+            description=f"{raid_data['boss_name']} has been defeated!",
+            color=discord.Color.green()
+        )
+        
+        # Distribute rewards
+        for player in raid_data["players"]:
+            # Update player's berries
+            current_berries = await self.bot.config.member(player).berries()
+            await self.bot.config.member(player).berries.set(current_berries + reward_per_player)
+            
+            embed.add_field(
+                name=f"Rewards for {player.display_name}",
+                value=f"💰 {reward_per_player:,} Berries",
+                inline=False
+            )
+            
+        # Clean up
+        del self.active_raids[ctx.channel.id]
+        
+        await ctx.send(embed=embed)
 
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
@@ -1457,29 +1839,8 @@ class BountyBattle(commands.Cog):
             "devil_fruit": None,
             "last_active": None,
             "bounty_hunted": 0,
-            
-            # New tracking stats (will be available but won't break existing code)
-            "win_streak": 0,
-            "damage_taken": 0,
-            "critical_hits": 0,
-            "healing_done": 0,
-            "turns_survived": 0,
-            "burns_applied": 0,
-            "stuns_applied": 0,
-            "blocks_performed": 0,
-            "damage_prevented": 0,
-            "elements_used": [],
-            "total_battles": 0,
-            "perfect_victories": 0,
-            "comebacks": 0,
-            "fastest_victory": None,
-            "longest_battle": None,
-            "devil_fruit_mastery": 0,
-            "successful_hunts": 0,
-            "failed_hunts": 0
         }
 
-        # Existing guild settings with new additions
         default_guild = {
             "bounties": {},
             "event": None,
@@ -1515,6 +1876,9 @@ class BountyBattle(commands.Cog):
         # Configure logging
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
+        
+        # Start background tasks
+        self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
@@ -2446,6 +2810,195 @@ class BountyBattle(commands.Cog):
 
         await ctx.send(embed=embed)
         
+    @commands.group(name="raid")
+    async def raid_command(self, ctx):
+        """Raid boss commands."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @raid_command.command(name="start")
+    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1-hour cooldown
+    async def raid_start(self, ctx, partner: discord.Member = None):
+        """Start a raid boss battle."""
+        if partner and partner.bot:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ You cannot raid with a bot!")
+            
+        if partner and partner == ctx.author:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ You cannot raid with yourself!")
+            
+        await self.start_raid(ctx, partner)
+
+    @raid_command.command(name="attack")
+    async def raid_attack(self, ctx):
+        """Attack the raid boss."""
+        player_data = await self.bot.get_player_data(ctx.author)  # You'll need to implement this
+        success, message = await self.process_raid_attack(ctx, player_data)
+        await ctx.send(message)
+
+    @raid_command.command(name="status")
+    async def raid_status(self, ctx):
+        """Check the status of the current raid."""
+        raid_data = self.active_raids.get(ctx.channel.id)
+        if not raid_data:
+            return await ctx.send("No active raid in this channel!")
+            
+        boss_name = raid_data["boss_name"]
+        boss_data = self.boss_data[boss_name]
+        
+        embed = discord.Embed(
+            title=f"Raid Status: {boss_name}",
+            description=(
+                f"**HP:** {raid_data['boss_hp']}/{raid_data['max_hp']}\n"
+                f"**Type:** {raid_data['type']}"
+            ),
+            color=discord.Color.blue()
+        )
+        embed.add_field(
+            name="Participants",
+            value="\n".join([p.display_name for p in raid_data["players"]]),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @raid_command.command(name="weekly")
+    async def weekly_boss(self, ctx):
+        """Show info about the current weekly boss."""
+        if not self.weekly_boss:
+            await self.update_rotating_bosses()
+            
+        boss_data = self.boss_data[self.weekly_boss]
+        
+        embed = discord.Embed(
+            title=f"Weekly Boss: {self.weekly_boss}",
+            description=(
+                f"**HP:** {boss_data['hp']}\n"
+                f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
+            ),
+            color=discord.Color.gold()
+        )
+        embed.add_field(
+            name="Attacks",
+            value="\n".join(boss_data["attacks"]),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @raid_command.command(name="monthly")
+    async def monthly_boss(self, ctx):
+        """Show info about the current monthly boss."""
+        if not self.monthly_boss:
+            await self.update_rotating_bosses()
+            
+        boss_data = self.boss_data[self.monthly_boss]
+        
+        embed = discord.Embed(
+            title=f"Monthly Boss: {self.monthly_boss}",
+            description=(
+                f"**HP:** {boss_data['hp']}\n"
+                f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
+            ),
+            color=discord.Color.purple()
+        )
+        embed.add_field(
+            name="Attacks",
+            value="\n".join(boss_data["attacks"]),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+        
+    @commands.group(name="event")
+    async def event_command(self, ctx):
+        """Event commands."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @event_command.command(name="start")
+    @commands.admin_or_permissions(administrator=True)
+    async def event_start(self, ctx, *, event_name: str):
+        """Start an event (Admin only)."""
+        await self.start_event(ctx, event_name)
+
+    @event_command.command(name="join")
+    async def event_join(self, ctx):
+        """Join the active event."""
+        if ctx.channel.id not in self.active_events:
+            return await ctx.send("❌ No active event in this channel!")
+            
+        event = self.active_events[ctx.channel.id]
+        
+        if ctx.author in event["participants"]:
+            return await ctx.send("❌ You're already participating in this event!")
+            
+        event["participants"].append(ctx.author)
+        event["scores"][ctx.author.id] = 0
+        
+        await ctx.send(f"✅ {ctx.author.mention} has joined the {event['name']}!")
+
+    @event_command.command(name="leave")
+    async def event_leave(self, ctx):
+        """Leave the active event."""
+        if ctx.channel.id not in self.active_events:
+            return await ctx.send("❌ No active event in this channel!")
+            
+        event = self.active_events[ctx.channel.id]
+        
+        if ctx.author not in event["participants"]:
+            return await ctx.send("❌ You're not participating in this event!")
+            
+        event["participants"].remove(ctx.author)
+        if ctx.author.id in event["scores"]:
+            del event["scores"][ctx.author.id]
+            
+        await ctx.send(f"✅ {ctx.author.mention} has left the {event['name']}!")
+
+    @event_command.command(name="status")
+    async def event_status(self, ctx):
+        """Check the status of the active event."""
+        if ctx.channel.id not in self.active_events:
+            return await ctx.send("❌ No active event in this channel!")
+            
+        event = self.active_events[ctx.channel.id]
+        event_data = self.event_data[event["name"]]
+        
+        time_left = event["end_time"] - datetime.utcnow()
+        hours, remainder = divmod(time_left.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        embed = discord.Embed(
+            title=f"📊 {event['name']} Status",
+            description=f"{event_data['description']}\n\n"
+                      f"⏰ Time Remaining: {hours}h {minutes}m {seconds}s",
+            color=discord.Color.blue()
+        )
+        
+        participant_list = "\n".join([p.display_name for p in event["participants"]]) or "No participants yet"
+        embed.add_field(name="Participants", value=participant_list, inline=False)
+        
+        if event["scores"]:
+            score_list = []
+            for user_id, score in sorted(event["scores"].items(), key=lambda x: x[1], reverse=True):
+                user = self.bot.get_user(user_id)
+                if user:
+                    score_list.append(f"{user.display_name}: {score}")
+            embed.add_field(name="Scores", value="\n".join(score_list), inline=False)
+        
+        await ctx.send(embed=embed)
+
+    @event_command.command(name="end")
+    @commands.admin_or_permissions(administrator=True)
+    async def event_end(self, ctx):
+        """Force end the current event (Admin only)."""
+        if ctx.channel.id not in self.active_events:
+            return await ctx.send("❌ No active event in this channel!")
+            
+        await self.end_event(ctx.channel)
+        await ctx.send("✅ Event ended successfully!")
+        
     @commands.command()
     async def myfruit(self, ctx):
         """Check which Devil Fruit you have eaten."""
@@ -2469,6 +3022,51 @@ class BountyBattle(commands.Cog):
             f"🔥 **Ability:** {effect}"
         )
 
+    # Gambling Commands
+    @commands.group(invoke_without_command=True)
+    async def gamble(self, ctx):
+        """Gambling commands."""
+        embed = discord.Embed(
+            title="🎲 Gambling Commands",
+            description=(
+                "`.gamble dice <bet>` - Roll dice against the house\n"
+                "`.gamble slots <bet>` - Play the slot machine\n"
+                "`.gamble coin <bet> <heads/tails>` - Flip a coin"
+            ),
+            color=discord.Color.gold()
+        )
+        await ctx.send(embed=embed)
+
+    @gamble.command(name="dice")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def gamble_dice(self, ctx, bet: int):
+        """Play a dice game against the house."""
+        await self.gambling_manager.play_dice(ctx, bet)
+
+    @gamble.command(name="slots")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def gamble_slots(self, ctx, bet: int):
+        """Play the slot machine."""
+        await self.gambling_manager.play_slots(ctx, bet)
+
+    @gamble.command(name="coin")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def gamble_coin(self, ctx, bet: int, choice: str):
+        """Flip a coin and bet on heads or tails."""
+        await self.gambling_manager.play_coinflip(ctx, bet, choice)
+
+    # Background Tasks
+    async def update_rotating_bosses(self):
+        """Update weekly and monthly raid bosses."""
+        try:
+            while True:
+                await self.raid_manager.update_rotating_bosses()
+                await asyncio.sleep(3600)  # Check every hour
+        except Exception as e:
+            logger.error(f"Error in update_rotating_bosses: {e}")
+            self.bg_task.cancel()
+            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
+        
     @commands.command()
     @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
@@ -4399,3 +4997,11 @@ class BountyBattle(commands.Cog):
 async def setup(bot):
     cog = BountyBattle(bot)
     await bot.add_cog(cog)
+    
+def cog_unload(self):
+    """Clean up when cog is unloaded."""
+    if hasattr(self, 'bg_task'):
+        self.bg_task.cancel()
+    self.gambling_manager.active_games.clear()
+    self.raid_manager.active_raids.clear()
+    self.event_manager.active_events.clear()
