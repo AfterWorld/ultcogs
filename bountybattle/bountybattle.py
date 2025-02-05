@@ -631,8 +631,11 @@ class GamblingManager:
         }
 
 class RaidBossManager:
-    def __init__(self, bot):
-        self.bot = bot
+    """Manages raid boss encounters and rewards."""
+    def __init__(self, cog):
+        self.cog = cog  # Store reference to the main cog
+        self.bot = cog.bot
+        self.config = cog.config
         self.active_raids = {}
         self.weekly_boss = None
         self.monthly_boss = None
@@ -678,10 +681,11 @@ class RaidBossManager:
         if (not self.last_weekly_update or 
             current_time - self.last_weekly_update > timedelta(days=7)):
             weekly_candidates = [boss for boss, data in self.boss_data.items() 
-                              if data["rarity"] == "weekly"]
+                             if data["rarity"] == "weekly"]
             self.weekly_boss = random.choice(weekly_candidates)
             self.last_weekly_update = current_time
-            
+            await self._announce_new_boss(self.weekly_boss, "weekly")
+        
         # Update monthly boss
         if (not self.last_monthly_update or 
             current_time - self.last_monthly_update > timedelta(days=30)):
@@ -689,6 +693,24 @@ class RaidBossManager:
                                if data["rarity"] == "monthly"]
             self.monthly_boss = random.choice(monthly_candidates)
             self.last_monthly_update = current_time
+            await self._announce_new_boss(self.monthly_boss, "monthly")
+
+    async def _announce_new_boss(self, boss_name, boss_type):
+        """Announce new boss in announcement channels."""
+        for guild in self.bot.guilds:
+            channel = discord.utils.get(guild.text_channels, name="announcements")
+            if channel:
+                embed = discord.Embed(
+                    title=f"{'🗡️' if boss_type == 'weekly' else '👑'} New {boss_type.title()} Raid Boss!",
+                    description=f"**{boss_name}** has appeared!",
+                    color=discord.Color.blue() if boss_type == "weekly" else discord.Color.purple()
+                )
+                embed.add_field(
+                    name="Boss Info",
+                    value=f"Health: {self.boss_data[boss_name]['hp']}\nReward: {self.boss_data[boss_name]['rewards']['berries']:,} Berries",
+                    inline=False
+                )
+                await channel.send(embed=embed)
 
     async def start_raid(self, ctx, partner: discord.Member = None):
         """Start a raid boss battle."""
@@ -704,6 +726,8 @@ class RaidBossManager:
         else:
             # Choose between weekly and monthly boss
             boss_name = self.monthly_boss if random.random() < 0.3 else self.weekly_boss
+            if not boss_name:  # If no boss is set yet
+                boss_name = random.choice(list(self.boss_data.keys()))
             encounter_type = "Monthly Boss" if boss_name == self.monthly_boss else "Weekly Boss"
         
         boss_data = self.boss_data[boss_name]
@@ -715,13 +739,17 @@ class RaidBossManager:
             "boss_hp": boss_hp,
             "max_hp": boss_hp,
             "players": [ctx.author],
-            "type": encounter_type
+            "type": encounter_type,
+            "last_attack": {}  # Track last attack time for each player
         }
         
         if partner:
+            if partner.bot:
+                return await ctx.send("❌ You cannot raid with a bot!")
+            if partner == ctx.author:
+                return await ctx.send("❌ You cannot raid with yourself!")
             self.active_raids[ctx.channel.id]["players"].append(partner)
         
-        # Create raid announcement
         embed = discord.Embed(
             title=f"⚔️ {encounter_type}: {boss_name} Appears!",
             description=(
@@ -731,44 +759,81 @@ class RaidBossManager:
             ),
             color=discord.Color.red()
         )
+        
         embed.add_field(
             name="Participants",
             value="\n".join([p.display_name for p in self.active_raids[ctx.channel.id]["players"]]),
             inline=False
         )
         
+        embed.add_field(
+            name="Boss Attacks",
+            value="\n".join(boss_data["attacks"]),
+            inline=False
+        )
+        
         return await ctx.send(embed=embed)
 
-    async def process_raid_attack(self, ctx, player_data):
+    async def process_attack(self, ctx):
         """Process an attack against the raid boss."""
         raid_data = self.active_raids.get(ctx.channel.id)
         if not raid_data:
-            return False, "No active raid in this channel!"
+            return False, "❌ No active raid in this channel!"
             
         if ctx.author not in raid_data["players"]:
-            return False, "You are not part of this raid!"
+            return False, "❌ You are not part of this raid!"
             
-        boss_name = raid_data["boss_name"]
-        boss_data = self.boss_data[boss_name]
-        
+        # Cooldown check (20 seconds)
+        now = datetime.utcnow()
+        last_attack = raid_data["last_attack"].get(ctx.author.id)
+        if last_attack and (now - last_attack).total_seconds() < 20:
+            remaining = 20 - int((now - last_attack).total_seconds())
+            return False, f"⏳ You must wait {remaining} seconds before attacking again!"
+            
         # Calculate damage
-        damage = random.randint(30, 50)
-        if player_data.get("fruit"):  # Bonus damage for Devil Fruit users
-            damage *= 1.2
+        base_damage = random.randint(30, 50)
+        crit_chance = 0.15
+        
+        # Devil Fruit bonus
+        user_data = await self.config.member(ctx.author).all()
+        if user_data.get("devil_fruit"):
+            base_damage *= 1.2
+            crit_chance += 0.05
+            
+        # Critical hit check
+        is_crit = random.random() < crit_chance
+        if is_crit:
+            base_damage *= 1.5
             
         # Apply damage
-        raid_data["boss_hp"] -= damage
+        raid_data["boss_hp"] -= base_damage
+        raid_data["last_attack"][ctx.author.id] = now
         
         # Boss counter-attack
+        boss_data = self.boss_data[raid_data["boss_name"]]
         boss_attack = random.choice(boss_data["attacks"])
         counter_damage = random.randint(20, 35)
         
-        # Check if raid is completed
+        # Create health bar
+        health_percentage = raid_data["boss_hp"] / raid_data["max_hp"]
+        bar_length = 20
+        filled = int(bar_length * health_percentage)
+        health_bar = "█" * filled + "░" * (bar_length - filled)
+        
+        # Create message
+        message = [
+            f"**{ctx.author.display_name}** attacks for {base_damage} damage!",
+            "💥 **CRITICAL HIT!**" if is_crit else None,
+            f"{raid_data['boss_name']} counters with **{boss_attack}** for {counter_damage} damage!",
+            f"Boss HP: [{health_bar}] {raid_data['boss_hp']}/{raid_data['max_hp']} ({(health_percentage * 100):.1f}%)"
+        ]
+        
+        # Check for raid completion
         if raid_data["boss_hp"] <= 0:
             await self.complete_raid(ctx, raid_data)
-            return True, f"Dealt {damage} damage! {boss_name} has been defeated!"
+            message.append(f"🎉 {raid_data['boss_name']} has been defeated!")
             
-        return True, f"Dealt {damage} damage! {boss_name} counters with {boss_attack} for {counter_damage} damage!"
+        return True, "\n".join(filter(None, message))
 
     async def complete_raid(self, ctx, raid_data):
         """Handle raid completion and rewards."""
@@ -786,20 +851,24 @@ class RaidBossManager:
         
         # Distribute rewards
         for player in raid_data["players"]:
-            # Update player's berries
-            current_berries = await self.bot.config.member(player).berries()
-            await self.bot.config.member(player).berries.set(current_berries + reward_per_player)
+            async with self.config.member(player).all() as player_data:
+                player_data["berries"] = player_data.get("berries", 0) + reward_per_player
+                player_data["raid_wins"] = player_data.get("raid_wins", 0) + 1
             
             embed.add_field(
                 name=f"Rewards for {player.display_name}",
                 value=f"💰 {reward_per_player:,} Berries",
                 inline=False
             )
-            
-        # Clean up
+        
+        # Clean up raid data
         del self.active_raids[ctx.channel.id]
         
         await ctx.send(embed=embed)
+
+    def get_boss_info(self, boss_name):
+        """Get information about a specific boss."""
+        return self.boss_data.get(boss_name)
 
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
@@ -1824,9 +1893,12 @@ class BountyBattle(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
         
+        
+        # Initialize managers with reference to this cog
+        self.raid_manager = RaidBossManager(self)
+        
         # Comprehensive default member settings
         default_member = {
-            # Existing core values
             "bounty": 0,
             "berries": 0,
             "last_daily_claim": None,
@@ -1839,6 +1911,10 @@ class BountyBattle(commands.Cog):
             "devil_fruit": None,
             "last_active": None,
             "bounty_hunted": 0,
+            # Add raid stats
+            "raid_wins": 0,
+            "raid_losses": 0,
+            "total_raid_damage": 0
         }
 
         default_guild = {
@@ -1877,8 +1953,8 @@ class BountyBattle(commands.Cog):
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
         
-        # Start background tasks
-        self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
+        # Start background task for raid boss rotation
+        self.bg_task = self.bot.loop.create_task(self.update_managers())
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
@@ -1899,6 +1975,17 @@ class BountyBattle(commands.Cog):
         current_time = datetime.utcnow().isoformat()
         await self.config.member(hunter).last_active.set(current_time)
         await self.config.member(target).last_active.set(current_time)
+        
+    async def update_managers(self):
+        """Update all managers."""
+        try:
+            while True:
+                await self.raid_manager.update_rotating_bosses()
+                await asyncio.sleep(3600)  # Check every hour
+        except Exception as e:
+            logger.error(f"Error updating managers: {e}")
+            self.bg_task.cancel()
+            self.bg_task = self.bot.loop.create_task(self.update_managers())
         
     async def sync_bounty(self, user):
         """
@@ -2811,50 +2898,54 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
         
     @commands.group(name="raid")
-    async def raid_command(self, ctx):
+    async def raid(self, ctx):
         """Raid boss commands."""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
+            embed = discord.Embed(
+                title="🗡️ Raid Commands",
+                description=(
+                    "`.raid start [partner]` - Start a raid with optional partner\n"
+                    "`.raid status` - Check current raid status\n"
+                    "`.raid attack` - Attack the raid boss\n"
+                    "`.raid weekly` - View weekly boss info\n"
+                    "`.raid monthly` - View monthly boss info\n"
+                    "`.raid stats` - View your raid statistics"
+                ),
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
 
-    @raid_command.command(name="start")
-    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1-hour cooldown
+    @raid.command(name="start")
+    @commands.cooldown(1, 3600, commands.BucketType.user)
     async def raid_start(self, ctx, partner: discord.Member = None):
         """Start a raid boss battle."""
-        if partner and partner.bot:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send("❌ You cannot raid with a bot!")
-            
-        if partner and partner == ctx.author:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send("❌ You cannot raid with yourself!")
-            
-        await self.start_raid(ctx, partner)
+        await self.raid_manager.start_raid(ctx, partner)
 
-    @raid_command.command(name="attack")
-    async def raid_attack(self, ctx):
-        """Attack the raid boss."""
-        player_data = await self.bot.get_player_data(ctx.author)  # You'll need to implement this
-        success, message = await self.process_raid_attack(ctx, player_data)
-        await ctx.send(message)
-
-    @raid_command.command(name="status")
+    @raid.command(name="status")
     async def raid_status(self, ctx):
         """Check the status of the current raid."""
-        raid_data = self.active_raids.get(ctx.channel.id)
-        if not raid_data:
-            return await ctx.send("No active raid in this channel!")
+        if ctx.channel.id not in self.raid_manager.active_raids:
+            return await ctx.send("❌ No active raid in this channel!")
             
-        boss_name = raid_data["boss_name"]
-        boss_data = self.boss_data[boss_name]
+        raid_data = self.raid_manager.active_raids[ctx.channel.id]
+        boss_data = self.raid_manager.boss_data[raid_data["boss_name"]]
+        
+        # Create health bar
+        health_percentage = raid_data["boss_hp"] / raid_data["max_hp"]
+        bar_length = 20
+        filled = int(bar_length * health_percentage)
+        health_bar = "█" * filled + "░" * (bar_length - filled)
         
         embed = discord.Embed(
-            title=f"Raid Status: {boss_name}",
+            title=f"Raid Status: {raid_data['boss_name']}",
             description=(
+                f"**Type:** {raid_data['type']}\n"
                 f"**HP:** {raid_data['boss_hp']}/{raid_data['max_hp']}\n"
-                f"**Type:** {raid_data['type']}"
+                f"**Health:** [{health_bar}] {int(health_percentage * 100)}%"
             ),
             color=discord.Color.blue()
         )
+        
         embed.add_field(
             name="Participants",
             value="\n".join([p.display_name for p in raid_data["players"]]),
@@ -2863,22 +2954,29 @@ class BountyBattle(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @raid_command.command(name="weekly")
-    async def weekly_boss(self, ctx):
-        """Show info about the current weekly boss."""
-        if not self.weekly_boss:
-            await self.update_rotating_bosses()
+    @raid.command(name="attack")
+    async def raid_attack(self, ctx):
+        """Attack the raid boss."""
+        success, message = await self.raid_manager.process_attack(ctx)
+        await ctx.send(message)
+
+    @raid.command(name="weekly")
+    async def raid_weekly(self, ctx):
+        """View information about the weekly boss."""
+        if not self.raid_manager.weekly_boss:
+            return await ctx.send("❌ No weekly boss has been selected yet!")
             
-        boss_data = self.boss_data[self.weekly_boss]
+        boss_data = self.raid_manager.get_boss_info(self.raid_manager.weekly_boss)
         
         embed = discord.Embed(
-            title=f"Weekly Boss: {self.weekly_boss}",
+            title=f"Weekly Boss: {self.raid_manager.weekly_boss}",
             description=(
                 f"**HP:** {boss_data['hp']}\n"
                 f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
             ),
             color=discord.Color.gold()
         )
+        
         embed.add_field(
             name="Attacks",
             value="\n".join(boss_data["attacks"]),
@@ -2887,26 +2985,53 @@ class BountyBattle(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @raid_command.command(name="monthly")
-    async def monthly_boss(self, ctx):
-        """Show info about the current monthly boss."""
-        if not self.monthly_boss:
-            await self.update_rotating_bosses()
+    @raid.command(name="monthly")
+    async def raid_monthly(self, ctx):
+        """View information about the monthly boss."""
+        if not self.raid_manager.monthly_boss:
+            return await ctx.send("❌ No monthly boss has been selected yet!")
             
-        boss_data = self.boss_data[self.monthly_boss]
+        boss_data = self.raid_manager.get_boss_info(self.raid_manager.monthly_boss)
         
         embed = discord.Embed(
-            title=f"Monthly Boss: {self.monthly_boss}",
+            title=f"Monthly Boss: {self.raid_manager.monthly_boss}",
             description=(
                 f"**HP:** {boss_data['hp']}\n"
                 f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
             ),
             color=discord.Color.purple()
         )
+        
         embed.add_field(
             name="Attacks",
             value="\n".join(boss_data["attacks"]),
             inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @raid.command(name="stats")
+    async def raid_stats(self, ctx, member: discord.Member = None):
+        """View raid statistics for a user."""
+        member = member or ctx.author
+        
+        stats = await self.config.member(member).all()
+        
+        embed = discord.Embed(
+            title=f"🗡️ Raid Statistics for {member.display_name}",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="Victories",
+            value=f"🏆 Raids Won: {stats.get('raid_wins', 0)}",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Damage",
+            value=f"⚔️ Total Raid Damage: {stats.get('total_raid_damage', 0):,}",
+            inline=True
         )
         
         await ctx.send(embed=embed)
