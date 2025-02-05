@@ -555,7 +555,7 @@ class DevilFruitManager:
                 min_damage, max_damage = move_type["base_damage_range"]
                 base_damage = (min_damage + max_damage) // 2
 
-            absorb_amount = int(base_damage * 0.15)  # 15% of base damage
+            absorb_amount = int(base_damage * 0.25)  # 25% of base damage
             if absorb_amount > 0:  # Only heal if there's damage to absorb
                 attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
                 
