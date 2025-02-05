@@ -426,196 +426,6 @@ ENVIRONMENTS = {
     },
 }
 
-class EventManager:
-    def __init__(self, bot):
-        self.bot = bot
-        self.active_events = {}
-        self.scheduled_events = {}
-        
-        self.event_data = {
-            "Davy Back Fight": {
-                "duration": 3600,  # 1 hour
-                "min_participants": 4,
-                "rewards": {
-                    "first": 50000,
-                    "second": 25000,
-                    "third": 10000
-                },
-                "description": "Compete in various mini-games for glory and prizes!",
-                "type": "tournament"
-            },
-            "Marine Invasion": {
-                "duration": 7200,  # 2 hours
-                "min_participants": 2,
-                "rewards": {
-                    "berries": 75000,
-                    "bonus": "marine_rank_increase"
-                },
-                "description": "Marines have invaded! Defend your territory!",
-                "type": "invasion"
-            },
-            "Treasure Hunt": {
-                "duration": 3600,
-                "min_participants": 1,
-                "rewards": {
-                    "berries": 100000,
-                    "bonus": "rare_item"
-                },
-                "description": "Follow the clues to find hidden treasure!",
-                "type": "exploration"
-            },
-            "Tournament Arc": {
-                "duration": 14400,  # 4 hours
-                "min_participants": 8,
-                "rewards": {
-                    "first": 200000,
-                    "second": 100000,
-                    "third": 50000
-                },
-                "description": "Compete in a grand tournament of strength!",
-                "type": "tournament"
-            }
-        }
-
-    async def start_event(self, ctx, event_name):
-        """Start a special event."""
-        if event_name not in self.event_data:
-            return await ctx.send("❌ Invalid event name!")
-            
-        if ctx.channel.id in self.active_events:
-            return await ctx.send("❌ An event is already active in this channel!")
-            
-        event_data = self.event_data[event_name]
-        
-        # Initialize event
-        self.active_events[ctx.channel.id] = {
-            "name": event_name,
-            "participants": [],
-            "start_time": datetime.utcnow(),
-            "end_time": datetime.utcnow() + timedelta(seconds=event_data["duration"]),
-            "status": "registration",
-            "scores": {}
-        }
-        
-        # Create announcement embed
-        embed = discord.Embed(
-            title=f"🎉 {event_name} Event Starting!",
-            description=(
-                f"{event_data['description']}\n\n"
-                f"**Duration:** {event_data['duration'] // 3600} hour(s)\n"
-                f"**Minimum Participants:** {event_data['min_participants']}\n"
-                f"**Status:** Registration Open\n\n"
-                f"Type `.event join` to participate!"
-            ),
-            color=discord.Color.blue()
-        )
-        
-        # Add reward information
-        rewards = event_data["rewards"]
-        reward_text = []
-        
-        if "first" in rewards:
-            reward_text.extend([
-                "🏆 **Rewards:**",
-                f"🥇 1st Place: {rewards['first']:,} Berries",
-                f"🥈 2nd Place: {rewards['second']:,} Berries",
-                f"🥉 3rd Place: {rewards['third']:,} Berries"
-            ])
-        else:
-            reward_text.extend([
-                "🏆 **Rewards:**",
-                f"💰 Base Reward: {rewards['berries']:,} Berries"
-            ])
-            if "bonus" in rewards:
-                reward_text.append(f"✨ Bonus: {rewards['bonus'].replace('_', ' ').title()}")
-                
-        embed.add_field(name="Rewards", value="\n".join(reward_text), inline=False)
-        
-        await ctx.send(embed=embed)
-        
-        # Start event timer
-        self.bot.loop.create_task(self.event_timer(ctx.channel.id))
-
-    async def event_timer(self, channel_id):
-        """Handle event timing and completion."""
-        try:
-            while channel_id in self.active_events:
-                event = self.active_events[channel_id]
-                now = datetime.utcnow()
-                
-                # Check if event should end
-                if now >= event["end_time"]:
-                    channel = self.bot.get_channel(channel_id)
-                    await self.end_event(channel)
-                    break
-                    
-                # Wait before next check
-                await asyncio.sleep(60)
-                
-        except Exception as e:
-            logger.error(f"Error in event timer: {e}")
-
-    async def end_event(self, channel):
-        """End an event and distribute rewards."""
-        if channel.id not in self.active_events:
-            return
-            
-        event = self.active_events[channel.id]
-        event_data = self.event_data[event["name"]]
-        
-        # Create results embed
-        embed = discord.Embed(
-            title=f"🏁 {event['name']} Has Ended!",
-            color=discord.Color.gold()
-        )
-        
-        # Different handling based on event type
-        if event_data["type"] == "tournament":
-            # Sort participants by score
-            sorted_scores = sorted(
-                event["scores"].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            
-            # Distribute rewards
-            for i, (user_id, score) in enumerate(sorted_scores[:3]):
-                user = self.bot.get_user(user_id)
-                if user:
-                    reward = event_data["rewards"]["first"]
-                    if i == 1:
-                        reward = event_data["rewards"]["second"]
-                    elif i == 2:
-                        reward = event_data["rewards"]["third"]
-                        
-                    # Update user's berries
-                    current_berries = await self.bot.config.member(user).berries()
-                    await self.bot.config.member(user).berries.set(current_berries + reward)
-                    
-                    embed.add_field(
-                        name=f"{'🥇' if i==0 else '🥈' if i==1 else '🥉'} {user.display_name}",
-                        value=f"Score: {score}\nReward: {reward:,} Berries",
-                        inline=False
-                    )
-                    
-        else:  # Other event types
-            base_reward = event_data["rewards"]["berries"]
-            for participant in event["participants"]:
-                # Update participant's berries
-                current_berries = await self.bot.config.member(participant).berries()
-                await self.bot.config.member(participant).berries.set(current_berries + base_reward)
-                
-                embed.add_field(
-                    name=f"✨ {participant.display_name}",
-                    value=f"Reward: {base_reward:,} Berries",
-                    inline=False
-                )
-        
-        await channel.send(embed=embed)
-        
-        # Clean up
-        del self.active_events[channel.id]
-
 class GamblingManager:
     """Manages gambling games and payouts."""
     def __init__(self, bot):
@@ -668,13 +478,25 @@ class RaidBossManager:
                 "hp": 850,
                 "attacks": ["Great Eruption", "Meteor Volcano", "Hellhound"],
                 "rewards": {"berries": 85000},
-                "image_url": "https://static.wikia.nocookie.net/onepiece/images/d/d7/Sakazuki_Anime_Post_Timeskip_Infobox.png/revision/latest?cb=20220829052511",
+                "image_url": "akainu_image_url",
                 "rarity": "monthly"
             }
         }
 
     async def update_rotating_bosses(self):
-        """Update weekly and monthly bosses."""
+        """Update weekly and monthly raid bosses."""
+        try:
+            while True:
+                if hasattr(self, 'raid_manager'):  # Add safety check
+                    await self.raid_manager.update_rotating_bosses()
+                await asyncio.sleep(3600)  # Check every hour
+        except Exception as e:
+            logger.error(f"Error updating managers: {e}")
+            # Recreate the task if it fails
+            if not self.bg_task.cancelled():
+                self.bg_task.cancel()
+            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
+        
         current_time = datetime.utcnow()
         
         # Update weekly boss
@@ -988,15 +810,26 @@ class DevilFruitManager:
                     f"🥶 Target frozen + Bonus damage!"
                 )
 
-        # Yami Yami no Mi
+        # Yami Yami no Mi - Fixed absorption calculation
         elif effect == "darkness":
-            absorb_amount = int(move.get("damage", 0) * 0.15)
-            attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
-            bonus_damage = int(move.get("damage", 0) * 0.3)
+            # Calculate absorption based on the move's base damage
+            base_damage = move.get("damage", 0)
+            if base_damage == 0 and move.get("type") in MOVE_TYPES:
+                # If no damage specified, use the move type's base damage range
+                move_type = MOVE_TYPES[move["type"]]
+                min_damage, max_damage = move_type["base_damage_range"]
+                base_damage = (min_damage + max_damage) // 2
+
+            absorb_amount = int(base_damage * 0.15)  # 15% of base damage
+            if absorb_amount > 0:  # Only heal if there's damage to absorb
+                attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
+                
+            # Apply bonus damage
+            bonus_damage = int(base_damage * 0.3)  # 30% bonus damage
             effect_message = (
                 f"🌑 **BLACK HOLE**! 🌑\n"
                 f"**{attacker['name']}** commands darkness!\n"
-                f"⚫ Absorbed {absorb_amount} HP + Bonus damage!"
+                f"⚫ Absorbed {absorb_amount} HP + {bonus_damage} bonus damage!"
             )
 
         # Pika Pika no Mi
@@ -1892,12 +1725,8 @@ class BountyBattle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
-        
-        
-        # Initialize managers with reference to this cog
-        self.raid_manager = RaidBossManager(self)
-        
-        # Comprehensive default member settings
+            
+        # Initialize comprehensive default member settings
         default_member = {
             "bounty": 0,
             "berries": 0,
@@ -1931,30 +1760,33 @@ class BountyBattle(commands.Cog):
         # Register all defaults
         self.config.register_member(**default_member)
         self.config.register_guild(**default_guild)
-        
+            
         # Initialize locks
         self.bounty_lock = Lock()
         self.battle_lock = Lock()
         self.data_lock = Lock()
-        
+
         # Initialize managers
         self.battle_manager = BattleStateManager()
         self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
-        
+        self.gambling_manager = GamblingManager(bot)  # Add this line
+        self.event_manager = EventManager(bot)  # Add this line
+        self.raid_manager = RaidBossManager(self)  # Make sure this is initialized after self.bot is set
+            
         # Initialize tracking variables
         self.active_channels = set()
         self.tournaments = {}
         self.current_environment = None
         self.battle_stopped = False
-        
+            
         # Configure logging
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
-        
+            
         # Start background task for raid boss rotation
-        self.bg_task = self.bot.loop.create_task(self.update_managers())
+        self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
@@ -3035,95 +2867,7 @@ class BountyBattle(commands.Cog):
         )
         
         await ctx.send(embed=embed)
-        
-    @commands.group(name="event")
-    async def event_command(self, ctx):
-        """Event commands."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @event_command.command(name="start")
-    @commands.admin_or_permissions(administrator=True)
-    async def event_start(self, ctx, *, event_name: str):
-        """Start an event (Admin only)."""
-        await self.start_event(ctx, event_name)
-
-    @event_command.command(name="join")
-    async def event_join(self, ctx):
-        """Join the active event."""
-        if ctx.channel.id not in self.active_events:
-            return await ctx.send("❌ No active event in this channel!")
-            
-        event = self.active_events[ctx.channel.id]
-        
-        if ctx.author in event["participants"]:
-            return await ctx.send("❌ You're already participating in this event!")
-            
-        event["participants"].append(ctx.author)
-        event["scores"][ctx.author.id] = 0
-        
-        await ctx.send(f"✅ {ctx.author.mention} has joined the {event['name']}!")
-
-    @event_command.command(name="leave")
-    async def event_leave(self, ctx):
-        """Leave the active event."""
-        if ctx.channel.id not in self.active_events:
-            return await ctx.send("❌ No active event in this channel!")
-            
-        event = self.active_events[ctx.channel.id]
-        
-        if ctx.author not in event["participants"]:
-            return await ctx.send("❌ You're not participating in this event!")
-            
-        event["participants"].remove(ctx.author)
-        if ctx.author.id in event["scores"]:
-            del event["scores"][ctx.author.id]
-            
-        await ctx.send(f"✅ {ctx.author.mention} has left the {event['name']}!")
-
-    @event_command.command(name="status")
-    async def event_status(self, ctx):
-        """Check the status of the active event."""
-        if ctx.channel.id not in self.active_events:
-            return await ctx.send("❌ No active event in this channel!")
-            
-        event = self.active_events[ctx.channel.id]
-        event_data = self.event_data[event["name"]]
-        
-        time_left = event["end_time"] - datetime.utcnow()
-        hours, remainder = divmod(time_left.seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        embed = discord.Embed(
-            title=f"📊 {event['name']} Status",
-            description=f"{event_data['description']}\n\n"
-                      f"⏰ Time Remaining: {hours}h {minutes}m {seconds}s",
-            color=discord.Color.blue()
-        )
-        
-        participant_list = "\n".join([p.display_name for p in event["participants"]]) or "No participants yet"
-        embed.add_field(name="Participants", value=participant_list, inline=False)
-        
-        if event["scores"]:
-            score_list = []
-            for user_id, score in sorted(event["scores"].items(), key=lambda x: x[1], reverse=True):
-                user = self.bot.get_user(user_id)
-                if user:
-                    score_list.append(f"{user.display_name}: {score}")
-            embed.add_field(name="Scores", value="\n".join(score_list), inline=False)
-        
-        await ctx.send(embed=embed)
-
-    @event_command.command(name="end")
-    @commands.admin_or_permissions(administrator=True)
-    async def event_end(self, ctx):
-        """Force end the current event (Admin only)."""
-        if ctx.channel.id not in self.active_events:
-            return await ctx.send("❌ No active event in this channel!")
-            
-        await self.end_event(ctx.channel)
-        await ctx.send("✅ Event ended successfully!")
-        
+ 
     @commands.command()
     async def myfruit(self, ctx):
         """Check which Devil Fruit you have eaten."""
