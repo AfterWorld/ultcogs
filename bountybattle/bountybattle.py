@@ -2951,6 +2951,41 @@ class BountyBattle(commands.Cog):
     async def gamble_coin(self, ctx, bet: int, choice: str):
         """Flip a coin and bet on heads or tails."""
         await self.gambling_manager.play_coinflip(ctx, bet, choice)
+
+    # Background Tasks
+    async def update_rotating_bosses(self):
+        """Update weekly and monthly raid bosses."""
+        try:
+            while True:
+                if hasattr(self, 'raid_manager'):  # Add safety check
+                    await self.raid_manager.update_rotating_bosses()
+                await asyncio.sleep(3600)  # Check every hour
+        except Exception as e:
+            logger.error(f"Error updating managers: {e}")
+            # Recreate the task if it fails
+            if not self.bg_task.cancelled():
+                self.bg_task.cancel()
+            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
+        
+        current_time = datetime.utcnow()
+        
+        # Update weekly boss
+        if (not self.last_weekly_update or 
+            current_time - self.last_weekly_update > timedelta(days=7)):
+            weekly_candidates = [boss for boss, data in self.boss_data.items() 
+                             if data["rarity"] == "weekly"]
+            self.weekly_boss = random.choice(weekly_candidates)
+            self.last_weekly_update = current_time
+            await self._announce_new_boss(self.weekly_boss, "weekly")
+        
+        # Update monthly boss
+        if (not self.last_monthly_update or 
+            current_time - self.last_monthly_update > timedelta(days=30)):
+            monthly_candidates = [boss for boss, data in self.boss_data.items() 
+                               if data["rarity"] == "monthly"]
+            self.monthly_boss = random.choice(monthly_candidates)
+            self.last_monthly_update = current_time
+            await self._announce_new_boss(self.monthly_boss, "monthly")
         
     @commands.command()
     @commands.cooldown(1, 600, commands.BucketType.user)
