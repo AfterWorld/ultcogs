@@ -647,28 +647,28 @@ class RaidBossManager:
                 "hp": 1000,
                 "attacks": ["Thunder Bagua", "Dragon's Breath", "Boro Breath"],
                 "rewards": {"berries": 100000},
-                "image_url": "kaido_image_url",
+                "image_url": "https://static.wikia.nocookie.net/onepiece/images/2/2d/Kaidou_Anime_Infobox.png/revision/latest?cb=20231102015517",
                 "rarity": "monthly"
             },
             "Big Mom": {
                 "hp": 900,
                 "attacks": ["Ikoku", "Zeus Strike", "Prometheus Burst"],
                 "rewards": {"berries": 90000},
-                "image_url": "bigmom_image_url",
+                "image_url": "https://static.wikia.nocookie.net/onepiece/images/d/d8/Charlotte_Linlin_Anime_Infobox.png/revision/latest/scale-to-width-down/1000?cb=20180423150804",
                 "rarity": "weekly"
             },
             "Blackbeard": {
                 "hp": 800,
                 "attacks": ["Black Hole", "Dark Matter", "Gura Quake"],
                 "rewards": {"berries": 80000},
-                "image_url": "blackbeard_image_url",
+                "image_url": "https://static.wikia.nocookie.net/onepiece/images/f/ff/Marshall_D._Teach_Anime_Post_Timeskip_Infobox.png/revision/latest/scale-to-width-down/1000?cb=20240128044952",
                 "rarity": "weekly"
             },
             "Akainu": {
                 "hp": 850,
                 "attacks": ["Great Eruption", "Meteor Volcano", "Hellhound"],
                 "rewards": {"berries": 85000},
-                "image_url": "akainu_image_url",
+                "image_url": "https://static.wikia.nocookie.net/onepiece/images/d/d7/Sakazuki_Anime_Post_Timeskip_Infobox.png/revision/latest?cb=20220829052511",
                 "rarity": "monthly"
             }
         }
