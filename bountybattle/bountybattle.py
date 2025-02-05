@@ -480,12 +480,11 @@ class DevilFruitManager:
     async def _handle_logia_effects(self, attacker, defender, effect, move, environment):
         """Handle Logia-type Devil Fruit effects."""
         bonus_damage = 0
-        effect_message = None
+        effect_message = None  # Initialize at start
 
         # Get base damage from move
         base_damage = move.get("damage", 0)
         if base_damage == 0 and move.get("type") in MOVE_TYPES:
-            # If no damage specified, use the move type's base damage range
             move_type = MOVE_TYPES[move["type"]]
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
@@ -632,6 +631,8 @@ class DevilFruitManager:
     async def _handle_zoan_effects(self, attacker, defender, effect, move, environment):
         """Handle Zoan-type Devil Fruit effects."""
         bonus_damage = 0
+        effect_message = None  # Initialize at the start
+        
         base_damage = move.get("damage", 0)
         if base_damage == 0 and move.get("type") in MOVE_TYPES:
             move_type = MOVE_TYPES[move["type"]]
@@ -832,6 +833,23 @@ class DevilFruitManager:
                     f"**{attacker['name']}** unleashes prehistoric fury!\n"
                     f"💥 Critical hit with ancient strength!"
                 )
+        # Add default effect if no specific effect was triggered
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
+            effect_message = (
+                f"💥 **ZOAN TRANSFORMATION**! 💥\n"
+                f"**{attacker['name']}** uses their beast form!\n"
+                f"⚔️ {bonus_damage} bonus damage!"
+            )
+        
+        # Add default effect if no specific effect was triggered
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
+            effect_message = (
+                f"💫 **LOGIA POWER**! 💫\n"
+                f"**{attacker['name']}** uses their elemental form!\n"
+                f"✨ {bonus_damage} bonus damage!"
+            )
                 
         # Environment interactions
         if environment == "Wano" and ("Dragon" in effect or "Orochi" in effect):
@@ -843,6 +861,8 @@ class DevilFruitManager:
     async def _handle_paramecia_effects(self, attacker, defender, effect, move, environment):
         """Handle Paramecia-type Devil Fruit effects."""
         bonus_damage = 0
+        effect_message = None  # Initialize at start
+        
         base_damage = move.get("damage", 0)
         if base_damage == 0 and move.get("type") in MOVE_TYPES:
             move_type = MOVE_TYPES[move["type"]]
@@ -1189,6 +1209,15 @@ class DevilFruitManager:
                     f"**{attacker['name']}** manipulates the terrain!\n"
                     f"🪨 Target slowed + Bonus damage!"
                 )
+                
+        # Add default effect if no specific effect was triggered
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
+            effect_message = (
+                f"✨ **PARAMECIA POWER**! ✨\n"
+                f"**{attacker['name']}** uses their devil fruit power!\n"
+                f"💫 {bonus_damage} bonus damage!"
+            )
 
         # Environment interactions
         if environment == "Marineford":
