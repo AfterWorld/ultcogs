@@ -1772,7 +1772,6 @@ class BountyBattle(commands.Cog):
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
         self.gambling_manager = GamblingManager(bot)  # Add this line
-        self.event_manager = EventManager(bot)  # Add this line
         self.raid_manager = RaidBossManager(self)  # Make sure this is initialized after self.bot is set
             
         # Initialize tracking variables
