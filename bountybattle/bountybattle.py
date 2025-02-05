@@ -748,7 +748,62 @@ class DevilFruitManager:
                     f"**{attacker['name']}** strikes with multiple heads!\n"
                     f"💥 {multi_strike}x strike combo!"
                 )
+                
+        # Kami Kami no Mi
+        elif "god" in effect:
+            if random.random() < 0.15 and not attacker.get("nullify_used", False):
+                attacker["nullify_used"] = True
+                effect_message = (
+                    f"✨ **DIVINE PROTECTION**! ✨\n"
+                    f"**{attacker['name']}** channels godly power!\n"
+                    f"🛡️ Next attack nullified!"
+                )
 
+        # Ushi Ushi no Mi: Model Bison
+        elif "bison" in effect:
+            if "battle_turns" not in attacker:
+                attacker["battle_turns"] = 0
+            attacker["battle_turns"] += 1
+            
+            bonus_damage = int(move.get("damage", 0) * (0.1 * min(5, attacker["battle_turns"] // 2)))
+            effect_message = (
+                f"🦬 **STAMPEDING FORCE**! 🦬\n"
+                f"**{attacker['name']}** builds momentum!\n"
+                f"💥 Attack power increased with battle duration!"
+            )
+
+        # Kumo Kumo no Mi: Model Rosamygale Grauvogeli
+        elif "spider" in effect:
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("slow", defender, duration=2)
+                effect_message = (
+                    f"🕷️ **ANCIENT WEB**! 🕷️\n"
+                    f"**{attacker['name']}** ensnares with prehistoric webbing!\n"
+                    f"🕸️ Target movement slowed!"
+                )
+
+        # Uo Uo no Mi: Model Seiryu
+        elif "Seiryu" in effect:
+            bonus_damage = int(move.get("damage", 0) * 0.3)
+            if random.random() < 0.25:
+                await self.status_manager.apply_effect("elemental_boost", attacker, duration=2)
+                effect_message = (
+                    f"🐉 **AZURE DRAGON'S BLESSING**! 🐉\n"
+                    f"**{attacker['name']}** channels celestial power!\n"
+                    f"✨ Elemental damage increased!"
+                )
+
+        # Ryu Ryu no Mi: Model Allosaurus
+        elif "Allosaurus" in effect:
+            bonus_damage = int(move.get("damage", 0) * 0.25)
+            if random.random() < 0.3:
+                bonus_damage *= 2
+                effect_message = (
+                    f"🦖 **JURASSIC HUNTER**! 🦖\n"
+                    f"**{attacker['name']}** unleashes prehistoric fury!\n"
+                    f"💥 Critical hit with ancient strength!"
+                )
+                
         # Environment interactions
         if environment == "Wano" and ("Dragon" in effect or "Orochi" in effect):
             bonus_damage = int(bonus_damage * 1.3)
@@ -1013,6 +1068,87 @@ class DevilFruitManager:
                 f"**{attacker['name']}** shatters the air itself!\n"
                 f"🌋 Massive quake damage!"
             )
+            
+        # Mochi Mochi no Mi
+        elif effect == "mochi":
+            if "dodge_cooldown" not in attacker:
+                attacker["dodge_cooldown"] = 0
+            
+            if attacker["dodge_cooldown"] <= 0 and random.random() < 0.25:
+                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                attacker["dodge_cooldown"] = 4  # Reset cooldown
+                effect_message = (
+                    f"🍡 **MOCHI DEFENSE**! 🍡\n"
+                    f"**{attacker['name']}** becomes malleable!\n"
+                    f"✨ Attack evaded through mochi transformation!"
+                )
+            attacker["dodge_cooldown"] = max(0, attacker["dodge_cooldown"] - 1)
+
+        # Toki Toki no Mi
+        elif effect == "time":
+            if random.random() < 0.2:
+                # Reset all cooldowns
+                for status in attacker.get("status", {}).keys():
+                    if "cooldown" in status.lower():
+                        attacker["status"][status] = 0
+                effect_message = (
+                    f"⌛ **TIME MANIPULATION**! ⌛\n"
+                    f"**{attacker['name']}** accelerates time!\n"
+                    f"🕒 All ability cooldowns reset!"
+                )
+
+        # Bari Bari no Mi
+        elif effect == "barrier":
+            if random.random() < 0.3:
+                damage_reduction = int(move.get("damage", 0) * 0.4)
+                bonus_damage = int(move.get("damage", 0) * 0.2)
+                effect_message = (
+                    f"🛡️ **BARRIER CRASH**! 🛡️\n"
+                    f"**{attacker['name']}** creates an offensive barrier!\n"
+                    f"💥 Damage reduced by {damage_reduction} + Counter attack!"
+                )
+
+        # Doku Doku no Mi
+        elif effect == "poison":
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("poison", defender, value=3, duration=3)
+                effect_message = (
+                    f"☠️ **VENOM DEMON**! ☠️\n"
+                    f"**{attacker['name']}** unleashes deadly poison!\n"
+                    f"💀 Target poisoned for 3 turns!"
+                )
+
+        # Shibo Shibo no Mi
+        elif effect == "dehydration":
+            if random.random() < 0.25:
+                drain_amount = int(defender["hp"] * 0.15)
+                defender["hp"] -= drain_amount
+                effect_message = (
+                    f"💧 **MOISTURE DRAIN**! 💧\n"
+                    f"**{attacker['name']}** dehydrates the target!\n"
+                    f"🏜️ Drained {drain_amount} HP through dehydration!"
+                )
+
+        # Kira Kira no Mi
+        elif effect == "diamond":
+            if random.random() < 0.3:
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                effect_message = (
+                    f"💎 **DIAMOND BODY**! 💎\n"
+                    f"**{attacker['name']}** hardens like diamond!\n"
+                    f"✨ Defense increased by 30%!"
+                )
+
+        # Ishi Ishi no Mi
+        elif effect == "stone":
+            if random.random() < 0.25:
+                bonus_damage = int(move.get("damage", 0) * 0.4)
+                await self.status_manager.apply_effect("slow", defender, duration=2)
+                effect_message = (
+                    f"🗿 **STONE PRISON**! 🗿\n"
+                    f"**{attacker['name']}** manipulates the terrain!\n"
+                    f"🪨 Target slowed + Bonus damage!"
+                )
 
         # Environment interactions
         if environment == "Marineford":
