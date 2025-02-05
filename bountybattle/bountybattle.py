@@ -3574,7 +3574,7 @@ class BountyBattle(commands.Cog):
                 for member_id, data in all_members.items():
                     try:
                         member = ctx.guild.get_member(int(member_id))
-                        if member and member != ctx.author:
+                        if member and member != ctx.author and not member.bot:
                             # Sync each potential opponent's bounty
                             opponent_bounty = await self.sync_user_data(member)
                             
@@ -3582,11 +3582,22 @@ class BountyBattle(commands.Cog):
                                 valid_opponents.append(member)
                     except Exception as e:
                         logger.error(f"Error checking opponent bounty: {e}")
+                        continue
 
                 if not valid_opponents:
-                    return await ctx.send("❌ **There are no users with a bounty to challenge!**")
+                    return await ctx.send("❌ **There are no valid users with a bounty to challenge!**")
 
                 opponent = random.choice(valid_opponents)
+            
+            # Verify opponent exists and is valid
+            if not opponent:
+                return await ctx.send("❌ Could not find a valid opponent!")
+            
+            if opponent.bot:
+                return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
+                
+            if opponent == ctx.author:
+                return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
 
             # Sync opponent's bounty
             opponent_bounty = await self.sync_user_data(opponent)
@@ -3598,12 +3609,6 @@ class BountyBattle(commands.Cog):
             if opponent_bounty <= 0:
                 return await ctx.send(f"❌ **{opponent.display_name}** does not have a bounty to challenge!")
             
-            # Prevent self-challenges and bot challenges
-            if ctx.author == opponent:
-                return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
-            if opponent.bot:
-                return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
-            
             # Check if a battle is already in progress
             if ctx.channel.id in self.active_channels:
                 return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
@@ -3611,15 +3616,16 @@ class BountyBattle(commands.Cog):
             # Mark the channel as active
             self.active_channels.add(ctx.channel.id)
 
-            # Generate fight card
-            fight_card = self.generate_fight_card(ctx.author, opponent)
-
-            # Send the dynamically generated fight card image
-            await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
-
             try:
+                # Generate fight card
+                fight_card = self.generate_fight_card(ctx.author, opponent)
+
+                # Send the dynamically generated fight card image
+                await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
+
                 # Call the fight function
                 await self.fight(ctx, ctx.author, opponent)
+                
             except Exception as e:
                 await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
                 self.log.error(f"Battle error: {str(e)}")
@@ -3636,9 +3642,6 @@ class BountyBattle(commands.Cog):
             # Ensure channel is removed from active channels if an error occurs
             if ctx.channel.id in self.active_channels:
                 self.active_channels.remove(ctx.channel.id)
-
-            # Re-raise the exception for further handling
-            raise
         
     @commands.command(name="stopbattle")
     @commands.admin_or_permissions(administrator=True)
