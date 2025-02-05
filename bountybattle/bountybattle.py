@@ -2951,18 +2951,6 @@ class BountyBattle(commands.Cog):
     async def gamble_coin(self, ctx, bet: int, choice: str):
         """Flip a coin and bet on heads or tails."""
         await self.gambling_manager.play_coinflip(ctx, bet, choice)
-
-    # Background Tasks
-    async def update_rotating_bosses(self):
-        """Update weekly and monthly raid bosses."""
-        try:
-            while True:
-                await self.raid_manager.update_rotating_bosses()
-                await asyncio.sleep(3600)  # Check every hour
-        except Exception as e:
-            logger.error(f"Error in update_rotating_bosses: {e}")
-            self.bg_task.cancel()
-            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
         
     @commands.command()
     @commands.cooldown(1, 600, commands.BucketType.user)
