@@ -13,25 +13,11 @@ import json
 import os
 import difflib
 from typing import Optional
-import math
-
-# Initialize logger
-logger = logging.getLogger("red.bountybattle")
-logger.setLevel(logging.INFO)
 
 BOUNTY_FILE = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/bounties.json"
 
 # Ensure directory exists
 os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
-
-
-handler = logging.FileHandler(
-    filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/logs/bountybattle.log",
-    encoding="utf-8",
-    mode="w"
-)
-handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
-logger.addHandler(handler)
 
 def load_json(file_path):
     """Safely load JSON data from a file."""
@@ -66,6 +52,13 @@ def save_bounties(data):
     os.makedirs(os.path.dirname(BOUNTY_FILE), exist_ok=True)
     with open(BOUNTY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
+
+# Initialize logger
+logger = logging.getLogger("red.bounty")
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/logs/bountybattle.log", encoding="utf-8", mode="w")
+handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+logger.addHandler(handler)
 
 # --- Constants ---
 ACHIEVEMENTS = {
@@ -425,272 +418,6 @@ ENVIRONMENTS = {
         ),
     },
 }
-
-class GamblingManager:
-    """Manages gambling games and payouts."""
-    def __init__(self, bot):
-        self.bot = bot
-        self.active_games = {}
-        self.slot_symbols = ['🍒', '🍊', '🍋', '💎', '🎰', '7️⃣']
-        self.slot_payouts = {
-            '777': 10.0,  # Triple 7s
-            '💎💎💎': 7.0,  # Triple diamonds
-            '🎰🎰🎰': 5.0,  # Triple slots
-            'FRUIT': 3.0,  # Any three matching fruits
-            'ANY': 2.0    # Any three matching symbols
-        }
-
-class RaidBossManager:
-    """Manages raid boss encounters and rewards."""
-    def __init__(self, cog):
-        self.cog = cog  # Store reference to the main cog
-        self.bot = cog.bot
-        self.config = cog.config
-        self.active_raids = {}
-        self.weekly_boss = None
-        self.monthly_boss = None
-        self.last_weekly_update = None
-        self.last_monthly_update = None
-        
-        self.boss_data = {
-            "Kaido": {
-                "hp": 1000,
-                "attacks": ["Thunder Bagua", "Dragon's Breath", "Boro Breath"],
-                "rewards": {"berries": 100000},
-                "image_url": "https://static.wikia.nocookie.net/onepiece/images/2/2d/Kaidou_Anime_Infobox.png/revision/latest?cb=20231102015517",
-                "rarity": "monthly"
-            },
-            "Big Mom": {
-                "hp": 900,
-                "attacks": ["Ikoku", "Zeus Strike", "Prometheus Burst"],
-                "rewards": {"berries": 90000},
-                "image_url": "https://static.wikia.nocookie.net/onepiece/images/d/d8/Charlotte_Linlin_Anime_Infobox.png/revision/latest/scale-to-width-down/1000?cb=20180423150804",
-                "rarity": "weekly"
-            },
-            "Blackbeard": {
-                "hp": 800,
-                "attacks": ["Black Hole", "Dark Matter", "Gura Quake"],
-                "rewards": {"berries": 80000},
-                "image_url": "https://static.wikia.nocookie.net/onepiece/images/f/ff/Marshall_D._Teach_Anime_Post_Timeskip_Infobox.png/revision/latest/scale-to-width-down/1000?cb=20240128044952",
-                "rarity": "weekly"
-            },
-            "Akainu": {
-                "hp": 850,
-                "attacks": ["Great Eruption", "Meteor Volcano", "Hellhound"],
-                "rewards": {"berries": 85000},
-                "image_url": "akainu_image_url",
-                "rarity": "monthly"
-            }
-        }
-
-    async def update_rotating_bosses(self):
-        """Update weekly and monthly raid bosses."""
-        try:
-            while True:
-                if hasattr(self, 'raid_manager'):  # Add safety check
-                    await self.raid_manager.update_rotating_bosses()
-                await asyncio.sleep(3600)  # Check every hour
-        except Exception as e:
-            logger.error(f"Error updating managers: {e}")
-            # Recreate the task if it fails
-            if not self.bg_task.cancelled():
-                self.bg_task.cancel()
-            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
-        
-        current_time = datetime.utcnow()
-        
-        # Update weekly boss
-        if (not self.last_weekly_update or 
-            current_time - self.last_weekly_update > timedelta(days=7)):
-            weekly_candidates = [boss for boss, data in self.boss_data.items() 
-                             if data["rarity"] == "weekly"]
-            self.weekly_boss = random.choice(weekly_candidates)
-            self.last_weekly_update = current_time
-            await self._announce_new_boss(self.weekly_boss, "weekly")
-        
-        # Update monthly boss
-        if (not self.last_monthly_update or 
-            current_time - self.last_monthly_update > timedelta(days=30)):
-            monthly_candidates = [boss for boss, data in self.boss_data.items() 
-                               if data["rarity"] == "monthly"]
-            self.monthly_boss = random.choice(monthly_candidates)
-            self.last_monthly_update = current_time
-            await self._announce_new_boss(self.monthly_boss, "monthly")
-
-    async def _announce_new_boss(self, boss_name, boss_type):
-        """Announce new boss in announcement channels."""
-        for guild in self.bot.guilds:
-            channel = discord.utils.get(guild.text_channels, name="announcements")
-            if channel:
-                embed = discord.Embed(
-                    title=f"{'🗡️' if boss_type == 'weekly' else '👑'} New {boss_type.title()} Raid Boss!",
-                    description=f"**{boss_name}** has appeared!",
-                    color=discord.Color.blue() if boss_type == "weekly" else discord.Color.purple()
-                )
-                embed.add_field(
-                    name="Boss Info",
-                    value=f"Health: {self.boss_data[boss_name]['hp']}\nReward: {self.boss_data[boss_name]['rewards']['berries']:,} Berries",
-                    inline=False
-                )
-                await channel.send(embed=embed)
-
-    async def start_raid(self, ctx, partner: discord.Member = None):
-        """Start a raid boss battle."""
-        if ctx.channel.id in self.active_raids:
-            return await ctx.send("❌ A raid is already in progress in this channel!")
-            
-        # Random encounter chance (20%)
-        is_random_encounter = random.random() < 0.20
-        
-        if is_random_encounter:
-            boss_name = random.choice(list(self.boss_data.keys()))
-            encounter_type = "Random Encounter"
-        else:
-            # Choose between weekly and monthly boss
-            boss_name = self.monthly_boss if random.random() < 0.3 else self.weekly_boss
-            if not boss_name:  # If no boss is set yet
-                boss_name = random.choice(list(self.boss_data.keys()))
-            encounter_type = "Monthly Boss" if boss_name == self.monthly_boss else "Weekly Boss"
-        
-        boss_data = self.boss_data[boss_name]
-        boss_hp = boss_data["hp"]
-        
-        # Initialize raid data
-        self.active_raids[ctx.channel.id] = {
-            "boss_name": boss_name,
-            "boss_hp": boss_hp,
-            "max_hp": boss_hp,
-            "players": [ctx.author],
-            "type": encounter_type,
-            "last_attack": {}  # Track last attack time for each player
-        }
-        
-        if partner:
-            if partner.bot:
-                return await ctx.send("❌ You cannot raid with a bot!")
-            if partner == ctx.author:
-                return await ctx.send("❌ You cannot raid with yourself!")
-            self.active_raids[ctx.channel.id]["players"].append(partner)
-        
-        embed = discord.Embed(
-            title=f"⚔️ {encounter_type}: {boss_name} Appears!",
-            description=(
-                f"A powerful enemy has appeared!\n"
-                f"**HP:** {boss_hp}/{boss_hp}\n"
-                f"**Reward Pool:** {boss_data['rewards']['berries']:,} Berries"
-            ),
-            color=discord.Color.red()
-        )
-        
-        embed.add_field(
-            name="Participants",
-            value="\n".join([p.display_name for p in self.active_raids[ctx.channel.id]["players"]]),
-            inline=False
-        )
-        
-        embed.add_field(
-            name="Boss Attacks",
-            value="\n".join(boss_data["attacks"]),
-            inline=False
-        )
-        
-        return await ctx.send(embed=embed)
-
-    async def process_attack(self, ctx):
-        """Process an attack against the raid boss."""
-        raid_data = self.active_raids.get(ctx.channel.id)
-        if not raid_data:
-            return False, "❌ No active raid in this channel!"
-            
-        if ctx.author not in raid_data["players"]:
-            return False, "❌ You are not part of this raid!"
-            
-        # Cooldown check (20 seconds)
-        now = datetime.utcnow()
-        last_attack = raid_data["last_attack"].get(ctx.author.id)
-        if last_attack and (now - last_attack).total_seconds() < 20:
-            remaining = 20 - int((now - last_attack).total_seconds())
-            return False, f"⏳ You must wait {remaining} seconds before attacking again!"
-            
-        # Calculate damage
-        base_damage = random.randint(30, 50)
-        crit_chance = 0.15
-        
-        # Devil Fruit bonus
-        user_data = await self.config.member(ctx.author).all()
-        if user_data.get("devil_fruit"):
-            base_damage *= 1.2
-            crit_chance += 0.05
-            
-        # Critical hit check
-        is_crit = random.random() < crit_chance
-        if is_crit:
-            base_damage *= 1.5
-            
-        # Apply damage
-        raid_data["boss_hp"] -= base_damage
-        raid_data["last_attack"][ctx.author.id] = now
-        
-        # Boss counter-attack
-        boss_data = self.boss_data[raid_data["boss_name"]]
-        boss_attack = random.choice(boss_data["attacks"])
-        counter_damage = random.randint(20, 35)
-        
-        # Create health bar
-        health_percentage = raid_data["boss_hp"] / raid_data["max_hp"]
-        bar_length = 20
-        filled = int(bar_length * health_percentage)
-        health_bar = "█" * filled + "░" * (bar_length - filled)
-        
-        # Create message
-        message = [
-            f"**{ctx.author.display_name}** attacks for {base_damage} damage!",
-            "💥 **CRITICAL HIT!**" if is_crit else None,
-            f"{raid_data['boss_name']} counters with **{boss_attack}** for {counter_damage} damage!",
-            f"Boss HP: [{health_bar}] {raid_data['boss_hp']}/{raid_data['max_hp']} ({(health_percentage * 100):.1f}%)"
-        ]
-        
-        # Check for raid completion
-        if raid_data["boss_hp"] <= 0:
-            await self.complete_raid(ctx, raid_data)
-            message.append(f"🎉 {raid_data['boss_name']} has been defeated!")
-            
-        return True, "\n".join(filter(None, message))
-
-    async def complete_raid(self, ctx, raid_data):
-        """Handle raid completion and rewards."""
-        boss_data = self.boss_data[raid_data["boss_name"]]
-        total_reward = boss_data["rewards"]["berries"]
-        
-        # Split rewards among participants
-        reward_per_player = total_reward // len(raid_data["players"])
-        
-        embed = discord.Embed(
-            title="🎉 Raid Victory!",
-            description=f"{raid_data['boss_name']} has been defeated!",
-            color=discord.Color.green()
-        )
-        
-        # Distribute rewards
-        for player in raid_data["players"]:
-            async with self.config.member(player).all() as player_data:
-                player_data["berries"] = player_data.get("berries", 0) + reward_per_player
-                player_data["raid_wins"] = player_data.get("raid_wins", 0) + 1
-            
-            embed.add_field(
-                name=f"Rewards for {player.display_name}",
-                value=f"💰 {reward_per_player:,} Berries",
-                inline=False
-            )
-        
-        # Clean up raid data
-        del self.active_raids[ctx.channel.id]
-        
-        await ctx.send(embed=embed)
-
-    def get_boss_info(self, boss_name):
-        """Get information about a specific boss."""
-        return self.boss_data.get(boss_name)
 
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
@@ -1754,9 +1481,10 @@ class BountyBattle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
-            
-        # Initialize comprehensive default member settings
+        
+        # Comprehensive default member settings
         default_member = {
+            # Existing core values
             "bounty": 0,
             "berries": 0,
             "last_daily_claim": None,
@@ -1769,12 +1497,29 @@ class BountyBattle(commands.Cog):
             "devil_fruit": None,
             "last_active": None,
             "bounty_hunted": 0,
-            # Add raid stats
-            "raid_wins": 0,
-            "raid_losses": 0,
-            "total_raid_damage": 0
+            
+            # New tracking stats (will be available but won't break existing code)
+            "win_streak": 0,
+            "damage_taken": 0,
+            "critical_hits": 0,
+            "healing_done": 0,
+            "turns_survived": 0,
+            "burns_applied": 0,
+            "stuns_applied": 0,
+            "blocks_performed": 0,
+            "damage_prevented": 0,
+            "elements_used": [],
+            "total_battles": 0,
+            "perfect_victories": 0,
+            "comebacks": 0,
+            "fastest_victory": None,
+            "longest_battle": None,
+            "devil_fruit_mastery": 0,
+            "successful_hunts": 0,
+            "failed_hunts": 0
         }
 
+        # Existing guild settings with new additions
         default_guild = {
             "bounties": {},
             "event": None,
@@ -1789,32 +1534,27 @@ class BountyBattle(commands.Cog):
         # Register all defaults
         self.config.register_member(**default_member)
         self.config.register_guild(**default_guild)
-            
+        
         # Initialize locks
         self.bounty_lock = Lock()
         self.battle_lock = Lock()
         self.data_lock = Lock()
-
+        
         # Initialize managers
         self.battle_manager = BattleStateManager()
         self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
-        self.gambling_manager = GamblingManager(bot)  # Add this line
-        self.raid_manager = RaidBossManager(self)  # Make sure this is initialized after self.bot is set
-            
+        
         # Initialize tracking variables
         self.active_channels = set()
         self.tournaments = {}
         self.current_environment = None
         self.battle_stopped = False
-            
+        
         # Configure logging
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
-            
-        # Start background task for raid boss rotation
-        self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
@@ -1835,17 +1575,6 @@ class BountyBattle(commands.Cog):
         current_time = datetime.utcnow().isoformat()
         await self.config.member(hunter).last_active.set(current_time)
         await self.config.member(target).last_active.set(current_time)
-        
-    async def update_managers(self):
-        """Update all managers."""
-        try:
-            while True:
-                await self.raid_manager.update_rotating_bosses()
-                await asyncio.sleep(3600)  # Check every hour
-        except Exception as e:
-            logger.error(f"Error updating managers: {e}")
-            self.bg_task.cancel()
-            self.bg_task = self.bot.loop.create_task(self.update_managers())
         
     async def sync_bounty(self, user):
         """
@@ -2757,145 +2486,6 @@ class BountyBattle(commands.Cog):
 
         await ctx.send(embed=embed)
         
-    @commands.group(name="raid")
-    async def raid(self, ctx):
-        """Raid boss commands."""
-        if ctx.invoked_subcommand is None:
-            embed = discord.Embed(
-                title="🗡️ Raid Commands",
-                description=(
-                    "`.raid start [partner]` - Start a raid with optional partner\n"
-                    "`.raid status` - Check current raid status\n"
-                    "`.raid attack` - Attack the raid boss\n"
-                    "`.raid weekly` - View weekly boss info\n"
-                    "`.raid monthly` - View monthly boss info\n"
-                    "`.raid stats` - View your raid statistics"
-                ),
-                color=discord.Color.blue()
-            )
-            await ctx.send(embed=embed)
-
-    @raid.command(name="start")
-    @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def raid_start(self, ctx, partner: discord.Member = None):
-        """Start a raid boss battle."""
-        await self.raid_manager.start_raid(ctx, partner)
-
-    @raid.command(name="status")
-    async def raid_status(self, ctx):
-        """Check the status of the current raid."""
-        if ctx.channel.id not in self.raid_manager.active_raids:
-            return await ctx.send("❌ No active raid in this channel!")
-            
-        raid_data = self.raid_manager.active_raids[ctx.channel.id]
-        boss_data = self.raid_manager.boss_data[raid_data["boss_name"]]
-        
-        # Create health bar
-        health_percentage = raid_data["boss_hp"] / raid_data["max_hp"]
-        bar_length = 20
-        filled = int(bar_length * health_percentage)
-        health_bar = "█" * filled + "░" * (bar_length - filled)
-        
-        embed = discord.Embed(
-            title=f"Raid Status: {raid_data['boss_name']}",
-            description=(
-                f"**Type:** {raid_data['type']}\n"
-                f"**HP:** {raid_data['boss_hp']}/{raid_data['max_hp']}\n"
-                f"**Health:** [{health_bar}] {int(health_percentage * 100)}%"
-            ),
-            color=discord.Color.blue()
-        )
-        
-        embed.add_field(
-            name="Participants",
-            value="\n".join([p.display_name for p in raid_data["players"]]),
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-
-    @raid.command(name="attack")
-    async def raid_attack(self, ctx):
-        """Attack the raid boss."""
-        success, message = await self.raid_manager.process_attack(ctx)
-        await ctx.send(message)
-
-    @raid.command(name="weekly")
-    async def raid_weekly(self, ctx):
-        """View information about the weekly boss."""
-        if not self.raid_manager.weekly_boss:
-            return await ctx.send("❌ No weekly boss has been selected yet!")
-            
-        boss_data = self.raid_manager.get_boss_info(self.raid_manager.weekly_boss)
-        
-        embed = discord.Embed(
-            title=f"Weekly Boss: {self.raid_manager.weekly_boss}",
-            description=(
-                f"**HP:** {boss_data['hp']}\n"
-                f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
-            ),
-            color=discord.Color.gold()
-        )
-        
-        embed.add_field(
-            name="Attacks",
-            value="\n".join(boss_data["attacks"]),
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-
-    @raid.command(name="monthly")
-    async def raid_monthly(self, ctx):
-        """View information about the monthly boss."""
-        if not self.raid_manager.monthly_boss:
-            return await ctx.send("❌ No monthly boss has been selected yet!")
-            
-        boss_data = self.raid_manager.get_boss_info(self.raid_manager.monthly_boss)
-        
-        embed = discord.Embed(
-            title=f"Monthly Boss: {self.raid_manager.monthly_boss}",
-            description=(
-                f"**HP:** {boss_data['hp']}\n"
-                f"**Reward:** {boss_data['rewards']['berries']:,} Berries"
-            ),
-            color=discord.Color.purple()
-        )
-        
-        embed.add_field(
-            name="Attacks",
-            value="\n".join(boss_data["attacks"]),
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-
-    @raid.command(name="stats")
-    async def raid_stats(self, ctx, member: discord.Member = None):
-        """View raid statistics for a user."""
-        member = member or ctx.author
-        
-        stats = await self.config.member(member).all()
-        
-        embed = discord.Embed(
-            title=f"🗡️ Raid Statistics for {member.display_name}",
-            color=discord.Color.blue()
-        )
-        
-        embed.add_field(
-            name="Victories",
-            value=f"🏆 Raids Won: {stats.get('raid_wins', 0)}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="Damage",
-            value=f"⚔️ Total Raid Damage: {stats.get('total_raid_damage', 0):,}",
-            inline=True
-        )
-        
-        await ctx.send(embed=embed)
- 
     @commands.command()
     async def myfruit(self, ctx):
         """Check which Devil Fruit you have eaten."""
@@ -2919,74 +2509,6 @@ class BountyBattle(commands.Cog):
             f"🔥 **Ability:** {effect}"
         )
 
-    # Gambling Commands
-    @commands.group(invoke_without_command=True)
-    async def gamble(self, ctx):
-        """Gambling commands."""
-        embed = discord.Embed(
-            title="🎲 Gambling Commands",
-            description=(
-                "`.gamble dice <bet>` - Roll dice against the house\n"
-                "`.gamble slots <bet>` - Play the slot machine\n"
-                "`.gamble coin <bet> <heads/tails>` - Flip a coin"
-            ),
-            color=discord.Color.gold()
-        )
-        await ctx.send(embed=embed)
-
-    @gamble.command(name="dice")
-    @commands.cooldown(1, 30, commands.BucketType.user)
-    async def gamble_dice(self, ctx, bet: int):
-        """Play a dice game against the house."""
-        await self.gambling_manager.play_dice(ctx, bet)
-
-    @gamble.command(name="slots")
-    @commands.cooldown(1, 30, commands.BucketType.user)
-    async def gamble_slots(self, ctx, bet: int):
-        """Play the slot machine."""
-        await self.gambling_manager.play_slots(ctx, bet)
-
-    @gamble.command(name="coin")
-    @commands.cooldown(1, 30, commands.BucketType.user)
-    async def gamble_coin(self, ctx, bet: int, choice: str):
-        """Flip a coin and bet on heads or tails."""
-        await self.gambling_manager.play_coinflip(ctx, bet, choice)
-
-    # Background Tasks
-    async def update_rotating_bosses(self):
-        """Update weekly and monthly raid bosses."""
-        try:
-            while True:
-                if hasattr(self, 'raid_manager'):  # Add safety check
-                    await self.raid_manager.update_rotating_bosses()
-                await asyncio.sleep(3600)  # Check every hour
-        except Exception as e:
-            logger.error(f"Error updating managers: {e}")
-            # Recreate the task if it fails
-            if not self.bg_task.cancelled():
-                self.bg_task.cancel()
-            self.bg_task = self.bot.loop.create_task(self.update_rotating_bosses())
-        
-        current_time = datetime.utcnow()
-        
-        # Update weekly boss
-        if (not self.last_weekly_update or 
-            current_time - self.last_weekly_update > timedelta(days=7)):
-            weekly_candidates = [boss for boss, data in self.boss_data.items() 
-                             if data["rarity"] == "weekly"]
-            self.weekly_boss = random.choice(weekly_candidates)
-            self.last_weekly_update = current_time
-            await self._announce_new_boss(self.weekly_boss, "weekly")
-        
-        # Update monthly boss
-        if (not self.last_monthly_update or 
-            current_time - self.last_monthly_update > timedelta(days=30)):
-            monthly_candidates = [boss for boss, data in self.boss_data.items() 
-                               if data["rarity"] == "monthly"]
-            self.monthly_boss = random.choice(monthly_candidates)
-            self.last_monthly_update = current_time
-            await self._announce_new_boss(self.monthly_boss, "monthly")
-        
     @commands.command()
     @commands.cooldown(1, 600, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
@@ -4917,11 +4439,3 @@ class BountyBattle(commands.Cog):
 async def setup(bot):
     cog = BountyBattle(bot)
     await bot.add_cog(cog)
-    
-def cog_unload(self):
-    """Clean up when cog is unloaded."""
-    if hasattr(self, 'bg_task'):
-        self.bg_task.cancel()
-    self.gambling_manager.active_games.clear()
-    self.raid_manager.active_raids.clear()
-    self.event_manager.active_events.clear()
