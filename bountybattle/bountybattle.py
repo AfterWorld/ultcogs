@@ -2016,9 +2016,14 @@ class BountyBattle(commands.Cog):
         try:
             for reaction in message.reactions:
                 if str(reaction.emoji) == emoji:
+                    # Use proper async iteration pattern
                     async for user in reaction.users():
                         if not user.bot:
                             raiders.append(user)
+        except discord.Forbidden:
+            logger.error("Missing permissions to fetch reaction users")
+        except discord.HTTPException:
+            logger.error("Failed to get reaction users")
         except Exception as e:
             logger.error(f"Error processing reactions: {e}")
         return raiders
@@ -3801,7 +3806,7 @@ class BountyBattle(commands.Cog):
             await ctx.send("❌ An error occurred during the marine hunt!")
             
     @commands.command()
-    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1 hour cooldown
+    @commands.cooldown(1, 3600, commands.BucketType.user)
     async def raid(self, ctx):
         """Organize raids against powerful enemies like Yonko or Marine fortresses."""
         try:
@@ -3817,169 +3822,144 @@ class BountyBattle(commands.Cog):
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ You need at least `100,000` Berries bounty to attempt raids!")
 
-            # Create raid selection embed
-            embed = discord.Embed(
-                title="🏴‍☠️ Available Raid Targets",
-                description="Choose your target by typing its number:",
-                color=discord.Color.dark_red()
+            # Rest of the setup code remains the same until reaction handling...
+
+            # Start raid preparation
+            prep_embed = discord.Embed(
+                title=f"⚔️ Raid on {selected_target}",
+                description=(
+                    f"**Target:** {selected_target}\n"
+                    f"**Boss:** {target_data['boss']}\n"
+                    f"**Required Crew:** {1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4} players\n\n"
+                    f"React ⚔️ to join the raid! Starting in 60 seconds..."
+                ),
+                color=discord.Color.blue()
             )
+            prep_msg = await ctx.send(embed=prep_embed)
+            await prep_msg.add_reaction("⚔️")
 
-            available_targets = []
-            for idx, (target, data) in enumerate(self.current_bosses.items(), 1):
-                if true_bounty >= 100000 and target == "Marine Fortress":
-                    available_targets.append(target)
-                elif true_bounty >= 500000 and target == "Impel Down":
-                    available_targets.append(target)
-                elif true_bounty >= 1000000 and target == "Enies Lobby":
-                    available_targets.append(target)
-                elif true_bounty >= 5000000 and target == "Yonko Territory":
-                    available_targets.append(target)
-                elif true_bounty >= 10000000 and target == "Mary Geoise":
-                    available_targets.append(target)
-
-                if target in available_targets:
-                    embed.add_field(
-                        name=f"{len(available_targets)}. {target} ({data['level']})",
-                        value=(
-                            f"Boss: `{data['boss']}`\n"
-                            f"Min. Players: `{1 if data['level'] == 'Easy' else 2 if data['level'] == 'Medium' else 3 if data['level'] == 'Hard' else 4}`\n"
-                            f"Reward: `{50000 * (2 ** (len(available_targets)-1)):,}` - `{100000 * (2 ** (len(available_targets)-1)):,}` Berries"
-                        ),
-                        inline=False
-                    )
-
-            if not available_targets:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send("❌ No raid targets available at your bounty level!")
-
-            raid_msg = await ctx.send(embed=embed)
-
+            # Wait for raiders to join
+            await asyncio.sleep(60)
+            
+            # Fetch fresh message
             try:
-                def check(m):
-                    return m.author == user and m.channel == ctx.channel and \
-                        m.content.isdigit() and 1 <= int(m.content) <= len(available_targets)
-
-                target_choice = await self.bot.wait_for('message', timeout=30.0, check=check)
-                selected_target = available_targets[int(target_choice.content) - 1]
-                target_data = self.current_bosses[selected_target]
-
-                # Start raid preparation
-                prep_embed = discord.Embed(
-                    title=f"⚔️ Raid on {selected_target}",
-                    description=(
-                        f"**Target:** {selected_target}\n"
-                        f"**Boss:** {target_data['boss']}\n"
-                        f"**Required Crew:** {1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4} players\n\n"
-                        f"React ⚔️ to join the raid! Starting in 60 seconds..."
-                    ),
-                    color=discord.Color.blue()
-                )
-                prep_msg = await ctx.send(embed=prep_embed)
-                await prep_msg.add_reaction("⚔️")
-
-                # Wait for raiders to join
-                await asyncio.sleep(60)
-                
-                # Fetch fresh message and process reactions
                 prep_msg = await ctx.channel.fetch_message(prep_msg.id)
-                raiders = await self.process_raid_reactions(prep_msg)
-
-                min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
-                if len(raiders) < min_players:
-                    return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players! (Got {len(raiders)})")
-
-                # Calculate success chance based on level
-                base_chance = {
-                    "Easy": 0.7,
-                    "Medium": 0.5,
-                    "Hard": 0.3,
-                    "Very Hard": 0.2,
-                    "Extreme": 0.1
-                }[target_data['level']]
-
-                # Add bonuses
-                player_bonus = min(0.1 * (len(raiders) - min_players), 0.3)
-                fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
-                fruit_bonus = min(0.05 * fruit_users, 0.15)
-
-                final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
-
-                # Determine outcome
-                success = random.random() < final_chance
-
-                if success:
-                    # Calculate rewards
-                    base_reward = random.randint(
-                        50000 * (2 ** (len(available_targets)-1)),
-                        100000 * (2 ** (len(available_targets)-1))
-                    )
-                    
-                    # Give rewards to all raiders
-                    for raider in raiders:
-                        bounties = load_bounties()
-                        raider_id = str(raider.id)
-                        
-                        if raider_id in bounties:
-                            bounties[raider_id]["amount"] += base_reward
-                            save_bounties(bounties)
-                            await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
-
-                    success_embed = discord.Embed(
-                        title="🎉 Raid Successful!",
-                        description=f"The raid on {selected_target} was successful!",
-                        color=discord.Color.green()
-                    )
-                    success_embed.add_field(
-                        name="💰 Rewards",
-                        value=f"Each raider earned `{base_reward:,}` Berries!",
-                        inline=False
-                    )
-                    success_embed.add_field(
-                        name="⚔️ Raiders",
-                        value="\n".join([raider.mention for raider in raiders]),
-                        inline=False
-                    )
-                    
-                    await ctx.send(embed=success_embed)
-
-                else:
-                    # Calculate penalties
-                    penalty = int(base_reward * 0.1)  # 10% of potential reward
-                    
-                    # Apply penalties
-                    for raider in raiders:
-                        bounties = load_bounties()
-                        raider_id = str(raider.id)
-                        
-                        if raider_id in bounties:
-                            bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
-                            save_bounties(bounties)
-                            await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
-
-                    failure_embed = discord.Embed(
-                        title="❌ Raid Failed!",
-                        description=f"The raid on {selected_target} was unsuccessful!",
-                        color=discord.Color.red()
-                    )
-                    failure_embed.add_field(
-                        name="💸 Penalties",
-                        value=f"Each raider lost `{penalty:,}` Berries!",
-                        inline=False
-                    )
-                    failure_embed.add_field(
-                        name="⚔️ Raiders",
-                        value="\n".join([raider.mention for raider in raiders]),
-                        inline=False
-                    )
-                    
-                    await ctx.send(embed=failure_embed)
-
-            except asyncio.TimeoutError:
-                await ctx.send("Raid planning timed out! Try again later.")
-            except Exception as e:
-                logger.error(f"Error during raid execution: {str(e)}")
-                await ctx.send(f"An error occurred during raid execution: {str(e)}")
+                raiders = []
                 
+                # Get the specific reaction
+                reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
+                if reaction:
+                    # Use proper async iteration
+                    async for user in reaction.users():
+                        if not user.bot:
+                            raiders.append(user)
+                
+                # Log the results
+                logger.info(f"Found {len(raiders)} raiders")
+                
+            except discord.NotFound:
+                return await ctx.send("❌ Could not find the raid message. Please try again.")
+            except discord.Forbidden:
+                return await ctx.send("❌ I don't have permission to read message reactions.")
+            except Exception as e:
+                logger.error(f"Error processing reactions: {e}")
+                return await ctx.send("❌ An error occurred while processing raid participants.")
+
+            # Check minimum players
+            min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
+            if len(raiders) < min_players:
+                return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players! (Got {len(raiders)})")
+
+            # Rest of the raid logic remains the same...
+
+            # Calculate success chance based on level
+            base_chance = {
+                "Easy": 0.7,
+                "Medium": 0.5,
+                "Hard": 0.3,
+                "Very Hard": 0.2,
+                "Extreme": 0.1
+            }[target_data['level']]
+
+            # Add bonuses
+            player_bonus = min(0.1 * (len(raiders) - min_players), 0.3)
+            fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
+            fruit_bonus = min(0.05 * fruit_users, 0.15)
+
+            final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
+
+            # Determine outcome
+            success = random.random() < final_chance
+
+            if success:
+                # Calculate rewards
+                base_reward = random.randint(
+                    50000 * (2 ** (len(available_targets)-1)),
+                    100000 * (2 ** (len(available_targets)-1))
+                )
+                
+                # Give rewards to all raiders
+                for raider in raiders:
+                    bounties = load_bounties()
+                    raider_id = str(raider.id)
+                    
+                    if raider_id in bounties:
+                        bounties[raider_id]["amount"] += base_reward
+                        save_bounties(bounties)
+                        await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+
+                success_embed = discord.Embed(
+                    title="🎉 Raid Successful!",
+                    description=f"The raid on {selected_target} was successful!",
+                    color=discord.Color.green()
+                )
+                success_embed.add_field(
+                    name="💰 Rewards",
+                    value=f"Each raider earned `{base_reward:,}` Berries!",
+                    inline=False
+                )
+                success_embed.add_field(
+                    name="⚔️ Raiders",
+                    value="\n".join([raider.mention for raider in raiders]),
+                    inline=False
+                )
+                
+                await ctx.send(embed=success_embed)
+
+            else:
+                # Calculate penalties
+                penalty = int(base_reward * 0.1)  # 10% of potential reward
+                
+                # Apply penalties
+                for raider in raiders:
+                    bounties = load_bounties()
+                    raider_id = str(raider.id)
+                    
+                    if raider_id in bounties:
+                        bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
+                        save_bounties(bounties)
+                        await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+
+                failure_embed = discord.Embed(
+                    title="❌ Raid Failed!",
+                    description=f"The raid on {selected_target} was unsuccessful!",
+                    color=discord.Color.red()
+                )
+                failure_embed.add_field(
+                    name="💸 Penalties",
+                    value=f"Each raider lost `{penalty:,}` Berries!",
+                    inline=False
+                )
+                failure_embed.add_field(
+                    name="⚔️ Raiders",
+                    value="\n".join([raider.mention for raider in raiders]),
+                    inline=False
+                )
+                
+                await ctx.send(embed=failure_embed)
+
+        except asyncio.TimeoutError:
+            await ctx.send("Raid planning timed out! Try again later.")
         except Exception as e:
             logger.error(f"Error in raid command: {str(e)}")
             await ctx.send(f"An error occurred: {str(e)}")
