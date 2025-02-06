@@ -3886,19 +3886,27 @@ class BountyBattle(commands.Cog):
                 await asyncio.sleep(60)
                 
                 # Fetch fresh message
-                prep_msg = await ctx.channel.fetch_message(prep_msg.id)
-                raiders = []
-                
-                # Get the specific reaction
-                reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
-                if reaction:
-                    # Use proper async iteration
-                    async for user in reaction.users():
-                        if not user.bot:
-                            raiders.append(user)
-                
-                logger.info(f"Found {len(raiders)} raiders")
-                
+                try:
+                    prep_msg = await ctx.channel.fetch_message(prep_msg.id)
+                    raiders = []
+                    
+                    # Get reaction and collect raiders
+                    raid_reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
+                    if raid_reaction:
+                        async for user in raid_reaction.users():
+                            if not user.bot:
+                                raiders.append(user)
+                    
+                    logger.info(f"Found {len(raiders)} raiders")
+                    
+                except discord.NotFound:
+                    return await ctx.send("❌ Could not find the raid message. Please try again.")
+                except discord.Forbidden:
+                    return await ctx.send("❌ I don't have permission to read message reactions.")
+                except Exception as e:
+                    logger.error(f"Error processing reactions: {e}")
+                    return await ctx.send("❌ An error occurred while processing raid participants.")
+
                 # Check minimum players
                 min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
                 if len(raiders) < min_players:
