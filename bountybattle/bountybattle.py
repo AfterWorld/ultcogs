@@ -3175,6 +3175,236 @@ class BountyBattle(commands.Cog):
             # Only send the cooldown message once
             minutes, seconds = divmod(int(error.retry_after), 60)
             await ctx.send(f"⏳ Wait **{minutes}m {seconds}s** before gambling again!")
+            
+    @commands.command()
+    @commands.cooldown(1, 1800, commands.BucketType.user)
+    async def diceroll(self, ctx, bet: Optional[int] = None):
+        """Roll dice against the house. Higher number wins!"""
+        try:
+            user = ctx.author
+            
+            # Sync data first
+            true_bounty = await self.sync_user_data(user)
+            if true_bounty is None:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ An error occurred while checking your bounty.")
+
+            if true_bounty == 0:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
+                
+            # Validate bet amount
+            if bet is None:
+                bet = min(true_bounty, 10000)
+            elif bet < 100:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Minimum bet is `100` Berries!")
+            elif bet > true_bounty:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f"❌ Ye only have `{true_bounty:,}` Berries to bet!")
+
+            # Create initial embed
+            embed = discord.Embed(
+                title="🎲 Dice Gambling Den",
+                description=f"**{user.display_name}** bets `{bet:,}` Berries!",
+                color=discord.Color.gold()
+            )
+            
+            message = await ctx.send(embed=embed)
+            await asyncio.sleep(2)
+
+            # Roll dice
+            player_roll = random.randint(1, 6)
+            house_roll = random.randint(1, 6)
+            
+            # Load bounties for updating
+            bounties = load_bounties()
+            user_id = str(user.id)
+            
+            if player_roll > house_roll:
+                winnings = bet
+                bounties[user_id]["amount"] += winnings
+                
+                embed.color = discord.Color.green()
+                embed.description = (
+                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
+                    f"🎲 The house rolls a `{house_roll}`!\n\n"
+                    f"🎉 You won `{winnings:,}` Berries!\n"
+                    f"New Bounty: `{bounties[user_id]['amount']:,}` Berries"
+                )
+            elif player_roll < house_roll:
+                loss = bet
+                bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - loss)
+                
+                embed.color = discord.Color.red()
+                embed.description = (
+                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
+                    f"🎲 The house rolls a `{house_roll}`!\n\n"
+                    f"💀 You lost `{loss:,}` Berries!\n"
+                    f"Remaining Bounty: `{bounties[user_id]['amount']:,}` Berries"
+                )
+            else:
+                embed.color = discord.Color.blue()
+                embed.description = (
+                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
+                    f"🎲 The house rolls a `{house_roll}`!\n\n"
+                    f"🤝 It's a tie! Your bet is returned."
+                )
+
+            # Save updated bounties
+            save_bounties(bounties)
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+            await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
+
+            await message.edit(embed=embed)
+
+        except Exception as e:
+            ctx.command.reset_cooldown(ctx)
+            logger.error(f"Error in diceroll command: {str(e)}")
+            await ctx.send("❌ An error occurred during the gamble!")
+
+    @commands.command()
+    @commands.cooldown(1, 1800, commands.BucketType.user)
+    async def blackjack(self, ctx, bet: Optional[int] = None):
+        """Play blackjack against the house."""
+        try:
+            user = ctx.author
+            
+            # Sync data first
+            true_bounty = await self.sync_user_data(user)
+            if true_bounty is None:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ An error occurred while checking your bounty.")
+
+            if true_bounty == 0:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
+                
+            # Validate bet amount
+            if bet is None:
+                bet = min(true_bounty, 10000)
+            elif bet < 100:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send("❌ Minimum bet is `100` Berries!")
+            elif bet > true_bounty:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f"❌ Ye only have `{true_bounty:,}` Berries to bet!")
+
+            # Initialize deck and hands
+            deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
+            random.shuffle(deck)
+            
+            player_hand = [deck.pop(), deck.pop()]
+            dealer_hand = [deck.pop(), deck.pop()]
+
+            # Create initial embed
+            embed = discord.Embed(
+                title="♠️ Blackjack Table",
+                description=f"**{user.display_name}** bets `{bet:,}` Berries!",
+                color=discord.Color.gold()
+            )
+            
+            def calculate_hand(hand):
+                total = sum(hand)
+                aces = hand.count(11)
+                while total > 21 and aces:
+                    total -= 10
+                    aces -= 1
+                return total
+
+            def display_hands(show_dealer=False):
+                dealer_total = calculate_hand(dealer_hand) if show_dealer else calculate_hand([dealer_hand[0]])
+                player_total = calculate_hand(player_hand)
+                
+                embed.clear_fields()
+                embed.add_field(
+                    name="Dealer's Hand",
+                    value=f"{dealer_hand[0]}, {'?' if not show_dealer else ', '.join(map(str, dealer_hand[1:]))}\n"
+                        f"Total: {dealer_total}",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Your Hand",
+                    value=f"{', '.join(map(str, player_hand))}\nTotal: {player_total}",
+                    inline=False
+                )
+
+            display_hands()
+            message = await ctx.send(embed=embed)
+
+            # Player's turn
+            while calculate_hand(player_hand) < 21:
+                embed.description = "Type `hit` or `stand`"
+                await message.edit(embed=embed)
+                
+                try:
+                    def check(m):
+                        return m.author == user and m.channel == ctx.channel and \
+                            m.content.lower() in ['hit', 'stand']
+                    
+                    response = await self.bot.wait_for('message', timeout=30.0, check=check)
+                    
+                    if response.content.lower() == 'hit':
+                        player_hand.append(deck.pop())
+                        display_hands()
+                        await message.edit(embed=embed)
+                    else:
+                        break
+                        
+                except asyncio.TimeoutError:
+                    embed.description = "Time's up! Standing with current hand."
+                    await message.edit(embed=embed)
+                    break
+
+            # Dealer's turn
+            player_total = calculate_hand(player_hand)
+            if player_total <= 21:
+                while calculate_hand(dealer_hand) < 17:
+                    dealer_hand.append(deck.pop())
+
+            # Show final hands
+            display_hands(show_dealer=True)
+            
+            # Determine winner
+            dealer_total = calculate_hand(dealer_hand)
+            
+            # Load bounties for updating
+            bounties = load_bounties()
+            user_id = str(user.id)
+            
+            if player_total > 21:
+                result = "Bust! You lose!"
+                bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - bet)
+                embed.color = discord.Color.red()
+            elif dealer_total > 21:
+                result = "Dealer busts! You win!"
+                bounties[user_id]["amount"] += bet
+                embed.color = discord.Color.green()
+            elif player_total > dealer_total:
+                result = "You win!"
+                bounties[user_id]["amount"] += bet
+                embed.color = discord.Color.green()
+            elif dealer_total > player_total:
+                result = "Dealer wins!"
+                bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - bet)
+                embed.color = discord.Color.red()
+            else:
+                result = "Push! It's a tie!"
+                embed.color = discord.Color.blue()
+
+            embed.description = f"{result}\nNew Bounty: `{bounties[user_id]['amount']:,}` Berries"
+            
+            # Save updated bounties
+            save_bounties(bounties)
+            await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+            await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
+
+            await message.edit(embed=embed)
+
+        except Exception as e:
+            ctx.command.reset_cooldown(ctx)
+            logger.error(f"Error in blackjack command: {str(e)}")
+            await ctx.send("❌ An error occurred during the gamble!")
         
     @commands.command()
     async def missions(self, ctx):
