@@ -419,6 +419,101 @@ ENVIRONMENTS = {
     },
 }
 
+class RaidManager:
+    """Manages raid-related functionality including rotating bosses and rewards."""
+    
+    def __init__(self):
+        self.current_bosses = {}
+        self.active_raids = {}
+        self.raid_cooldowns = {}
+        
+    async def update_rotating_bosses(self):
+        """Update the list of available raid bosses."""
+        try:
+            current_time = datetime.utcnow()
+            self.current_bosses = {
+                "Marine Fortress": {
+                    "boss": random.choice(["Vice Admiral Momonga", "Vice Admiral Doberman", "Vice Admiral Onigumo"]),
+                    "level": "Easy",
+                    "next_rotation": current_time + timedelta(hours=4)
+                },
+                "Impel Down": {
+                    "boss": random.choice(["Magellan", "Hannyabal", "Sadi-chan"]),
+                    "level": "Medium",
+                    "next_rotation": current_time + timedelta(hours=6)
+                },
+                "Enies Lobby": {
+                    "boss": random.choice(["Rob Lucci", "Kaku", "Jabra"]),
+                    "level": "Hard",
+                    "next_rotation": current_time + timedelta(hours=8)
+                },
+                "Yonko Territory": {
+                    "boss": random.choice(["Charlotte Linlin (Big Mom)", "Kaido", "Shanks", "Marshall D. Teach"]),
+                    "level": "Very Hard",
+                    "next_rotation": current_time + timedelta(hours=12)
+                },
+                "Mary Geoise": {
+                    "boss": random.choice(["The Five Elders", "Im-sama", "CP0"]),
+                    "level": "Extreme",
+                    "next_rotation": current_time + timedelta(hours=24)
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error in update_rotating_bosses: {str(e)}")
+
+    async def start_raid(self, ctx, location, participants):
+        """Start a raid at the specified location."""
+        try:
+            if location not in self.current_bosses:
+                return False, "Invalid raid location!"
+                
+            raid_id = f"{ctx.guild.id}-{ctx.channel.id}"
+            if raid_id in self.active_raids:
+                return False, "A raid is already in progress in this channel!"
+                
+            # Set up raid data
+            self.active_raids[raid_id] = {
+                "location": location,
+                "boss": self.current_bosses[location]["boss"],
+                "participants": participants,
+                "start_time": datetime.utcnow(),
+                "status": "active"
+            }
+            
+            return True, f"Raid started against {self.current_bosses[location]['boss']} at {location}!"
+            
+        except Exception as e:
+            logger.error(f"Error starting raid: {str(e)}")
+            return False, "An error occurred while starting the raid!"
+
+    async def end_raid(self, raid_id, success=False):
+        """End a raid and clean up."""
+        if raid_id in self.active_raids:
+            del self.active_raids[raid_id]
+            
+    async def calculate_raid_rewards(self, location, participants_count):
+        """Calculate rewards based on raid difficulty and participants."""
+        base_rewards = {
+            "Easy": (50000, 100000),
+            "Medium": (100000, 200000),
+            "Hard": (200000, 400000),
+            "Very Hard": (400000, 800000),
+            "Extreme": (800000, 1500000)
+        }
+        
+        difficulty = self.current_bosses[location]["level"]
+        min_reward, max_reward = base_rewards[difficulty]
+        
+        # Scale rewards based on participants
+        scaling_factor = max(1.0, 1.0 + (participants_count * 0.1))  # 10% bonus per participant
+        
+        final_reward = random.randint(
+            int(min_reward * scaling_factor),
+            int(max_reward * scaling_factor)
+        )
+        
+        return final_reward
+
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
     
@@ -1574,6 +1669,7 @@ class BountyBattle(commands.Cog):
         self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
+        self.raid_manager = RaidManager()
         
         # Initialize tracking variables
         self.active_channels = set()
@@ -1584,6 +1680,17 @@ class BountyBattle(commands.Cog):
         # Configure logging
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
+        
+    async def _boss_rotation_loop(self):
+        """Background task to update raid bosses periodically."""
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            try:
+                await self.raid_manager.update_rotating_bosses()
+                await asyncio.sleep(3600)  # Update every hour
+            except Exception as e:
+                logger.error(f"Error in boss rotation loop: {str(e)}")
+                await asyncio.sleep(60)  # Wait a minute before retrying if there's an error
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
