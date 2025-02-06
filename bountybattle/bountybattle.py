@@ -3424,6 +3424,634 @@ class BountyBattle(commands.Cog):
             await ctx.send("❌ An error occurred during the gamble!")
         
     @commands.command()
+    @commands.cooldown(1, 1800, commands.BucketType.user)  # 30 minute cooldown
+    async def marinehunt(self, ctx):
+        """Hunt Marine ships for bounty rewards. Beware of powerful encounters!"""
+        user = ctx.author
+        
+        # Sync user data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ An error occurred while checking your bounty.")
+
+        if true_bounty == 0:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("🏴‍☠️ Ye need to start yer bounty journey first! Type `.startbounty`")
+
+        # Define marine ranks with enhanced rewards and flavor
+        MARINE_RANKS = {
+            "Marine Recruit": {
+                "reward": (500, 2000),
+                "risk": 0.9,
+                "flavor": [
+                    "A small patrol boat manned by fresh recruits.",
+                    "The recruits are shaking at the sight of a pirate!",
+                    "Their cannons aren't even properly maintained..."
+                ]
+            },
+            "Marine Chore Boy": {
+                "reward": (1000, 3000),
+                "risk": 0.85,
+                "flavor": [
+                    "Coby and Helmeppo are leading this patrol!",
+                    "They're more focused on cleaning than fighting...",
+                    "At least their ship is spotless!"
+                ]
+            },
+            "Marine Soldier": {
+                "reward": (2000, 5000),
+                "risk": 0.8,
+                "flavor": [
+                    "A standard Marine vessel on patrol.",
+                    "The soldiers look well-trained, but inexperienced.",
+                    "They're following textbook formations."
+                ]
+            },
+            "Marine Officer": {
+                "reward": (4000, 8000),
+                "risk": 0.75,
+                "flavor": [
+                    "A skilled Marine officer leads this ship.",
+                    "They've seen their share of pirate battles.",
+                    "Their tactical approach could be troublesome."
+                ]
+            },
+            "Marine Lieutenant": {
+                "reward": (6000, 12000),
+                "risk": 0.7,
+                "flavor": [
+                    "A seasoned Lieutenant commands this warship.",
+                    "They've already called for reinforcements!",
+                    "The crew moves with military precision."
+                ]
+            },
+            "Marine Captain": {
+                "reward": (10000, 20000),
+                "risk": 0.65,
+                "flavor": [
+                    "Captain Tashigi spotted! She's after your sword!",
+                    "The Captain's reputation precedes them.",
+                    "Their ship bears battle scars from previous encounters."
+                ]
+            },
+            "Marine Commodore": {
+                "reward": (15000, 30000),
+                "risk": 0.6,
+                "flavor": [
+                    "Commodore Smoker's distinctive vessel approaches!",
+                    "The White Hunter himself is on patrol.",
+                    "Clouds of smoke are already visible..."
+                ]
+            },
+            "Marine Vice Admiral": {
+                "reward": (25000, 50000),
+                "risk": 0.5,
+                "flavor": [
+                    "Vice Admiral Garp's dog mask is visible from here!",
+                    "The Hero of the Marines stands ready.",
+                    "They're carrying a suspicious amount of cannonballs..."
+                ]
+            },
+            "Marine Admiral": {
+                "reward": (50000, 100000),
+                "risk": 0.4,
+                "flavor": [
+                    "Admiral Kizaru's blinding light approaches!",
+                    "Admiral Aokiji's ice path freezes the sea!",
+                    "Admiral Akainu's magma melts the surrounding ships!"
+                ]
+            },
+            "Fleet Admiral": {
+                "reward": (100000, 200000),
+                "risk": 0.3,
+                "flavor": [
+                    "Fleet Admiral Sakazuki himself has arrived!",
+                    "The strongest Marine vessel ever built...",
+                    "Absolute Justice will be served!"
+                ]
+            },
+            "CP9": {
+                "reward": (150000, 250000),
+                "risk": 0.25,
+                "flavor": [
+                    "The World Government's assassins appear!",
+                    "Rob Lucci's leopard form is spotted...",
+                    "Their mastery of the Six Powers is fearsome!"
+                ]
+            },
+            "CP0": {
+                "reward": (200000, 300000),
+                "risk": 0.2,
+                "flavor": [
+                    "The masks of CP0 emerge from the shadows...",
+                    "The World Government's strongest agents!",
+                    "Even Admiral's fear their approach..."
+                ]
+            },
+            "Gorosei": {
+                "reward": (500000, 1000000),
+                "risk": 0.1,
+                "flavor": [
+                    "The Five Elders themselves have taken action!",
+                    "The true power of Im-sama's servants...",
+                    "The fate of the world hangs in the balance!"
+                ]
+            },
+            "Im-sama": {
+                "reward": (1000000, 2000000),
+                "risk": 0.05,
+                "flavor": [
+                    "The empty throne was not so empty after all...",
+                    "The true ruler of the World Government appears!",
+                    "Few pirates have lived to tell of this encounter!"
+                ]
+            }
+        }
+
+        # Special events that can occur during the hunt
+        SPECIAL_EVENTS = [
+            "A Celestial Dragon's ship is passing nearby! The Marines are distracted!",
+            "A Sea King appears, causing chaos among the Marine ranks!",
+            "Revolutionary Army ships are engaging the Marines in the distance!",
+            "Mysterious fog rolls in, providing cover for your attack!",
+            "A whirlpool forms, affecting ship maneuverability!"
+        ]
+
+        # Randomly select rank with weighting based on bounty
+        available_ranks = list(MARINE_RANKS.keys())
+        weights = []
+        for rank in available_ranks:
+            if true_bounty < 10000:  # New pirates
+                weights.append(5 if rank in ["Marine Recruit", "Marine Chore Boy", "Marine Soldier"] else 1)
+            elif true_bounty < 100000:  # Rising pirates
+                weights.append(5 if rank in ["Marine Officer", "Marine Lieutenant", "Marine Captain"] else 1)
+            elif true_bounty < 1000000:  # Notorious pirates
+                weights.append(5 if rank in ["Marine Commodore", "Marine Vice Admiral", "Marine Admiral"] else 1)
+            else:  # Legendary pirates
+                weights.append(5 if rank in ["Fleet Admiral", "CP9", "CP0", "Gorosei", "Im-sama"] else 1)
+
+        current_rank = random.choices(available_ranks, weights=weights)[0]
+        rank_data = MARINE_RANKS[current_rank]
+
+        # Randomly decide if a special event occurs
+        special_event = random.random() < 0.2  # 20% chance
+        if special_event:
+            event_text = random.choice(SPECIAL_EVENTS)
+            rank_data["risk"] += 0.1  # Increase success chance during special events
+
+        # Create initial embed
+        embed = discord.Embed(
+            title="🏴‍☠️ Marine Hunt",
+            description=f"**{current_rank}** spotted on the horizon!",
+            color=discord.Color.blue()
+        )
+        
+        # Add flavor text
+        embed.add_field(
+            name="👀 Scout Report",
+            value=random.choice(rank_data["flavor"]),
+            inline=False
+        )
+
+        if special_event:
+            embed.add_field(
+                name="⚡ Special Event!",
+                value=event_text,
+                inline=False
+            )
+        
+        # Add engagement option
+        embed.add_field(
+            name="⚔️ Options",
+            value="Type `attack` to engage or `flee` to retreat!",
+            inline=False
+        )
+        
+        message = await ctx.send(embed=embed)
+
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel and \
+                    m.content.lower() in ['attack', 'flee']
+            
+            response = await self.bot.wait_for('message', timeout=30.0, check=check)
+            
+            if response.content.lower() == 'flee':
+                flee_messages = [
+                    "You live to fight another day!",
+                    "A tactical retreat is sometimes the best option...",
+                    "The Marines shout threats as you escape!",
+                    "Better to preserve your crew than risk it all!"
+                ]
+                embed.description = random.choice(flee_messages)
+                embed.color = discord.Color.green()
+                await message.edit(embed=embed)
+                return
+
+            # Calculate success chance
+            success_chance = rank_data["risk"]
+            if await self.config.member(user).devil_fruit():  # Bonus for Devil Fruit users
+                success_chance += 0.1
+
+            # Determine outcome
+            success = random.random() < success_chance
+
+            if success:
+                # Calculate reward
+                min_reward, max_reward = rank_data["reward"]
+                reward = random.randint(min_reward, max_reward)
+                
+                # Add bonus for special events
+                if special_event:
+                    reward = int(reward * 1.5)
+                
+                # Update bounty
+                bounties = load_bounties()
+                user_id = str(user.id)
+                bounties[user_id]["amount"] += reward
+                save_bounties(bounties)
+                await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+                
+                # Create success embed
+                victory_messages = [
+                    f"You've defeated the {current_rank}!",
+                    "Justice has been evaded once again!",
+                    "The Marines retreat in shame!",
+                    "Another victory for the pirates!"
+                ]
+                
+                embed = discord.Embed(
+                    title="⚔️ Victory!",
+                    description=random.choice(victory_messages),
+                    color=discord.Color.green()
+                )
+                embed.add_field(
+                    name="💰 Reward",
+                    value=f"`{reward:,}` Berries",
+                    inline=False
+                )
+                embed.add_field(
+                    name="🏴‍☠️ New Bounty",
+                    value=f"`{bounties[user_id]['amount']:,}` Berries",
+                    inline=False
+                )
+                
+                # Check for rank increase
+                new_title = self.get_bounty_title(bounties[user_id]["amount"])
+                if new_title != self.get_bounty_title(true_bounty):
+                    embed.add_field(
+                        name="👑 New Title!",
+                        value=f"`{new_title}`",
+                        inline=False
+                    )
+                
+            else:
+                # Calculate penalty
+                penalty = int(true_bounty * 0.05)  # 5% bounty loss
+                
+                # Update bounty
+                bounties = load_bounties()
+                user_id = str(user.id)
+                bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - penalty)
+                save_bounties(bounties)
+                await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+                
+                # Create failure embed
+                defeat_messages = [
+                    f"The {current_rank} was too powerful!",
+                    "The Marines celebrate their victory!",
+                    "Your crew barely escapes with their lives!",
+                    "Justice prevails this time..."
+                ]
+                
+                embed = discord.Embed(
+                    title="❌ Defeat!",
+                    description=random.choice(defeat_messages),
+                    color=discord.Color.red()
+                )
+                embed.add_field(
+                    name="💸 Penalty",
+                    value=f"`{penalty:,}` Berries",
+                    inline=False
+                )
+                embed.add_field(
+                    name="🏴‍☠️ Remaining Bounty",
+                    value=f"`{bounties[user_id]['amount']:,}` Berries",
+                    inline=False
+                )
+
+            await message.edit(embed=embed)
+
+        except asyncio.TimeoutError:
+            timeout_messages = [
+                "You took too long to decide, and the Marine ship sailed away!",
+                "The opportunity slips through your fingers...",
+                "The Marines disappear into the fog...",
+                "Perhaps hesitation was the better part of valor..."
+            ]
+            embed.description = random.choice(timeout_messages)
+            embed.color = discord.Color.greyple()
+            await message.edit(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in marinehunt command: {str(e)}")
+            await ctx.send("❌ An error occurred during the marine hunt!")
+            
+    @commands.command()
+    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1 hour cooldown
+    async def raid(self, ctx):
+        """Organize raids against powerful enemies like Yonko or Marine fortresses."""
+        user = ctx.author
+        
+        # Sync user data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ An error occurred while checking your bounty.")
+
+        if true_bounty < 100000:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ You need at least `100,000` Berries bounty to attempt raids!")
+
+        # Define raid targets with increasing difficulty
+        RAID_TARGETS = {
+            "Marine Fortress": {
+                "boss": ["Vice Admiral Momonga", "Vice Admiral Doberman", "Vice Admiral Onigumo"],
+                "reward": (50000, 100000),
+                "min_players": 1,
+                "difficulty": "Easy",
+                "flavor": [
+                    "A Marine fortress guards valuable intelligence!",
+                    "The Marines are training new recruits here.",
+                    "Supply ships regularly dock at this base."
+                ],
+                "success_messages": [
+                    "The fortress falls to your crew's might!",
+                    "Marines scatter as you claim their base!",
+                    "Victory! The fortress's treasures are yours!"
+                ],
+                "fail_messages": [
+                    "The Marines successfully defend their fortress!",
+                    "Your crew retreats under heavy fire!",
+                    "The fortress defenses prove too strong!"
+                ]
+            },
+            "Impel Down": {
+                "boss": ["Magellan", "Hannyabal", "Sadi-chan"],
+                "reward": (100000, 200000),
+                "min_players": 2,
+                "difficulty": "Medium",
+                "flavor": [
+                    "The underwater prison holds many secrets...",
+                    "The poison of Magellan lurks within!",
+                    "Dangerous criminals could become powerful allies!"
+                ],
+                "success_messages": [
+                    "Impel Down faces its second great escape!",
+                    "Chaos erupts as prisoners run free!",
+                    "The great prison's security is breached!"
+                ],
+                "fail_messages": [
+                    "The gates of justice remain closed!",
+                    "Magellan's poison stops your advance!",
+                    "Your crew is captured by the wardens!"
+                ]
+            },
+            "Enies Lobby": {
+                "boss": ["Rob Lucci", "Kaku", "Jabra"],
+                "reward": (200000, 400000),
+                "min_players": 2,
+                "difficulty": "Hard",
+                "flavor": [
+                    "CP9 guards the Gates of Justice!",
+                    "The judicial island never sleeps...",
+                    "Rob Lucci's power is overwhelming!"
+                ],
+                "success_messages": [
+                    "The power of CP9 crumbles before you!",
+                    "Enies Lobby falls just like with the Straw Hats!",
+                    "Victory against the World Government's assassins!"
+                ],
+                "fail_messages": [
+                    "CP9's Six Powers prove too strong!",
+                    "The Gates of Justice deny your passage!",
+                    "Rob Lucci shows why he's CP9's strongest!"
+                ]
+            },
+            "Yonko Territory": {
+                "boss": ["Charlotte Linlin (Big Mom)", "Kaido", "Shanks", "Marshall D. Teach"],
+                "reward": (400000, 800000),
+                "min_players": 3,
+                "difficulty": "Very Hard",
+                "flavor": [
+                    "A Yonko's territory spreads before you...",
+                    "The power of an Emperor fills the air!",
+                    "Few crews dare to challenge a Yonko!"
+                ],
+                "success_messages": [
+                    "The Emperor's forces fall before your might!",
+                    "A new power rises in the New World!",
+                    "The balance of the Three Great Powers shifts!"
+                ],
+                "fail_messages": [
+                    "The Yonko's power is overwhelming!",
+                    "Your crew barely escapes with their lives!",
+                    "The Emperor reminds you why they rule the sea!"
+                ]
+            },
+            "Mary Geoise": {
+                "boss": ["The Five Elders", "Im-sama", "CP0"],
+                "reward": (800000, 1500000),
+                "min_players": 4,
+                "difficulty": "Extreme",
+                "flavor": [
+                    "The holy land of the World Nobles awaits...",
+                    "The true power of the World Government!",
+                    "Few know the secrets that lie within..."
+                ],
+                "success_messages": [
+                    "The World Government's seat of power falls!",
+                    "The holy land's secrets are revealed!",
+                    "History itself is rewritten today!"
+                ],
+                "fail_messages": [
+                    "The power controlling the world is too great!",
+                    "The holy land's mysteries remain hidden!",
+                    "The Five Elders protect their secrets!"
+                ]
+            }
+        }
+
+        # Get available targets based on bounty
+        available_targets = []
+        if true_bounty >= 100000:
+            available_targets.append("Marine Fortress")
+        if true_bounty >= 500000:
+            available_targets.append("Impel Down")
+        if true_bounty >= 1000000:
+            available_targets.append("Enies Lobby")
+        if true_bounty >= 5000000:
+            available_targets.append("Yonko Territory")
+        if true_bounty >= 10000000:
+            available_targets.append("Mary Geoise")
+
+        # Create raid selection embed
+        embed = discord.Embed(
+            title="🏴‍☠️ Available Raid Targets",
+            description="Choose your target by typing its number:",
+            color=discord.Color.dark_red()
+        )
+
+        for idx, target in enumerate(available_targets, 1):
+            target_data = RAID_TARGETS[target]
+            embed.add_field(
+                name=f"{idx}. {target} ({target_data['difficulty']})",
+                value=(
+                    f"Boss: `{random.choice(target_data['boss'])}`\n"
+                    f"Min. Players: `{target_data['min_players']}`\n"
+                    f"Reward: `{target_data['reward'][0]:,}` - `{target_data['reward'][1]:,}` Berries\n"
+                    f"_{random.choice(target_data['flavor'])}_"
+                ),
+                inline=False
+            )
+
+        raid_msg = await ctx.send(embed=embed)
+
+        try:
+            def check(m):
+                return m.author == user and m.channel == ctx.channel and \
+                    m.content.isdigit() and 1 <= int(m.content) <= len(available_targets)
+
+            target_choice = await self.bot.wait_for('message', timeout=30.0, check=check)
+            selected_target = available_targets[int(target_choice.content) - 1]
+            target_data = RAID_TARGETS[selected_target]
+
+            # Start raid preparation
+            prep_embed = discord.Embed(
+                title=f"⚔️ Raid on {selected_target}",
+                description=(
+                    f"**Target:** {selected_target}\n"
+                    f"**Boss:** {random.choice(target_data['boss'])}\n"
+                    f"**Required Crew:** {target_data['min_players']} players\n\n"
+                    f"React ⚔️ to join the raid! Starting in 60 seconds..."
+                ),
+                color=discord.Color.blue()
+            )
+            prep_msg = await ctx.send(embed=prep_embed)
+            await prep_msg.add_reaction("⚔️")
+
+            # Wait for raiders to join
+            await asyncio.sleep(60)
+            prep_msg = await ctx.channel.fetch_message(prep_msg.id)
+            raiders = []
+            async for user in prep_msg.reactions[0].users():
+                if not user.bot:
+                    raiders.append(user)
+
+            if len(raiders) < target_data['min_players']:
+                return await ctx.send(f"❌ Raid cancelled! Need at least {target_data['min_players']} players!")
+
+            # Calculate raid success chance
+            base_chance = {
+                "Easy": 0.7,
+                "Medium": 0.5,
+                "Hard": 0.3,
+                "Very Hard": 0.2,
+                "Extreme": 0.1
+            }[target_data['difficulty']]
+
+            # Bonuses based on raiders
+            player_bonus = min(0.1 * (len(raiders) - target_data['min_players']), 0.3)
+            
+            # Devil Fruit bonus
+            fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
+            fruit_bonus = min(0.05 * fruit_users, 0.15)
+
+            final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
+
+            # Determine raid outcome
+            success = random.random() < final_chance
+
+            if success:
+                # Calculate rewards
+                min_reward, max_reward = target_data['reward']
+                base_reward = random.randint(min_reward, max_reward)
+                
+                # Distribute rewards
+                for raider in raiders:
+                    # Each raider gets full reward
+                    bounties = load_bounties()
+                    raider_id = str(raider.id)
+                    
+                    if raider_id not in bounties:
+                        continue
+                        
+                    bounties[raider_id]["amount"] += base_reward
+                    save_bounties(bounties)
+                    await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+
+                # Create success embed
+                success_embed = discord.Embed(
+                    title="🎉 Raid Successful!",
+                    description=random.choice(target_data['success_messages']),
+                    color=discord.Color.green()
+                )
+                success_embed.add_field(
+                    name="💰 Rewards",
+                    value=f"Each raider earned `{base_reward:,}` Berries!",
+                    inline=False
+                )
+                success_embed.add_field(
+                    name="⚔️ Raiders",
+                    value="\n".join([raider.mention for raider in raiders]),
+                    inline=False
+                )
+                
+                await ctx.send(embed=success_embed)
+
+            else:
+                # Calculate penalties
+                penalty = int(base_reward * 0.1)  # 10% of potential reward
+                
+                # Apply penalties
+                for raider in raiders:
+                    bounties = load_bounties()
+                    raider_id = str(raider.id)
+                    
+                    if raider_id not in bounties:
+                        continue
+                        
+                    bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
+                    save_bounties(bounties)
+                    await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+
+                # Create failure embed
+                failure_embed = discord.Embed(
+                    title="❌ Raid Failed!",
+                    description=random.choice(target_data['fail_messages']),
+                    color=discord.Color.red()
+                )
+                failure_embed.add_field(
+                    name="💸 Penalties",
+                    value=f"Each raider lost `{penalty:,}` Berries!",
+                    inline=False
+                )
+                failure_embed.add_field(
+                    name="⚔️ Raiders",
+                    value="\n".join([raider.mention for raider in raiders]),
+                    inline=False
+                )
+                
+                await ctx.send(embed=failure_embed)
+
+        except asyncio.TimeoutError:
+            await ctx.send("Raid planning timed out! Try again later.")
+        except Exception as e:
+            logger.error(f"Error in raid command: {str(e)}")
+            await ctx.send("An error occurred during the raid!")
+        
+    @commands.command()
     async def missions(self, ctx):
         """Display available missions."""
         missions = [
