@@ -2009,6 +2009,15 @@ class BountyBattle(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error handling member remove: {e}")
+            
+    async def process_raid_reactions(self, message, emoji="⚔️"):
+            """Helper function to process raid reactions."""
+            raiders = []
+            for reaction in message.reactions:
+                if str(reaction.emoji) == emoji:
+                    users = [user async for user in reaction.users()]
+                    raiders.extend([user for user in users if not user.bot])
+            return raiders
 
     async def validate_fruit_transfer(self, ctx, member: discord.Member, fruit_name: str) -> bool:
         """Validate if a fruit can be transferred to a member."""
@@ -3788,7 +3797,7 @@ class BountyBattle(commands.Cog):
             await ctx.send("❌ An error occurred during the marine hunt!")
             
     @commands.command()
-    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1 hour cooldown
+    @commands.cooldown(1, 3600, commands.BucketType.user)
     async def raid(self, ctx):
         """Organize raids against powerful enemies like Yonko or Marine fortresses."""
         try:
@@ -3869,18 +3878,13 @@ class BountyBattle(commands.Cog):
                 
                 # Fetch the message again to get updated reactions
                 prep_msg = await ctx.channel.fetch_message(prep_msg.id)
-                raiders = []
                 
-                # Get all users who reacted (except the bot)
-                reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
-                if reaction:
-                    async for reactor in reaction.users():
-                        if not reactor.bot:  # Skip bot reactions
-                            raiders.append(reactor)
+                # Process reactions using our helper function
+                raiders = await self.process_raid_reactions(prep_msg)
 
                 min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
                 if len(raiders) < min_players:
-                    return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players!")
+                    return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players! (Got {len(raiders)})")
 
                 # Calculate success chance based on level
                 base_chance = {
@@ -3970,10 +3974,13 @@ class BountyBattle(commands.Cog):
 
             except asyncio.TimeoutError:
                 await ctx.send("Raid planning timed out! Try again later.")
+            except Exception as e:
+                logger.error(f"Error during raid execution: {str(e)}")
+                await ctx.send(f"An error occurred during raid execution: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Error in raid command: {str(e)}")
-            await ctx.send("An error occurred during the raid!")
+            await ctx.send(f"An error occurred: {str(e)}")
         
     @commands.command()
     async def missions(self, ctx):
