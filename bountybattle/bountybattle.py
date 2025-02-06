@@ -3867,48 +3867,20 @@ class BountyBattle(commands.Cog):
                 # Wait for raiders to join
                 await asyncio.sleep(60)
                 
-                # Debug log
-                logger.info("Attempting to fetch message and reactions...")
-                
                 # Fetch the message again to get updated reactions
-                try:
-                    prep_msg = await ctx.channel.fetch_message(prep_msg.id)
-                    logger.info(f"Successfully fetched message. Message ID: {prep_msg.id}")
-                except Exception as fetch_error:
-                    logger.error(f"Error fetching message: {str(fetch_error)}")
-                    raise
-
+                prep_msg = await ctx.channel.fetch_message(prep_msg.id)
                 raiders = []
                 
                 # Get all users who reacted (except the bot)
-                try:
-                    reaction = next((r for r in prep_msg.reactions if str(r.emoji) == "⚔️"), None)
-                    if reaction:
-                        logger.info(f"Found ⚔️ reaction with {reaction.count} reactions")
-                        async for user in reaction.users():
-                            if not user.bot:
-                                raiders.append(user)
-                                logger.info(f"Added raider: {user.name}")
-                    else:
-                        logger.error("No ⚔️ reaction found on message")
-                        raise ValueError("No raid reaction found")
-                except Exception as reaction_error:
-                    logger.error(f"Error processing reactions: {str(reaction_error)}")
-                    raise
-
-                logger.info(f"Final raiders count: {len(raiders)}")
+                reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
+                if reaction:
+                    async for reactor in reaction.users():
+                        if not reactor.bot:  # Skip bot reactions
+                            raiders.append(reactor)
 
                 min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
                 if len(raiders) < min_players:
-                    logger.info(f"Not enough raiders. Need {min_players}, got {len(raiders)}")
                     return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players!")
-
-                # Calculate base reward before the raid starts
-                base_reward = random.randint(
-                    50000 * (2 ** (len(available_targets)-1)),
-                    100000 * (2 ** (len(available_targets)-1))
-                )
-                logger.info(f"Base reward calculated: {base_reward}")
 
                 # Calculate success chance based on level
                 base_chance = {
@@ -3925,27 +3897,26 @@ class BountyBattle(commands.Cog):
                 fruit_bonus = min(0.05 * fruit_users, 0.15)
 
                 final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
-                logger.info(f"Final success chance: {final_chance}")
 
                 # Determine outcome
                 success = random.random() < final_chance
-                logger.info(f"Raid {'succeeded' if success else 'failed'}")
 
                 if success:
+                    # Calculate rewards
+                    base_reward = random.randint(
+                        50000 * (2 ** (len(available_targets)-1)),
+                        100000 * (2 ** (len(available_targets)-1))
+                    )
+                    
                     # Give rewards to all raiders
                     for raider in raiders:
-                        try:
-                            bounties = load_bounties()
-                            raider_id = str(raider.id)
-                            
-                            if raider_id in bounties:
-                                bounties[raider_id]["amount"] += base_reward
-                                save_bounties(bounties)
-                                await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
-                                logger.info(f"Reward given to {raider.name}: {base_reward}")
-                        except Exception as reward_error:
-                            logger.error(f"Error giving reward to {raider.name}: {str(reward_error)}")
-                            continue
+                        bounties = load_bounties()
+                        raider_id = str(raider.id)
+                        
+                        if raider_id in bounties:
+                            bounties[raider_id]["amount"] += base_reward
+                            save_bounties(bounties)
+                            await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
                     success_embed = discord.Embed(
                         title="🎉 Raid Successful!",
@@ -3968,22 +3939,16 @@ class BountyBattle(commands.Cog):
                 else:
                     # Calculate penalties
                     penalty = int(base_reward * 0.1)  # 10% of potential reward
-                    logger.info(f"Penalty calculated: {penalty}")
                     
                     # Apply penalties
                     for raider in raiders:
-                        try:
-                            bounties = load_bounties()
-                            raider_id = str(raider.id)
-                            
-                            if raider_id in bounties:
-                                bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
-                                save_bounties(bounties)
-                                await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
-                                logger.info(f"Penalty applied to {raider.name}: {penalty}")
-                        except Exception as penalty_error:
-                            logger.error(f"Error applying penalty to {raider.name}: {str(penalty_error)}")
-                            continue
+                        bounties = load_bounties()
+                        raider_id = str(raider.id)
+                        
+                        if raider_id in bounties:
+                            bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
+                            save_bounties(bounties)
+                            await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
                     failure_embed = discord.Embed(
                         title="❌ Raid Failed!",
@@ -4004,15 +3969,11 @@ class BountyBattle(commands.Cog):
                     await ctx.send(embed=failure_embed)
 
             except asyncio.TimeoutError:
-                logger.info("Raid timed out during target selection")
                 await ctx.send("Raid planning timed out! Try again later.")
-            except Exception as e:
-                logger.error(f"Error during raid execution: {str(e)}\n{traceback.format_exc()}")
-                await ctx.send(f"An error occurred during the raid: {str(e)}")
                 
         except Exception as e:
-            logger.error(f"Critical error in raid command: {str(e)}\n{traceback.format_exc()}")
-            await ctx.send(f"A critical error occurred: {str(e)}")
+            logger.error(f"Error in raid command: {str(e)}")
+            await ctx.send("An error occurred during the raid!")
         
     @commands.command()
     async def missions(self, ctx):
