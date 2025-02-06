@@ -2011,13 +2011,17 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error handling member remove: {e}")
             
     async def process_raid_reactions(self, message, emoji="⚔️"):
-            """Helper function to process raid reactions."""
-            raiders = []
+        """Helper function to process raid reactions properly."""
+        raiders = []
+        try:
             for reaction in message.reactions:
                 if str(reaction.emoji) == emoji:
-                    users = [user async for user in reaction.users()]
-                    raiders.extend([user for user in users if not user.bot])
-            return raiders
+                    async for user in reaction.users():
+                        if not user.bot:
+                            raiders.append(user)
+        except Exception as e:
+            logger.error(f"Error processing reactions: {e}")
+        return raiders
 
     async def validate_fruit_transfer(self, ctx, member: discord.Member, fruit_name: str) -> bool:
         """Validate if a fruit can be transferred to a member."""
@@ -3797,7 +3801,7 @@ class BountyBattle(commands.Cog):
             await ctx.send("❌ An error occurred during the marine hunt!")
             
     @commands.command()
-    @commands.cooldown(1, 3600, commands.BucketType.user)
+    @commands.cooldown(1, 3600, commands.BucketType.user)  # 1 hour cooldown
     async def raid(self, ctx):
         """Organize raids against powerful enemies like Yonko or Marine fortresses."""
         try:
@@ -3876,10 +3880,8 @@ class BountyBattle(commands.Cog):
                 # Wait for raiders to join
                 await asyncio.sleep(60)
                 
-                # Fetch the message again to get updated reactions
+                # Fetch fresh message and process reactions
                 prep_msg = await ctx.channel.fetch_message(prep_msg.id)
-                
-                # Process reactions using our helper function
                 raiders = await self.process_raid_reactions(prep_msg)
 
                 min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
