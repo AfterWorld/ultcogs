@@ -419,101 +419,6 @@ ENVIRONMENTS = {
     },
 }
 
-class RaidManager:
-    """Manages raid-related functionality including rotating bosses and rewards."""
-    
-    def __init__(self):
-        self.current_bosses = {}
-        self.active_raids = {}
-        self.raid_cooldowns = {}
-        
-    async def update_rotating_bosses(self):
-        """Update the list of available raid bosses."""
-        try:
-            current_time = datetime.utcnow()
-            self.current_bosses = {
-                "Marine Fortress": {
-                    "boss": random.choice(["Vice Admiral Momonga", "Vice Admiral Doberman", "Vice Admiral Onigumo"]),
-                    "level": "Easy",
-                    "next_rotation": current_time + timedelta(hours=4)
-                },
-                "Impel Down": {
-                    "boss": random.choice(["Magellan", "Hannyabal", "Sadi-chan"]),
-                    "level": "Medium",
-                    "next_rotation": current_time + timedelta(hours=6)
-                },
-                "Enies Lobby": {
-                    "boss": random.choice(["Rob Lucci", "Kaku", "Jabra"]),
-                    "level": "Hard",
-                    "next_rotation": current_time + timedelta(hours=8)
-                },
-                "Yonko Territory": {
-                    "boss": random.choice(["Charlotte Linlin (Big Mom)", "Kaido", "Shanks", "Marshall D. Teach"]),
-                    "level": "Very Hard",
-                    "next_rotation": current_time + timedelta(hours=12)
-                },
-                "Mary Geoise": {
-                    "boss": random.choice(["The Five Elders", "Im-sama", "CP0"]),
-                    "level": "Extreme",
-                    "next_rotation": current_time + timedelta(hours=24)
-                }
-            }
-        except Exception as e:
-            logger.error(f"Error in update_rotating_bosses: {str(e)}")
-
-    async def start_raid(self, ctx, location, participants):
-        """Start a raid at the specified location."""
-        try:
-            if location not in self.current_bosses:
-                return False, "Invalid raid location!"
-                
-            raid_id = f"{ctx.guild.id}-{ctx.channel.id}"
-            if raid_id in self.active_raids:
-                return False, "A raid is already in progress in this channel!"
-                
-            # Set up raid data
-            self.active_raids[raid_id] = {
-                "location": location,
-                "boss": self.current_bosses[location]["boss"],
-                "participants": participants,
-                "start_time": datetime.utcnow(),
-                "status": "active"
-            }
-            
-            return True, f"Raid started against {self.current_bosses[location]['boss']} at {location}!"
-            
-        except Exception as e:
-            logger.error(f"Error starting raid: {str(e)}")
-            return False, "An error occurred while starting the raid!"
-
-    async def end_raid(self, raid_id, success=False):
-        """End a raid and clean up."""
-        if raid_id in self.active_raids:
-            del self.active_raids[raid_id]
-            
-    async def calculate_raid_rewards(self, location, participants_count):
-        """Calculate rewards based on raid difficulty and participants."""
-        base_rewards = {
-            "Easy": (50000, 100000),
-            "Medium": (100000, 200000),
-            "Hard": (200000, 400000),
-            "Very Hard": (400000, 800000),
-            "Extreme": (800000, 1500000)
-        }
-        
-        difficulty = self.current_bosses[location]["level"]
-        min_reward, max_reward = base_rewards[difficulty]
-        
-        # Scale rewards based on participants
-        scaling_factor = max(1.0, 1.0 + (participants_count * 0.1))  # 10% bonus per participant
-        
-        final_reward = random.randint(
-            int(min_reward * scaling_factor),
-            int(max_reward * scaling_factor)
-        )
-        
-        return final_reward
-
 class DevilFruitManager:
     """Manages Devil Fruit effects and their interactions with status effects."""
     
@@ -1669,7 +1574,6 @@ class BountyBattle(commands.Cog):
         self.status_manager = StatusEffectManager()
         self.environment_manager = EnvironmentManager()
         self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
-        self.raid_manager = RaidManager()
         
         # Initialize tracking variables
         self.active_channels = set()
@@ -1681,16 +1585,34 @@ class BountyBattle(commands.Cog):
         self.log = logging.getLogger("red.deathmatch")
         self.log.setLevel(logging.INFO)
         
-    async def _boss_rotation_loop(self):
-        """Background task to update raid bosses periodically."""
-        await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            try:
-                await self.raid_manager.update_rotating_bosses()
-                await asyncio.sleep(3600)  # Update every hour
-            except Exception as e:
-                logger.error(f"Error in boss rotation loop: {str(e)}")
-                await asyncio.sleep(60)  # Wait a minute before retrying if there's an error
+        # Initialize current_bosses directly in the class
+        self.current_bosses = {
+            "Marine Fortress": {
+                "boss": random.choice(["Vice Admiral Momonga", "Vice Admiral Doberman", "Vice Admiral Onigumo"]),
+                "level": "Easy",
+                "next_rotation": datetime.utcnow() + timedelta(hours=4)
+            },
+            "Impel Down": {
+                "boss": random.choice(["Magellan", "Hannyabal", "Sadi-chan"]),
+                "level": "Medium",
+                "next_rotation": datetime.utcnow() + timedelta(hours=6)
+            },
+            "Enies Lobby": {
+                "boss": random.choice(["Rob Lucci", "Kaku", "Jabra"]),
+                "level": "Hard",
+                "next_rotation": datetime.utcnow() + timedelta(hours=8)
+            },
+            "Yonko Territory": {
+                "boss": random.choice(["Charlotte Linlin (Big Mom)", "Kaido", "Shanks", "Marshall D. Teach"]),
+                "level": "Very Hard",
+                "next_rotation": datetime.utcnow() + timedelta(hours=12)
+            },
+            "Mary Geoise": {
+                "boss": random.choice(["The Five Elders", "Im-sama", "CP0"]),
+                "level": "Extreme",
+                "next_rotation": datetime.utcnow() + timedelta(hours=24)
+            }
+        }
 
     async def update_hunter_stats(self, hunter, steal_amount):
         """Update hunter's statistics and check for title unlocks."""
@@ -3881,128 +3803,6 @@ class BountyBattle(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send("❌ You need at least `100,000` Berries bounty to attempt raids!")
 
-        # Define raid targets with increasing difficulty
-        RAID_TARGETS = {
-            "Marine Fortress": {
-                "boss": ["Vice Admiral Momonga", "Vice Admiral Doberman", "Vice Admiral Onigumo"],
-                "reward": (50000, 100000),
-                "min_players": 1,
-                "difficulty": "Easy",
-                "flavor": [
-                    "A Marine fortress guards valuable intelligence!",
-                    "The Marines are training new recruits here.",
-                    "Supply ships regularly dock at this base."
-                ],
-                "success_messages": [
-                    "The fortress falls to your crew's might!",
-                    "Marines scatter as you claim their base!",
-                    "Victory! The fortress's treasures are yours!"
-                ],
-                "fail_messages": [
-                    "The Marines successfully defend their fortress!",
-                    "Your crew retreats under heavy fire!",
-                    "The fortress defenses prove too strong!"
-                ]
-            },
-            "Impel Down": {
-                "boss": ["Magellan", "Hannyabal", "Sadi-chan"],
-                "reward": (100000, 200000),
-                "min_players": 2,
-                "difficulty": "Medium",
-                "flavor": [
-                    "The underwater prison holds many secrets...",
-                    "The poison of Magellan lurks within!",
-                    "Dangerous criminals could become powerful allies!"
-                ],
-                "success_messages": [
-                    "Impel Down faces its second great escape!",
-                    "Chaos erupts as prisoners run free!",
-                    "The great prison's security is breached!"
-                ],
-                "fail_messages": [
-                    "The gates of justice remain closed!",
-                    "Magellan's poison stops your advance!",
-                    "Your crew is captured by the wardens!"
-                ]
-            },
-            "Enies Lobby": {
-                "boss": ["Rob Lucci", "Kaku", "Jabra"],
-                "reward": (200000, 400000),
-                "min_players": 2,
-                "difficulty": "Hard",
-                "flavor": [
-                    "CP9 guards the Gates of Justice!",
-                    "The judicial island never sleeps...",
-                    "Rob Lucci's power is overwhelming!"
-                ],
-                "success_messages": [
-                    "The power of CP9 crumbles before you!",
-                    "Enies Lobby falls just like with the Straw Hats!",
-                    "Victory against the World Government's assassins!"
-                ],
-                "fail_messages": [
-                    "CP9's Six Powers prove too strong!",
-                    "The Gates of Justice deny your passage!",
-                    "Rob Lucci shows why he's CP9's strongest!"
-                ]
-            },
-            "Yonko Territory": {
-                "boss": ["Charlotte Linlin (Big Mom)", "Kaido", "Shanks", "Marshall D. Teach"],
-                "reward": (400000, 800000),
-                "min_players": 3,
-                "difficulty": "Very Hard",
-                "flavor": [
-                    "A Yonko's territory spreads before you...",
-                    "The power of an Emperor fills the air!",
-                    "Few crews dare to challenge a Yonko!"
-                ],
-                "success_messages": [
-                    "The Emperor's forces fall before your might!",
-                    "A new power rises in the New World!",
-                    "The balance of the Three Great Powers shifts!"
-                ],
-                "fail_messages": [
-                    "The Yonko's power is overwhelming!",
-                    "Your crew barely escapes with their lives!",
-                    "The Emperor reminds you why they rule the sea!"
-                ]
-            },
-            "Mary Geoise": {
-                "boss": ["The Five Elders", "Im-sama", "CP0"],
-                "reward": (800000, 1500000),
-                "min_players": 4,
-                "difficulty": "Extreme",
-                "flavor": [
-                    "The holy land of the World Nobles awaits...",
-                    "The true power of the World Government!",
-                    "Few know the secrets that lie within..."
-                ],
-                "success_messages": [
-                    "The World Government's seat of power falls!",
-                    "The holy land's secrets are revealed!",
-                    "History itself is rewritten today!"
-                ],
-                "fail_messages": [
-                    "The power controlling the world is too great!",
-                    "The holy land's mysteries remain hidden!",
-                    "The Five Elders protect their secrets!"
-                ]
-            }
-        }
-
-        # Get available targets based on bounty
-        available_targets = []
-        if true_bounty >= 100000:
-            available_targets.append("Marine Fortress")
-        if true_bounty >= 500000:
-            available_targets.append("Impel Down")
-        if true_bounty >= 1000000:
-            available_targets.append("Enies Lobby")
-        if true_bounty >= 5000000:
-            available_targets.append("Yonko Territory")
-        if true_bounty >= 10000000:
-            available_targets.append("Mary Geoise")
-
         # Create raid selection embed
         embed = discord.Embed(
             title="🏴‍☠️ Available Raid Targets",
@@ -4010,18 +3810,33 @@ class BountyBattle(commands.Cog):
             color=discord.Color.dark_red()
         )
 
-        for idx, target in enumerate(available_targets, 1):
-            target_data = RAID_TARGETS[target]
-            embed.add_field(
-                name=f"{idx}. {target} ({target_data['difficulty']})",
-                value=(
-                    f"Boss: `{random.choice(target_data['boss'])}`\n"
-                    f"Min. Players: `{target_data['min_players']}`\n"
-                    f"Reward: `{target_data['reward'][0]:,}` - `{target_data['reward'][1]:,}` Berries\n"
-                    f"_{random.choice(target_data['flavor'])}_"
-                ),
-                inline=False
-            )
+        available_targets = []
+        for idx, (target, data) in enumerate(self.current_bosses.items(), 1):
+            if true_bounty >= 100000 and target == "Marine Fortress":
+                available_targets.append(target)
+            elif true_bounty >= 500000 and target == "Impel Down":
+                available_targets.append(target)
+            elif true_bounty >= 1000000 and target == "Enies Lobby":
+                available_targets.append(target)
+            elif true_bounty >= 5000000 and target == "Yonko Territory":
+                available_targets.append(target)
+            elif true_bounty >= 10000000 and target == "Mary Geoise":
+                available_targets.append(target)
+
+            if target in available_targets:
+                embed.add_field(
+                    name=f"{len(available_targets)}. {target} ({data['level']})",
+                    value=(
+                        f"Boss: `{data['boss']}`\n"
+                        f"Min. Players: `{1 if data['level'] == 'Easy' else 2 if data['level'] == 'Medium' else 3 if data['level'] == 'Hard' else 4}`\n"
+                        f"Reward: `{50000 * (2 ** (len(available_targets)-1)):,}` - `{100000 * (2 ** (len(available_targets)-1)):,}` Berries"
+                    ),
+                    inline=False
+                )
+
+        if not available_targets:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ No raid targets available at your bounty level!")
 
         raid_msg = await ctx.send(embed=embed)
 
@@ -4032,15 +3847,15 @@ class BountyBattle(commands.Cog):
 
             target_choice = await self.bot.wait_for('message', timeout=30.0, check=check)
             selected_target = available_targets[int(target_choice.content) - 1]
-            target_data = RAID_TARGETS[selected_target]
+            target_data = self.current_bosses[selected_target]
 
             # Start raid preparation
             prep_embed = discord.Embed(
                 title=f"⚔️ Raid on {selected_target}",
                 description=(
                     f"**Target:** {selected_target}\n"
-                    f"**Boss:** {random.choice(target_data['boss'])}\n"
-                    f"**Required Crew:** {target_data['min_players']} players\n\n"
+                    f"**Boss:** {target_data['boss']}\n"
+                    f"**Required Crew:** {1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4} players\n\n"
                     f"React ⚔️ to join the raid! Starting in 60 seconds..."
                 ),
                 color=discord.Color.blue()
@@ -4050,58 +3865,61 @@ class BountyBattle(commands.Cog):
 
             # Wait for raiders to join
             await asyncio.sleep(60)
+            
+            # Fetch the message again to get updated reactions
             prep_msg = await ctx.channel.fetch_message(prep_msg.id)
             raiders = []
-            async for user in prep_msg.reactions[0].users():
-                if not user.bot:
-                    raiders.append(user)
+            
+            # Get all users who reacted (except the bot)
+            reaction = next((r for r in prep_msg.reactions if str(r.emoji) == "⚔️"), None)
+            if reaction:
+                async for user in reaction.users():
+                    if not user.bot:
+                        raiders.append(user)
 
-            if len(raiders) < target_data['min_players']:
-                return await ctx.send(f"❌ Raid cancelled! Need at least {target_data['min_players']} players!")
+            min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
+            if len(raiders) < min_players:
+                return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players!")
 
-            # Calculate raid success chance
+            # Rest of your raid logic...
+            # Calculate success chance based on level
             base_chance = {
                 "Easy": 0.7,
                 "Medium": 0.5,
                 "Hard": 0.3,
                 "Very Hard": 0.2,
                 "Extreme": 0.1
-            }[target_data['difficulty']]
+            }[target_data['level']]
 
-            # Bonuses based on raiders
-            player_bonus = min(0.1 * (len(raiders) - target_data['min_players']), 0.3)
-            
-            # Devil Fruit bonus
+            # Add bonuses
+            player_bonus = min(0.1 * (len(raiders) - min_players), 0.3)
             fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
             fruit_bonus = min(0.05 * fruit_users, 0.15)
 
             final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
 
-            # Determine raid outcome
+            # Determine outcome
             success = random.random() < final_chance
 
             if success:
-                # Calculate rewards
-                min_reward, max_reward = target_data['reward']
-                base_reward = random.randint(min_reward, max_reward)
+                base_reward = random.randint(
+                    50000 * (2 ** (len(available_targets)-1)),
+                    100000 * (2 ** (len(available_targets)-1))
+                )
                 
-                # Distribute rewards
+                # Give rewards to all raiders
                 for raider in raiders:
-                    # Each raider gets full reward
                     bounties = load_bounties()
                     raider_id = str(raider.id)
                     
-                    if raider_id not in bounties:
-                        continue
-                        
-                    bounties[raider_id]["amount"] += base_reward
-                    save_bounties(bounties)
-                    await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+                    if raider_id in bounties:
+                        bounties[raider_id]["amount"] += base_reward
+                        save_bounties(bounties)
+                        await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
-                # Create success embed
                 success_embed = discord.Embed(
                     title="🎉 Raid Successful!",
-                    description=random.choice(target_data['success_messages']),
+                    description=f"The raid on {selected_target} was successful!",
                     color=discord.Color.green()
                 )
                 success_embed.add_field(
@@ -4126,17 +3944,14 @@ class BountyBattle(commands.Cog):
                     bounties = load_bounties()
                     raider_id = str(raider.id)
                     
-                    if raider_id not in bounties:
-                        continue
-                        
-                    bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
-                    save_bounties(bounties)
-                    await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
+                    if raider_id in bounties:
+                        bounties[raider_id]["amount"] = max(0, bounties[raider_id]["amount"] - penalty)
+                        save_bounties(bounties)
+                        await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
-                # Create failure embed
                 failure_embed = discord.Embed(
                     title="❌ Raid Failed!",
-                    description=random.choice(target_data['fail_messages']),
+                    description=f"The raid on {selected_target} was unsuccessful!",
                     color=discord.Color.red()
                 )
                 failure_embed.add_field(
