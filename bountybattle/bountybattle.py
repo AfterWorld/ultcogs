@@ -1925,7 +1925,7 @@ class BountyBattle(commands.Cog):
             # Create report embed
             if cleaned_fruits:
                 embed = discord.Embed(
-                    title="🍎 Devil Fruit Cleanup Report",
+                    title="<:MeraMera:1336888578705330318> Devil Fruit Cleanup Report",
                     description=f"Removed fruits from {len(cleaned_fruits)} inactive players.",
                     color=discord.Color.blue()
                 )
@@ -2102,7 +2102,7 @@ class BountyBattle(commands.Cog):
         
         user_id = str(ctx.author.id)
         
-        embed = discord.Embed(title="🍎 Devil Fruit Debug", color=discord.Color.blue())
+        embed = discord.Embed(title="<:MeraMera:1336888578705330318> Devil Fruit Debug", color=discord.Color.blue())
         
         # Config fruit
         config_fruit = user_data.get('devil_fruit')
@@ -2196,7 +2196,7 @@ class BountyBattle(commands.Cog):
                 
                 # Get user's devil fruit if they have one
                 devil_fruit = data.get("fruit", "None")
-                fruit_display = f" • 🍎 {devil_fruit}" if devil_fruit and devil_fruit != "None" else ""
+                fruit_display = f" • <:MeraMera:1336888578705330318> {devil_fruit}" if devil_fruit and devil_fruit != "None" else ""
                 
                 # Create rank emoji based on position
                 rank_emoji = "👑" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
@@ -2356,7 +2356,7 @@ class BountyBattle(commands.Cog):
             await ctx.send(announcement)
         else:
             await ctx.send(
-                f"🍎 **{user.display_name}** has eaten the **{new_fruit}**!\n"
+                f"<:MeraMera:1336888578705330318> **{user.display_name}** has eaten the **{new_fruit}**!\n"
                 f"Type: {fruit_data['type']}\n"
                 f"🔥 Power: {fruit_data['bonus']}\n\n"
                 f"⚠️ *You cannot eat another Devil Fruit!*"
@@ -2506,7 +2506,7 @@ class BountyBattle(commands.Cog):
         
         # Create success embed
         embed = discord.Embed(
-            title="🍎 Devil Fruit Given!",
+            title="<:MeraMera:1336888578705330318> Devil Fruit Given!",
             description=f"**{member.display_name}** has been given the `{fruit_name}`!",
             color=discord.Color.green()
         )
@@ -2534,7 +2534,7 @@ class BountyBattle(commands.Cog):
         effect = fruit_data["bonus"]
     
         await ctx.send(
-            f"🍎 **{user.display_name}** has the **{fruit}**! ({fruit_type} Type)\n"
+            f"<:MeraMera:1336888578705330318> **{user.display_name}** has the **{fruit}**! ({fruit_type} Type)\n"
             f"🔥 **Ability:** {effect}"
         )
 
@@ -3018,7 +3018,7 @@ class BountyBattle(commands.Cog):
         # Create embed
         embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
         embed.add_field(name="💰 Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
-        embed.add_field(name="🍎 Devil Fruit", value=f"`{devil_fruit}`", inline=False)
+        embed.add_field(name="<:MeraMera:1336888578705330318> Devil Fruit", value=f"`{devil_fruit}`", inline=False)
         embed.add_field(name="🏆 Wins", value=f"`{wins}`", inline=True)
         embed.add_field(name="💀 Losses", value=f"`{losses}`", inline=True)
         embed.add_field(name="🎖️ Titles", value=", ".join(f"`{t}`" for t in titles) if titles else "`None`", inline=False)
@@ -3448,7 +3448,7 @@ class BountyBattle(commands.Cog):
         
         # Create embed
         embed = discord.Embed(
-            title="🍎 Rare Devil Fruit Status 🍎",
+            title="<:MeraMera:1336888578705330318> Rare Devil Fruit Status <:MeraMera:1336888578705330318>",
             color=discord.Color.gold()
         )
         
@@ -4013,7 +4013,7 @@ class BountyBattle(commands.Cog):
                 for player in [challenger_data, opponent_data]:
                     status = self.get_status_icons(player)
                     health = self.generate_health_bar(player["hp"])
-                    fruit_text = f"\n🍎 *{player['fruit']}*" if player['fruit'] else ""
+                    fruit_text = f"\n<:MeraMera:1336888578705330318> *{player['fruit']}*" if player['fruit'] else ""
                     
                     embed.add_field(
                         name=f"🏴‍☠️ {player['name']}",
