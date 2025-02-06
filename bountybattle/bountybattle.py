@@ -2034,8 +2034,8 @@ class BountyBattle(commands.Cog):
         config_bounty = await self.config.member(user).bounty()
         json_bounty = bounties.get(user_id, {}).get("amount", 0)
         
-        # If user has any bounty in either system, sync and return
-        if config_bounty > 0 or json_bounty > 0:
+        # Preserve existing data, including zero bounties
+        if user_id in bounties or config_bounty is not None:
             true_bounty = max(config_bounty, json_bounty)
             
             # Sync both systems
@@ -2044,31 +2044,48 @@ class BountyBattle(commands.Cog):
             save_bounties(bounties)
             await self.config.member(user).bounty.set(true_bounty)
             
-            return await ctx.send(f"Ye already have a bounty of `{true_bounty:,}` Berries, ye scallywag!")
-
-        # Set initial bounty for new players
-        initial_bounty = random.randint(50, 100)
-        
+            # If they have any existing data
+            if true_bounty > 0:
+                return await ctx.send(f"Ye already have a bounty of `{true_bounty:,}` Berries, ye scallywag!")
+                
+        # For both new players and those with 0 bounty
         try:
-            # Update both systems
-            bounties[user_id] = {
-                "amount": initial_bounty,
-                "fruit": None
-            }
+            initial_bounty = random.randint(50, 100)
+            
+            # Update bounty while preserving other data
+            if user_id in bounties:
+                bounties[user_id]["amount"] = initial_bounty
+            else:
+                bounties[user_id] = {
+                    "amount": initial_bounty,
+                    "fruit": None
+                }
             save_bounties(bounties)
             await self.config.member(user).bounty.set(initial_bounty)
             
-            # Initialize other stats
-            await self.config.member(user).wins.set(0)
-            await self.config.member(user).losses.set(0)
+            # Initialize stats only if they don't exist
+            if not await self.config.member(user).wins():
+                await self.config.member(user).wins.set(0)
+            if not await self.config.member(user).losses():
+                await self.config.member(user).losses.set(0)
+            
+            # Always update last active time
             await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
             
-            # Create welcome embed
-            embed = discord.Embed(
-                title="🏴‍☠️ Welcome to the Grand Line!",
-                description=f"**{user.display_name}** has started their pirate journey!",
-                color=discord.Color.blue()
-            )
+            # Create appropriate embed
+            if user_id in bounties and bounties[user_id].get("fruit"):
+                embed = discord.Embed(
+                    title="🏴‍☠️ Bounty Renewed!",
+                    description=f"**{user.display_name}**'s bounty has been renewed!",
+                    color=discord.Color.blue()
+                )
+            else:
+                embed = discord.Embed(
+                    title="🏴‍☠️ Welcome to the Grand Line!",
+                    description=f"**{user.display_name}** has started their pirate journey!",
+                    color=discord.Color.blue()
+                )
+            
             embed.add_field(
                 name="Initial Bounty",
                 value=f"`{initial_bounty:,}` Berries",
