@@ -2072,7 +2072,7 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in startbounty: {str(e)}")
             await ctx.send("⚠️ An error occurred while starting your bounty journey. Please try again.")
     
-    @commands.group(name="bountybank", invoke_without_command=True)
+    @commands.group(name="bountybank", aliases=["bbank"], invoke_without_command=True)
     async def bountybank(self, ctx):
         """Check your bank balance and the global bank amount."""
         user = ctx.author
@@ -2101,7 +2101,7 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @bountybank.command(name="deposit")
-    async def bank_deposit(self, ctx, amount: int):
+    async def bank_deposit(self, ctx, amount):
         """Deposit bounty into your bank account (7% tax goes to global bank)."""
         user = ctx.author
         
@@ -2109,6 +2109,15 @@ class BountyBattle(commands.Cog):
         true_bounty = await self.sync_user_data(user)
         if true_bounty is None:
             return await ctx.send("❌ An error occurred while checking your bounty.")
+        
+        # Handle 'all' case
+        if str(amount).lower() == 'all':
+            amount = true_bounty
+        else:
+            try:
+                amount = int(amount)
+            except ValueError:
+                return await ctx.send("❌ Please provide a valid number or 'all'!")
         
         if amount <= 0:
             return await ctx.send("❌ Amount must be positive!")
@@ -2153,15 +2162,25 @@ class BountyBattle(commands.Cog):
         await ctx.send(embed=embed)
 
     @bountybank.command(name="withdraw")
-    async def bank_withdraw(self, ctx, amount: int):
+    async def bank_withdraw(self, ctx, amount):
         """Withdraw bounty from your bank account."""
         user = ctx.author
+        
+        # Check bank balance
+        bank_balance = await self.config.member(user).bank_balance()
+        
+        # Handle 'all' case
+        if str(amount).lower() == 'all':
+            amount = bank_balance
+        else:
+            try:
+                amount = int(amount)
+            except ValueError:
+                return await ctx.send("❌ Please provide a valid number or 'all'!")
         
         if amount <= 0:
             return await ctx.send("❌ Amount must be positive!")
         
-        # Check bank balance
-        bank_balance = await self.config.member(user).bank_balance()
         if amount > bank_balance:
             return await ctx.send(f"❌ You only have `{bank_balance:,}` Berries in your bank!")
         
