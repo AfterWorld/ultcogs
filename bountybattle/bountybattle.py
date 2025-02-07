@@ -2558,7 +2558,7 @@ class BountyBattle(commands.Cog):
             save_bounties(bounties)
 
         await ctx.send(
-            f"💰 **{user.display_name}** paid **{cost:,}** berries from their bounty to remove `{current_fruit}`!\n"
+            f"<:Beli:1237118142774247425> **{user.display_name}** paid **{cost:,}** berries from their bounty to remove `{current_fruit}`!\n"
             f"That fruit can now be found again! 🍏"
         )
 
@@ -2709,7 +2709,7 @@ class BountyBattle(commands.Cog):
             min_bounty = 1000
             if target_bounty < min_bounty:
                 ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f"💰 **{target.display_name}** is too broke to be worth hunting! (Minimum: {min_bounty:,} Berries)")
+                return await ctx.send(f"<:Beli:1237118142774247425> **{target.display_name}** is too broke to be worth hunting! (Minimum: {min_bounty:,} Berries)")
 
             # Generate lock-picking challenge
             patterns = {
@@ -2802,7 +2802,7 @@ class BountyBattle(commands.Cog):
                 # Create success embed
                 success_embed = discord.Embed(
                     title="🏴‍☠️ Bounty Hunt Success!",
-                    description=f"💰 **{hunter.display_name}** successfully infiltrated **{target.display_name}**'s vault!",
+                    description=f"<:Beli:1237118142774247425> **{hunter.display_name}** successfully infiltrated **{target.display_name}**'s vault!",
                     color=discord.Color.green()
                 )
                 success_embed.add_field(
@@ -2919,7 +2919,7 @@ class BountyBattle(commands.Cog):
             description=f"**{user.display_name}**'s current bounty:",
             color=discord.Color.gold()
         )
-        embed.add_field(name="💰 Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
+        embed.add_field(name="<:Beli:1237118142774247425> Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
         embed.add_field(name="🎭 Title", value=f"`{current_title}`", inline=False)
         
         await ctx.send(embed=embed)
@@ -2978,7 +2978,7 @@ class BountyBattle(commands.Cog):
             new_bounty = bounties[user_id]["amount"]
             new_title = self.get_bounty_title(new_bounty)
             
-            await ctx.send(f"💰 Ye claimed {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
+            await ctx.send(f"<:Beli:1237118142774247425> Ye claimed {increase:,} Berries! Yer new bounty is {new_bounty:,} Berries!\n"
                         f"Current Title: {new_title}")
 
             # Announce if the user reaches a significant rank
@@ -3160,7 +3160,7 @@ class BountyBattle(commands.Cog):
 
         # Create embed
         embed = discord.Embed(title=f"🏴‍☠️ {member.display_name}'s Status", color=discord.Color.gold())
-        embed.add_field(name="💰 Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
+        embed.add_field(name="<:Beli:1237118142774247425> Bounty", value=f"`{true_bounty:,}` Berries", inline=False)
         embed.add_field(name="<:MeraMera:1336888578705330318> Devil Fruit", value=f"`{devil_fruit}`", inline=False)
         embed.add_field(name="🏆 Wins", value=f"`{wins}`", inline=True)
         embed.add_field(name="💀 Losses", value=f"`{losses}`", inline=True)
@@ -3865,7 +3865,7 @@ class BountyBattle(commands.Cog):
                     color=discord.Color.green()
                 )
                 embed.add_field(
-                    name="💰 Reward",
+                    name="<:Beli:1237118142774247425> Reward",
                     value=f"`{reward:,}` Berries",
                     inline=False
                 )
@@ -4085,7 +4085,7 @@ class BountyBattle(commands.Cog):
                         color=discord.Color.green()
                     )
                     success_embed.add_field(
-                        name="💰 Rewards",
+                        name="<:Beli:1237118142774247425> Rewards",
                         value=f"Each raider earned `{base_reward:,}` Berries!",
                         inline=False
                     )
@@ -4914,7 +4914,7 @@ class BountyBattle(commands.Cog):
 
                     # Create reward embed
                     reward_embed = discord.Embed(
-                        title="💰 Battle Rewards",
+                        title="<:Beli:1237118142774247425> Battle Rewards",
                         color=discord.Color.gold()
                     )
                     
@@ -5344,7 +5344,7 @@ class BountyBattle(commands.Cog):
             embed.add_field(
                 name="Bounty & Titles",
                 value=(
-                    f"💰 Current Bounty: `{true_bounty:,}` Berries\n"
+                    f"<:Beli:1237118142774247425> Current Bounty: `{true_bounty:,}` Berries\n"
                     f"👑 Current Title: `{current_title}`"
                 ),
                 inline=False
