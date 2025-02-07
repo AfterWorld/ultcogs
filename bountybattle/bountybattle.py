@@ -2185,6 +2185,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.guild)
+    @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
     async def bankheist(self, ctx):
         """Start a heist on the global bank! First to type the scrambled word gets the loot!"""
         global_bank = await self.config.guild(ctx.guild).global_bank()
