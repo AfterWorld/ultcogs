@@ -1426,6 +1426,7 @@ class BountyBattle(commands.Cog):
         default_member = {
             # Existing core values
             "bounty": 0,
+            "bank_balance": 0,
             "berries": 0,
             "last_daily_claim": None,
             "wins": 0,
@@ -1463,6 +1464,8 @@ class BountyBattle(commands.Cog):
         default_guild = {
             "bounties": {},
             "event": None,
+            "global_bank": 0,
+            "last_bank_robbery": None, 
             "tournaments": {},
             "beta_active": True,
             "leaderboard_channel": None,
@@ -2069,38 +2072,172 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in startbounty: {str(e)}")
             await ctx.send("⚠️ An error occurred while starting your bounty journey. Please try again.")
     
-    @commands.command()
-    async def debugfruit(self, ctx):
-        """Diagnostic tool for Devil Fruits"""
-        user_data = await self.config.member(ctx.author).all()
-        bounties = load_bounties()
+    @commands.group(name="bountybank", invoke_without_command=True)
+    async def bountybank(self, ctx):
+        """Check your bank balance and the global bank amount."""
+        user = ctx.author
         
-        user_id = str(ctx.author.id)
+        # Get balances
+        bank_balance = await self.config.member(user).bank_balance()
+        global_bank = await self.config.guild(ctx.guild).global_bank()
         
-        embed = discord.Embed(title="<:MeraMera:1336888578705330318> Devil Fruit Debug", color=discord.Color.blue())
+        embed = discord.Embed(
+            title="🏦 Bounty Bank Status",
+            color=discord.Color.gold()
+        )
         
-        # Config fruit
-        config_fruit = user_data.get('devil_fruit')
-        embed.add_field(name="Config Fruit", value=str(config_fruit), inline=False)
+        embed.add_field(
+            name="Your Bank Balance",
+            value=f"`{bank_balance:,}` Berries",
+            inline=False
+        )
         
-        # Bounties JSON fruit
-        json_fruit = bounties.get(user_id, {}).get('fruit')
-        embed.add_field(name="Bounties JSON Fruit", value=str(json_fruit), inline=False)
-        
-        # Fruit validation
-        def is_valid_fruit(fruit):
-            return (
-                fruit in DEVIL_FRUITS.get('Common', {}) or 
-                fruit in DEVIL_FRUITS.get('Rare', {})
-            )
-        
-        config_valid = is_valid_fruit(config_fruit) if config_fruit else False
-        json_valid = is_valid_fruit(json_fruit) if json_fruit else False
-        
-        embed.add_field(name="Config Fruit Valid", value=str(config_valid), inline=False)
-        embed.add_field(name="JSON Fruit Valid", value=str(json_valid), inline=False)
+        embed.add_field(
+            name="Global Bank",
+            value=f"`{global_bank:,}` Berries",
+            inline=False
+        )
         
         await ctx.send(embed=embed)
+
+    @bountybank.command(name="deposit")
+    async def bank_deposit(self, ctx, amount: int):
+        """Deposit bounty into your bank account (7% tax goes to global bank)."""
+        user = ctx.author
+        
+        # Sync bounty data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking your bounty.")
+        
+        if amount <= 0:
+            return await ctx.send("❌ Amount must be positive!")
+            
+        if amount > true_bounty:
+            return await ctx.send(f"❌ You only have `{true_bounty:,}` Berries to deposit!")
+        
+        # Calculate tax
+        tax = int(amount * 0.07)  # 7% tax
+        deposit_amount = amount - tax
+        
+        # Update bounties
+        bounties = load_bounties()
+        user_id = str(user.id)
+        
+        if user_id not in bounties:
+            return await ctx.send("🏴‍☠️ Start your bounty journey first with `.startbounty`!")
+        
+        # Remove from bounty
+        bounties[user_id]["amount"] -= amount
+        save_bounties(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+        
+        # Add to bank (minus tax)
+        current_balance = await self.config.member(user).bank_balance()
+        await self.config.member(user).bank_balance.set(current_balance + deposit_amount)
+        
+        # Add tax to global bank
+        global_bank = await self.config.guild(ctx.guild).global_bank()
+        await self.config.guild(ctx.guild).global_bank.set(global_bank + tax)
+        
+        embed = discord.Embed(
+            title="🏦 Bank Deposit",
+            description=(
+                f"Deposited: `{amount:,}` Berries\n"
+                f"Tax (7%): `{tax:,}` Berries\n"
+                f"Net Deposit: `{deposit_amount:,}` Berries"
+            ),
+            color=discord.Color.green()
+        )
+        
+        await ctx.send(embed=embed)
+
+    @bountybank.command(name="withdraw")
+    async def bank_withdraw(self, ctx, amount: int):
+        """Withdraw bounty from your bank account."""
+        user = ctx.author
+        
+        if amount <= 0:
+            return await ctx.send("❌ Amount must be positive!")
+        
+        # Check bank balance
+        bank_balance = await self.config.member(user).bank_balance()
+        if amount > bank_balance:
+            return await ctx.send(f"❌ You only have `{bank_balance:,}` Berries in your bank!")
+        
+        # Update bank balance
+        await self.config.member(user).bank_balance.set(bank_balance - amount)
+        
+        # Add to bounty
+        bounties = load_bounties()
+        user_id = str(user.id)
+        bounties[user_id]["amount"] += amount
+        save_bounties(bounties)
+        await self.config.member(user).bounty.set(bounties[user_id]["amount"])
+        
+        embed = discord.Embed(
+            title="🏦 Bank Withdrawal",
+            description=f"Withdrawn: `{amount:,}` Berries",
+            color=discord.Color.green()
+        )
+        
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    @commands.cooldown(1, 3600, commands.BucketType.guild)
+    async def bankheist(self, ctx):
+        """Start a heist on the global bank! First to type the scrambled word gets the loot!"""
+        global_bank = await self.config.guild(ctx.guild).global_bank()
+        
+        if global_bank < 10000:  # Minimum amount for heist
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send("❌ The global bank needs at least `10,000` Berries to be worth robbing!")
+        
+        # Create scrambled word
+        words = ["PIRATE", "BOUNTY", "TREASURE", "BERRIES", "ROBBERY", "HEIST"]
+        word = random.choice(words)
+        scrambled = ''.join(random.sample(word, len(word)))
+        
+        embed = discord.Embed(
+            title="🏦 BANK HEIST ALERT! 🚨",
+            description=(
+                f"The global bank containing `{global_bank:,}` Berries is being robbed!\n\n"
+                f"**Quick!** Unscramble this word to claim the loot:\n"
+                f"```\n{scrambled}\n```"
+            ),
+            color=discord.Color.red()
+        )
+        
+        await ctx.send(embed=embed)
+        
+        def check(m):
+            return m.channel == ctx.channel and m.content.upper() == word
+        
+        try:
+            winner = await ctx.bot.wait_for('message', timeout=30.0, check=check)
+            
+            # Award the loot
+            bounties = load_bounties()
+            user_id = str(winner.author.id)
+            
+            if user_id not in bounties:
+                bounties[user_id] = {"amount": 0, "fruit": None}
+            
+            bounties[user_id]["amount"] += global_bank
+            save_bounties(bounties)
+            await self.config.member(winner.author).bounty.set(bounties[user_id]["amount"])
+            
+            # Reset global bank
+            await self.config.guild(ctx.guild).global_bank.set(0)
+            
+            await ctx.send(
+                f"🎉 **{winner.author.display_name}** unscrambled the word and stole "
+                f"`{global_bank:,}` Berries from the global bank!"
+            )
+            
+        except asyncio.TimeoutError:
+            ctx.command.reset_cooldown(ctx)
+            await ctx.send("❌ No one unscrambled the word in time! The bank remains secure.")
                 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
