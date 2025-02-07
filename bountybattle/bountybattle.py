@@ -2195,7 +2195,38 @@ class BountyBattle(commands.Cog):
             return await ctx.send("❌ The global bank needs at least `10,000` Berries to be worth robbing!")
         
         # Create scrambled word
-        words = ["PIRATE", "BOUNTY", "TREASURE", "BERRIES", "ROBBERY", "HEIST"]
+        words = [
+            "ARCHIPELAGO",
+            "REVOLUTIONARY",
+            "NAVIGATOR",
+            "SHICHIBUKAI",
+            "ALABASTA",
+            "CELESTIAL",
+            "MARINEFORD",
+            "FISHMAN",
+            "LOGUETOWN",
+            "PARAMOUNT",
+            "THOUSAND",
+            "ENIESLOBBY",
+            "IMPELDOWN",
+            "BAROQUE",
+            "SKYPIEA",
+            "WARLORD",
+            "YONKO",
+            "GRANDLINE",
+            "REDLINE",
+            "THRILLER",
+            "SABAODY",
+            "DRESSROSA",
+            "KARAKURI",
+            "MYSTICAL",
+            "TRANSPONDER",
+            "VIVRE",
+            "PONEGLYPH",
+            "MARIEJOIS",
+            "PARAMOUNT",
+            "EPICUREAN"
+        ]
         word = random.choice(words)
         scrambled = ''.join(random.sample(word, len(word)))
         
