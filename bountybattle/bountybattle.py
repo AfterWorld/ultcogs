@@ -4669,21 +4669,29 @@ class BountyBattle(commands.Cog):
                         if effect_result:
                             effect_messages.append(effect_result)
 
-                    # Compile turn message
-                    turn_message = [f"\nTurn {turn}: **{attacker['name']}** used **{modified_move['name']}**!"]
-                    if damage_message:
-                        turn_message.append(damage_message)
-                    if env_move_messages:
-                        turn_message.extend(env_move_messages)
-                    if fruit_message:
-                        turn_message.append(fruit_message)
-                    if effect_messages:
-                        turn_message.extend(effect_messages)
-                    turn_message.append(f"💥 Dealt **{final_damage}** damage!")
+                turn_message = [
+                    f"\n➤ Turn {turn}: **{attacker['name']}** used **{modified_move['name']}**!"  # Move announcement
+                ]
 
-                    # Update battle log
-                    await battle_log.edit(content=f"{battle_log.content}\n{''.join(turn_message)}")
+                # Add effects on separate lines
+                if damage_message:
+                    turn_message.append(f"• {damage_message}")
+                if env_move_messages:
+                    turn_message.extend(f"• {msg}" for msg in env_move_messages)
+                if fruit_message:
+                    turn_message.append(f"• {fruit_message}")
+                if effect_messages:
+                    turn_message.extend(f"• {msg}" for msg in effect_messages)
 
+                # Add final damage as its own line
+                turn_message.append(f"💥 Dealt **{final_damage}** damage!")
+
+                # Join with newlines for better readability
+                formatted_message = "\n".join(turn_message)
+
+                # Update battle log
+                await battle_log.edit(content=f"{battle_log.content}\n{formatted_message}")
+                
                 # Update display
                 update_player_fields()
                 await message.edit(embed=embed)
