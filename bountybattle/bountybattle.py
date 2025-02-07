@@ -249,7 +249,6 @@ MOVES = [
 DEVIL_FRUITS = {
     "Common": {
         "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
-        "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
         "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
         "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
         "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
@@ -293,6 +292,7 @@ DEVIL_FRUITS = {
         "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Can absorb 15% of the opponent's attack damage as HP"},
         "Mochi Mochi no Mi": {"type": "Special Paramecia", "effect": "mochi", "bonus": "Can dodge one attack every 4 turns"},
         "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Can freeze an opponent, skipping their next turn"},
+        "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
         "Tatsu Tatsu no Mi: Model Azure Dragon": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "25% resistance to elemental attacks"},
         "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "20% chance to stun an enemy every turn"},
         "Kami Kami no Mi": {"type": "Mythical Zoan", "effect": "god", "bonus": "Chance to nullify damage once per match"},
@@ -478,7 +478,7 @@ class DevilFruitManager:
         return bonus_damage, effect_message
 
     async def _handle_logia_effects(self, attacker, defender, effect, move, environment):
-        """Handle Logia-type Devil Fruit effects."""
+        """Handle Logia-type Devil Fruit effects with enhanced proc rates and balanced damage."""
         bonus_damage = 0
         effect_message = None  # Initialize at start
 
@@ -489,149 +489,146 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Mera Mera no Mi
+        # Mera Mera no Mi (Moved to Rare category)
         if effect == "fire":
-            if random.random() < 0.4:
-                await self.status_manager.apply_effect("burn", defender, value=2)
-                bonus_damage = int(base_damage * 1.0)  # Double damage
+            if random.random() < 0.60:  # Increased proc rate
+                await self.status_manager.apply_effect("burn", defender, value=3)  # Increased burn stacks
+                bonus_damage = int(base_damage * 1.5)  # 150% damage bonus
                 effect_message = (
                     f"🔥 **FLAME EMPEROR**! 🔥\n"
                     f"**{attacker['name']}** unleashes an inferno!\n"
-                    f"💥 Double damage + Intense burn!"
+                    f"💥 Bonus damage + Intense burn (3 stacks)!"
                 )
 
         # Goro Goro no Mi
         elif effect == "lightning":
-            if random.random() < 0.3:  # Increased proc chance
+            if random.random() < 0.45:  # Increased proc chance
                 await self.status_manager.apply_effect("stun", defender, duration=2)
-                bonus_damage = int(base_damage * 0.7)  # Increased damage bonus
+                bonus_damage = int(base_damage * 1.0)  # Full damage bonus
                 effect_message = (
                     f"⚡ **THUNDER GOD**! ⚡\n"
                     f"**{attacker['name']}** channels lightning!\n"
-                    f"💫 Stun effect + {bonus_damage} bonus damage!"
+                    f"💫 2-turn stun + {bonus_damage} bonus damage!"
                 )
 
         # Moku Moku no Mi
         elif effect == "smoke":
-            if random.random() < 0.15:
+            if random.random() < 0.40:  # Increased proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.5)  # Added damage bonus
                 effect_message = (
                     f"💨 **WHITE LAUNCHER**! 💨\n"
                     f"**{attacker['name']}** becomes smoke!\n"
-                    f"✨ Gained evasion boost!"
+                    f"✨ 2-turn evasion + {bonus_damage} bonus damage!"
                 )
 
         # Suna Suna no Mi
         elif effect == "sand":
-            if random.random() < 0.10:
-                drain_amount = int(defender["hp"] * 0.1)
+            if random.random() < 0.35:  # Increased proc rate
+                drain_amount = int(defender["hp"] * 0.15)  # Increased drain
                 defender["hp"] -= drain_amount
                 attacker["hp"] = min(250, attacker["hp"] + drain_amount)
+                bonus_damage = int(base_damage * 0.4)  # Added damage bonus
                 effect_message = (
                     f"🏜️ **GROUND DEATH**! 🏜️\n"
                     f"**{attacker['name']}** drains life force!\n"
-                    f"💀 Drained {drain_amount} HP!"
+                    f"💀 Drained {drain_amount} HP + {bonus_damage} bonus damage!"
                 )
 
         # Hie Hie no Mi
         elif effect == "ice":
-            if random.random() < 0.25:
+            if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("freeze", defender, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.3)
+                bonus_damage = int(base_damage * 0.8)  # Strong damage bonus
                 effect_message = (
                     f"❄️ **ICE AGE**! ❄️\n"
                     f"**{attacker['name']}** freezes the battlefield!\n"
-                    f"🥶 Target frozen + Bonus damage!"
+                    f"🥶 2-turn freeze + {bonus_damage} bonus damage!"
                 )
 
-        # Yami Yami no Mi - Fixed absorption calculation
+        # Yami Yami no Mi
         elif effect == "darkness":
-            # Calculate absorption based on the move's base damage
-            base_damage = move.get("damage", 0)
-            if base_damage == 0 and move.get("type") in MOVE_TYPES:
-                # If no damage specified, use the move type's base damage range
-                move_type = MOVE_TYPES[move["type"]]
-                min_damage, max_damage = move_type["base_damage_range"]
-                base_damage = (min_damage + max_damage) // 2
-
-            absorb_amount = int(base_damage * 0.25)  # 25% of base damage
-            if absorb_amount > 0:  # Only heal if there's damage to absorb
+            if random.random() < 0.50:  # High proc rate for signature fruit
+                absorb_amount = int(base_damage * 0.30)  # 30% damage absorption
                 attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
-                
-            # Apply bonus damage
-            bonus_damage = int(base_damage * 0.3)  # 30% bonus damage
-            effect_message = (
-                f"🌑 **BLACK HOLE**! 🌑\n"
-                f"**{attacker['name']}** commands darkness!\n"
-                f"⚫ Absorbed {absorb_amount} HP + {bonus_damage} bonus damage!"
-            )
+                bonus_damage = int(base_damage * 0.7)  # Strong damage bonus
+                effect_message = (
+                    f"🌑 **BLACK HOLE**! 🌑\n"
+                    f"**{attacker['name']}** commands darkness!\n"
+                    f"⚫ Absorbed {absorb_amount} HP + {bonus_damage} bonus damage!"
+                )
 
         # Pika Pika no Mi
         elif effect == "light":
-            bonus_damage = int(base_damage * 0.8)  # Increased base bonus
-            if random.random() < 0.2:
-                bonus_damage *= 2  # Double bonus damage on crit
+            if random.random() < 0.45:  # Balanced proc rate
+                bonus_damage = int(base_damage * 1.2)  # Very high damage bonus
                 effect_message = (
                     f"✨ **SACRED YASAKANI**! ✨\n"
                     f"**{attacker['name']}** attacks at light speed!\n"
-                    f"⚡ Double damage + Defense pierce!"
-                )
-            else:
-                effect_message = (
-                    f"💫 **LIGHT SPEED**! 💫\n"
-                    f"**{attacker['name']}** attacks with light!\n"
-                    f"⚡ {bonus_damage} bonus damage!"
+                    f"⚡ {bonus_damage} piercing damage!"
                 )
 
         # Magu Magu no Mi
         elif effect == "magma":
-            await self.status_manager.apply_effect("burn", defender, value=3, duration=3)
-            bonus_damage = int(base_damage * 0.6)
-            effect_message = (
-                f"🌋 **GREAT ERUPTION**! 🌋\n"
-                f"**{attacker['name']}** unleashes magma!\n"
-                f"🔥 Maximum burn + Heavy damage!"
-        )
+            if random.random() < 0.55:  # High proc rate
+                await self.status_manager.apply_effect("burn", defender, value=4, duration=3)
+                bonus_damage = int(base_damage * 0.9)  # Very high damage
+                effect_message = (
+                    f"🌋 **GREAT ERUPTION**! 🌋\n"
+                    f"**{attacker['name']}** unleashes magma!\n"
+                    f"🔥 4-stack burn + {bonus_damage} bonus damage!"
+                )
 
         # Mori Mori no Mi
         elif effect == "forest":
-            if random.random() < 0.25:
+            if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("root", defender, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.2)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"🌳 **FOREST PRISON**! 🌳\n"
                     f"**{attacker['name']}** binds with roots!\n"
-                    f"🌿 Target rooted + Bonus damage!"
+                    f"🌿 2-turn root + {bonus_damage} bonus damage!"
                 )
 
         # Kaze Kaze no Mi
         elif effect == "wind":
-            if random.random() < 0.20:
+            if random.random() < 0.45:  # Balanced proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.3)
+                bonus_damage = int(base_damage * 0.65)
                 effect_message = (
                     f"🌪️ **DIVINE WIND**! 🌪️\n"
                     f"**{attacker['name']}** harnesses the wind!\n"
-                    f"💨 Evasion boost + Bonus damage!"
+                    f"💨 2-turn evasion + {bonus_damage} bonus damage!"
                 )
 
         # Environment interactions with proper scaling
         if environment == "Punk Hazard" and effect in ["fire", "ice", "magma"]:
             bonus_damage = int(bonus_damage * 1.5)
-            effect_message = f"{effect_message}\n🌋 Power amplified by Punk Hazard's climate!"
+            if effect_message:
+                effect_message = f"{effect_message}\n🌋 Power amplified by Punk Hazard's climate!"
         elif environment == "Alabasta" and effect in ["fire", "magma"]:
             bonus_damage = int(bonus_damage * 1.3)
-            effect_message = f"{effect_message}\n🏜️ Desert environment enhances fire powers!"
+            if effect_message:
+                effect_message = f"{effect_message}\n🏜️ Desert environment enhances fire powers!"
         elif environment == "Marineford":
             bonus_damage = int(bonus_damage * 1.2)
-            effect_message = f"{effect_message}\n⚔️ Sacred battleground amplifies power!"
+            if effect_message:
+                effect_message = f"{effect_message}\n⚔️ Sacred battleground amplifies power!"
+
+        # If no specific effect triggered, provide minimal default effect
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.15)  # Reduced default bonus
+            effect_message = (
+                f"💫 **LOGIA AWAKENING**! 💫\n"
+                f"**{attacker['name']}**'s elemental power provides {bonus_damage} bonus damage!"
+            )
 
         return bonus_damage, effect_message
 
     async def _handle_zoan_effects(self, attacker, defender, effect, move, environment):
-        """Handle Zoan-type Devil Fruit effects."""
+        """Handle Zoan-type Devil Fruit effects with proper transformations and hybrid forms."""
         bonus_damage = 0
-        effect_message = None  # Initialize at the start
+        effect_message = None
         
         base_damage = move.get("damage", 0)
         if base_damage == 0 and move.get("type") in MOVE_TYPES:
@@ -639,229 +636,210 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-
-        # Leopard Zoan (Neko Neko no Mi: Model Leopard)
+        # Model Leopard (Neko Neko no Mi: Model Leopard)
         if effect == "leopard":
-            if random.random() < 0.2:
+            if random.random() < 0.45:
                 await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.2)
+                bonus_damage = int(base_damage * 0.9)
+                hits = random.randint(2, 3)  # Multi-hit attack
+                bonus_damage *= hits
                 effect_message = (
                     f"🐆 **PREDATOR'S AGILITY**! 🐆\n"
-                    f"**{attacker['name']}** moves with feline grace!\n"
-                    f"⚡ Speed increased + Bonus damage!"
+                    f"**{attacker['name']}** strikes with feline grace!\n"
+                    f"⚡ {hits} rapid strikes for {bonus_damage} total damage!"
                 )
 
         # Model Azure Dragon
         elif "Azure Dragon" in effect:
-            bonus_damage = int(base_damage * 0.5)  # Increased damage bonus
-            await self.status_manager.apply_effect("protect", attacker, duration=2)
-            effect_message = (
-                f"🐉 **CELESTIAL DRAGON'S MIGHT**! 🐉\n"
-                f"**{attacker['name']}** channels divine power!\n"
-                f"✨ Protected + {bonus_damage} bonus damage!"
-            )
+            if random.random() < 0.40:
+                bonus_damage = int(base_damage * 1.2)
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                effect_message = (
+                    f"🐉 **CELESTIAL DRAGON'S MIGHT**! 🐉\n"
+                    f"**{attacker['name']}** channels divine power!\n"
+                    f"✨ 2-turn protection + {bonus_damage} divine damage!"
+                )
 
         # Model Phoenix (Tori Tori no Mi: Model Phoenix)
-        if "Phoenix" in effect:
-            heal_amount = int(attacker["max_hp"] * 0.1)  # 10% max HP heal
-            attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
-            effect_message = (
-                f"🦅 **FLAMES OF RESTORATION**! 🦅\n"
-                f"**{attacker['name']}** bathes in regenerative flames!\n"
-                f"💚 Healed {heal_amount} HP!"
-            )
-            bonus_damage = int(base_damage * 0.3)  # Added damage bonus
+        elif "Phoenix" in effect:
+            if random.random() < 0.45:
+                heal_amount = int(attacker["max_hp"] * 0.15)
+                attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
+                bonus_damage = int(base_damage * 0.8)
+                effect_message = (
+                    f"🦅 **FLAMES OF RESTORATION**! 🦅\n"
+                    f"**{attacker['name']}** bathes in regenerative flames!\n"
+                    f"💚 Healed {heal_amount} HP + {bonus_damage} flame damage!"
+                )
 
-        # Spinosaurus Zoan (Ryu Ryu no Mi: Model Spinosaurus)
+        # Model Spinosaurus
         elif "Spinosaurus" in effect:
-            # Increase base HP by 20%
-            if "max_hp" not in attacker:
-                attacker["max_hp"] = 250  # Default max HP
-            
-            hp_increase = int(attacker["max_hp"] * 0.2)
-            attacker["max_hp"] += hp_increase
-            attacker["hp"] += hp_increase  # Also increase current HP
-            
-            effect_message = (
-                f"🦕 **ANCIENT WARRIOR'S ENDURANCE**! 🦕\n"
-                f"**{attacker['name']}** taps into prehistoric might!\n"
-                f"❤️ Maximum HP increased by {hp_increase}!"
-            )
+            if random.random() < 0.40:
+                bonus_damage = int(base_damage * 1.3)
+                await self.status_manager.apply_effect("protect", attacker, duration=1)
+                effect_message = (
+                    f"🦕 **ANCIENT WARRIOR'S MIGHT**! 🦕\n"
+                    f"**{attacker['name']}** unleashes prehistoric power!\n"
+                    f"💥 {bonus_damage} primal damage + 1-turn protection!"
+                )
 
-        # Pteranodon Zoan (Ryu Ryu no Mi: Model Pteranodon)
+        # Model Pteranodon
         elif "Pteranodon" in effect:
-            if random.random() < 0.15:
-                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.7)
                 effect_message = (
                     f"🦅 **AERIAL SUPREMACY**! 🦅\n"
                     f"**{attacker['name']}** takes to the skies!\n"
-                    f"💨 Attack evaded through aerial maneuver!"
+                    f"💨 2-turn dodge + {bonus_damage} aerial damage!"
                 )
 
-        # Wolf Deity Zoan (Inu Inu no Mi: Model Okuchi no Makami)
+        # Model Okuchi no Makami
         elif "Okuchi no Makami" in effect:
-            heal_amount = int(move.get("heal_amount", 0) * 2)
-            if heal_amount > 0:
+            if random.random() < 0.40:
+                heal_amount = int(base_damage * 0.4)
                 attacker["hp"] = min(250, attacker["hp"] + heal_amount)
+                bonus_damage = int(base_damage * 0.8)
                 effect_message = (
                     f"🐺 **DIVINE WOLF'S BLESSING**! 🐺\n"
                     f"**{attacker['name']}** channels sacred healing!\n"
-                    f"✨ Healing doubled to {heal_amount}!"
+                    f"✨ {heal_amount} HP restored + {bonus_damage} divine damage!"
                 )
 
-        # Thunderbird Zoan (Tori Tori no Mi: Model Thunderbird)
-        elif "Thunderbird" in effect:
-            if "lightning" in move.get("effect", ""):
-                bonus_damage = int(move.get("damage", 0) * 0.3)
+        # Model Rosamygale Grauvogeli
+        elif "spider" in effect:
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("slow", defender, duration=2)
+                bonus_damage = int(base_damage * 0.7)
                 effect_message = (
-                    f"⚡ **STORM DEITY'S WRATH**! ⚡\n"
-                    f"**{attacker['name']}** commands divine lightning!\n"
-                    f"💫 Lightning damage amplified!"
-                )
-
-        # Buddha Zoan (Hito Hito no Mi: Model Daibutsu)
-        elif "Daibutsu" in effect:
-            await self.status_manager.apply_effect("protect", attacker, duration=2)
-            bonus_damage = int(move.get("damage", 0) * 0.2)
-            effect_message = (
-                f"🗿 **ENLIGHTENED COMBAT**! 🗿\n"
-                f"**{attacker['name']}** channels Buddha's power!\n"
-                f"🛡️ Defense and attack enhanced!"
-            )
-
-        # Cerberus Zoan (Inu Inu no Mi: Model Cerberus)
-        elif "Cerberus" in effect:
-            if random.random() < 0.3:
-                bonus_damage = int(move.get("damage", 0))  # Double damage
-                effect_message = (
-                    f"🐕 **HELLHOUND'S FURY**! 🐕\n"
-                    f"**{attacker['name']}** strikes with three heads!\n"
-                    f"💥 Triple coordinated attack!"
+                    f"🕷️ **ANCIENT WEB**! 🕷️\n"
+                    f"**{attacker['name']}** ensnares with prehistoric webbing!\n"
+                    f"🕸️ 2-turn slow + {bonus_damage} web damage!"
                 )
 
         # Model Nika (Hito Hito no Mi: Model Nika)
         elif effect == "nika":
-            if random.random() < 0.4:
+            if random.random() < 0.50:  # Higher proc rate for special fruit
                 effect_choice = random.choice(["drumbeat", "giant", "freedom"])
                 if effect_choice == "drumbeat":
-                    bonus_damage = int(base_damage * 1.0)  # Full bonus damage
+                    bonus_damage = int(base_damage * 1.5)
                     effect_message = (
                         f"💥 **DRUMS OF LIBERATION**! 💥\n"
                         f"**{attacker['name']}** awakens the rhythm of freedom!\n"
-                        f"🥁 Massive damage boost through joy!"
+                        f"🥁 {bonus_damage} liberation damage!"
                     )
                 elif effect_choice == "giant":
-                    bonus_damage = int(base_damage * 0.8)
+                    bonus_damage = int(base_damage * 1.2)
                     await self.status_manager.apply_effect("transform", attacker, duration=2)
                     effect_message = (
                         f"🌟 **GIANT WARRIOR**! 🌟\n"
                         f"**{attacker['name']}** becomes a giant!\n"
-                        f"👊 Size and power dramatically increased!"
+                        f"👊 2-turn transformation + {bonus_damage} damage!"
                     )
                 elif effect_choice == "freedom":
-                    bonus_damage = int(base_damage * 0.5)
-                    attacker["status"] = {k: v for k, v in attacker["status"].items() 
-                                        if not isinstance(v, (bool, int)) or not v}
+                    bonus_damage = int(base_damage * 1.0)
+                    # Clear negative status effects
+                    for status in ["burn", "stun", "frozen", "slow", "bind"]:
+                        if status in attacker["status"]:
+                            attacker["status"][status] = 0
                     effect_message = (
                         f"🌈 **WARRIOR OF LIBERATION**! 🌈\n"
                         f"**{attacker['name']}** breaks all limitations!\n"
-                        f"✨ All negative status effects removed!"
+                        f"✨ Status effects cleared + {bonus_damage} damage!"
                     )
 
-        # Eight-Headed Snake Zoan (Hebi Hebi no Mi: Model Yamata no Orochi)
-        elif "Yamata no Orochi" in effect:
-            if random.random() < 0.3:
-                multi_strike = random.randint(2, 4)
-                bonus_damage = int(move.get("damage", 0) * (multi_strike - 1))
+        # Model Daibutsu
+        elif "Daibutsu" in effect:
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.1)
                 effect_message = (
-                    f"🐍 **EIGHT-HEADED ASSAULT**! 🐍\n"
-                    f"**{attacker['name']}** strikes with multiple heads!\n"
-                    f"💥 {multi_strike}x strike combo!"
-                )
-                
-        # Kami Kami no Mi
-        elif "god" in effect:
-            if random.random() < 0.15 and not attacker.get("nullify_used", False):
-                attacker["nullify_used"] = True
-                effect_message = (
-                    f"✨ **DIVINE PROTECTION**! ✨\n"
-                    f"**{attacker['name']}** channels godly power!\n"
-                    f"🛡️ Next attack nullified!"
+                    f"🗿 **ENLIGHTENED COMBAT**! 🗿\n"
+                    f"**{attacker['name']}** channels Buddha's power!\n"
+                    f"🛡️ 2-turn protection + {bonus_damage} enlightened damage!"
                 )
 
-        # Ushi Ushi no Mi: Model Bison
-        elif "bison" in effect:
-            if "battle_turns" not in attacker:
-                attacker["battle_turns"] = 0
-            attacker["battle_turns"] += 1
-            
-            bonus_damage = int(move.get("damage", 0) * (0.1 * min(5, attacker["battle_turns"] // 2)))
-            effect_message = (
-                f"🦬 **STAMPEDING FORCE**! 🦬\n"
-                f"**{attacker['name']}** builds momentum!\n"
-                f"💥 Attack power increased with battle duration!"
-            )
-
-        # Kumo Kumo no Mi: Model Rosamygale Grauvogeli
-        elif "spider" in effect:
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("slow", defender, duration=2)
+        # Model Cerberus
+        elif "Cerberus" in effect:
+            if random.random() < 0.40:
+                hits = 3  # Triple attack
+                bonus_damage = int(base_damage * 0.5 * hits)
                 effect_message = (
-                    f"🕷️ **ANCIENT WEB**! 🕷️\n"
-                    f"**{attacker['name']}** ensnares with prehistoric webbing!\n"
-                    f"🕸️ Target movement slowed!"
+                    f"🐕 **HELLHOUND'S FURY**! 🐕\n"
+                    f"**{attacker['name']}** strikes with three heads!\n"
+                    f"💥 {hits} coordinated strikes for {bonus_damage} total damage!"
                 )
 
-        # Uo Uo no Mi: Model Seiryu
+        # Model Seiryu (Uo Uo no Mi: Model Seiryu)
         elif "Seiryu" in effect:
-            bonus_damage = int(move.get("damage", 0) * 0.3)
-            if random.random() < 0.25:
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 1.2)
                 await self.status_manager.apply_effect("elemental_boost", attacker, duration=2)
                 effect_message = (
                     f"🐉 **AZURE DRAGON'S BLESSING**! 🐉\n"
                     f"**{attacker['name']}** channels celestial power!\n"
-                    f"✨ Elemental damage increased!"
+                    f"✨ 2-turn elemental boost + {bonus_damage} divine damage!"
                 )
 
-        # Ryu Ryu no Mi: Model Allosaurus
+        # Model Allosaurus
         elif "Allosaurus" in effect:
-            bonus_damage = int(move.get("damage", 0) * 0.25)
-            if random.random() < 0.3:
-                bonus_damage *= 2
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 1.4)  # High raw damage
                 effect_message = (
                     f"🦖 **JURASSIC HUNTER**! 🦖\n"
                     f"**{attacker['name']}** unleashes prehistoric fury!\n"
-                    f"💥 Critical hit with ancient strength!"
+                    f"💥 {bonus_damage} primal damage!"
                 )
-        # Add default effect if no specific effect was triggered
-        if effect_message is None:
-            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
-            effect_message = (
-                f"💥 **ZOAN TRANSFORMATION**! 💥\n"
-                f"**{attacker['name']}** uses their beast form!\n"
-                f"⚔️ {bonus_damage} bonus damage!"
-            )
-        
-        # Add default effect if no specific effect was triggered
-        if effect_message is None:
-            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
-            effect_message = (
-                f"💫 **LOGIA POWER**! 💫\n"
-                f"**{attacker['name']}** uses their elemental form!\n"
-                f"✨ {bonus_damage} bonus damage!"
-            )
+
+        # Model Yamata no Orochi
+        elif "Yamata no Orochi" in effect:
+            if random.random() < 0.40:
+                hits = random.randint(3, 5)  # Multi-head attack
+                bonus_damage = int(base_damage * 0.4 * hits)
+                effect_message = (
+                    f"🐍 **EIGHT-HEADED ASSAULT**! 🐍\n"
+                    f"**{attacker['name']}** strikes with multiple heads!\n"
+                    f"💥 {hits} serpent strikes for {bonus_damage} total damage!"
+                )
+
+        # Model Bison
+        elif "bison" in effect:
+            if random.random() < 0.45:
+                if "battle_turns" not in attacker:
+                    attacker["battle_turns"] = 0
+                attacker["battle_turns"] += 1
                 
+                bonus_damage = int(base_damage * (1.0 + (0.1 * min(5, attacker["battle_turns"]))))
+                effect_message = (
+                    f"🦬 **STAMPEDING FORCE**! 🦬\n"
+                    f"**{attacker['name']}** builds momentum!\n"
+                    f"💥 Turn {attacker['battle_turns']} power: {bonus_damage} damage!"
+                )
+
         # Environment interactions
         if environment == "Wano" and ("Dragon" in effect or "Orochi" in effect):
             bonus_damage = int(bonus_damage * 1.3)
-            effect_message = f"{effect_message}\n⚔️ Power enhanced by Wano's legendary aura!"
+            if effect_message:
+                effect_message = f"{effect_message}\n⚔️ Power enhanced by Wano's legendary aura!"
+        elif environment == "Zou" and effect in ["elephant", "mammoth"]:
+            bonus_damage = int(bonus_damage * 1.2)
+            if effect_message:
+                effect_message = f"{effect_message}\n🐘 Power amplified by Zou's ancient might!"
+
+        # If no specific effect triggered, provide minimal default effect
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.15)  # Reduced default bonus
+            effect_message = (
+                f"✨ **ZOAN TRANSFORMATION**! ✨\n"
+                f"**{attacker['name']}**'s beast form grants {bonus_damage} bonus damage!"
+            )
 
         return bonus_damage, effect_message
 
     async def _handle_paramecia_effects(self, attacker, defender, effect, move, environment):
-        """Handle Paramecia-type Devil Fruit effects."""
+        """Handle Paramecia-type Devil Fruit effects with consistent activation and balanced damage."""
         bonus_damage = 0
-        effect_message = None  # Initialize at start
+        effect_message = None
         
         base_damage = move.get("damage", 0)
         if base_damage == 0 and move.get("type") in MOVE_TYPES:
@@ -871,363 +849,296 @@ class DevilFruitManager:
 
         # Gomu Gomu no Mi
         if effect == "rubber" and move.get("type") == "strong":
-            bonus_damage = int(base_damage * 0.8)  # Increased bonus
-            effect_message = (
-                f"💫 **RUBBER ENHANCEMENT**! 💫\n"
-                f"**{attacker['name']}** stretches for maximum power!\n"
-                f"💥 Attack power increased by elasticity!"
-            )
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 1.2)
+                effect_message = (
+                    f"✨ **RUBBER POWER**! ✨\n"
+                    f"**{attacker['name']}** stretches for maximum power!\n"
+                    f"💥 {bonus_damage} elastic bonus damage!"
+                )
+
+        # Toge Toge no Mi (Fixed counter damage)
+        elif effect == "spikes":
+            if random.random() < 0.40:
+                counter_damage = int(base_damage * 0.75)  # 75% damage reflection
+                defender["hp"] -= counter_damage
+                defender["stats"]["damage_taken"] += counter_damage
+                bonus_damage = int(base_damage * 0.3)  # Additional direct damage
+                effect_message = (
+                    f"🌵 **SPIKE COUNTER**! 🌵\n"
+                    f"**{attacker['name']}** retaliates with spikes!\n"
+                    f"💥 Reflected {counter_damage} damage + {bonus_damage} bonus damage!"
+                )
 
         # Ope Ope no Mi
         elif effect == "surgical":
-            if random.random() < 0.2:
-                await self.status_manager.apply_effect("stun", defender, duration=1)
-                bonus_damage = int(move.get("damage", 0) * 0.3)
+            if random.random() < 0.35:
+                await self.status_manager.apply_effect("stun", defender, duration=2)
+                bonus_damage = int(base_damage * 0.8)
                 effect_message = (
                     f"🏥 **ROOM: SHAMBLES**! 🏥\n"
                     f"**{attacker['name']}** performs surgical precision!\n"
-                    f"✨ Target disoriented by spatial manipulation!"
+                    f"✨ 2-turn stun + {bonus_damage} bonus damage!"
+                )
+
+        # Baku Baku no Mi
+        elif effect == "eat anything":
+            if random.random() < 0.40:
+                bonus_damage = int(base_damage * 0.9)
+                heal_amount = int(bonus_damage * 0.3)
+                attacker["hp"] = min(250, attacker["hp"] + heal_amount)
+                effect_message = (
+                    f"🍽️ **WEAPON DIGESTION**! 🍽️\n"
+                    f"**{attacker['name']}** consumes and copies power!\n"
+                    f"💥 {bonus_damage} bonus damage + {heal_amount} HP restored!"
                 )
 
         # Bomu Bomu no Mi
         elif effect == "explosion":
-            bonus_damage = int(move.get("damage", 0) * 0.3)
-            effect_message = (
-                f"💥 **EXPLOSIVE FORCE**! 💥\n"
-                f"**{attacker['name']}** detonates with power!\n"
-                f"🎯 Blast damage bonus activated!"
-            )
+            if random.random() < 0.50:
+                bonus_damage = int(base_damage * 1.1)  # High damage multiplier
+                effect_message = (
+                    f"💥 **EXPLOSIVE FORCE**! 💥\n"
+                    f"**{attacker['name']}** detonates with power!\n"
+                    f"🎯 {bonus_damage} explosive damage!"
+                )
 
         # Kilo Kilo no Mi
         elif effect == "weight":
-            if random.random() < 0.35:
-                if random.random() < 0.5:
-                    bonus_damage = int(move.get("damage", 0) * 1.0)  # Double damage
+            if random.random() < 0.45:
+                if random.random() < 0.5:  # 50/50 heavy or light form
+                    bonus_damage = int(base_damage * 1.3)
                     effect_message = (
                         f"⚖️ **WEIGHT CRUSH**! ⚖️\n"
-                        f"**{attacker['name']}** increases mass for impact!\n"
-                        f"💥 Double damage from weight manipulation!"
+                        f"**{attacker['name']}** increases mass!\n"
+                        f"💥 {bonus_damage} crushing damage!"
                     )
                 else:
-                    await self.status_manager.apply_effect("dodge", attacker, duration=1)
+                    await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                    bonus_damage = int(base_damage * 0.4)
                     effect_message = (
                         f"🪶 **WEIGHTLESS DODGE**! 🪶\n"
                         f"**{attacker['name']}** becomes weightless!\n"
-                        f"✨ Attack evaded through weight control!"
+                        f"✨ 2-turn dodge + {bonus_damage} bonus damage!"
                     )
-
-        # Toge Toge no Mi
-        elif effect == "spikes":
-            if random.random() < 0.3:
-                counter_damage = int(move.get("damage", 0) * 0.4)
-                defender["hp"] -= counter_damage
-                effect_message = (
-                    f"🌵 **SPIKE COUNTER**! 🌵\n"
-                    f"**{attacker['name']}** retaliates with spikes!\n"
-                    f"💥 Counter damage: {counter_damage}!"
-                )
 
         # Bane Bane no Mi
         elif effect == "springs":
-            if random.random() < 0.25:
-                bonus_damage = int(move.get("damage", 0) * 0.4)
+            if random.random() < 0.40:
+                bonus_damage = int(base_damage * 0.85)
+                await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
                 effect_message = (
                     f"🔄 **SPRING FORCE**! 🔄\n"
                     f"**{attacker['name']}** compresses and releases!\n"
-                    f"💫 Spring-powered attack boost!"
+                    f"💫 Speed boost + {bonus_damage} bonus damage!"
                 )
 
         # Hana Hana no Mi
         elif effect == "multiple limbs":
-            if random.random() < 0.3:
-                extra_hits = random.randint(1, 3)
-                bonus_damage = int(move.get("damage", 0) * (0.5 * extra_hits))
+            if random.random() < 0.45:
+                hits = random.randint(2, 4)
+                bonus_damage = int(base_damage * 0.4 * hits)
                 effect_message = (
                     f"🌸 **FLEUR CASCADE**! 🌸\n"
                     f"**{attacker['name']}** sprouts multiple limbs!\n"
-                    f"👊 {extra_hits} extra attacks landed!"
+                    f"👊 {hits} hits for {bonus_damage} total damage!"
                 )
 
         # Doru Doru no Mi
         elif effect == "wax":
-            if random.random() < 0.3:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("protect", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
                     f"🕯️ **WAX ARMOR**! 🕯️\n"
                     f"**{attacker['name']}** creates protective wax!\n"
-                    f"🛡️ Defense boosted by hardened wax!"
+                    f"🛡️ 2-turn protection + {bonus_damage} bonus damage!"
                 )
 
         # Supa Supa no Mi
         elif effect == "blades":
-            bonus_damage = int(move.get("damage", 0) * 0.3)
-            effect_message = (
-                f"⚔️ **STEEL BODY**! ⚔️\n"
-                f"**{attacker['name']}** turns body to blades!\n"
-                f"🗡️ Melee damage increased!"
-            )
-
-        # Baku Baku no Mi
-        elif effect == "eat anything":
-            if random.random() < 0.25:
-                bonus_damage = int(move.get("damage", 0) * 0.5)
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 0.95)
                 effect_message = (
-                    f"🍽️ **WEAPON DIGESTION**! 🍽️\n"
-                    f"**{attacker['name']}** consumes and copies power!\n"
-                    f"💥 Attack enhanced by absorbed weapons!"
+                    f"⚔️ **STEEL BODY**! ⚔️\n"
+                    f"**{attacker['name']}** turns body to blades!\n"
+                    f"🗡️ {bonus_damage} slicing damage!"
                 )
 
         # Mane Mane no Mi
         elif effect == "copy":
-            if random.random() < 0.25:
-                bonus_damage = int(move.get("damage", 0))  # Double damage
+            if random.random() < 0.35:
+                bonus_damage = int(base_damage * 1.0)
                 effect_message = (
                     f"👥 **PERFECT MIMICRY**! 👥\n"
                     f"**{attacker['name']}** copies enemy technique!\n"
-                    f"✨ Double damage through mimicry!"
+                    f"✨ {bonus_damage} mirrored damage!"
                 )
 
         # Goe Goe no Mi
         elif effect == "sound waves":
-            if random.random() < 0.3:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("stun", defender, duration=1)
+                bonus_damage = int(base_damage * 0.7)
                 effect_message = (
                     f"🔊 **SONIC BURST**! 🔊\n"
                     f"**{attacker['name']}** releases sound waves!\n"
-                    f"💫 Target stunned by sound!"
+                    f"💫 1-turn stun + {bonus_damage} sonic damage!"
                 )
 
         # Ori Ori no Mi
         elif effect == "binding":
-            if random.random() < 0.25:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("bind", defender, duration=2)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"⛓️ **BINDING PRISON**! ⛓️\n"
                     f"**{attacker['name']}** restrains the target!\n"
-                    f"🔒 Target movement restricted!"
+                    f"🔒 2-turn bind + {bonus_damage} bonus damage!"
                 )
-
+            
         # Kage Kage no Mi
         elif effect == "shadows":
-            if random.random() < 0.2:
-                steal_amount = int(move.get("damage", 0) * 0.3)
+            if random.random() < 0.40:
+                steal_amount = int(base_damage * 0.5)
                 defender["hp"] -= steal_amount
                 attacker["hp"] = min(250, attacker["hp"] + steal_amount)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"👥 **SHADOW THEFT**! 👥\n"
                     f"**{attacker['name']}** steals enemy's shadow!\n"
-                    f"🌑 Drained {steal_amount} HP through shadow!"
+                    f"🌑 Drained {steal_amount} HP + {bonus_damage} bonus damage!"
                 )
 
         # Shari Shari no Mi
         elif effect == "wheels":
-            if random.random() < 0.3:
-                bonus_damage = int(move.get("damage", 0) * 0.4)
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 0.8)
+                await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
                 effect_message = (
                     f"🎡 **WHEEL RUSH**! 🎡\n"
                     f"**{attacker['name']}** transforms into deadly wheel!\n"
-                    f"💨 Spinning attack boost!"
+                    f"💨 Speed boost + {bonus_damage} spinning damage!"
                 )
 
         # Awa Awa no Mi
         elif effect == "bubbles":
-            if random.random() < 0.25:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("defense_down", defender, duration=2)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
                     f"🫧 **CLEANSING BUBBLES**! 🫧\n"
                     f"**{attacker['name']}** weakens target's defense!\n"
-                    f"✨ Enemy defense reduced!"
+                    f"✨ 2-turn defense reduction + {bonus_damage} damage!"
                 )
 
         # Sabi Sabi no Mi
         elif effect == "rust":
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("defense_down", defender, duration=2)
-                bonus_damage = int(move.get("damage", 0) * 0.3)
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("defense_down", defender, duration=3)
+                bonus_damage = int(base_damage * 0.7)
                 effect_message = (
                     f"🔨 **RUST DECAY**! 🔨\n"
                     f"**{attacker['name']}** corrodes enemy defenses!\n"
-                    f"💫 Defense reduced + Bonus damage!"
+                    f"💫 3-turn defense reduction + {bonus_damage} damage!"
                 )
 
         # Noro Noro no Mi
         elif effect == "slow beam":
-            if random.random() < 0.25:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("slow", defender, duration=2)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
                     f"⏳ **SLOW BEAM**! ⏳\n"
                     f"**{attacker['name']}** slows the target!\n"
-                    f"🐌 Enemy movement slowed!"
+                    f"🐌 2-turn slow + {bonus_damage} damage!"
                 )
 
         # Doa Doa no Mi
         elif effect == "doors":
-            if random.random() < 0.2:
-                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+            if random.random() < 0.35:
+                await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"🚪 **DOOR ESCAPE**! 🚪\n"
                     f"**{attacker['name']}** creates an escape door!\n"
-                    f"✨ Attack dodged through door power!"
+                    f"✨ 2-turn dodge + {bonus_damage} damage!"
                 )
 
         # Beri Beri no Mi
         elif effect == "barrier balls":
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("dodge", attacker, duration=1)
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
                     f"🔮 **BERRY BARRIER**! 🔮\n"
                     f"**{attacker['name']}** splits into barrier balls!\n"
-                    f"✨ Attack avoided through splitting!"
+                    f"✨ 2-turn dodge + {bonus_damage} damage!"
                 )
 
         # Yomi Yomi no Mi
         elif effect == "revival":
-            if attacker["hp"] <= 50 and random.random() < 0.3:
-                heal_amount = 75  # 30% of max HP
+            if attacker["hp"] <= 75 and random.random() < 0.40:
+                heal_amount = 100
                 attacker["hp"] = min(250, attacker["hp"] + heal_amount)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
                     f"💀 **SOUL KING'S ENCORE**! 💀\n"
                     f"**{attacker['name']}** refuses to fall!\n"
-                    f"✨ Recovered {heal_amount} HP!"
+                    f"✨ Recovered {heal_amount} HP + {bonus_damage} damage!"
                 )
 
         # Horo Horo no Mi
         elif effect == "ghosts":
-            if random.random() < 0.25:
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("attack_down", defender, duration=2)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"👻 **NEGATIVE HOLLOW**! 👻\n"
                     f"**{attacker['name']}** summons negative ghosts!\n"
-                    f"💔 Enemy attack power reduced!"
+                    f"💔 2-turn attack reduction + {bonus_damage} damage!"
                 )
 
-        # Zushi Zushi no Mi
-        elif effect == "gravity":
-            if random.random() < 0.2:
+        # Hobi Hobi no Mi
+        elif effect == "toy":
+            if random.random() < 0.35:
                 await self.status_manager.apply_effect("stun", defender, duration=1)
-                bonus_damage = int(move.get("damage", 0) * 0.4)
+                await self.status_manager.apply_effect("attack_down", defender, duration=2)
+                bonus_damage = int(base_damage * 0.5)
                 effect_message = (
-                    f"🌌 **GRAVITY CRUSH**! 🌌\n"
-                    f"**{attacker['name']}** manipulates gravity!\n"
-                    f"💫 Target crushed + Bonus damage!"
+                    f"🎎 **TOY TRANSFORMATION**! 🎎\n"
+                    f"**{attacker['name']}** temporarily transforms target!\n"
+                    f"✨ 1-turn stun + Attack reduction + {bonus_damage} damage!"
                 )
 
         # Gura Gura no Mi
         elif effect == "quake":
-            bonus_damage = int(move.get("damage", 0) * 0.6)
-            effect_message = (
-                f"💥 **SEISMIC SHOCK**! 💥\n"
-                f"**{attacker['name']}** shatters the air itself!\n"
-                f"🌋 Massive quake damage!"
-            )
-            
-        # Mochi Mochi no Mi
-        elif effect == "mochi":
-            if not hasattr(attacker, "dodge_cooldown"):
-                attacker["dodge_cooldown"] = 0
-            
-            if attacker["dodge_cooldown"] <= 0:
-                bonus_damage = int(base_damage * 0.5)
-                await self.status_manager.apply_effect("dodge", attacker, duration=1)
-                attacker["dodge_cooldown"] = 4
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 1.4)  # High damage multiplier
+                await self.status_manager.apply_effect("stun", defender, duration=1)
                 effect_message = (
-                    f"🍡 **MOCHI DEFENSE**! 🍡\n"
-                    f"**{attacker['name']}** becomes malleable!\n"
-                    f"✨ Dodge activated + {bonus_damage} bonus damage!"
+                    f"💥 **SEISMIC SHOCK**! 💥\n"
+                    f"**{attacker['name']}** shatters the air itself!\n"
+                    f"🌋 {bonus_damage} quake damage + 1-turn stun!"
                 )
-            else:
-                bonus_damage = int(base_damage * 0.3)
-                effect_message = (
-                    f"🍡 **MOCHI STRIKE**! 🍡\n"
-                    f"**{attacker['name']}** attacks with sticky mochi!\n"
-                    f"💥 {bonus_damage} bonus damage!"
-                )
-            attacker["dodge_cooldown"] = max(0, attacker["dodge_cooldown"] - 1)
-
-        # Toki Toki no Mi
-        elif effect == "time":
-            if random.random() < 0.2:
-                # Reset all cooldowns
-                for status in attacker.get("status", {}).keys():
-                    if "cooldown" in status.lower():
-                        attacker["status"][status] = 0
-                effect_message = (
-                    f"⌛ **TIME MANIPULATION**! ⌛\n"
-                    f"**{attacker['name']}** accelerates time!\n"
-                    f"🕒 All ability cooldowns reset!"
-                )
-
-        # Bari Bari no Mi
-        elif effect == "barrier":
-            if random.random() < 0.3:
-                damage_reduction = int(move.get("damage", 0) * 0.4)
-                bonus_damage = int(move.get("damage", 0) * 0.2)
-                effect_message = (
-                    f"🛡️ **BARRIER CRASH**! 🛡️\n"
-                    f"**{attacker['name']}** creates an offensive barrier!\n"
-                    f"💥 Damage reduced by {damage_reduction} + Counter attack!"
-                )
-
-        # Doku Doku no Mi
-        elif effect == "poison":
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("poison", defender, value=3, duration=3)
-                effect_message = (
-                    f"☠️ **VENOM DEMON**! ☠️\n"
-                    f"**{attacker['name']}** unleashes deadly poison!\n"
-                    f"💀 Target poisoned for 3 turns!"
-                )
-
-        # Shibo Shibo no Mi
-        elif effect == "dehydration":
-            if random.random() < 0.25:
-                drain_amount = int(defender["hp"] * 0.15)
-                defender["hp"] -= drain_amount
-                effect_message = (
-                    f"💧 **MOISTURE DRAIN**! 💧\n"
-                    f"**{attacker['name']}** dehydrates the target!\n"
-                    f"🏜️ Drained {drain_amount} HP through dehydration!"
-                )
-
-        # Kira Kira no Mi
-        elif effect == "diamond":
-            if random.random() < 0.3:
-                await self.status_manager.apply_effect("protect", attacker, duration=2)
-                effect_message = (
-                    f"💎 **DIAMOND BODY**! 💎\n"
-                    f"**{attacker['name']}** hardens like diamond!\n"
-                    f"✨ Defense increased by 30%!"
-                )
-
-        # Ishi Ishi no Mi
-        elif effect == "stone":
-            if random.random() < 0.25:
-                bonus_damage = int(move.get("damage", 0) * 0.4)
-                await self.status_manager.apply_effect("slow", defender, duration=2)
-                effect_message = (
-                    f"🗿 **STONE PRISON**! 🗿\n"
-                    f"**{attacker['name']}** manipulates the terrain!\n"
-                    f"🪨 Target slowed + Bonus damage!"
-                )
-                
-        # Add default effect if no specific effect was triggered
-        if effect_message is None:
-            bonus_damage = int(base_damage * 0.2)  # Default damage bonus
-            effect_message = (
-                f"✨ **PARAMECIA POWER**! ✨\n"
-                f"**{attacker['name']}** uses their devil fruit power!\n"
-                f"💫 {bonus_damage} bonus damage!"
-            )
 
         # Environment interactions
-        if environment == "Marineford":
-            bonus_damage = int(bonus_damage * 1.2)
-            if effect_message:
-                effect_message += "\n⚔️ Power enhanced by Marineford's warrior spirit!"
-        elif environment == "Dressrosa" and effect in ["string", "toy"]:
+        if environment == "Dressrosa" and effect in ["string", "toy"]:
             bonus_damage = int(bonus_damage * 1.3)
             if effect_message:
-                effect_message += "\n🎭 Power amplified by Dressrosa's strings!"
+                effect_message = f"{effect_message}\n🎭 Power amplified by Dressrosa's influence!"
+        elif environment == "Marineford":
+            bonus_damage = int(bonus_damage * 1.2)
+            if effect_message:
+                effect_message = f"{effect_message}\n⚔️ Sacred battleground amplifies power!"
+
+        # If no specific effect triggered, provide minimal default effect
+        if effect_message is None:
+            bonus_damage = int(base_damage * 0.15)  # Reduced default bonus
+            effect_message = (
+                f"✨ **PARAMECIA POWER**! ✨\n"
+                f"**{attacker['name']}**'s devil fruit grants {bonus_damage} bonus damage!"
+            )
 
         return bonus_damage, effect_message
 
@@ -2429,7 +2340,7 @@ class BountyBattle(commands.Cog):
 
     @commands.command()
     async def removefruit(self, ctx, member: discord.Member = None):
-        """Remove a user's Devil Fruit. Owners and Admins remove for free, others pay 1,000,000 berries."""
+        """Remove a user's Devil Fruit. Owners and Admins remove for free, others pay 1,000,000 berries from their bounty."""
         user = ctx.author
         member = member or user  # Defaults to the user running the command
         
@@ -2445,16 +2356,16 @@ class BountyBattle(commands.Cog):
         bounties = load_bounties()
         user_id = str(member.id)
         config_fruit = await self.config.member(member).devil_fruit()
-        bounty_fruit = bounties.get(user_id, {}).get("fruit", None)
+        current_bounty = await self.config.member(user).bounty()
 
         # Check both sources for devil fruit
-        if not config_fruit and not bounty_fruit:
+        if not config_fruit:
             return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
 
-        # Get the actual fruit (prefer config over bounties)
-        current_fruit = config_fruit or bounty_fruit
+        # Get the actual fruit
+        current_fruit = config_fruit
 
-        # ✅ Owners and Admins remove the fruit for free
+        # Owners and Admins remove the fruit for free
         if is_owner or is_admin:
             # Clear from both sources
             await self.config.member(member).devil_fruit.set(None)
@@ -2463,15 +2374,14 @@ class BountyBattle(commands.Cog):
                 save_bounties(bounties)
             return await ctx.send(f"🛡️ **{user.display_name}** removed `{current_fruit}` from **{member.display_name}** for free!")
 
-        # Normal users must pay
-        berries = await self.config.member(user).berries()
+        # Normal users must pay from their bounty
         cost = 1_000_000
 
-        if berries < cost:
-            return await ctx.send(f"❌ You need **{cost:,}** berries to remove your Devil Fruit.")
+        if current_bounty < cost:
+            return await ctx.send(f"❌ You need a bounty of at least **{cost:,}** berries to remove your Devil Fruit.")
 
         # Deduct cost and remove fruit
-        await self.config.member(user).berries.set(berries - cost)
+        await self.config.member(user).bounty.set(current_bounty - cost)
         await self.config.member(member).devil_fruit.set(None)
         
         if user_id in bounties:
@@ -2479,7 +2389,7 @@ class BountyBattle(commands.Cog):
             save_bounties(bounties)
 
         await ctx.send(
-            f"💰 **{user.display_name}** paid **{cost:,}** berries to remove `{current_fruit}` from **{member.display_name}**!\n"
+            f"💰 **{user.display_name}** paid **{cost:,}** berries from their bounty to remove `{current_fruit}`!\n"
             f"That fruit can now be found again! 🍏"
         )
 
@@ -3243,7 +3153,7 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
     async def diceroll(self, ctx, bet: Optional[int] = None):
-        """Roll dice against the house. Higher number wins!"""
+        """Roll dice against the house. Higher bets have lower win chances!"""
         try:
             user = ctx.author
             
@@ -3259,13 +3169,30 @@ class BountyBattle(commands.Cog):
                 
             # Validate bet amount
             if bet is None:
-                bet = min(true_bounty, 10000)
+                bet = min(true_bounty, 10000)  # Default to 10k or max bounty
             elif bet < 100:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ Minimum bet is `100` Berries!")
             elif bet > true_bounty:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"❌ Ye only have `{true_bounty:,}` Berries to bet!")
+
+            # Calculate win probability based on bet size
+            if bet <= 1000:
+                win_probability = 0.75  # 75% chance
+                difficulty = "Easy"
+            elif bet <= 10000:
+                win_probability = 0.60  # 60% chance
+                difficulty = "Medium"
+            elif bet <= 50000:
+                win_probability = 0.40  # 40% chance
+                difficulty = "Hard"
+            elif bet <= 100000:
+                win_probability = 0.20  # 20% chance
+                difficulty = "Very Hard"
+            else:
+                win_probability = 0.10  # 10% chance
+                difficulty = "Extreme"
 
             # Create initial embed
             embed = discord.Embed(
@@ -3274,45 +3201,51 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.gold()
             )
             
+            embed.add_field(
+                name="Difficulty",
+                value=f"**{difficulty}**\nWin Chance: `{win_probability*100:.0f}%`",
+                inline=False
+            )
+            
             message = await ctx.send(embed=embed)
             await asyncio.sleep(2)
 
-            # Roll dice
-            player_roll = random.randint(1, 6)
-            house_roll = random.randint(1, 6)
+            # Roll dice with weighted probability
+            won = random.random() < win_probability
             
             # Load bounties for updating
             bounties = load_bounties()
             user_id = str(user.id)
             
-            if player_roll > house_roll:
-                winnings = bet
+            if won:
+                # Calculate bonus multiplier based on risk
+                multiplier = 1.0
+                if bet > 50000:
+                    multiplier = 2.0
+                elif bet > 10000:
+                    multiplier = 1.5
+                
+                winnings = int(bet * multiplier)
                 bounties[user_id]["amount"] += winnings
+                
+                bonus_text = f"💫 BONUS WIN! ({multiplier}x Multiplier)\n" if multiplier > 1 else ""
                 
                 embed.color = discord.Color.green()
                 embed.description = (
-                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
-                    f"🎲 The house rolls a `{house_roll}`!\n\n"
-                    f"🎉 You won `{winnings:,}` Berries!\n"
+                    f"🎲 **{user.display_name}** wins!\n"
+                    f"{bonus_text}"
+                    f"Won `{winnings:,}` Berries!\n"
                     f"New Bounty: `{bounties[user_id]['amount']:,}` Berries"
                 )
-            elif player_roll < house_roll:
+            else:
                 loss = bet
                 bounties[user_id]["amount"] = max(0, bounties[user_id]["amount"] - loss)
                 
                 embed.color = discord.Color.red()
                 embed.description = (
-                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
-                    f"🎲 The house rolls a `{house_roll}`!\n\n"
-                    f"💀 You lost `{loss:,}` Berries!\n"
+                    f"🎲 **{user.display_name}** loses!\n"
+                    f"Lost `{loss:,}` Berries!\n"
                     f"Remaining Bounty: `{bounties[user_id]['amount']:,}` Berries"
-                )
-            else:
-                embed.color = discord.Color.blue()
-                embed.description = (
-                    f"🎲 **{user.display_name}** rolls a `{player_roll}`!\n"
-                    f"🎲 The house rolls a `{house_roll}`!\n\n"
-                    f"🤝 It's a tie! Your bet is returned."
                 )
 
             # Save updated bounties
@@ -3320,6 +3253,7 @@ class BountyBattle(commands.Cog):
             await self.config.member(user).bounty.set(bounties[user_id]["amount"])
             await self.config.member(user).last_active.set(datetime.utcnow().isoformat())
 
+            # Update the embed
             await message.edit(embed=embed)
 
         except Exception as e:
@@ -3330,7 +3264,7 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
     async def blackjack(self, ctx, bet: Optional[int] = None):
-        """Play blackjack against the house."""
+        """Play blackjack against the house. Higher bets mean the house plays better!"""
         try:
             user = ctx.author
             
@@ -3346,13 +3280,48 @@ class BountyBattle(commands.Cog):
                 
             # Validate bet amount
             if bet is None:
-                bet = min(true_bounty, 10000)
+                bet = min(true_bounty, 10000)  # Default to 10k or max bounty
             elif bet < 100:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ Minimum bet is `100` Berries!")
             elif bet > true_bounty:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f"❌ Ye only have `{true_bounty:,}` Berries to bet!")
+
+            # Calculate house skill based on bet size
+            if bet <= 1000:
+                house_stand_threshold = 15  # House stands on 15 or higher
+                difficulty = "Easy"
+                win_desc = "House plays conservatively"
+            elif bet <= 10000:
+                house_stand_threshold = 16
+                difficulty = "Medium"
+                win_desc = "House plays normally"
+            elif bet <= 50000:
+                house_stand_threshold = 17
+                difficulty = "Hard"
+                win_desc = "House plays optimally"
+            elif bet <= 100000:
+                house_stand_threshold = 18
+                difficulty = "Very Hard"
+                win_desc = "House has years of experience"
+            else:
+                house_stand_threshold = 19
+                difficulty = "Extreme"
+                win_desc = "House never makes mistakes"
+
+            # Create initial embed with difficulty info
+            embed = discord.Embed(
+                title="♠️ Blackjack Table",
+                description=(
+                    f"**{user.display_name}** bets `{bet:,}` Berries!\n\n"
+                    f"**Difficulty:** {difficulty}\n"
+                    f"**House Strategy:** {win_desc}"
+                ),
+                color=discord.Color.gold()
+            )
+            
+            message = await ctx.send(embed=embed)
 
             # Initialize deck and hands
             deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
@@ -3361,13 +3330,6 @@ class BountyBattle(commands.Cog):
             player_hand = [deck.pop(), deck.pop()]
             dealer_hand = [deck.pop(), deck.pop()]
 
-            # Create initial embed
-            embed = discord.Embed(
-                title="♠️ Blackjack Table",
-                description=f"**{user.display_name}** bets `{bet:,}` Berries!",
-                color=discord.Color.gold()
-            )
-            
             def calculate_hand(hand):
                 total = sum(hand)
                 aces = hand.count(11)
@@ -3393,10 +3355,8 @@ class BountyBattle(commands.Cog):
                     inline=False
                 )
 
-            display_hands()
-            message = await ctx.send(embed=embed)
-
             # Player's turn
+            display_hands()
             while calculate_hand(player_hand) < 21:
                 embed.description = "Type `hit` or `stand`"
                 await message.edit(embed=embed)
@@ -3420,21 +3380,21 @@ class BountyBattle(commands.Cog):
                     await message.edit(embed=embed)
                     break
 
-            # Dealer's turn
+            # Dealer's turn - follows optimal strategy based on bet size
             player_total = calculate_hand(player_hand)
             if player_total <= 21:
-                while calculate_hand(dealer_hand) < 17:
+                while calculate_hand(dealer_hand) < house_stand_threshold:
                     dealer_hand.append(deck.pop())
 
             # Show final hands
             display_hands(show_dealer=True)
             
-            # Determine winner
-            dealer_total = calculate_hand(dealer_hand)
-            
             # Load bounties for updating
             bounties = load_bounties()
             user_id = str(user.id)
+            
+            # Determine winner and calculate rewards
+            dealer_total = calculate_hand(dealer_hand)
             
             if player_total > 21:
                 result = "Bust! You lose!"
@@ -3442,11 +3402,13 @@ class BountyBattle(commands.Cog):
                 embed.color = discord.Color.red()
             elif dealer_total > 21:
                 result = "Dealer busts! You win!"
-                bounties[user_id]["amount"] += bet
+                winnings = int(bet * 1.5)  # Blackjack pays 3:2
+                bounties[user_id]["amount"] += winnings
                 embed.color = discord.Color.green()
             elif player_total > dealer_total:
                 result = "You win!"
-                bounties[user_id]["amount"] += bet
+                winnings = bet
+                bounties[user_id]["amount"] += winnings
                 embed.color = discord.Color.green()
             elif dealer_total > player_total:
                 result = "Dealer wins!"
