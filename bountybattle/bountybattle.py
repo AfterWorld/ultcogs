@@ -2270,6 +2270,44 @@ class BountyBattle(commands.Cog):
         except asyncio.TimeoutError:
             ctx.command.reset_cooldown(ctx)
             await ctx.send("❌ No one unscrambled the word in time! The bank remains secure.")
+            
+    @commands.command(name="globalbank")
+    async def global_bank_status(self, ctx):
+        """Check how many berries are stored in the World Government's vault."""
+        global_bank = await self.config.guild(ctx.guild).global_bank()
+        
+        embed = discord.Embed(
+            title="🏛️ World Government Treasury",
+            description=(
+                f"💰 Current Vault Contents:\n"
+                f"`{global_bank:,}` Berries\n\n"
+                f"*Tax collected from all pirate banking transactions.*"
+            ),
+            color=discord.Color.blue()
+        )
+        
+        # Add info about bank heist if enough berries
+        if global_bank >= 10000:
+            embed.add_field(
+                name="⚠️ Security Notice",
+                value=(
+                    "The vault contains enough berries to be targeted by pirates!"
+                ),
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📜 Notice",
+                value=(
+                    f"Need `{10000 - global_bank:,}` more berries before the vault "
+                    "becomes worth targeting."
+                ),
+                inline=False
+            )
+        
+        embed.set_footer(text="The World Government collects 7% tax on all bank deposits")
+        
+        await ctx.send(embed=embed)
                 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
