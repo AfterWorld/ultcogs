@@ -2524,6 +2524,135 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.red()
             )
             await message.edit(embed=fail_embed)
+    @commands.command(name="cd", aliases=["cooldowns"])
+    async def check_cooldowns(self, ctx):
+        """Check all your current command cooldowns."""
+        user = ctx.author
+
+        # Dictionary of commands and their cooldown times (in seconds)
+        COMMAND_COOLDOWNS = {
+            "dailybounty": 86400,    # 24 hours
+            "bankheist": 3600,       # 1 hour
+            "bountyhunt": 600,       # 10 minutes
+            "berryflip": 1800,       # 30 minutes
+            "diceroll": 1800,        # 30 minutes
+            "blackjack": 1800,       # 30 minutes
+            "marinehunt": 1800,      # 30 minutes
+            "raid": 3600,            # 1 hour
+        }
+
+        # Get current time
+        current_time = datetime.utcnow()
+        active_cooldowns = []
+
+        # Check each command's cooldown
+        for command_name, cooldown_time in COMMAND_COOLDOWNS.items():
+            command = self.bot.get_command(command_name)
+            if command is None:
+                continue
+
+            # Get cooldown expiry for this command
+            bucket = command._buckets.get_bucket(ctx.message)
+            if bucket is None:
+                continue
+
+            # Get retry_after
+            retry_after = bucket.get_retry_after()
+            
+            if retry_after:
+                # Calculate end time and remaining time
+                time_remaining = int(retry_after)
+                
+                # Format time remaining
+                if time_remaining >= 86400:  # 24 hours
+                    time_str = f"{time_remaining // 86400}d {(time_remaining % 86400) // 3600}h"
+                elif time_remaining >= 3600:  # 1 hour
+                    time_str = f"{time_remaining // 3600}h {(time_remaining % 3600) // 60}m"
+                elif time_remaining >= 60:    # 1 minute
+                    time_str = f"{time_remaining // 60}m {time_remaining % 60}s"
+                else:
+                    time_str = f"{time_remaining}s"
+                
+                active_cooldowns.append((command_name, time_str))
+
+        if not active_cooldowns:
+            return await ctx.send("🕒 You have no active cooldowns!")
+
+        # Create embed
+        embed = discord.Embed(
+            title="🕒 Active Cooldowns",
+            description=f"Command cooldowns for {user.display_name}:",
+            color=discord.Color.blue()
+        )
+
+        # Add fields for each category
+        bounty_cds = []
+        gambling_cds = []
+        hunting_cds = []
+
+        for cmd, time in active_cooldowns:
+            if cmd in ["dailybounty", "bankheist"]:
+                bounty_cds.append(f"`{cmd}`: {time}")
+            elif cmd in ["berryflip", "diceroll", "blackjack"]:
+                gambling_cds.append(f"`{cmd}`: {time}")
+            elif cmd in ["bountyhunt", "marinehunt", "raid"]:
+                hunting_cds.append(f"`{cmd}`: {time}")
+
+        if bounty_cds:
+            embed.add_field(
+                name="💰 Bounty Commands",
+                value="\n".join(bounty_cds),
+                inline=False
+            )
+
+        if gambling_cds:
+            embed.add_field(
+                name="🎲 Gambling Commands",
+                value="\n".join(gambling_cds),
+                inline=False
+            )
+
+        if hunting_cds:
+            embed.add_field(
+                name="⚔️ Hunting Commands",
+                value="\n".join(hunting_cds),
+                inline=False
+            )
+
+        # Add info about ready commands
+        ready_commands = []
+        for cmd in COMMAND_COOLDOWNS.keys():
+            if cmd not in [cd[0] for cd in active_cooldowns]:
+                ready_commands.append(f"`{cmd}`")
+
+        if ready_commands:
+            embed.add_field(
+                name="✅ Ready to Use",
+                value=" ".join(ready_commands),
+                inline=False
+            )
+
+        # Add footer with default cooldown times
+        embed.set_footer(text="Type .help <command> for more information about specific cooldowns")
+
+        await ctx.send(embed=embed)
+
+    def format_cooldown_time(self, seconds):
+        """Format cooldown time into a readable string."""
+        if seconds < 60:
+            return f"{seconds}s"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            seconds = seconds % 60
+            return f"{minutes}m {seconds}s"
+        elif seconds < 86400:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+        else:
+            days = seconds // 86400
+            hours = (seconds % 86400) // 3600
+            return f"{days}d {hours}h"
             
     @commands.command(name="globalbank")
     async def global_bank_status(self, ctx):
