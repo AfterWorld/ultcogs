@@ -2082,14 +2082,14 @@ class BountyBattle(commands.Cog):
         global_bank = await self.config.guild(ctx.guild).global_bank()
         last_deposit = await self.config.member(user).last_deposit_time()
         
-        # Calculate interest that will go to global bank (1% per hour)
+        # Calculate interest that will go to global bank (5% per hour)
         current_time = datetime.utcnow()
         interest_pending = 0
         
         if last_deposit and bank_balance > 0:
             last_deposit_time = datetime.fromisoformat(last_deposit)
             hours_passed = (current_time - last_deposit_time).total_seconds() / 3600
-            interest_rate = hours_passed * 0.01  # 1% per hour, no cap
+            interest_rate = hours_passed * 0.5  # 5% per hour, no cap
             interest_pending = int(bank_balance * interest_rate)
         
         embed = discord.Embed(
@@ -2120,7 +2120,7 @@ class BountyBattle(commands.Cog):
             inline=False
         )
         
-        embed.set_footer(text="💸 Interest Rate: 1% per hour (Compounds continuously)")
+        embed.set_footer(text="💸 Interest Rate: 5% per hour (Compounds continuously)")
         await ctx.send(embed=embed)
 
     @bountybank.command(name="deposit")
@@ -2184,7 +2184,7 @@ class BountyBattle(commands.Cog):
                 f"Tax (10%): `{tax:,}` Berries\n"
                 f"Processing Fee: `{processing_fee:,}` Berries\n"
                 f"Net Deposit: `{deposit_amount:,}` Berries\n\n"
-                f"⚠️ *Interest of 1% per hour will be collected by the World Government!*"
+                f"⚠️ *Interest of 5% per hour will be collected by the World Government!*"
             ),
             color=discord.Color.green()
         )
