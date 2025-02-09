@@ -3078,7 +3078,7 @@ class BountyBattle(commands.Cog):
         )
 
     @commands.command()
-    @commands.cooldown(1, 600, commands.BucketType.user)
+    @commands.cooldown(1, 1800, commands.BucketType.user)
     async def bountyhunt(self, ctx, target: discord.Member):
         """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
         try:
