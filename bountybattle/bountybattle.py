@@ -1437,6 +1437,7 @@ class BountyBattle(commands.Cog):
             "devil_fruit": None,
             "last_active": None,
             "bounty_hunted": 0,
+            "last_deposit_time": None
             
             # New tracking stats (will be available but won't break existing code)
             "win_streak": 0,
