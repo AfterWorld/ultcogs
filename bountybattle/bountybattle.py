@@ -2426,83 +2426,115 @@ class BountyBattle(commands.Cog):
         
     @commands.command()
     async def fruits(self, ctx):
-        """Display all Devil Fruit owners in a paginated list."""
+        """Display all Devil Fruit users in an organized list."""
         bounties = load_bounties()
         
         # Get all fruit owners
-        fruit_owners = []
+        rare_fruits = []
+        common_fruits = []
+        
         for user_id, data in bounties.items():
             if data.get("fruit"):
                 try:
                     member = ctx.guild.get_member(int(user_id))
                     if member:
                         fruit = data["fruit"]
-                        # Determine if it's a rare fruit
-                        is_rare = fruit in DEVIL_FRUITS["Rare"]
-                        fruit_owners.append((member, fruit, is_rare))
+                        # Get fruit data and determine rarity
+                        if fruit in DEVIL_FRUITS["Rare"]:
+                            fruit_data = DEVIL_FRUITS["Rare"][fruit]
+                            rare_fruits.append((member, fruit, fruit_data))
+                        else:
+                            fruit_data = DEVIL_FRUITS["Common"][fruit]
+                            common_fruits.append((member, fruit, fruit_data))
                 except:
                     continue
                     
-        if not fruit_owners:
+        if not rare_fruits and not common_fruits:
             return await ctx.send("No Devil Fruit users found!")
             
-        # Sort by rarity (rare fruits first) then alphabetically by fruit name
-        fruit_owners.sort(key=lambda x: (-x[2], x[1]))
+        # Sort both lists alphabetically by fruit name
+        rare_fruits.sort(key=lambda x: x[1])
+        common_fruits.sort(key=lambda x: x[1])
         
-        # Create pages (10 fruits per page)
+        # Create pages (8 fruits per page for readability)
         pages = []
-        for i in range(0, len(fruit_owners), 10):
-            embed = discord.Embed(
-                title="<:MeraMera:1336888578705330318> Devil Fruit Users",
-                color=discord.Color.blue()
-            )
-            
-            for member, fruit, is_rare in fruit_owners[i:i+10]:
-                # Get fruit data
-                fruit_data = (DEVIL_FRUITS["Rare"] if is_rare else DEVIL_FRUITS["Common"])[fruit]
-                
-                embed.add_field(
-                    name=f"{'🌟' if is_rare else '🍎'} {member.display_name}",
-                    value=(
-                        f"**Fruit:** {fruit}\n"
-                        f"**Type:** {fruit_data['type']}\n"
-                        f"**Power:** {fruit_data['bonus']}"
-                    ),
-                    inline=False
+        all_fruits = []
+        
+        # Header for rare fruits
+        if rare_fruits:
+            all_fruits.append("🌟 RARE DEVIL FRUITS 🌟\n" + "─" * 50 + "\n")
+            for member, fruit, fruit_data in rare_fruits:
+                all_fruits.append(
+                    f"• {member.display_name}\n"
+                    f"  └ Fruit: {fruit}\n"
+                    f"  └ Type: {fruit_data['type']}\n"
+                    f"  └ Power: {fruit_data['bonus']}\n"
                 )
-            
-            embed.set_footer(text=f"Page {len(pages)+1}/{-(-len(fruit_owners)//10)}")
-            pages.append(embed)
+        
+        # Separator between rare and common
+        if rare_fruits and common_fruits:
+            all_fruits.append("\n" + "═" * 50 + "\n")
+        
+        # Header for common fruits
+        if common_fruits:
+            all_fruits.append("🍎 COMMON DEVIL FRUITS 🍎\n" + "─" * 50 + "\n")
+            for member, fruit, fruit_data in common_fruits:
+                all_fruits.append(
+                    f"• {member.display_name}\n"
+                    f"  └ Fruit: {fruit}\n"
+                    f"  └ Type: {fruit_data['type']}\n"
+                    f"  └ Power: {fruit_data['bonus']}\n"
+                )
+        
+        # Split into pages (roughly 8 fruits per page)
+        current_page = []
+        current_length = 0
+        
+        for entry in all_fruits:
+            if current_length + len(entry) > 1900 or (entry.startswith("🌟") and current_page) or (entry.startswith("🍎") and current_page):
+                pages.append("".join(current_page))
+                current_page = [entry]
+                current_length = len(entry)
+            else:
+                current_page.append(entry)
+                current_length += len(entry)
+                
+        if current_page:
+            pages.append("".join(current_page))
             
         if not pages:
             return await ctx.send("No Devil Fruit users found!")
             
+        # Add page numbers
+        pages = [f"{content}\n\nPage {i+1}/{len(pages)}" for i, content in enumerate(pages)]
+            
         # Send first page
         current_page = 0
-        message = await ctx.send(embed=pages[current_page])
+        message = await ctx.send(f"```\n{pages[current_page]}\n```")
         
-        # Add navigation reactions
-        await message.add_reaction("⬅️")
-        await message.add_reaction("➡️")
-        
-        def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+        # Only add reactions if there are multiple pages
+        if len(pages) > 1:
+            await message.add_reaction("⬅️")
+            await message.add_reaction("➡️")
             
-        while True:
-            try:
-                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+            def check(reaction, user):
+                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
                 
-                if str(reaction.emoji) == "➡️":
-                    current_page = (current_page + 1) % len(pages)
-                elif str(reaction.emoji) == "⬅️":
-                    current_page = (current_page - 1) % len(pages)
+            while True:
+                try:
+                    reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
                     
-                await message.edit(embed=pages[current_page])
-                await message.remove_reaction(reaction, user)
-                
-            except asyncio.TimeoutError:
-                await message.clear_reactions()
-                break
+                    if str(reaction.emoji) == "➡️":
+                        current_page = (current_page + 1) % len(pages)
+                    elif str(reaction.emoji) == "⬅️":
+                        current_page = (current_page - 1) % len(pages)
+                        
+                    await message.edit(content=f"```\n{pages[current_page]}\n```")
+                    await message.remove_reaction(reaction, user)
+                    
+                except asyncio.TimeoutError:
+                    await message.clear_reactions()
+                    break
                 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
