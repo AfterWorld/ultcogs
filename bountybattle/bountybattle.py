@@ -2426,7 +2426,7 @@ class BountyBattle(commands.Cog):
         
     @commands.command()
     async def fruits(self, ctx):
-        """Display all Devil Fruit users in an organized list."""
+        """Display all Devil Fruit users in a clean, organized list."""
         bounties = load_bounties()
         
         # Get all fruit owners
@@ -2439,7 +2439,6 @@ class BountyBattle(commands.Cog):
                     member = ctx.guild.get_member(int(user_id))
                     if member:
                         fruit = data["fruit"]
-                        # Get fruit data and determine rarity
                         if fruit in DEVIL_FRUITS["Rare"]:
                             fruit_data = DEVIL_FRUITS["Rare"][fruit]
                             rare_fruits.append((member, fruit, fruit_data))
@@ -2452,47 +2451,45 @@ class BountyBattle(commands.Cog):
         if not rare_fruits and not common_fruits:
             return await ctx.send("No Devil Fruit users found!")
             
-        # Sort both lists alphabetically by fruit name
+        # Sort both lists by fruit name
         rare_fruits.sort(key=lambda x: x[1])
         common_fruits.sort(key=lambda x: x[1])
         
-        # Create pages (8 fruits per page for readability)
+        # Create pages (10 fruits per page)
         pages = []
         all_fruits = []
         
         # Header for rare fruits
         if rare_fruits:
-            all_fruits.append("🌟 RARE DEVIL FRUITS 🌟\n" + "─" * 50 + "\n")
+            all_fruits.append("Rare Devil Fruits:\n")
             for member, fruit, fruit_data in rare_fruits:
                 all_fruits.append(
-                    f"• {member.display_name}\n"
-                    f"  └ Fruit: {fruit}\n"
-                    f"  └ Type: {fruit_data['type']}\n"
-                    f"  └ Power: {fruit_data['bonus']}\n"
+                    f"★ {member.display_name} - {fruit}\n"
+                    f"  {fruit_data['type']} | {fruit_data['bonus']}\n"
                 )
         
-        # Separator between rare and common
+        # Add separator only if both types exist
         if rare_fruits and common_fruits:
-            all_fruits.append("\n" + "═" * 50 + "\n")
+            all_fruits.append("\n")
         
         # Header for common fruits
         if common_fruits:
-            all_fruits.append("🍎 COMMON DEVIL FRUITS 🍎\n" + "─" * 50 + "\n")
+            all_fruits.append("Common Devil Fruits:\n")
             for member, fruit, fruit_data in common_fruits:
                 all_fruits.append(
-                    f"• {member.display_name}\n"
-                    f"  └ Fruit: {fruit}\n"
-                    f"  └ Type: {fruit_data['type']}\n"
-                    f"  └ Power: {fruit_data['bonus']}\n"
+                    f"• {member.display_name} - {fruit}\n"
+                    f"  {fruit_data['type']} | {fruit_data['bonus']}\n"
                 )
         
-        # Split into pages (roughly 8 fruits per page)
+        # Split into pages
         current_page = []
         current_length = 0
         
         for entry in all_fruits:
-            if current_length + len(entry) > 1900 or (entry.startswith("🌟") and current_page) or (entry.startswith("🍎") and current_page):
-                pages.append("".join(current_page))
+            # Start new page if current would exceed limit or it's a header
+            if current_length + len(entry) > 1900 or entry in ["Rare Devil Fruits:\n", "Common Devil Fruits:\n"]:
+                if current_page:
+                    pages.append("".join(current_page))
                 current_page = [entry]
                 current_length = len(entry)
             else:
@@ -2505,14 +2502,14 @@ class BountyBattle(commands.Cog):
         if not pages:
             return await ctx.send("No Devil Fruit users found!")
             
-        # Add page numbers
-        pages = [f"{content}\n\nPage {i+1}/{len(pages)}" for i, content in enumerate(pages)]
+        # Add page numbers in a clean way
+        pages = [f"{content}\n[Page {i+1}/{len(pages)}]" for i, content in enumerate(pages)]
             
         # Send first page
         current_page = 0
         message = await ctx.send(f"```\n{pages[current_page]}\n```")
         
-        # Only add reactions if there are multiple pages
+        # Add navigation reactions if multiple pages
         if len(pages) > 1:
             await message.add_reaction("⬅️")
             await message.add_reaction("➡️")
