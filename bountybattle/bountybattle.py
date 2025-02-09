@@ -2365,6 +2365,7 @@ class BountyBattle(commands.Cog):
             await ctx.send("❌ No one unscrambled the word in time! The bank remains secure.")
             
     @commands.command()
+    @commands.cooldown(1, 600, commands.BucketType.user)
     async def bankrob(self, ctx, target: discord.Member):
         """Attempt to rob another player's bank account!"""
         if ctx.author == target:
