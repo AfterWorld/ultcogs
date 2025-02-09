@@ -2429,7 +2429,7 @@ class BountyBattle(commands.Cog):
             return m.author == robber and m.channel == ctx.channel and m.content.upper() == word
             
         try:
-            await self.bot.wait_for('message', timeout=30.0, check=check)
+            await self.bot.wait_for('message', timeout=20.0, check=check)
             
             # Calculate stolen amount (10-30% of target's balance)
             steal_percent = random.uniform(0.10, 0.30)
