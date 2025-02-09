@@ -200,12 +200,6 @@ ACHIEVEMENTS = {
         "count": 50,
         "title": "The Titan",
     },
-	"battle manic": {
-        "description": "Win 500 Battles!",
-        "condition": "wins",
-        "count": 500,
-        "title": "Battle Manic",
-    },
 }
 
 # Define move types with base properties
@@ -438,7 +432,6 @@ class DevilFruitManager:
             "Mera Mera no Mi": 3,      # Fire abilities
             "Goro Goro no Mi": 4,      # Lightning abilities
             "Hie Hie no Mi": 3,        # Ice abilities
-            "Yami Yami no Mi": 5,      # Darkness abilities
             "Ope Ope no Mi": 4,        # Room abilities
             "Pika Pika no Mi": 3,      # Light abilities
             "Magu Magu no Mi": 4,      # Magma abilities
@@ -510,7 +503,7 @@ class DevilFruitManager:
         elif effect == "lightning":
             if random.random() < 0.45:  # Increased proc chance
                 await self.status_manager.apply_effect("stun", defender, duration=2)
-                bonus_damage = int(base_damage * 1.5)  # Full damage bonus
+                bonus_damage = int(base_damage * 1.0)  # Full damage bonus
                 effect_message = (
                     f"⚡ **THUNDER GOD**! ⚡\n"
                     f"**{attacker['name']}** channels lightning!\n"
@@ -521,7 +514,7 @@ class DevilFruitManager:
         elif effect == "smoke":
             if random.random() < 0.40:  # Increased proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
-                bonus_damage = int(base_damage * 1.0)  # Added damage bonus
+                bonus_damage = int(base_damage * 0.5)  # Added damage bonus
                 effect_message = (
                     f"💨 **WHITE LAUNCHER**! 💨\n"
                     f"**{attacker['name']}** becomes smoke!\n"
@@ -531,10 +524,10 @@ class DevilFruitManager:
         # Suna Suna no Mi
         elif effect == "sand":
             if random.random() < 0.35:  # Increased proc rate
-                drain_amount = int(defender["hp"] * 0.50)  # Increased drain
+                drain_amount = int(defender["hp"] * 0.15)  # Increased drain
                 defender["hp"] -= drain_amount
                 attacker["hp"] = min(250, attacker["hp"] + drain_amount)
-                bonus_damage = int(base_damage * 1.0)  # Added damage bonus
+                bonus_damage = int(base_damage * 0.4)  # Added damage bonus
                 effect_message = (
                     f"🏜️ **GROUND DEATH**! 🏜️\n"
                     f"**{attacker['name']}** drains life force!\n"
@@ -545,7 +538,7 @@ class DevilFruitManager:
         elif effect == "ice":
             if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("freeze", defender, duration=2)
-                bonus_damage = int(base_damage * 1.0)  # Strong damage bonus
+                bonus_damage = int(base_damage * 0.8)  # Strong damage bonus
                 effect_message = (
                     f"❄️ **ICE AGE**! ❄️\n"
                     f"**{attacker['name']}** freezes the battlefield!\n"
@@ -555,9 +548,9 @@ class DevilFruitManager:
         # Yami Yami no Mi
         elif effect == "darkness":
             if random.random() < 0.50:  # High proc rate for signature fruit
-                absorb_amount = int(base_damage * 0.45)  # 30% damage absorption
+                absorb_amount = int(base_damage * 1.0)  # 30% damage absorption
                 attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
-                bonus_damage = int(base_damage * 1.0)  # Strong damage bonus
+                bonus_damage = int(base_damage * 0.7)  # Strong damage bonus
                 effect_message = (
                     f"🌑 **BLACK HOLE**! 🌑\n"
                     f"**{attacker['name']}** commands darkness!\n"
@@ -589,7 +582,7 @@ class DevilFruitManager:
         elif effect == "forest":
             if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("root", defender, duration=2)
-                bonus_damage = int(base_damage * 0.9)
+                bonus_damage = int(base_damage * 0.6)
                 effect_message = (
                     f"🌳 **FOREST PRISON**! 🌳\n"
                     f"**{attacker['name']}** binds with roots!\n"
@@ -600,7 +593,7 @@ class DevilFruitManager:
         elif effect == "wind":
             if random.random() < 0.45:  # Balanced proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
-                bonus_damage = int(base_damage * 0.9)
+                bonus_damage = int(base_damage * 0.65)
                 effect_message = (
                     f"🌪️ **DIVINE WIND**! 🌪️\n"
                     f"**{attacker['name']}** harnesses the wind!\n"
