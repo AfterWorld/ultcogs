@@ -492,7 +492,7 @@ class DevilFruitManager:
         if effect == "fire":
             if random.random() < 0.60:  # Increased proc rate
                 await self.status_manager.apply_effect("burn", defender, value=3)  # Increased burn stacks
-                bonus_damage = int(base_damage * 1.5)  # 150% damage bonus
+                bonus_damage = int(base_damage * 1.0)  # 100% damage bonus
                 effect_message = (
                     f"🔥 **FLAME EMPEROR**! 🔥\n"
                     f"**{attacker['name']}** unleashes an inferno!\n"
@@ -718,34 +718,50 @@ class DevilFruitManager:
 
         # Model Nika (Hito Hito no Mi: Model Nika)
         elif effect == "nika":
-            if random.random() < 0.50:  # Higher proc rate for special fruit
+            if random.random() < 0.50:  # 50% proc rate for special fruit
                 effect_choice = random.choice(["drumbeat", "giant", "freedom"])
+                
                 if effect_choice == "drumbeat":
-                    bonus_damage = int(base_damage * 1.5)
+                    # Massive damage boost for Drums of Liberation
+                    bonus_damage = int(base_damage * 2.0)  # 200% damage boost
+                    await self.status_manager.apply_effect("attack_boost", attacker, duration=2)
                     effect_message = (
                         f"💥 **DRUMS OF LIBERATION**! 💥\n"
                         f"**{attacker['name']}** awakens the rhythm of freedom!\n"
-                        f"🥁 {bonus_damage} liberation damage!"
+                        f"🥁 {bonus_damage} liberation damage + Attack boost for 2 turns!"
                     )
+                    
                 elif effect_choice == "giant":
-                    bonus_damage = int(base_damage * 1.2)
-                    await self.status_manager.apply_effect("transform", attacker, duration=2)
+                    # Giant form now properly boosts damage and adds defense
+                    bonus_damage = int(base_damage * 1.8)  # 180% damage boost
+                    await self.status_manager.apply_effect("transform", attacker, duration=3)
+                    await self.status_manager.apply_effect("defense_boost", attacker, duration=3)
                     effect_message = (
                         f"🌟 **GIANT WARRIOR**! 🌟\n"
                         f"**{attacker['name']}** becomes a giant!\n"
-                        f"👊 2-turn transformation + {bonus_damage} damage!"
+                        f"👊 3-turn transformation with defense boost + {bonus_damage} massive damage!"
                     )
+                    
                 elif effect_choice == "freedom":
-                    bonus_damage = int(base_damage * 1.0)
+                    # Freedom now boosts damage and provides immunity
+                    bonus_damage = int(base_damage * 1.5)  # 150% damage boost
                     # Clear negative status effects
-                    for status in ["burn", "stun", "frozen", "slow", "bind"]:
+                    for status in ["burn", "stun", "frozen", "slow", "bind", "poison", "defense_down", "attack_down"]:
                         if status in attacker["status"]:
                             attacker["status"][status] = 0
+                    # Add immunity
+                    await self.status_manager.apply_effect("status_immunity", attacker, duration=2)
                     effect_message = (
                         f"🌈 **WARRIOR OF LIBERATION**! 🌈\n"
                         f"**{attacker['name']}** breaks all limitations!\n"
-                        f"✨ Status effects cleared + {bonus_damage} damage!"
+                        f"✨ Status immunity for 2 turns + {bonus_damage} liberation damage!"
                     )
+                
+                # Add chance for additional effect
+                if random.random() < 0.25:  # 25% chance for extra joy boy effect
+                    heal_amount = int(attacker["max_hp"] * 0.15)  # 15% max HP heal
+                    attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
+                    effect_message += f"\n💫 **JOY BOY'S BLESSING**! Healed for {heal_amount} HP!"
 
         # Model Daibutsu
         elif "Daibutsu" in effect:
@@ -2532,7 +2548,7 @@ class BountyBattle(commands.Cog):
         # Dictionary of commands and their cooldown times (in seconds)
         COMMAND_COOLDOWNS = {
             "dailybounty": 86400,    # 24 hours
-            "bankheist": 3600,       # 1 hour
+            "bankrob": 3600,       # 1 hour
             "bountyhunt": 600,       # 10 minutes
             "berryflip": 1800,       # 30 minutes
             "diceroll": 1800,        # 30 minutes
@@ -2591,7 +2607,7 @@ class BountyBattle(commands.Cog):
         hunting_cds = []
 
         for cmd, time in active_cooldowns:
-            if cmd in ["dailybounty", "bankheist"]:
+            if cmd in ["dailybounty", "bankrob"]:
                 bounty_cds.append(f"`{cmd}`: {time}")
             elif cmd in ["berryflip", "diceroll", "blackjack"]:
                 gambling_cds.append(f"`{cmd}`: {time}")
