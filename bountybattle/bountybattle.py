@@ -2289,6 +2289,103 @@ class BountyBattle(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             await ctx.send("❌ No one unscrambled the word in time! The bank remains secure.")
             
+    @commands.command()
+    async def bankrob(self, ctx, target: discord.Member):
+        """Attempt to rob another player's bank account!"""
+        if ctx.author == target:
+            return await ctx.send("❌ You can't rob your own bank account!")
+            
+        robber = ctx.author
+        robber_balance = await self.config.member(robber).bank_balance()
+        target_balance = await self.config.member(target).bank_balance()
+        
+        if target_balance < 10000:
+            return await ctx.send(f"❌ **{target.display_name}**'s bank account isn't worth robbing! (Minimum: 10,000 Berries)")
+            
+        # Create scrambled word challenge
+        words = [
+            "ARCHIPELAGO",
+            "REVOLUTIONARY",
+            "NAVIGATOR",
+            "SHICHIBUKAI",
+            "ALABASTA",
+            "CELESTIAL",
+            "MARINEFORD",
+            "FISHMAN",
+            "LOGUETOWN",
+            "PARAMOUNT",
+            "THOUSAND",
+            "ENIESLOBBY",
+            "IMPELDOWN",
+            "BAROQUE",
+            "SKYPIEA",
+            "WARLORD",
+            "YONKO",
+            "GRANDLINE",
+            "REDLINE",
+            "THRILLER",
+            "SABAODY",
+            "DRESSROSA",
+            "KARAKURI",
+            "MYSTICAL",
+            "TRANSPONDER",
+            "VIVRE",
+            "PONEGLYPH",
+            "MARIEJOIS",
+            "PARAMOUNT",
+            "EPICUREAN"
+        ]
+        word = random.choice(words)
+        scrambled = ''.join(random.sample(word, len(word)))
+        
+        embed = discord.Embed(
+            title="🏦 Bank Robbery Attempt! 🚨",
+            description=(
+                f"**{robber.display_name}** is attempting to rob **{target.display_name}**'s bank!\n\n"
+                f"Quick! Unscramble this word to claim the loot:\n"
+                f"```\n{scrambled}\n```"
+            ),
+            color=discord.Color.red()
+        )
+        
+        message = await ctx.send(embed=embed)
+        
+        def check(m):
+            return m.author == robber and m.channel == ctx.channel and m.content.upper() == word
+            
+        try:
+            await self.bot.wait_for('message', timeout=30.0, check=check)
+            
+            # Calculate stolen amount (10-30% of target's balance)
+            steal_percent = random.uniform(0.10, 0.30)
+            steal_amount = int(target_balance * steal_percent)
+            
+            # Update balances
+            await self.config.member(target).bank_balance.set(target_balance - steal_amount)
+            await self.config.member(robber).bank_balance.set(robber_balance + steal_amount)
+            
+            success_embed = discord.Embed(
+                title="💰 Bank Robbery Successful!",
+                description=(
+                    f"**{robber.display_name}** successfully robbed "
+                    f"**{target.display_name}**'s bank!\n\n"
+                    f"Stolen: `{steal_amount:,}` Berries ({steal_percent*100:.1f}% of their balance)"
+                ),
+                color=discord.Color.green()
+            )
+            await message.edit(embed=success_embed)
+            
+        except asyncio.TimeoutError:
+            fail_embed = discord.Embed(
+                title="❌ Bank Robbery Failed!",
+                description=(
+                    f"**{robber.display_name}** failed to crack the bank's security!\n"
+                    f"**{target.display_name}**'s Berries are safe!"
+                ),
+                color=discord.Color.red()
+            )
+            await message.edit(embed=fail_embed)
+            
     @commands.command(name="globalbank")
     async def global_bank_status(self, ctx):
         """Check how many berries are stored in the World Government's vault."""
@@ -2326,6 +2423,86 @@ class BountyBattle(commands.Cog):
         embed.set_footer(text="The World Government collects 7% tax on all bank deposits")
         
         await ctx.send(embed=embed)
+        
+    @commands.command()
+    async def fruits(self, ctx):
+        """Display all Devil Fruit owners in a paginated list."""
+        bounties = load_bounties()
+        
+        # Get all fruit owners
+        fruit_owners = []
+        for user_id, data in bounties.items():
+            if data.get("fruit"):
+                try:
+                    member = ctx.guild.get_member(int(user_id))
+                    if member:
+                        fruit = data["fruit"]
+                        # Determine if it's a rare fruit
+                        is_rare = fruit in DEVIL_FRUITS["Rare"]
+                        fruit_owners.append((member, fruit, is_rare))
+                except:
+                    continue
+                    
+        if not fruit_owners:
+            return await ctx.send("No Devil Fruit users found!")
+            
+        # Sort by rarity (rare fruits first) then alphabetically by fruit name
+        fruit_owners.sort(key=lambda x: (-x[2], x[1]))
+        
+        # Create pages (10 fruits per page)
+        pages = []
+        for i in range(0, len(fruit_owners), 10):
+            embed = discord.Embed(
+                title="<:MeraMera:1336888578705330318> Devil Fruit Users",
+                color=discord.Color.blue()
+            )
+            
+            for member, fruit, is_rare in fruit_owners[i:i+10]:
+                # Get fruit data
+                fruit_data = (DEVIL_FRUITS["Rare"] if is_rare else DEVIL_FRUITS["Common"])[fruit]
+                
+                embed.add_field(
+                    name=f"{'🌟' if is_rare else '🍎'} {member.display_name}",
+                    value=(
+                        f"**Fruit:** {fruit}\n"
+                        f"**Type:** {fruit_data['type']}\n"
+                        f"**Power:** {fruit_data['bonus']}"
+                    ),
+                    inline=False
+                )
+            
+            embed.set_footer(text=f"Page {len(pages)+1}/{-(-len(fruit_owners)//10)}")
+            pages.append(embed)
+            
+        if not pages:
+            return await ctx.send("No Devil Fruit users found!")
+            
+        # Send first page
+        current_page = 0
+        message = await ctx.send(embed=pages[current_page])
+        
+        # Add navigation reactions
+        await message.add_reaction("⬅️")
+        await message.add_reaction("➡️")
+        
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+            
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                
+                if str(reaction.emoji) == "➡️":
+                    current_page = (current_page + 1) % len(pages)
+                elif str(reaction.emoji) == "⬅️":
+                    current_page = (current_page - 1) % len(pages)
+                    
+                await message.edit(embed=pages[current_page])
+                await message.remove_reaction(reaction, user)
+                
+            except asyncio.TimeoutError:
+                await message.clear_reactions()
+                break
                 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
