@@ -2380,92 +2380,99 @@ class BountyBattle(commands.Cog):
             
         # Create scrambled word challenge
         words = [
-            # Original Complex Words
-            "ARCHIPELAGO",
-            "REVOLUTIONARY",
-            "SHICHIBUKAI",
-            "CELESTIAL",
+            # Iconic Locations
+            "LAUGHTALE",
+            "WHOLECAKEISLAND",
+            "ONIGASHIMA",
             "MARINEFORD",
             "ENIESLOBBY",
             "IMPELDOWN",
-            "PONEGLYPH",
+            "MARIJOIS",
+            "WANOKUNI",
+            "SKYPIEA",
+            "FISHMANISLAND",
+            "SABAODY",
+            "DRESSROSA",
+            "ALABASTA",
+            "LOGUETOWN",
+            "BALTIGO",
+            "THRILLER BARK",
+            "WATERSSEVEN",
             
-            # Advanced Locations
-            "TEQUILAWOLF",
-            "WHOLECAKEISLAND",
-            "BALTIGOCASTLE",
-            "MARIJOISPALACE",
-            "MOCKTOWN",
-            "WEATHERIA",
-            "OHARA",
-            "RYUUGUKINGDOM",
-            "ONIGASHIMA",
-            "HACHINOSUISLAND",
-            
-            # Complex Terminology
-            "LEVIATHANSHIP",
+            # Special Terms
             "TENRYUUBITO",
-            "OKAMAKENPO",
-            "ROKUSHIKI",
-            "BUSHOSHOKU",
-            "KENBUNSHOKU",
-            "HAOSHOKU",
-            "DENDENMUSHI",
-            "KLABAUTERMANN",
-            "CONQUISTADOR",
+            "SHICHIBUKAI",
+            "PONEGLYPH",
+            "VIVRECRAFT",
+            "DENDENSMUSHI",
+            "HAOUSHOKU",
+            "SEASTONE",
+            "LUMIMETAL",
             
-            # Difficult Character Titles
-            "SHISHIBUKAI",
-            "GOROSEI",
-            "KANTAICHOU",
-            "CHUJOU",
-            "TAISHOUCHOU",
-            "GENSHUINSEI",
-            
-            # Complex Ship Names
-            "MOBYDICKCREW",
-            "THOUSANDSUNNY",
-            "VICTORYPUNTER",
-            "BEEHIVESHIP",
-            "QUEENMAMACHANTER",
-            
-            # Advanced Combat Terms
-            "ROKUOUGAN",
-            "RANKYAKU",
-            "SHIGAN",
-            "GEPPO",
-            "TEKKAI",
-            "SORU",
-            "KAMI-E",
-            
-            # Complex Organizations
+            # Organizations/Groups
             "REVOLUTIONARIES",
-            "GOROSEI",
+            "STRAWHATCREW",
+            "REDHAIRPIRATES",
+            "WHITEBEARDS",
+            "BIGMOMPIRATES",
+            "BEASTPIRATES",
+            "BLACKBEARDS",
             "CIPHERPOL",
-            "JAILERS",
-            "UNDERWORLD",
-            "BAROQUE",
+            "BAROQUE WORKS",
             
-            # Difficult Devil Fruits
-            "PARAMECIA",
-            "MYTHICALZOAN",
-            "ANCIENTZOAN",
-            "ARTIFICIALSMILE",
-            "AWAKENING",
+            # Important Titles
+            "YONKOU",
+            "GOROSEI",
+            "ADMIRALS",
+            "FLEETADMIRAL",
+            "PIRATEHUNTER",
+            "SOULKING",
+            "JINBEITAIYOU",
             
-            # Advanced Locations
-            "WANOARCHIPELAGO",
-            "FLOATINGONIGASHIMA",
-            "MARIJOISCASTLE",
-            "PANGAEACASTLE",
-            "LAUGHTALEISLAND",
+            # Significant Ships
+            "THOUSANDSUNNY",
+            "GOINGMERRY",
+            "MOBYDICK",
+            "REDFORCE",
+            "QUEENMAMA",
+            "VICTORIAPUNK",
+            "POLARKING",
             
-            # Complex Event Names
-            "DAVY BACK FIGHT",
-            "LEVELY",
-            "BUSTERSCALL",
+            # Fighting Styles
+            "ROKUSHIKI",
+            "FISHMANKARATE",
+            "BLACKFOOT",
+            "SANTORYU",
+            "GEPPOU",
+            "TEKKAI",
+            "ROKUOGAN",
+            
+            # Important Events
             "VOIDCENTURY",
-            "GREATCLEANSING"
+            "BUSTERSCALL",
+            "GODVALLEY",
+            "LEVELY",
+            "PARAMOUNT WAR",
+            "STAMPEDE",
+            
+            # Devil Fruit Types
+            "GOMUGOMU",
+            "BARABARA",
+            "MERAMERE",
+            "GOROGORO",
+            "SUNEKKUMAN",
+            "HITOHITO",
+            "UOUO",
+            
+            # Key Concepts
+            "AWAKENING",
+            "REDPONEGLYPH",
+            "ROADPONEGLYPH",
+            "ANCIENT WEAPON",
+            "WILLOFDEEE",
+            "JOYBOY",
+            "SUNAGOD NIKA",
+            "ZUNISHA"
         ]
         word = random.choice(words)
         scrambled = ''.join(random.sample(word, len(word)))
