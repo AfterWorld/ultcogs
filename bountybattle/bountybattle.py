@@ -2380,36 +2380,92 @@ class BountyBattle(commands.Cog):
             
         # Create scrambled word challenge
         words = [
+            # Original Complex Words
             "ARCHIPELAGO",
             "REVOLUTIONARY",
-            "NAVIGATOR",
             "SHICHIBUKAI",
-            "ALABASTA",
             "CELESTIAL",
             "MARINEFORD",
-            "FISHMAN",
-            "LOGUETOWN",
-            "PARAMOUNT",
-            "THOUSAND",
             "ENIESLOBBY",
             "IMPELDOWN",
-            "BAROQUE",
-            "SKYPIEA",
-            "WARLORD",
-            "YONKO",
-            "GRANDLINE",
-            "REDLINE",
-            "THRILLER",
-            "SABAODY",
-            "DRESSROSA",
-            "KARAKURI",
-            "MYSTICAL",
-            "TRANSPONDER",
-            "VIVRE",
             "PONEGLYPH",
-            "MARIEJOIS",
-            "PARAMOUNT",
-            "EPICUREAN"
+            
+            # Advanced Locations
+            "TEQUILAWOLF",
+            "WHOLECAKEISLAND",
+            "BALTIGOCASTLE",
+            "MARIJOISPALACE",
+            "MOCKTOWN",
+            "WEATHERIA",
+            "OHARA",
+            "RYUUGUKINGDOM",
+            "ONIGASHIMA",
+            "HACHINOSUISLAND",
+            
+            # Complex Terminology
+            "LEVIATHANSHIP",
+            "TENRYUUBITO",
+            "OKAMAKENPO",
+            "ROKUSHIKI",
+            "BUSHOSHOKU",
+            "KENBUNSHOKU",
+            "HAOSHOKU",
+            "DENDENMUSHI",
+            "KLABAUTERMANN",
+            "CONQUISTADOR",
+            
+            # Difficult Character Titles
+            "SHISHIBUKAI",
+            "GOROSEI",
+            "KANTAICHOU",
+            "CHUJOU",
+            "TAISHOUCHOU",
+            "GENSHUINSEI",
+            
+            # Complex Ship Names
+            "MOBYDICKCREW",
+            "THOUSANDSUNNY",
+            "VICTORYPUNTER",
+            "BEEHIVESHIP",
+            "QUEENMAMACHANTER",
+            
+            # Advanced Combat Terms
+            "ROKUOUGAN",
+            "RANKYAKU",
+            "SHIGAN",
+            "GEPPO",
+            "TEKKAI",
+            "SORU",
+            "KAMI-E",
+            
+            # Complex Organizations
+            "REVOLUTIONARIES",
+            "GOROSEI",
+            "CIPHERPOL",
+            "JAILERS",
+            "UNDERWORLD",
+            "BAROQUE",
+            
+            # Difficult Devil Fruits
+            "PARAMECIA",
+            "MYTHICALZOAN",
+            "ANCIENTZOAN",
+            "ARTIFICIALSMILE",
+            "AWAKENING",
+            
+            # Advanced Locations
+            "WANOARCHIPELAGO",
+            "FLOATINGONIGASHIMA",
+            "MARIJOISCASTLE",
+            "PANGAEACASTLE",
+            "LAUGHTALEISLAND",
+            
+            # Complex Event Names
+            "DAVY BACK FIGHT",
+            "LEVELY",
+            "BUSTERSCALL",
+            "VOIDCENTURY",
+            "GREATCLEANSING"
         ]
         word = random.choice(words)
         scrambled = ''.join(random.sample(word, len(word)))
