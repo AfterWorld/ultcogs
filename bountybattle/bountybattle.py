@@ -2426,7 +2426,7 @@ class BountyBattle(commands.Cog):
         
     @commands.command()
     async def fruits(self, ctx):
-        """Display all Devil Fruit users in a clean, organized list."""
+        """Display all Devil Fruit users with Discord markdown formatting."""
         bounties = load_bounties()
         
         # Get all fruit owners
@@ -2455,30 +2455,32 @@ class BountyBattle(commands.Cog):
         rare_fruits.sort(key=lambda x: x[1])
         common_fruits.sort(key=lambda x: x[1])
         
-        # Create pages (10 fruits per page)
+        # Create pages
         pages = []
         all_fruits = []
         
         # Header for rare fruits
         if rare_fruits:
-            all_fruits.append("Rare Devil Fruits:\n")
+            all_fruits.append("__**🌟 Rare Devil Fruits**__\n")
             for member, fruit, fruit_data in rare_fruits:
                 all_fruits.append(
-                    f"★ {member.display_name} - {fruit}\n"
-                    f"  {fruit_data['type']} | {fruit_data['bonus']}\n"
+                    f"**{member.display_name}**\n"
+                    f"> *{fruit}* | {fruit_data['type']}\n"
+                    f"> {fruit_data['bonus']}\n"
                 )
         
-        # Add separator only if both types exist
+        # Add separator if both types exist
         if rare_fruits and common_fruits:
             all_fruits.append("\n")
         
         # Header for common fruits
         if common_fruits:
-            all_fruits.append("Common Devil Fruits:\n")
+            all_fruits.append("__**🍎 Common Devil Fruits**__\n")
             for member, fruit, fruit_data in common_fruits:
                 all_fruits.append(
-                    f"• {member.display_name} - {fruit}\n"
-                    f"  {fruit_data['type']} | {fruit_data['bonus']}\n"
+                    f"**{member.display_name}**\n"
+                    f"> *{fruit}* | {fruit_data['type']}\n"
+                    f"> {fruit_data['bonus']}\n"
                 )
         
         # Split into pages
@@ -2487,7 +2489,7 @@ class BountyBattle(commands.Cog):
         
         for entry in all_fruits:
             # Start new page if current would exceed limit or it's a header
-            if current_length + len(entry) > 1900 or entry in ["Rare Devil Fruits:\n", "Common Devil Fruits:\n"]:
+            if current_length + len(entry) > 1900 or entry.startswith("__**"):
                 if current_page:
                     pages.append("".join(current_page))
                 current_page = [entry]
@@ -2502,12 +2504,12 @@ class BountyBattle(commands.Cog):
         if not pages:
             return await ctx.send("No Devil Fruit users found!")
             
-        # Add page numbers in a clean way
-        pages = [f"{content}\n[Page {i+1}/{len(pages)}]" for i, content in enumerate(pages)]
+        # Add page numbers
+        pages = [f"{content}\n*Page {i+1}/{len(pages)}*" for i, content in enumerate(pages)]
             
         # Send first page
         current_page = 0
-        message = await ctx.send(f"```\n{pages[current_page]}\n```")
+        message = await ctx.send(pages[current_page])
         
         # Add navigation reactions if multiple pages
         if len(pages) > 1:
@@ -2526,7 +2528,7 @@ class BountyBattle(commands.Cog):
                     elif str(reaction.emoji) == "⬅️":
                         current_page = (current_page - 1) % len(pages)
                         
-                    await message.edit(content=f"```\n{pages[current_page]}\n```")
+                    await message.edit(content=pages[current_page])
                     await message.remove_reaction(reaction, user)
                     
                 except asyncio.TimeoutError:
