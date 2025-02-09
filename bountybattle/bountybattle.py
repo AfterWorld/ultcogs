@@ -488,15 +488,15 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Mera Mera no Mi (Moved to Rare category)
+        # Mera Mera no Mi (Rare)
         if effect == "fire":
-            if random.random() < 0.60:  # Increased proc rate
-                await self.status_manager.apply_effect("burn", defender, value=3)  # Increased burn stacks
-                bonus_damage = int(base_damage * 1.0)  # 100% damage bonus
+            if random.random() < 0.45:  # Reduced from 0.60 to 0.45 (45% proc rate)
+                await self.status_manager.apply_effect("burn", defender, value=2)  # Reduced from 3 to 2 burn stacks
+                bonus_damage = int(base_damage * 0.75)  # Reduced from 1.0 to 0.75 (75% damage bonus)
                 effect_message = (
                     f"🔥 **FLAME EMPEROR**! 🔥\n"
-                    f"**{attacker['name']}** unleashes an inferno!\n"
-                    f"💥 Bonus damage + Intense burn (3 stacks)!"
+                    f"**{attacker['name']}** unleashes flames!\n"
+                    f"💥 {bonus_damage} fire damage + Burn (2 stacks)"
                 )
 
         # Goro Goro no Mi
