@@ -2079,9 +2079,21 @@ class BountyBattle(commands.Cog):
         # Get balances
         bank_balance = await self.config.member(user).bank_balance()
         global_bank = await self.config.guild(ctx.guild).global_bank()
+        last_deposit = await self.config.member(user).last_deposit_time()
+        
+        # Calculate interest that will go to global bank (1% per hour)
+        current_time = datetime.utcnow()
+        interest_pending = 0
+        
+        if last_deposit and bank_balance > 0:
+            last_deposit_time = datetime.fromisoformat(last_deposit)
+            hours_passed = (current_time - last_deposit_time).total_seconds() / 3600
+            interest_rate = hours_passed * 0.01  # 1% per hour, no cap
+            interest_pending = int(bank_balance * interest_rate)
         
         embed = discord.Embed(
-            title="🏦 Bounty Bank Status",
+            title="🏦 World Government Bank Status",
+            description="The World Government charges fees and interest on all stored Berries!",
             color=discord.Color.gold()
         )
         
@@ -2091,17 +2103,28 @@ class BountyBattle(commands.Cog):
             inline=False
         )
         
+        if interest_pending > 0:
+            embed.add_field(
+                name="⚠️ Interest Due",
+                value=(
+                    f"`{interest_pending:,}` Berries\n"
+                    "*Interest will be collected on withdrawal or during random Marine audits!*"
+                ),
+                inline=False
+            )
+        
         embed.add_field(
-            name="Global Bank",
+            name="World Government Treasury",
             value=f"`{global_bank:,}` Berries",
             inline=False
         )
         
+        embed.set_footer(text="💸 Interest Rate: 1% per hour (Compounds continuously)")
         await ctx.send(embed=embed)
 
     @bountybank.command(name="deposit")
     async def bank_deposit(self, ctx, amount):
-        """Deposit bounty into your bank account (7% tax goes to global bank)."""
+        """Deposit bounty into your bank account (10% tax goes to World Government)."""
         user = ctx.author
         
         # Sync bounty data first
@@ -2124,9 +2147,11 @@ class BountyBattle(commands.Cog):
         if amount > true_bounty:
             return await ctx.send(f"❌ You only have `{true_bounty:,}` Berries to deposit!")
         
-        # Calculate tax
-        tax = int(amount * 0.07)  # 7% tax
-        deposit_amount = amount - tax
+        # Calculate tax (10%) plus random "processing fee" (1-5%)
+        tax = int(amount * 0.10)
+        processing_fee = int(amount * random.uniform(0.01, 0.05))
+        total_fees = tax + processing_fee
+        deposit_amount = amount - total_fees
         
         # Update bounties
         bounties = load_bounties()
@@ -2140,20 +2165,25 @@ class BountyBattle(commands.Cog):
         save_bounties(bounties)
         await self.config.member(user).bounty.set(bounties[user_id]["amount"])
         
-        # Add to bank (minus tax)
+        # Add to bank (minus fees)
         current_balance = await self.config.member(user).bank_balance()
         await self.config.member(user).bank_balance.set(current_balance + deposit_amount)
         
-        # Add tax to global bank
+        # Update last deposit time for interest calculation
+        await self.config.member(user).last_deposit_time.set(datetime.utcnow().isoformat())
+        
+        # Add fees to global bank
         global_bank = await self.config.guild(ctx.guild).global_bank()
-        await self.config.guild(ctx.guild).global_bank.set(global_bank + tax)
+        await self.config.guild(ctx.guild).global_bank.set(global_bank + total_fees)
         
         embed = discord.Embed(
-            title="🏦 Bank Deposit",
+            title="🏦 World Government Bank Deposit",
             description=(
                 f"Deposited: `{amount:,}` Berries\n"
-                f"Tax (7%): `{tax:,}` Berries\n"
-                f"Net Deposit: `{deposit_amount:,}` Berries"
+                f"Tax (10%): `{tax:,}` Berries\n"
+                f"Processing Fee: `{processing_fee:,}` Berries\n"
+                f"Net Deposit: `{deposit_amount:,}` Berries\n\n"
+                f"⚠️ *Interest of 1% per hour will be collected by the World Government!*"
             ),
             color=discord.Color.green()
         )
@@ -2162,11 +2192,22 @@ class BountyBattle(commands.Cog):
 
     @bountybank.command(name="withdraw")
     async def bank_withdraw(self, ctx, amount):
-        """Withdraw bounty from your bank account."""
+        """Withdraw bounty from your bank account (subject to fees and interest collection)."""
         user = ctx.author
         
         # Check bank balance
         bank_balance = await self.config.member(user).bank_balance()
+        last_deposit = await self.config.member(user).last_deposit_time()
+        
+        # Calculate accumulated interest
+        current_time = datetime.utcnow()
+        interest_due = 0
+        
+        if last_deposit:
+            last_deposit_time = datetime.fromisoformat(last_deposit)
+            hours_passed = (current_time - last_deposit_time).total_seconds() / 3600
+            interest_rate = hours_passed * 0.01  # 1% per hour
+            interest_due = int(bank_balance * interest_rate)
         
         # Handle 'all' case
         if str(amount).lower() == 'all':
@@ -2183,21 +2224,54 @@ class BountyBattle(commands.Cog):
         if amount > bank_balance:
             return await ctx.send(f"❌ You only have `{bank_balance:,}` Berries in your bank!")
         
+        # Calculate withdrawal fee (2-8% random fee)
+        withdrawal_fee = int(amount * random.uniform(0.02, 0.08))
+        total_deductions = withdrawal_fee + interest_due
+        final_amount = amount - total_deductions
+        
+        # Ensure they can afford the fees
+        if total_deductions > bank_balance:
+            return await ctx.send(
+                f"❌ Cannot withdraw! Outstanding fees (`{total_deductions:,}` Berries) exceed your balance!"
+            )
+        
         # Update bank balance
         await self.config.member(user).bank_balance.set(bank_balance - amount)
+        await self.config.member(user).last_deposit_time.set(current_time.isoformat())
         
         # Add to bounty
         bounties = load_bounties()
         user_id = str(user.id)
-        bounties[user_id]["amount"] += amount
+        bounties[user_id]["amount"] += final_amount
         save_bounties(bounties)
         await self.config.member(user).bounty.set(bounties[user_id]["amount"])
         
+        # Add fees and interest to global bank
+        global_bank = await self.config.guild(ctx.guild).global_bank()
+        await self.config.guild(ctx.guild).global_bank.set(global_bank + total_deductions)
+        
         embed = discord.Embed(
-            title="🏦 Bank Withdrawal",
-            description=f"Withdrawn: `{amount:,}` Berries",
+            title="🏦 World Government Bank Withdrawal",
+            description=(
+                f"Withdrawal Amount: `{amount:,}` Berries\n"
+                f"Interest Collected: `{interest_due:,}` Berries\n"
+                f"Withdrawal Fee: `{withdrawal_fee:,}` Berries\n"
+                f"Amount Received: `{final_amount:,}` Berries"
+            ),
             color=discord.Color.green()
         )
+        
+        # Random chance of additional "audit"
+        if random.random() < 0.10:  # 10% chance
+            audit_fee = int(bank_balance * 0.05)  # 5% of remaining balance
+            await self.config.member(user).bank_balance.set(bank_balance - amount - audit_fee)
+            await self.config.guild(ctx.guild).global_bank.set(global_bank + total_deductions + audit_fee)
+            
+            embed.add_field(
+                name="🏛️ SURPRISE MARINE AUDIT!",
+                value=f"The Marines conducted a random audit and collected `{audit_fee:,}` Berries in fees!",
+                inline=False
+            )
         
         await ctx.send(embed=embed)
 
