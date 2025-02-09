@@ -548,9 +548,9 @@ class DevilFruitManager:
         # Yami Yami no Mi
         elif effect == "darkness":
             if random.random() < 0.50:  # High proc rate for signature fruit
-                absorb_amount = int(base_damage * 1.0)  # 30% damage absorption
+                absorb_amount = int(base_damage * 1.5)  
                 attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
-                bonus_damage = int(base_damage * 0.7)  # Strong damage bonus
+                bonus_damage = int(base_damage * 1.0)  # Strong damage bonus
                 effect_message = (
                     f"🌑 **BLACK HOLE**! 🌑\n"
                     f"**{attacker['name']}** commands darkness!\n"
