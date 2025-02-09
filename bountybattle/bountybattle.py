@@ -757,10 +757,10 @@ class DevilFruitManager:
                         f"✨ Status immunity for 2 turns + {bonus_damage} liberation damage!"
                     )
                 
-                # Add chance for additional effect
+                # Add chance for additional effect using base HP (250)
                 if random.random() < 0.25:  # 25% chance for extra joy boy effect
-                    heal_amount = int(attacker["max_hp"] * 0.15)  # 15% max HP heal
-                    attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
+                    heal_amount = int(250 * 0.15)  # 15% of 250 HP = 37 HP heal
+                    attacker["hp"] = min(250, attacker["hp"] + heal_amount)
                     effect_message += f"\n💫 **JOY BOY'S BLESSING**! Healed for {heal_amount} HP!"
 
         # Model Daibutsu
