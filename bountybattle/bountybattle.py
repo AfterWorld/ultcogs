@@ -6135,6 +6135,152 @@ class BountyBattle(commands.Cog):
         embed.add_field(name="Current Title", value=current_title or "None", inline=False)
         await ctx.send(embed=embed)
         
+    @commands.command()
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def checkachievements(self, ctx, member: discord.Member = None):
+        """Check and award any missing achievements based on current stats."""
+        member = member or ctx.author
+        
+        try:
+            # Get member stats
+            stats = await self.config.member(member).all()
+            current_achievements = stats.get("achievements", [])
+            
+            if not isinstance(current_achievements, list):
+                current_achievements = []
+            
+            # Track newly unlocked achievements
+            unlocked = []
+            
+            # Get important stats
+            wins = stats.get("wins", 0)
+            total_damage = stats.get("damage_dealt", 0)
+            total_burns = stats.get("total_burns_applied", 0)
+            win_streak = stats.get("win_streak", 0)
+            
+            # Progress embed
+            progress_embed = discord.Embed(
+                title="🎯 Achievement Progress Check",
+                description=f"Checking achievements for {member.display_name}...",
+                color=discord.Color.blue()
+            )
+            progress_embed.add_field(
+                name="Current Stats",
+                value=(
+                    f"Wins: `{wins}`\n"
+                    f"Total Damage: `{total_damage}`\n"
+                    f"Win Streak: `{win_streak}`\n"
+                    f"Current Achievements: `{len(current_achievements)}`"
+                ),
+                inline=False
+            )
+            progress_msg = await ctx.send(embed=progress_embed)
+
+            # Check each achievement condition
+            if "first_blood" not in current_achievements and wins >= 1:
+                unlocked.append("first_blood")
+                
+            if "unstoppable" not in current_achievements and wins >= 10:
+                unlocked.append("unstoppable")
+                
+            if "sea_emperor" not in current_achievements and wins >= 25:
+                unlocked.append("sea_emperor")
+                
+            if "legendary_warrior" not in current_achievements and wins >= 50:
+                unlocked.append("legendary_warrior")
+                
+            if "damage_master" not in current_achievements and total_damage >= 1000:
+                unlocked.append("damage_master")
+                
+            if "burning_legacy" not in current_achievements and total_burns >= 100:
+                unlocked.append("burning_legacy")
+                
+            if "unstoppable_force" not in current_achievements and win_streak >= 3:
+                unlocked.append("unstoppable_force")
+
+            # If any achievements were unlocked
+            if unlocked:
+                # Add new achievements
+                current_achievements.extend(unlocked)
+                await self.config.member(member).achievements.set(current_achievements)
+                
+                # Get and update titles
+                current_titles = stats.get("titles", [])
+                if not isinstance(current_titles, list):
+                    current_titles = []
+                
+                # Add new titles from achievements
+                titles_gained = []
+                for achievement in unlocked:
+                    if achievement in ACHIEVEMENTS:
+                        title = ACHIEVEMENTS[achievement]["title"]
+                        if title and title not in current_titles:
+                            current_titles.append(title)
+                            titles_gained.append(title)
+                
+                # Save updated titles
+                await self.config.member(member).titles.set(current_titles)
+                
+                # Create success embed
+                embed = discord.Embed(
+                    title="🎉 Achievements Unlocked!",
+                    description=f"**{member.display_name}** has unlocked new achievements:",
+                    color=discord.Color.gold()
+                )
+                
+                for achievement in unlocked:
+                    if achievement in ACHIEVEMENTS:
+                        achievement_data = ACHIEVEMENTS[achievement]
+                        embed.add_field(
+                            name=achievement_data["description"],
+                            value=f"Title Earned: `{achievement_data['title']}`",
+                            inline=False
+                        )
+                
+                embed.set_footer(text=f"Total Achievements: {len(current_achievements)}")
+                await progress_msg.edit(embed=embed)
+                
+            else:
+                embed = discord.Embed(
+                    title="✨ Achievement Check Complete",
+                    description=f"**{member.display_name}** has no new achievements to unlock.",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="Achievement Progress",
+                    value=(
+                        f"Current Achievements: `{len(current_achievements)}`\n"
+                        f"Next Goal: {self._get_next_achievement_goal(stats)}"
+                    ),
+                    inline=False
+                )
+                await progress_msg.edit(embed=embed)
+                
+        except Exception as e:
+            logger.error(f"Error checking achievements: {e}")
+            await ctx.send("❌ An error occurred while checking achievements.")
+
+    async def _get_next_achievement_goal(self, stats):
+        """Get the next achievement goal for the user."""
+        wins = stats.get("wins", 0)
+        total_damage = stats.get("damage_dealt", 0)
+        
+        # Check win-based achievements
+        if wins < 1:
+            return "Win your first battle!"
+        elif wins < 10:
+            return f"Win {10 - wins} more battles for `Unstoppable`"
+        elif wins < 25:
+            return f"Win {25 - wins} more battles for `Sea Emperor`"
+        elif wins < 50:
+            return f"Win {50 - wins} more battles for `Legendary Warrior`"
+        
+        # Check damage-based achievements
+        if total_damage < 1000:
+            return f"Deal {1000 - total_damage} more damage for `Damage Master`"
+            
+        return "You're a true master! Keep fighting to maintain your legacy!"
+        
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, *, title: str):
         """Equip a title for yourself."""
