@@ -1756,7 +1756,7 @@ class BountyBattle(commands.Cog):
             await ctx.send("An error occurred while processing rewards.")
             
     async def _initialize_player_data(self, member):
-        """Initialize player data with battle statistics tracking."""
+        """Initialize player data with proper memory management."""
         devil_fruit = await self.config.member(member).devil_fruit()
         return {
             "name": member.display_name,
@@ -1787,16 +1787,6 @@ class BountyBattle(commands.Cog):
                 "healing_done": 0,
                 "turns_survived": 0,
                 "cooldowns_managed": 0
-            },
-            "battle_stats": {
-                "highest_damage": 0,
-                "damage_taken": 0,
-                "burns_applied": 0,
-                "lowest_hp": 250,
-                "stuns_applied": 0,
-                "turns_survived": 0,
-                "critical_hits": 0,
-                "total_healing": 0
             }
         }
     
@@ -2006,209 +1996,6 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in validate_fruit_transfer: {e}")
             await ctx.send("❌ An error occurred while validating the fruit transfer.")
             return False
-        
-    async def check_battle_achievements(self, member, battle_stats):
-        """Check and award battle-related achievements."""
-        try:
-            # Get current achievements and stats
-            current_achievements = await self.config.member(member).achievements()
-            if not isinstance(current_achievements, list):
-                current_achievements = []
-            
-            # Track newly unlocked achievements
-            unlocked = []
-            
-            # Get member stats
-            member_data = await self.config.member(member).all()
-            wins = member_data.get("wins", 0)
-            win_streak = member_data.get("win_streak", 0)
-            total_damage_dealt = member_data.get("damage_dealt", 0)
-            total_burns = member_data.get("total_burns_applied", 0)
-            total_blocks = member_data.get("total_blocks", 0)
-
-            # Update win streak if applicable
-            if battle_stats.get("won", False):
-                win_streak += 1
-                await self.config.member(member).win_streak.set(win_streak)
-            else:
-                win_streak = 0
-                await self.config.member(member).win_streak.set(0)
-
-            # Check win-based achievements
-            if "first_blood" not in current_achievements and wins >= 1:
-                unlocked.append("first_blood")
-                
-            if "unstoppable" not in current_achievements and wins >= 10:
-                unlocked.append("unstoppable")
-                
-            if "sea_emperor" not in current_achievements and wins >= 25:
-                unlocked.append("sea_emperor")
-                
-            if "legendary_warrior" not in current_achievements and wins >= 50:
-                unlocked.append("legendary_warrior")
-
-            # Check win streak achievements
-            if "unstoppable_force" not in current_achievements and win_streak >= 3:
-                unlocked.append("unstoppable_force")
-
-            # Check battle performance achievements
-            if battle_stats:
-                # Big hit achievements
-                if "big_hitter" not in current_achievements and battle_stats.get("highest_damage", 0) >= 30:
-                    unlocked.append("big_hitter")
-                    
-                if "overkill" not in current_achievements and battle_stats.get("highest_damage", 0) >= 50:
-                    unlocked.append("overkill")
-
-                # Burn achievements
-                if "burn_master" not in current_achievements and battle_stats.get("burns_applied", 0) >= 5:
-                    unlocked.append("burn_master")
-                    
-                if "pyromaniac" not in current_achievements and battle_stats.get("burns_applied", 0) >= 10:
-                    unlocked.append("pyromaniac")
-
-                # Combat achievements
-                if "stunning_performance" not in current_achievements and battle_stats.get("stuns_applied", 0) >= 3:
-                    unlocked.append("stunning_performance")
-                    
-                if battle_stats.get("won", False):
-                    if "perfect_game" not in current_achievements and battle_stats.get("damage_taken", 0) == 0:
-                        unlocked.append("perfect_game")
-                        
-                    if "comeback_king" not in current_achievements and battle_stats.get("lowest_hp", 250) <= 10:
-                        unlocked.append("comeback_king")
-                        
-                    if "immortal" not in current_achievements and battle_stats.get("lowest_hp", 250) == 1:
-                        unlocked.append("immortal")
-
-                # Healing achievements
-                if "healing_touch" not in current_achievements and battle_stats.get("total_healing", 0) >= 50:
-                    unlocked.append("healing_touch")
-
-                # Critical hit achievements
-                if "relentless" not in current_achievements and battle_stats.get("critical_hits", 0) >= 10:
-                    unlocked.append("relentless")
-
-                # Turn-based achievements
-                if "swift_finisher" not in current_achievements and battle_stats.get("turns_taken", 0) <= 5 and battle_stats.get("won", False):
-                    unlocked.append("swift_finisher")
-                    
-                if "titan" not in current_achievements and battle_stats.get("turns_survived", 0) >= 50:
-                    unlocked.append("titan")
-
-                # Damage milestones
-                if "devastator" not in current_achievements and battle_stats.get("damage_dealt", 0) >= 500:
-                    unlocked.append("devastator")
-
-            # Award achievements and titles
-            if unlocked:
-                # Add new achievements
-                current_achievements.extend(unlocked)
-                await self.config.member(member).achievements.set(current_achievements)
-                
-                # Get and update titles
-                current_titles = await self.config.member(member).titles()
-                if not isinstance(current_titles, list):
-                    current_titles = []
-                
-                # Add new titles from achievements
-                for achievement in unlocked:
-                    if achievement in ACHIEVEMENTS:
-                        title = ACHIEVEMENTS[achievement]["title"]
-                        if title and title not in current_titles:
-                            current_titles.append(title)
-                
-                # Save updated titles
-                await self.config.member(member).titles.set(current_titles)
-                
-                # Return unlocked achievements for announcement
-                return unlocked
-                
-            return []
-            
-        except Exception as e:
-            logger.error(f"Error checking achievements: {e}")
-            return []
-        
-    async def announce_achievements(self, ctx, member, unlocked_achievements):
-        """Announce newly unlocked achievements with a styled embed."""
-        if not unlocked_achievements:
-            return
-            
-        # Create the base embed
-        embed = discord.Embed(
-            title="🏆 New Achievements Unlocked!",
-            description=f"**{member.display_name}** has proven their worth:",
-            color=discord.Color.gold()
-        )
-        
-        # Add fields for each achievement
-        for achievement in unlocked_achievements:
-            if achievement in ACHIEVEMENTS:
-                achievement_data = ACHIEVEMENTS[achievement]
-                
-                # Get the achievement details
-                description = achievement_data["description"]
-                title = achievement_data["title"]
-                
-                # Create field content with emojis based on achievement type
-                if "wins" in achievement_data["condition"]:
-                    emoji = "👊"  # Combat achievements
-                elif "damage" in achievement_data["condition"]:
-                    emoji = "💥"  # Damage achievements
-                elif "burns" in achievement_data["condition"]:
-                    emoji = "🔥"  # Burn achievements
-                elif "healing" in achievement_data["condition"]:
-                    emoji = "💚"  # Healing achievements
-                elif "critical" in achievement_data["condition"]:
-                    emoji = "⚡"  # Critical hit achievements
-                elif "streak" in achievement_data["condition"]:
-                    emoji = "🔥"  # Streak achievements
-                elif "perfect" in achievement_data["condition"]:
-                    emoji = "✨"  # Perfect game achievements
-                else:
-                    emoji = "🎯"  # Default emoji
-                
-                # Add the field with formatted content
-                embed.add_field(
-                    name=f"{emoji} {description}",
-                    value=f"**Title Earned:** `{title}`",
-                    inline=False
-                )
-        
-        # Add total achievements count
-        current_achievements = await self.config.member(member).achievements()
-        total_count = len(current_achievements) if isinstance(current_achievements, list) else 0
-        
-        embed.set_footer(text=f"Total Achievements: {total_count}")
-        
-        # Send the announcement
-        try:
-            await ctx.send(embed=embed)
-            
-            # Try to send a DM to the player
-            try:
-                dm_embed = discord.Embed(
-                    title="🎊 Achievement Unlocked!",
-                    description="You've unlocked new achievements in battle!",
-                    color=discord.Color.gold()
-                )
-                dm_embed.add_field(
-                    name="Unlocked Achievements",
-                    value="\n".join([f"• {ACHIEVEMENTS[ach]['description']}" for ach in unlocked_achievements if ach in ACHIEVEMENTS]),
-                    inline=False
-                )
-                await member.send(embed=dm_embed)
-            except discord.Forbidden:
-                # If we can't send DMs, that's fine - we already announced in the channel
-                pass
-                
-        except Exception as e:
-            logger.error(f"Error announcing achievements: {e}")
-            # If embed fails, fall back to simple message
-            achievements_text = "\n".join([f"• {ACHIEVEMENTS[ach]['description']}" for ach in unlocked_achievements if ach in ACHIEVEMENTS])
-            await ctx.send(f"🏆 **{member.display_name}** unlocked new achievements:\n{achievements_text}")
-            
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -5582,47 +5369,11 @@ class BountyBattle(commands.Cog):
                         base_damage + devil_fruit_bonus, attacker, defender
                     )
 
-                    # Apply final damage and update stats
+                    # Apply final damage
                     if final_damage > 0:
                         defender["hp"] = max(0, defender["hp"] - final_damage)
                         defender["stats"]["damage_taken"] += final_damage
-                        defender["battle_stats"]["damage_taken"] += final_damage
                         attacker["stats"]["damage_dealt"] += final_damage
-                        
-                        # Track highest damage
-                        attacker["battle_stats"]["highest_damage"] = max(
-                            attacker["battle_stats"]["highest_damage"],
-                            final_damage
-                        )
-                        
-                        # Track lowest HP
-                        defender["battle_stats"]["lowest_hp"] = min(
-                            defender["battle_stats"]["lowest_hp"],
-                            defender["hp"]
-                        )
-
-                    # Track battle stats for status effects
-                    if "effect" in modified_move:
-                        effect_result = await self.status_manager.apply_effect(
-                            modified_move["effect"],
-                            defender,
-                            value=modified_move.get("effect_value", 1),
-                            duration=modified_move.get("effect_duration", 1)
-                        )
-                        if effect_result:
-                            effect_messages.append(effect_result)
-                            # Track burns and stuns
-                            if "burn" in modified_move["effect"]:
-                                attacker["battle_stats"]["burns_applied"] += 1
-                            elif "stun" in modified_move["effect"]:
-                                attacker["battle_stats"]["stuns_applied"] += 1
-
-                    # Track critical hits
-                    if damage_message and "Critical" in damage_message:
-                        attacker["battle_stats"]["critical_hits"] += 1
-
-                    # Track turns survived
-                    attacker["battle_stats"]["turns_survived"] += 1
 
                     # Apply move effects through status manager
                     if "effect" in modified_move:
@@ -5677,31 +5428,6 @@ class BountyBattle(commands.Cog):
                 winner = next((p for p in players if p["hp"] > 0), players[0])
                 loser = players[1] if winner == players[0] else players[0]
 
-                # Collect final battle statistics
-                battle_stats = {
-                    # Winner stats
-                    "winner_damage": winner["stats"]["damage_dealt"],
-                    "winner_damage_taken": winner["stats"]["damage_taken"],
-                    "winner_highest_damage": winner["battle_stats"]["highest_damage"],
-                    "winner_lowest_hp": winner["battle_stats"]["lowest_hp"],
-                    "winner_burns": winner["battle_stats"]["burns_applied"],
-                    "winner_stuns": winner["battle_stats"]["stuns_applied"],
-                    "winner_crits": winner["battle_stats"]["critical_hits"],
-                    
-                    # Loser stats
-                    "loser_damage": loser["stats"]["damage_dealt"],
-                    "loser_damage_taken": loser["stats"]["damage_taken"],
-                    "loser_highest_damage": loser["battle_stats"]["highest_damage"],
-                    "loser_lowest_hp": loser["battle_stats"]["lowest_hp"],
-                    "loser_burns": loser["battle_stats"]["burns_applied"],
-                    "loser_stuns": loser["battle_stats"]["stuns_applied"],
-                    "loser_crits": loser["battle_stats"]["critical_hits"],
-                    
-                    # General battle stats
-                    "total_turns": turn,
-                    "environment": environment
-                }
-
                 # Create victory embed
                 victory_embed = discord.Embed(
                     title="🏆 Battle Complete!",
@@ -5709,9 +5435,6 @@ class BountyBattle(commands.Cog):
                     color=discord.Color.gold()
                 )
                 await message.edit(embed=victory_embed)
-
-                # Process victory with battle stats
-                await self._handle_battle_rewards(ctx, winner, loser, battle_stats)
 
                 # Process victory using the simplified processing method
                 try:
@@ -5821,8 +5544,8 @@ class BountyBattle(commands.Cog):
 
         return "\n".join(status_messages) if status_messages else None
 
-    async def _handle_battle_rewards(self, ctx, winner, loser, battle_stats=None):
-        """Handle post-battle rewards and achievements."""
+    async def _handle_battle_rewards(self, ctx, winner, loser):
+        """Handle post-battle rewards with thread safety."""
         try:
             async with self.battle_lock:
                 # Calculate rewards
@@ -5841,81 +5564,43 @@ class BountyBattle(commands.Cog):
                     await ctx.send("⚠️ Failed to update loser's bounty!")
                     return
                 
-                # Update battle stats
+                # Update stats
                 async with self.data_lock:
-                    # Update winner stats
-                    winner_stats = await self.config.member(winner["member"]).all()
-                    await self.config.member(winner["member"]).wins.set(winner_stats.get("wins", 0) + 1)
-                    await self.config.member(winner["member"]).damage_dealt.set(
-                        winner_stats.get("damage_dealt", 0) + battle_stats.get("damage_dealt", 0)
+                    await self.config.member(winner["member"]).wins.set(
+                        await self.config.member(winner["member"]).wins() + 1
                     )
-                    
-                    # Update loser stats
-                    loser_stats = await self.config.member(loser["member"]).all()
-                    await self.config.member(loser["member"]).losses.set(loser_stats.get("losses", 0) + 1)
+                    await self.config.member(loser["member"]).losses.set(
+                        await self.config.member(loser["member"]).losses() + 1
+                    )
                 
-                # Create reward embed
+                # Create and send results embed
                 embed = discord.Embed(
-                    title="<:Beli:1237118142774247425> Battle Rewards",
+                    title="🏆 Battle Results",
                     color=discord.Color.gold()
                 )
                 
                 embed.add_field(
-                    name=f"Winner: {winner['name']}",
-                    value=f"Gained {bounty_increase:,} Berries\nNew Bounty: {new_winner_bounty:,} Berries",
+                    name="Winner",
+                    value=(
+                        f"**{winner['name']}**\n"
+                        f"+ `{bounty_increase:,}` Berries\n"
+                        f"New Bounty: `{new_winner_bounty:,}` Berries"
+                    ),
                     inline=False
                 )
                 
                 embed.add_field(
-                    name=f"Loser: {loser['name']}",
-                    value=f"Lost {bounty_decrease:,} Berries\nNew Bounty: {new_loser_bounty:,} Berries",
+                    name="Loser",
+                    value=(
+                        f"**{loser['name']}**\n"
+                        f"- `{bounty_decrease:,}` Berries\n"
+                        f"New Bounty: `{new_loser_bounty:,}` Berries"
+                    ),
                     inline=False
                 )
                 
                 await ctx.send(embed=embed)
-
-                # Check and announce achievements
-                if battle_stats:
-                    # Process winner achievements
-                    winner_battle_stats = {
-                        "won": True,
-                        "damage_dealt": battle_stats.get("winner_damage", 0),
-                        "damage_taken": battle_stats.get("winner_damage_taken", 0),
-                        "highest_damage": battle_stats.get("winner_highest_damage", 0),
-                        "lowest_hp": battle_stats.get("winner_lowest_hp", 250),
-                        "burns_applied": battle_stats.get("winner_burns", 0),
-                        "stuns_applied": battle_stats.get("winner_stuns", 0),
-                        "critical_hits": battle_stats.get("winner_crits", 0),
-                        "turns_survived": battle_stats.get("total_turns", 0)
-                    }
-                    
-                    winner_achievements = await self.check_battle_achievements(
-                        winner["member"], 
-                        winner_battle_stats
-                    )
-                    if winner_achievements:
-                        await self.announce_achievements(ctx, winner["member"], winner_achievements)
-                    
-                    # Process loser achievements
-                    loser_battle_stats = {
-                        "won": False,
-                        "damage_dealt": battle_stats.get("loser_damage", 0),
-                        "damage_taken": battle_stats.get("loser_damage_taken", 0),
-                        "highest_damage": battle_stats.get("loser_highest_damage", 0),
-                        "lowest_hp": battle_stats.get("loser_lowest_hp", 0),
-                        "burns_applied": battle_stats.get("loser_burns", 0),
-                        "stuns_applied": battle_stats.get("loser_stuns", 0),
-                        "critical_hits": battle_stats.get("loser_crits", 0),
-                        "turns_survived": battle_stats.get("total_turns", 0)
-                    }
-                    
-                    loser_achievements = await self.check_battle_achievements(
-                        loser["member"], 
-                        loser_battle_stats
-                    )
-                    if loser_achievements:
-                        await self.announce_achievements(ctx, loser["member"], loser_achievements)
-
+                
                 # Update last active time
                 current_time = datetime.utcnow().isoformat()
                 async with self.data_lock:
