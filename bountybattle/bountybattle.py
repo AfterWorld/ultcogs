@@ -5798,9 +5798,11 @@ class BountyBattle(commands.Cog):
         """Handle post-battle rewards and achievements."""
         try:
             async with self.battle_lock:
-                # Calculate rewards
-                bounty_increase = random.randint(1000, 3000)
-                bounty_decrease = random.randint(500, 1500)
+                # Calculate rewards with more variance based on stats
+                base_reward = random.randint(1000, 3000)
+                performance_bonus = int((battle_stats.get("winner_damage", 0) / 100) * random.uniform(0.1, 0.3))
+                bounty_increase = base_reward + performance_bonus
+                bounty_decrease = int(bounty_increase * 0.5)  # Loser loses 50% of winner's gain
                 
                 # Update winner's bounty
                 new_winner_bounty = await self.safe_modify_bounty(winner["member"], bounty_increase, "add")
@@ -5813,19 +5815,6 @@ class BountyBattle(commands.Cog):
                 if new_loser_bounty is None:
                     await ctx.send("⚠️ Failed to update loser's bounty!")
                     return
-                
-                # Update battle stats
-                async with self.data_lock:
-                    # Update winner stats
-                    winner_stats = await self.config.member(winner["member"]).all()
-                    await self.config.member(winner["member"]).wins.set(winner_stats.get("wins", 0) + 1)
-                    await self.config.member(winner["member"]).damage_dealt.set(
-                        winner_stats.get("damage_dealt", 0) + battle_stats.get("damage_dealt", 0)
-                    )
-                    
-                    # Update loser stats
-                    loser_stats = await self.config.member(loser["member"]).all()
-                    await self.config.member(loser["member"]).losses.set(loser_stats.get("losses", 0) + 1)
                 
                 # Create reward embed
                 embed = discord.Embed(
@@ -5845,55 +5834,33 @@ class BountyBattle(commands.Cog):
                     inline=False
                 )
                 
+                # Add battle stats if available
+                if battle_stats:
+                    embed.add_field(
+                        name="Battle Stats",
+                        value=(
+                            f"Turns: {battle_stats.get('total_turns', 0)}\n"
+                            f"Damage Dealt: {battle_stats.get('winner_damage', 0)}\n"
+                            f"Critical Hits: {battle_stats.get('winner_crits', 0)}"
+                        ),
+                        inline=False
+                    )
+                
                 await ctx.send(embed=embed)
 
-                # Check and announce achievements
-                if battle_stats:
-                    # Process winner achievements
-                    winner_battle_stats = {
-                        "won": True,
-                        "damage_dealt": battle_stats.get("winner_damage", 0),
-                        "damage_taken": battle_stats.get("winner_damage_taken", 0),
-                        "highest_damage": battle_stats.get("winner_highest_damage", 0),
-                        "lowest_hp": battle_stats.get("winner_lowest_hp", 250),
-                        "burns_applied": battle_stats.get("winner_burns", 0),
-                        "stuns_applied": battle_stats.get("winner_stuns", 0),
-                        "critical_hits": battle_stats.get("winner_crits", 0),
-                        "turns_survived": battle_stats.get("total_turns", 0)
-                    }
-                    
-                    winner_achievements = await self.check_battle_achievements(
-                        winner["member"], 
-                        winner_battle_stats
+                # Update win/loss counts
+                async with self.data_lock:
+                    await self.config.member(winner["member"]).wins.set(
+                        (await self.config.member(winner["member"]).wins()) + 1
                     )
-                    if winner_achievements:
-                        await self.announce_achievements(ctx, winner["member"], winner_achievements)
-                    
-                    # Process loser achievements
-                    loser_battle_stats = {
-                        "won": False,
-                        "damage_dealt": battle_stats.get("loser_damage", 0),
-                        "damage_taken": battle_stats.get("loser_damage_taken", 0),
-                        "highest_damage": battle_stats.get("loser_highest_damage", 0),
-                        "lowest_hp": battle_stats.get("loser_lowest_hp", 0),
-                        "burns_applied": battle_stats.get("loser_burns", 0),
-                        "stuns_applied": battle_stats.get("loser_stuns", 0),
-                        "critical_hits": battle_stats.get("loser_crits", 0),
-                        "turns_survived": battle_stats.get("total_turns", 0)
-                    }
-                    
-                    loser_achievements = await self.check_battle_achievements(
-                        loser["member"], 
-                        loser_battle_stats
+                    await self.config.member(loser["member"]).losses.set(
+                        (await self.config.member(loser["member"]).losses()) + 1
                     )
-                    if loser_achievements:
-                        await self.announce_achievements(ctx, loser["member"], loser_achievements)
 
                 # Update last active time
                 current_time = datetime.utcnow().isoformat()
-                async with self.data_lock:
-                    await self.config.member(winner["member"]).last_active.set(current_time)
-                    await self.config.member(loser["member"]).last_active.set(current_time)
+                await self.config.member(winner["member"]).last_active.set(current_time)
+                await self.config.member(loser["member"]).last_active.set(current_time)
                 
         except Exception as e:
             logger.error(f"Error in battle rewards: {str(e)}")
