@@ -1404,13 +1404,27 @@ class BattleStateManager:
 
     async def end_battle(self, channel_id: int):
         """Clean up battle state after it ends."""
-        if channel_id in self.active_battles:
-            async with self.battle_locks[channel_id]:
-                battle_state = self.active_battles[channel_id]
-                battle_state["is_finished"] = True
-                
-                # Clean up
+        try:
+            if channel_id in self.active_battles:
+                async with self.battle_locks[channel_id]:
+                    battle_state = self.active_battles[channel_id]
+                    battle_state["is_finished"] = True
+                    
+                    # Clean up and remove from active battles
+                    if channel_id in self.active_battles:
+                        del self.active_battles[channel_id]
+                    
+                    # Clean up lock
+                    if channel_id in self.battle_locks:
+                        del self.battle_locks[channel_id]
+                        
+        except Exception as e:
+            logger.error(f"Error ending battle: {e}")
+        finally:
+            # Even if there's an error above, try to remove from active battles
+            if channel_id in self.active_battles:
                 del self.active_battles[channel_id]
+            if channel_id in self.battle_locks:
                 del self.battle_locks[channel_id]
 
     def is_channel_in_battle(self, channel_id: int) -> bool:
