@@ -2088,6 +2088,63 @@ class BountyBattle(commands.Cog):
         except Exception as e:
             logger.error(f"Error in startbounty: {str(e)}")
             await ctx.send("⚠️ An error occurred while starting your bounty journey. Please try again.")
+            
+    @commands.command()
+    async def bankstats(self, ctx):
+        """View statistics about World Government bank fees and taxes."""
+        global_bank = await self.config.guild(ctx.guild).global_bank()
+        
+        # Create detailed embed
+        embed = discord.Embed(
+            title="🏦 World Government Bank Statistics",
+            description="Detailed breakdown of Marine fees and taxes",
+            color=discord.Color.gold()
+        )
+        
+        # Show fee structure
+        embed.add_field(
+            name="📊 Fee Structure",
+            value=(
+                "**Deposit Fees:**\n"
+                "• Tax: 10% of deposit\n"
+                "• Processing Fee: 1-5% of deposit\n\n"
+                "**Withdrawal Fees:**\n"
+                "• Base Fee: 2-8% of withdrawal\n"
+                "• Interest: 1% per hour (compounds)\n"
+                "• Surprise Audit: 5% of remaining balance (10% chance)\n\n"
+                "**All fees go to the World Government Treasury**"
+            ),
+            inline=False
+        )
+        
+        # Show current treasury
+        embed.add_field(
+            name="🏛️ Current Treasury",
+            value=f"`{global_bank:,}` Berries",
+            inline=False
+        )
+        
+        # Show example calculation
+        deposit_amount = 100000
+        tax = int(deposit_amount * 0.10)
+        proc_fee = int(deposit_amount * 0.03)  # Example 3%
+        total_fees = tax + proc_fee
+        
+        embed.add_field(
+            name="💰 Example Transaction (100,000 Berry Deposit)",
+            value=(
+                f"Base Amount: `{deposit_amount:,}` Berries\n"
+                f"Tax (10%): `{tax:,}` Berries\n"
+                f"Processing Fee (3%): `{proc_fee:,}` Berries\n"
+                f"Total Fees: `{total_fees:,}` Berries\n"
+                f"Net Deposit: `{deposit_amount - total_fees:,}` Berries"
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="The Marines thank you for your continued cooperation! 🫡")
+        
+        await ctx.send(embed=embed)
     
     @commands.group(name="bountybank", aliases=["bbank"], invoke_without_command=True)
     async def bountybank(self, ctx):
@@ -2292,6 +2349,338 @@ class BountyBattle(commands.Cog):
             )
         
         await ctx.send(embed=embed)
+        
+    @commands.group(name="bbadmin")
+    @commands.admin_or_permissions(administrator=True)
+    async def bb_admin(self, ctx):
+        """Admin controls for BountyBattle (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            # Show current status
+            settings = await self.config.guild(ctx.guild).all()
+            
+            embed = discord.Embed(
+                title="🛠️ BountyBattle Admin Panel",
+                color=discord.Color.blue()
+            )
+            
+            # Get status information
+            is_paused = settings.get("is_paused", False)
+            restricted_channel = settings.get("restricted_channel")
+            disabled_commands = settings.get("disabled_commands", [])
+            maintenance_mode = settings.get("maintenance_mode", False)
+            
+            if restricted_channel:
+                channel = ctx.guild.get_channel(restricted_channel)
+                channel_name = channel.name if channel else "Unknown"
+            else:
+                channel_name = "None"
+            
+            embed.add_field(
+                name="📊 Current Status",
+                value=(
+                    f"🔒 System Paused: `{'Yes' if is_paused else 'No'}`\n"
+                    f"📍 Restricted Channel: `{channel_name}`\n"
+                    f"🛠️ Maintenance Mode: `{'Yes' if maintenance_mode else 'No'}`\n"
+                    f"❌ Disabled Commands: `{', '.join(disabled_commands) if disabled_commands else 'None'}`"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="⚙️ Available Commands",
+                value=(
+                    "`pause` - Temporarily pause all commands\n"
+                    "`unpause` - Resume all commands\n"
+                    "`restrict` - Restrict commands to one channel\n"
+                    "`unrestrict` - Remove channel restriction\n"
+                    "`disable` - Disable specific commands\n"
+                    "`enable` - Re-enable specific commands\n"
+                    "`maintenance` - Toggle maintenance mode\n"
+                    "`status` - Show current status"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+
+    @bb_admin.command(name="pause")
+    async def pause_system(self, ctx, duration: str = None):
+        """Temporarily pause all BountyBattle commands.
+        
+        Duration format: 1h, 30m, etc. Leave blank for indefinite."""
+        await self.config.guild(ctx.guild).is_paused.set(True)
+        
+        if duration:
+            try:
+                # Parse duration
+                time_convert = {"h": 3600, "m": 60, "s": 1}
+                time_str = duration[-1].lower()
+                time_amount = int(duration[:-1])
+                seconds = time_amount * time_convert[time_str]
+                
+                embed = discord.Embed(
+                    title="⏸️ System Paused",
+                    description=f"BountyBattle commands paused for {duration}",
+                    color=discord.Color.orange()
+                )
+                await ctx.send(embed=embed)
+                
+                # Wait and then unpause
+                await asyncio.sleep(seconds)
+                await self.config.guild(ctx.guild).is_paused.set(False)
+                
+                embed = discord.Embed(
+                    title="▶️ System Resumed",
+                    description="BountyBattle commands have been automatically resumed",
+                    color=discord.Color.green()
+                )
+                await ctx.send(embed=embed)
+                
+            except (KeyError, ValueError):
+                await ctx.send("❌ Invalid duration format! Use format like: 1h, 30m, 60s")
+        else:
+            embed = discord.Embed(
+                title="⏸️ System Paused",
+                description="BountyBattle commands paused indefinitely",
+                color=discord.Color.orange()
+            )
+            await ctx.send(embed=embed)
+
+    @bb_admin.command(name="unpause")
+    async def unpause_system(self, ctx):
+        """Resume all BountyBattle commands."""
+        await self.config.guild(ctx.guild).is_paused.set(False)
+        
+        embed = discord.Embed(
+            title="▶️ System Resumed",
+            description="BountyBattle commands have been resumed",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+
+    @bb_admin.command(name="restrict")
+    async def restrict_channel(self, ctx, channel: discord.TextChannel = None):
+        """Restrict BountyBattle commands to a specific channel."""
+        channel = channel or ctx.channel
+        await self.config.guild(ctx.guild).restricted_channel.set(channel.id)
+        
+        embed = discord.Embed(
+            title="📍 Channel Restricted",
+            description=f"BountyBattle commands restricted to {channel.mention}",
+            color=discord.Color.blue()
+        )
+        await ctx.send(embed=embed)
+
+    @bb_admin.command(name="unrestrict")
+    async def unrestrict_channel(self, ctx):
+        """Remove channel restriction for BountyBattle commands."""
+        await self.config.guild(ctx.guild).restricted_channel.set(None)
+        
+        embed = discord.Embed(
+            title="🔓 Channel Restriction Removed",
+            description="BountyBattle commands can now be used in any channel",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+
+    @bb_admin.command(name="disable")
+    async def disable_commands(self, ctx, *commands):
+        """Disable specific BountyBattle commands."""
+        if not commands:
+            return await ctx.send("❌ Please specify which commands to disable!")
+            
+        disabled_commands = await self.config.guild(ctx.guild).disabled_commands()
+        newly_disabled = []
+        
+        for cmd in commands:
+            if hasattr(self, cmd) and cmd not in disabled_commands:
+                disabled_commands.append(cmd)
+                newly_disabled.append(cmd)
+        
+        await self.config.guild(ctx.guild).disabled_commands.set(disabled_commands)
+        
+        if newly_disabled:
+            embed = discord.Embed(
+                title="❌ Commands Disabled",
+                description=f"Disabled commands: `{', '.join(newly_disabled)}`",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("No new commands were disabled.")
+
+    @bb_admin.command(name="enable")
+    async def enable_commands(self, ctx, *commands):
+        """Re-enable specific BountyBattle commands."""
+        if not commands:
+            return await ctx.send("❌ Please specify which commands to enable!")
+            
+        disabled_commands = await self.config.guild(ctx.guild).disabled_commands()
+        newly_enabled = []
+        
+        for cmd in commands:
+            if cmd in disabled_commands:
+                disabled_commands.remove(cmd)
+                newly_enabled.append(cmd)
+        
+        await self.config.guild(ctx.guild).disabled_commands.set(disabled_commands)
+        
+        if newly_enabled:
+            embed = discord.Embed(
+                title="✅ Commands Enabled",
+                description=f"Re-enabled commands: `{', '.join(newly_enabled)}`",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("No commands were enabled.")
+
+    @bb_admin.command(name="maintenance")
+    async def toggle_maintenance(self, ctx, duration: str = None):
+        """Toggle maintenance mode for BountyBattle.
+        
+        Duration format: 1h, 30m, etc. Leave blank for indefinite."""
+        current_mode = await self.config.guild(ctx.guild).maintenance_mode()
+        
+        if current_mode:
+            await self.config.guild(ctx.guild).maintenance_mode.set(False)
+            embed = discord.Embed(
+                title="✅ Maintenance Mode Ended",
+                description="BountyBattle is now fully operational",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+            return
+            
+        await self.config.guild(ctx.guild).maintenance_mode.set(True)
+        
+        if duration:
+            try:
+                # Parse duration
+                time_convert = {"h": 3600, "m": 60, "s": 1}
+                time_str = duration[-1].lower()
+                time_amount = int(duration[:-1])
+                seconds = time_amount * time_convert[time_str]
+                
+                embed = discord.Embed(
+                    title="🛠️ Maintenance Mode Active",
+                    description=f"BountyBattle entering maintenance mode for {duration}",
+                    color=discord.Color.orange()
+                )
+                await ctx.send(embed=embed)
+                
+                # Wait and then end maintenance
+                await asyncio.sleep(seconds)
+                await self.config.guild(ctx.guild).maintenance_mode.set(False)
+                
+                embed = discord.Embed(
+                    title="✅ Maintenance Complete",
+                    description="BountyBattle is now fully operational",
+                    color=discord.Color.green()
+                )
+                await ctx.send(embed=embed)
+                
+            except (KeyError, ValueError):
+                await ctx.send("❌ Invalid duration format! Use format like: 1h, 30m, 60s")
+        else:
+            embed = discord.Embed(
+                title="🛠️ Maintenance Mode Active",
+                description="BountyBattle entering maintenance mode indefinitely",
+                color=discord.Color.orange()
+            )
+            await ctx.send(embed=embed)
+
+    @bb_admin.command(name="status")
+    async def show_status(self, ctx):
+        """Show current BountyBattle system status."""
+        settings = await self.config.guild(ctx.guild).all()
+        
+        embed = discord.Embed(
+            title="📊 BountyBattle System Status",
+            color=discord.Color.blue()
+        )
+        
+        # Get status information
+        is_paused = settings.get("is_paused", False)
+        restricted_channel = settings.get("restricted_channel")
+        disabled_commands = settings.get("disabled_commands", [])
+        maintenance_mode = settings.get("maintenance_mode", False)
+        
+        if restricted_channel:
+            channel = ctx.guild.get_channel(restricted_channel)
+            channel_name = channel.mention if channel else "Unknown"
+        else:
+            channel_name = "None"
+        
+        embed.add_field(
+            name="System State",
+            value=(
+                f"🔒 System Paused: `{'Yes' if is_paused else 'No'}`\n"
+                f"📍 Restricted Channel: {channel_name}\n"
+                f"🛠️ Maintenance Mode: `{'Yes' if maintenance_mode else 'No'}`"
+            ),
+            inline=False
+        )
+        
+        if disabled_commands:
+            embed.add_field(
+                name="❌ Disabled Commands",
+                value=f"`{', '.join(disabled_commands)}`",
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
+
+    async def check_command_available(self, ctx):
+        """Check if a command can be run based on current settings."""
+        if not ctx.guild:
+            return True  # Allow DMs
+            
+        if await self.bot.is_owner(ctx.author):
+            return True  # Allow bot owner to bypass restrictions
+            
+        if ctx.author.guild_permissions.administrator:
+            return True  # Allow admins to bypass restrictions
+            
+        settings = await self.config.guild(ctx.guild).all()
+        
+        # Check if system is paused
+        if settings.get("is_paused", False):
+            await ctx.send("⏸️ BountyBattle is currently paused!")
+            return False
+            
+        # Check if in maintenance mode
+        if settings.get("maintenance_mode", False):
+            await ctx.send("🛠️ BountyBattle is currently in maintenance mode!")
+            return False
+            
+        # Check if command is disabled
+        if ctx.command.name in settings.get("disabled_commands", []):
+            await ctx.send(f"❌ The command `{ctx.command.name}` is currently disabled!")
+            return False
+            
+        # Check channel restriction
+        restricted_channel = settings.get("restricted_channel")
+        if restricted_channel and ctx.channel.id != restricted_channel:
+            channel = ctx.guild.get_channel(restricted_channel)
+            if channel:
+                await ctx.send(f"📍 BountyBattle commands can only be used in {channel.mention}!")
+            return False
+            
+        return True
+
+    async def cog_before_invoke(self, ctx):
+        """Check restrictions before running any command."""
+        return await self.check_command_available(ctx)
+
+    def __init__(self, bot):
+        super().__init__(bot)
+        self.config.register_guild(
+            is_paused=False,
+            restricted_channel=None,
+            disabled_commands=[],
+            maintenance_mode=False
+        )
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.guild)
@@ -3055,7 +3444,92 @@ class BountyBattle(commands.Cog):
                 f"⚠️ *You cannot eat another Devil Fruit!*"
             )
 
+    @commands.group(name="achievementmanager", aliases=["am"])
+    @commands.admin_or_permissions(administrator=True)
+    async def achievement_manager(self, ctx):
+        """Manage custom achievements (Admin only)"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
+    @achievement_manager.command(name="add")
+    async def add_achievement(self, ctx, key: str, condition: str, count: int, *, description: str):
+        """Add a new achievement
+        
+        Parameters:
+        - key: Unique identifier for the achievement
+        - condition: What triggers the achievement (e.g., 'wins', 'total_damage_dealt')
+        - count: Number required to complete
+        - description: Achievement description
+        """
+        if key in ACHIEVEMENTS:
+            return await ctx.send("❌ This achievement key already exists!")
+            
+        title = f"Achievement Master: {key.title()}"
+        
+        ACHIEVEMENTS[key] = {
+            "description": description,
+            "condition": condition,
+            "count": count,
+            "title": title
+        }
+        
+        embed = discord.Embed(
+            title="✅ New Achievement Added",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Key", value=key, inline=True)
+        embed.add_field(name="Condition", value=f"{condition} >= {count}", inline=True)
+        embed.add_field(name="Description", value=description, inline=False)
+        embed.add_field(name="Title Reward", value=title, inline=False)
+        
+        await ctx.send(embed=embed)
+
+    @achievement_manager.command(name="remove")
+    async def remove_achievement(self, ctx, key: str):
+        """Remove a custom achievement"""
+        if key not in ACHIEVEMENTS:
+            return await ctx.send("❌ Achievement not found!")
+            
+        if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
+            return await ctx.send("❌ Cannot remove default achievements!")
+            
+        achievement_data = ACHIEVEMENTS.pop(key)
+        
+        embed = discord.Embed(
+            title="🗑️ Achievement Removed",
+            description=f"Achievement `{key}` has been removed.",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="Description", value=achievement_data["description"], inline=False)
+        
+        await ctx.send(embed=embed)
+
+    @achievement_manager.command(name="list")
+    async def list_achievements(self, ctx):
+        """List all achievements"""
+        embed = discord.Embed(
+            title="📜 Achievement List",
+            color=discord.Color.blue()
+        )
+        
+        # Separate default and custom achievements
+        default_achievements = []
+        custom_achievements = []
+        
+        for key, data in ACHIEVEMENTS.items():
+            achievement_text = f"**{key}**\n{data['description']}\nCondition: {data['condition']} >= {data['count']}"
+            if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
+                default_achievements.append(achievement_text)
+            else:
+                custom_achievements.append(achievement_text)
+        
+        if default_achievements:
+            embed.add_field(name="Default Achievements", value="\n\n".join(default_achievements), inline=False)
+        if custom_achievements:
+            embed.add_field(name="Custom Achievements", value="\n\n".join(custom_achievements), inline=False)
+        
+        await ctx.send(embed=embed)
+    
     @commands.command()
     async def removefruit(self, ctx, member: discord.Member = None):
         """Remove a user's Devil Fruit. Owners and Admins remove for free, others pay 1,000,000 berries from their bounty."""
@@ -3073,38 +3547,43 @@ class BountyBattle(commands.Cog):
         # Load both data sources
         bounties = load_bounties()
         user_id = str(member.id)
-        config_fruit = await self.config.member(member).devil_fruit()
-        current_bounty = await self.config.member(user).bounty()
-
-        # Check both sources for devil fruit
-        if not config_fruit:
+        
+        # Check if user exists in bounties
+        if user_id not in bounties:
+            return await ctx.send(f"🍏 **{member.display_name}** has no bounty data!")
+            
+        # Check if user has a fruit
+        if not bounties[user_id].get("fruit"):
             return await ctx.send(f"🍏 **{member.display_name}** has no Devil Fruit to remove!")
 
-        # Get the actual fruit
-        current_fruit = config_fruit
+        current_fruit = bounties[user_id]["fruit"]
 
         # Owners and Admins remove the fruit for free
         if is_owner or is_admin:
-            # Clear from both sources
+            # Clear from bounties
+            bounties[user_id]["fruit"] = None
+            save_bounties(bounties)
+            
+            # Clear from config
             await self.config.member(member).devil_fruit.set(None)
-            if user_id in bounties:
-                bounties[user_id]["fruit"] = None
-                save_bounties(bounties)
+            
             return await ctx.send(f"🛡️ **{user.display_name}** removed `{current_fruit}` from **{member.display_name}** for free!")
 
         # Normal users must pay from their bounty
         cost = 1_000_000
+        current_bounty = bounties[user_id]["amount"]
 
         if current_bounty < cost:
             return await ctx.send(f"❌ You need a bounty of at least **{cost:,}** berries to remove your Devil Fruit.")
 
         # Deduct cost and remove fruit
-        await self.config.member(user).bounty.set(current_bounty - cost)
-        await self.config.member(member).devil_fruit.set(None)
+        bounties[user_id]["amount"] = current_bounty - cost
+        bounties[user_id]["fruit"] = None
+        save_bounties(bounties)
         
-        if user_id in bounties:
-            bounties[user_id]["fruit"] = None
-            save_bounties(bounties)
+        # Update config
+        await self.config.member(member).devil_fruit.set(None)
+        await self.config.member(member).bounty.set(bounties[user_id]["amount"])
 
         await ctx.send(
             f"<:Beli:1237118142774247425> **{user.display_name}** paid **{cost:,}** berries from their bounty to remove `{current_fruit}`!\n"
@@ -4725,48 +5204,91 @@ class BountyBattle(commands.Cog):
         # Determine available fruits
         available_fruits = [fruit for fruit in rare_fruits if fruit not in owned_fruits]
         
-        # Create embed
-        embed = discord.Embed(
-            title="<:MeraMera:1336888578705330318> Rare Devil Fruit Status <:MeraMera:1336888578705330318>",
-            color=discord.Color.gold()
-        )
+        # Split owned fruits into chunks of 10 for pagination
+        owned_chunks = [list(owned_fruits.items())[i:i + 10] for i in range(0, len(owned_fruits), 10)]
+        available_chunks = [available_fruits[i:i + 10] for i in range(0, len(available_fruits), 10)]
         
-        # Add owned fruits section
-        if owned_fruits:
-            owned_text = "\n".join(f"• **{fruit}** - Owned by {owner}" for fruit, owner in owned_fruits.items())
+        embeds = []
+        
+        # Create embed for each page
+        total_pages = max(len(owned_chunks) if owned_chunks else 1, len(available_chunks) if available_chunks else 1)
+        
+        for page in range(total_pages):
+            embed = discord.Embed(
+                title="<:MeraMera:1336888578705330318> Rare Devil Fruit Status <:MeraMera:1336888578705330318>",
+                color=discord.Color.gold()
+            )
+            
+            # Add owned fruits for this page
+            if owned_chunks and page < len(owned_chunks):
+                owned_text = "\n".join(f"• **{fruit}** - Owned by {owner}" for fruit, owner in owned_chunks[page])
+                if owned_text:
+                    embed.add_field(
+                        name="🏴‍☠️ Currently Owned Rare Fruits",
+                        value=owned_text,
+                        inline=False
+                    )
+            
+            # Add available fruits for this page
+            if available_chunks and page < len(available_chunks):
+                available_text = "\n".join(f"• `{fruit}`" for fruit in available_chunks[page])
+                if available_text:
+                    embed.add_field(
+                        name="🌟 Available Rare Fruits",
+                        value=available_text,
+                        inline=False
+                    )
+            
+            # Add statistics
             embed.add_field(
-                name="🏴‍☠️ Currently Owned Rare Fruits",
-                value=owned_text,
+                name="📊 Fruit Statistics",
+                value=(
+                    f"Total Rare Fruits: `{len(rare_fruits)}`\n"
+                    f"Owned Fruits: `{len(owned_fruits)}`\n"
+                    f"Available Fruits: `{len(available_fruits)}`"
+                ),
                 inline=False
             )
+            
+            embed.set_footer(text=f"Page {page + 1}/{total_pages}")
+            embeds.append(embed)
         
-        # Add available fruits section
-        if available_fruits:
-            available_text = "\n".join(f"• `{fruit}`" for fruit in available_fruits)
-            embed.add_field(
-                name="🌟 Available Rare Fruits",
-                value=available_text,
-                inline=False
+        if not embeds:
+            embed = discord.Embed(
+                title="<:MeraMera:1336888578705330318> Rare Devil Fruit Status <:MeraMera:1336888578705330318>",
+                description="No rare fruits found!",
+                color=discord.Color.gold()
             )
-        else:
-            embed.add_field(
-                name="🌟 Available Rare Fruits",
-                value="No rare fruits are currently available!",
-                inline=False
-            )
+            return await ctx.send(embed=embed)
         
-        # Add total counts
-        embed.add_field(
-            name="📊 Fruit Statistics",
-            value=(
-                f"Total Rare Fruits: `{len(rare_fruits)}`\n"
-                f"Owned Fruits: `{len(owned_fruits)}`\n"
-                f"Available Fruits: `{len(available_fruits)}`"
-            ),
-            inline=False
-        )
+        # Send first embed
+        current_page = 0
+        message = await ctx.send(embed=embeds[current_page])
         
-        await ctx.send(embed=embed)
+        # Add navigation reactions if multiple pages
+        if len(embeds) > 1:
+            await message.add_reaction("⬅️")
+            await message.add_reaction("➡️")
+            
+            def check(reaction, user):
+                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+            
+            while True:
+                try:
+                    reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                    
+                    if str(reaction.emoji) == "➡️":
+                        current_page = (current_page + 1) % len(embeds)
+                    elif str(reaction.emoji) == "⬅️":
+                        current_page = (current_page - 1) % len(embeds)
+                        
+                    await message.edit(embed=embeds[current_page])
+                    await message.remove_reaction(reaction, user)
+                    
+                except asyncio.TimeoutError:
+                    break
+            
+            await message.clear_reactions()
 
     @commands.command()
     @commands.cooldown(1, 1800, commands.BucketType.user)
