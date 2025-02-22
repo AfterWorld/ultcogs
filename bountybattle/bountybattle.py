@@ -5052,7 +5052,7 @@ class BountyBattle(commands.Cog):
             )
 
             available_targets = []
-            for idx, (target, data) in enumerate(self.current_bosses.items(), 1):
+            for _, (target, data) in enumerate(self.current_bosses.items(), 1):
                 if true_bounty >= 100000 and target == "Marine Fortress":
                     available_targets.append(target)
                 elif true_bounty >= 500000 and target == "Impel Down":
@@ -5079,7 +5079,7 @@ class BountyBattle(commands.Cog):
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ No raid targets available at your bounty level!")
 
-            raid_msg = await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
 
             try:
                 def check(m):
@@ -5152,15 +5152,6 @@ class BountyBattle(commands.Cog):
                     except asyncio.TimeoutError:
                         return await ctx.send("❌ Not enough raiders joined in time! Raid cancelled.")
 
-                # Calculate success chance based on level
-                base_chance = {
-                    "Easy": 0.7,
-                    "Medium": 0.5,
-                    "Hard": 0.3,
-                    "Very Hard": 0.2,
-                    "Extreme": 0.1
-                }[target_data['level']]
-
                 # Calculate success chance based on level and difficulty
                 base_chance = 0.0  # Initialize base chance
                 if target_data['level'] == "Easy":
@@ -5212,7 +5203,52 @@ class BountyBattle(commands.Cog):
                     color=discord.Color.gold()
                 )
                 await ctx.send(embed=battle_embed)
-                await asyncio.sleep(3)  # Dramatic pause
+
+                # Add battle animation
+                battle_messages = [
+                    f"💨 **{target_data['boss']}** prepares for battle...",
+                    f"💥 The raiders charge into combat!",
+                    "⚔️ **CLASH!** The sound of battle echoes across the seas!"
+                ]
+
+                battle_msg = await ctx.send(battle_messages[0])
+                await asyncio.sleep(2)
+
+                for message in battle_messages[1:]:
+                    await battle_msg.edit(content=message)
+                    await asyncio.sleep(2)
+
+                # Add random battle events
+                battle_events = [
+                    f"🌊 A massive wave crashes into the battlefield!",
+                    f"⚡ Lightning strikes illuminate the sky!",
+                    f"💫 {random.choice(raiders).display_name} lands a powerful blow!",
+                    f"🔥 The air itself seems to burn with fighting spirit!",
+                    f"💪 The raiders show their true strength!",
+                    f"🌪️ A storm begins to brew from the intensity!",
+                    f"🚀 Special techniques are flying everywhere!",
+                    f"💥 The ground shakes from the powerful attacks!"
+                ]
+
+                # Show 2-3 random battle events
+                for _ in range(random.randint(2, 3)):
+                    event = random.choice(battle_events)
+                    await ctx.send(content=event)
+                    await asyncio.sleep(2)
+
+                # Final dramatic pause
+                final_messages = [
+                    "💭 The dust begins to settle...",
+                    "👀 Everyone holds their breath...",
+                    "⏳ The outcome will be decided..."
+                ]
+
+                final_msg = await ctx.send(final_messages[0])
+                for message in final_messages[1:]:
+                    await asyncio.sleep(2)
+                    await final_msg.edit(content=message)
+
+                await asyncio.sleep(2)
 
                 # Determine outcome
                 success = random.random() < final_chance
