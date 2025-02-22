@@ -3486,7 +3486,31 @@ class BountyBattle(commands.Cog):
         if key not in ACHIEVEMENTS:
             return await ctx.send("❌ Achievement not found!")
             
-        if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
+        if key in [
+            "first_blood",        # First win
+            "big_hitter",        # Big damage
+            "burn_master",       # Burn effects
+            "comeback_king",     # Low HP comeback
+            "perfect_game",      # No damage win
+            "stunning_performance", # Stun effects
+            "overkill",          # Massive damage
+            "healing_touch",     # Healing
+            "unstoppable",       # Win streak
+            "sea_emperor",       # Win milestone
+            "legendary_warrior", # Win milestone
+            "iron_wall",        # Blocking
+            "damage_master",    # Total damage
+            "burning_legacy",   # Total burns
+            "guardian_angel",   # Damage prevented
+            "swift_finisher",   # Quick victory
+            "relentless",      # Critical hits
+            "elemental_master", # Element variety
+            "unstoppable_force", # Win streak
+            "immortal",         # 1 HP survival
+            "devastator",       # High damage
+            "pyromaniac",       # Fire mastery
+            "titan"            # Long battle
+        ]: 
             return await ctx.send("❌ Cannot remove default achievements!")
             
         achievement_data = ACHIEVEMENTS.pop(key)
@@ -3514,15 +3538,57 @@ class BountyBattle(commands.Cog):
         
         for key, data in ACHIEVEMENTS.items():
             achievement_text = f"**{key}**\n{data['description']}\nCondition: {data['condition']} >= {data['count']}"
-            if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
+            if key in ["first_blood", "big_hitter", "burn_master"]:  # Default achievements
                 default_achievements.append(achievement_text)
             else:
                 custom_achievements.append(achievement_text)
         
+        # Split default achievements into chunks if needed
         if default_achievements:
-            embed.add_field(name="Default Achievements", value="\n\n".join(default_achievements), inline=False)
+            chunks = []
+            current_chunk = []
+            current_length = 0
+            
+            for achievement in default_achievements:
+                if current_length + len(achievement) + 2 > 1024:  # +2 for newlines
+                    chunks.append("\n\n".join(current_chunk))
+                    current_chunk = [achievement]
+                    current_length = len(achievement)
+                else:
+                    current_chunk.append(achievement)
+                    current_length += len(achievement) + 2
+            
+            if current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                
+            for i, chunk in enumerate(chunks):
+                field_name = "Default Achievements" if i == 0 else "Default Achievements (Continued)"
+                embed.add_field(name=field_name, value=chunk, inline=False)
+        
+        # Split custom achievements into chunks if needed
         if custom_achievements:
-            embed.add_field(name="Custom Achievements", value="\n\n".join(custom_achievements), inline=False)
+            chunks = []
+            current_chunk = []
+            current_length = 0
+            
+            for achievement in custom_achievements:
+                if current_length + len(achievement) + 2 > 1024:  # +2 for newlines
+                    chunks.append("\n\n".join(current_chunk))
+                    current_chunk = [achievement]
+                    current_length = len(achievement)
+                else:
+                    current_chunk.append(achievement)
+                    current_length += len(achievement) + 2
+            
+            if current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                
+            for i, chunk in enumerate(chunks):
+                field_name = "Custom Achievements" if i == 0 else "Custom Achievements (Continued)"
+                embed.add_field(name=field_name, value=chunk, inline=False)
+        
+        if not (default_achievements or custom_achievements):
+            embed.description = "No achievements found."
         
         await ctx.send(embed=embed)
     
