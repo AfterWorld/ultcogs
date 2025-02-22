@@ -5163,10 +5163,15 @@ class BountyBattle(commands.Cog):
 
                 # Add bonuses
                 player_bonus = min(0.1 * (len(raiders) - required_players), 0.3)
-                fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
-                fruit_bonus = min(0.05 * fruit_users, 0.15)
 
-                final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
+                # Count fruit users correctly
+                fruit_users = 0
+                for raider in raiders:
+                    devil_fruit = await self.config.member(raider).devil_fruit()
+                    if devil_fruit:
+                        fruit_users += 1
+
+                fruit_bonus = min(0.05 * fruit_users, 0.15)
 
                 # Calculate rewards before determining outcome
                 base_reward = random.randint(
