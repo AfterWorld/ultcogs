@@ -2678,15 +2678,6 @@ class BountyBattle(commands.Cog):
         """Check restrictions before running any command."""
         return await self.check_command_available(ctx)
 
-    def __init__(self, bot):
-        super().__init__(bot)
-        self.config.register_guild(
-            is_paused=False,
-            restricted_channel=None,
-            disabled_commands=[],
-            maintenance_mode=False
-        )
-
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.guild)
     @commands.admin_or_permissions(administrator=True)  # Allow both owner and admins
