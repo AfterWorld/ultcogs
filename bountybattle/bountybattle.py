@@ -1,4 +1,3 @@
-
 from redbot.core import commands, Config
 import discord
 import random
@@ -1435,12 +1434,56 @@ class BountyBattle(commands.Cog):
     """A combined One Piece RPG cog with Bounties & Deathmatches."""
 
     def __init__(self, bot):
+        # Initialize Red's Cog class properly
+        commands.Cog.__init__(self)
         self.bot = bot
+        
+        # Initialize config
         self.config = Config.get_conf(self, identifier=1357924680, force_registration=True)
         
-        # Comprehensive default member settings
+        # Initialize all other attributes
+        self.bounty_lock = Lock()
+        self.battle_lock = Lock()
+        self.data_lock = Lock()
+        
+        # Initialize managers
+        self.battle_manager = BattleStateManager()
+        self.status_manager = StatusEffectManager()
+        self.environment_manager = EnvironmentManager()
+        self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
+        
+        # Initialize tracking variables
+        self.active_channels = set()
+        self.tournaments = {}
+        self.current_environment = None
+        self.battle_stopped = False
+        
+        # Configure logging
+        self.log = logging.getLogger("red.bounty")
+        self.log.setLevel(logging.INFO)
+        handler = logging.FileHandler(filename="/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/logs/bountybattle.log", encoding="utf-8", mode="w")
+        handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+        self.log.addHandler(handler)
+        
+        # Register guild settings
+        default_guild = {
+            "bounties": {},
+            "event": None,
+            "global_bank": 0,
+            "last_bank_robbery": None,
+            "tournaments": {},
+            "beta_active": True,
+            "leaderboard_channel": None,
+            "announcement_channel": None,
+            "active_events": {},
+            "disabled_commands": [],
+            "is_paused": False,
+            "restricted_channel": None,
+            "maintenance_mode": False
+        }
+        
+        # Register member settings
         default_member = {
-            # Existing core values
             "bounty": 0,
             "bank_balance": 0,
             "berries": 0,
@@ -1455,8 +1498,6 @@ class BountyBattle(commands.Cog):
             "last_active": None,
             "bounty_hunted": 0,
             "last_deposit_time": None,
-            
-            # New tracking stats (will be available but won't break existing code)
             "win_streak": 0,
             "damage_taken": 0,
             "critical_hits": 0,
@@ -1476,45 +1517,9 @@ class BountyBattle(commands.Cog):
             "successful_hunts": 0,
             "failed_hunts": 0
         }
-
-        # Existing guild settings with new additions
-        default_guild = {
-            "bounties": {},
-            "event": None,
-            "global_bank": 0,
-            "last_bank_robbery": None, 
-            "tournaments": {},
-            "beta_active": True,
-            "leaderboard_channel": None,
-            "announcement_channel": None,
-            "active_events": {},
-            "disabled_commands": []
-        }
-
-        # Register all defaults
-        self.config.register_member(**default_member)
+        
         self.config.register_guild(**default_guild)
-        
-        # Initialize locks
-        self.bounty_lock = Lock()
-        self.battle_lock = Lock()
-        self.data_lock = Lock()
-        
-        # Initialize managers
-        self.battle_manager = BattleStateManager()
-        self.status_manager = StatusEffectManager()
-        self.environment_manager = EnvironmentManager()
-        self.devil_fruit_manager = DevilFruitManager(self.status_manager, self.environment_manager)
-        
-        # Initialize tracking variables
-        self.active_channels = set()
-        self.tournaments = {}
-        self.current_environment = None
-        self.battle_stopped = False
-        
-        # Configure logging
-        self.log = logging.getLogger("red.deathmatch")
-        self.log.setLevel(logging.INFO)
+        self.config.register_member(**default_member)
         
         # Initialize current_bosses directly in the class
         self.current_bosses = {
