@@ -524,7 +524,7 @@ class DevilFruitManager:
         # Suna Suna no Mi
         elif effect == "sand":
             if random.random() < 0.35:  # Increased proc rate
-                drain_amount = int(defender["hp"] * 0.15)  # Increased drain
+                drain_amount = int(defender["hp"] * 0.25)  # Increased drain
                 defender["hp"] -= drain_amount
                 attacker["hp"] = min(250, attacker["hp"] + drain_amount)
                 bonus_damage = int(base_damage * 0.4)  # Added damage bonus
