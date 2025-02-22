@@ -5189,6 +5189,18 @@ class BountyBattle(commands.Cog):
                 # Calculate final chance
                 final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
 
+                # Calculate base reward based on difficulty
+                if target_data['level'] == "Easy":
+                    base_reward = random.randint(50000, 100000)
+                elif target_data['level'] == "Medium":
+                    base_reward = random.randint(100000, 200000)
+                elif target_data['level'] == "Hard":
+                    base_reward = random.randint(200000, 400000)
+                elif target_data['level'] == "Very Hard":
+                    base_reward = random.randint(400000, 800000)
+                else:  # Extreme
+                    base_reward = random.randint(800000, 1600000)
+
                 # Create battle embed
                 battle_embed = discord.Embed(
                     title=f"⚔️ Raid Battle Against {target_data['boss']}",
