@@ -5161,6 +5161,19 @@ class BountyBattle(commands.Cog):
                     "Extreme": 0.1
                 }[target_data['level']]
 
+                # Calculate success chance based on level and difficulty
+                base_chance = 0.0  # Initialize base chance
+                if target_data['level'] == "Easy":
+                    base_chance = 0.7
+                elif target_data['level'] == "Medium":
+                    base_chance = 0.5
+                elif target_data['level'] == "Hard":
+                    base_chance = 0.3
+                elif target_data['level'] == "Very Hard":
+                    base_chance = 0.2
+                elif target_data['level'] == "Extreme":
+                    base_chance = 0.1
+
                 # Add bonuses
                 player_bonus = min(0.1 * (len(raiders) - required_players), 0.3)
 
@@ -5173,11 +5186,8 @@ class BountyBattle(commands.Cog):
 
                 fruit_bonus = min(0.05 * fruit_users, 0.15)
 
-                # Calculate rewards before determining outcome
-                base_reward = random.randint(
-                    50000 * (2 ** (len(available_targets)-1)),
-                    100000 * (2 ** (len(available_targets)-1))
-                )
+                # Calculate final chance
+                final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
 
                 # Create battle embed
                 battle_embed = discord.Embed(
