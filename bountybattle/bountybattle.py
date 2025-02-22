@@ -248,79 +248,79 @@ MOVES = [
 
 DEVIL_FRUITS = {
     "Common": {
-        "Gomu Gomu fruit": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
-        "Ope Ope fruit": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
-        "Goro Goro fruit": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
-        "Bomu Bomu fruit": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
-        "Moku Moku fruit": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
-        "Neko Neko fruit: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
-        "Kilo Kilo fruit": {"type": "Paramecia", "effect": "weight", "bonus": "Increase or decrease weight to avoid attacks"},
-        "Toge Toge fruit": {"type": "Paramecia", "effect": "spikes", "bonus": "Counter melee attacks with spike damage"},
-        "Bane Bane fruit": {"type": "Paramecia", "effect": "springs", "bonus": "Jump twice as far and attack with spring force"},
-        "Hana Hana fruit": {"type": "Paramecia", "effect": "multiple limbs", "bonus": "Can attack or defend from any direction"},
-        "Doru Doru fruit": {"type": "Paramecia", "effect": "wax", "bonus": "Create shields and weapons from hard wax"},
-        "Supa Supa fruit": {"type": "Paramecia", "effect": "blades", "bonus": "Body turns into blades, increasing melee damage"},
-        "Baku Baku fruit": {"type": "Paramecia", "effect": "eat anything", "bonus": "Can consume and copy enemy weapons"},
-        "Mane Mane fruit": {"type": "Paramecia", "effect": "copy", "bonus": "Can mimic an enemy's attack once per battle"},
-        "Goe Goe fruit": {"type": "Paramecia", "effect": "sound waves", "bonus": "Launch powerful sound-based attacks"},
-        "Ori Ori fruit": {"type": "Paramecia", "effect": "binding", "bonus": "Can trap enemies in iron restraints"},
-        "Kage Kage fruit": {"type": "Paramecia", "effect": "shadows", "bonus": "Can steal an enemy's shadow to weaken them"},
-        "Shari Shari fruit": {"type": "Paramecia", "effect": "wheels", "bonus": "Can turn limbs into spinning wheels for attacks"},
-        "Awa Awa fruit": {"type": "Paramecia", "effect": "bubbles", "bonus": "Reduces enemy defense with cleansing bubbles"},
-        "Sabi Sabi fruit": {"type": "Paramecia", "effect": "rust", "bonus": "Can corrode enemy weapons and armor"},
-        "Noro Noro fruit": {"type": "Paramecia", "effect": "slow beam", "bonus": "Temporarily slows down enemies"},
-        "Doa Doa fruit": {"type": "Paramecia", "effect": "doors", "bonus": "Can teleport short distances"},
-        "Beri Beri fruit": {"type": "Paramecia", "effect": "barrier balls", "bonus": "Body can split into bouncing balls to evade attacks"},
-        "Yomi Yomi fruit": {"type": "Paramecia", "effect": "revival", "bonus": "Can revive once upon defeat with 30% HP"},
-        "Horo Horo fruit": {"type": "Paramecia", "effect": "ghosts", "bonus": "Summons negative ghosts to weaken enemies"},
-        "Jake Jake fruit": {"type": "Paramecia", "effect": "jacket", "bonus": "Can possess an ally and control their attacks"},
-        "Giro Giro fruit": {"type": "Paramecia", "effect": "x-ray", "bonus": "Can read enemy attacks before they strike"},
-        "Tama Tama fruit": {"type": "Paramecia", "effect": "egg", "bonus": "Can harden body like a shell once per battle"},
-        "Ato Ato fruit": {"type": "Paramecia", "effect": "art", "bonus": "Can slow down an opponent by turning them into a painting"},
-        "Nemu Nemu fruit": {"type": "Paramecia", "effect": "sleep", "bonus": "Chance to put an opponent to sleep for 1 turn"},
-        "Hiso Hiso fruit": {"type": "Paramecia", "effect": "whisper", "bonus": "Can communicate with animals"},
-        "Samu Samu fruit": {"type": "Paramecia", "effect": "cold body", "bonus": "Slight resistance to ice attacks"},
-        "Ashi Ashi fruit": {"type": "Paramecia", "effect": "feet", "bonus": "Movement speed increased by 15%"},
-        "Beta Beta fruit": {"type": "Paramecia", "effect": "sticky", "bonus": "Can slow down enemy movement"},
-        "Jiki Jiki fruit": {"type": "Paramecia", "effect": "magnetism", "bonus": "Can attract and repel small metal objects"},
-        "Mitsu Mitsu fruit": {"type": "Paramecia", "effect": "honey", "bonus": "Can trap opponents in sticky honey"},
-        "Taru Taru fruit": {"type": "Paramecia", "effect": "liquid body", "bonus": "Takes reduced damage from physical attacks"},
-	    "Hobi Hobi fruit": {"type": "Paramecia", "effect": "toy", "bonus": "Temporarily disables an enemy's attack"},
+        "Gomu Gomu no Mi": {"type": "Paramecia", "effect": "rubber", "bonus": "Immune to blunt attacks"},
+        "Ope Ope no Mi": {"type": "Paramecia", "effect": "surgical", "bonus": "Can switch places once per battle"},
+        "Goro Goro no Mi": {"type": "Logia", "effect": "lightning", "bonus": "20% chance to stun opponent with lightning"},
+        "Bomu Bomu no Mi": {"type": "Paramecia", "effect": "explosion", "bonus": "Explosive attacks deal 30% extra damage"},
+        "Moku Moku no Mi": {"type": "Logia", "effect": "smoke", "bonus": "15% chance to dodge physical attacks"},
+        "Neko Neko no Mi: Model Leopard": {"type": "Zoan", "effect": "leopard", "bonus": "20% increased speed and agility"},
+        "Kilo Kilo no Mi": {"type": "Paramecia", "effect": "weight", "bonus": "Increase or decrease weight to avoid attacks"},
+        "Toge Toge no Mi": {"type": "Paramecia", "effect": "spikes", "bonus": "Counter melee attacks with spike damage"},
+        "Bane Bane no Mi": {"type": "Paramecia", "effect": "springs", "bonus": "Jump twice as far and attack with spring force"},
+        "Hana Hana no Mi": {"type": "Paramecia", "effect": "multiple limbs", "bonus": "Can attack or defend from any direction"},
+        "Doru Doru no Mi": {"type": "Paramecia", "effect": "wax", "bonus": "Create shields and weapons from hard wax"},
+        "Supa Supa no Mi": {"type": "Paramecia", "effect": "blades", "bonus": "Body turns into blades, increasing melee damage"},
+        "Baku Baku no Mi": {"type": "Paramecia", "effect": "eat anything", "bonus": "Can consume and copy enemy weapons"},
+        "Mane Mane no Mi": {"type": "Paramecia", "effect": "copy", "bonus": "Can mimic an enemy's attack once per battle"},
+        "Goe Goe no Mi": {"type": "Paramecia", "effect": "sound waves", "bonus": "Launch powerful sound-based attacks"},
+        "Ori Ori no Mi": {"type": "Paramecia", "effect": "binding", "bonus": "Can trap enemies in iron restraints"},
+        "Kage Kage no Mi": {"type": "Paramecia", "effect": "shadows", "bonus": "Can steal an enemy's shadow to weaken them"},
+        "Shari Shari no Mi": {"type": "Paramecia", "effect": "wheels", "bonus": "Can turn limbs into spinning wheels for attacks"},
+        "Awa Awa no Mi": {"type": "Paramecia", "effect": "bubbles", "bonus": "Reduces enemy defense with cleansing bubbles"},
+        "Sabi Sabi no Mi": {"type": "Paramecia", "effect": "rust", "bonus": "Can corrode enemy weapons and armor"},
+        "Noro Noro no Mi": {"type": "Paramecia", "effect": "slow beam", "bonus": "Temporarily slows down enemies"},
+        "Doa Doa no Mi": {"type": "Paramecia", "effect": "doors", "bonus": "Can teleport short distances"},
+        "Beri Beri no Mi": {"type": "Paramecia", "effect": "barrier balls", "bonus": "Body can split into bouncing balls to evade attacks"},
+        "Yomi Yomi no Mi": {"type": "Paramecia", "effect": "revival", "bonus": "Can revive once upon defeat with 30% HP"},
+        "Horo Horo no Mi": {"type": "Paramecia", "effect": "ghosts", "bonus": "Summons negative ghosts to weaken enemies"},
+        "Jake Jake no Mi": {"type": "Paramecia", "effect": "jacket", "bonus": "Can possess an ally and control their attacks"},
+        "Giro Giro no Mi": {"type": "Paramecia", "effect": "x-ray", "bonus": "Can read enemy attacks before they strike"},
+        "Tama Tama no Mi": {"type": "Paramecia", "effect": "egg", "bonus": "Can harden body like a shell once per battle"},
+        "Ato Ato no Mi": {"type": "Paramecia", "effect": "art", "bonus": "Can slow down an opponent by turning them into a painting"},
+        "Nemu Nemu no Mi": {"type": "Paramecia", "effect": "sleep", "bonus": "Chance to put an opponent to sleep for 1 turn"},
+        "Hiso Hiso no Mi": {"type": "Paramecia", "effect": "whisper", "bonus": "Can communicate with animals"},
+        "Samu Samu no Mi": {"type": "Paramecia", "effect": "cold body", "bonus": "Slight resistance to ice attacks"},
+        "Ashi Ashi no Mi": {"type": "Paramecia", "effect": "feet", "bonus": "Movement speed increased by 15%"},
+        "Beta Beta no Mi": {"type": "Paramecia", "effect": "sticky", "bonus": "Can slow down enemy movement"},
+        "Jiki Jiki no Mi": {"type": "Paramecia", "effect": "magnetism", "bonus": "Can attract and repel small metal objects"},
+        "Mitsu Mitsu no Mi": {"type": "Paramecia", "effect": "honey", "bonus": "Can trap opponents in sticky honey"},
+        "Taru Taru no Mi": {"type": "Paramecia", "effect": "liquid body", "bonus": "Takes reduced damage from physical attacks"},
+	    "Hobi Hobi no Mi": {"type": "Paramecia", "effect": "toy", "bonus": "Temporarily disables an enemy's attack"},
     },
     "Rare": {
-        "Yami Yami fruit": {"type": "Logia", "effect": "darkness", "bonus": "Can absorb 15% of the opponent's attack damage as HP"},
-        "Mochi Mochi fruit": {"type": "Special Paramecia", "effect": "mochi", "bonus": "Can dodge one attack every 4 turns"},
-        "Hie Hie fruit": {"type": "Logia", "effect": "ice", "bonus": "Can freeze an opponent, skipping their next turn"},
-        "Mera Mera fruit": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
-        "Tatsu Tatsu fruit: Model Azure Dragon": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "25% resistance to elemental attacks"},
-        "Suna Suna fruit": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
-        "Zushi Zushi fruit": {"type": "Paramecia", "effect": "gravity", "bonus": "20% chance to stun an enemy every turn"},
-        "Kami Kami fruit": {"type": "Mythical Zoan", "effect": "god", "bonus": "Chance to nullify damage once per match"},
-        "Ryu Ryu fruit: Model Spinosaurus": {"type": "Ancient Zoan", "effect": "spinosaurus", "bonus": "Increase HP by 20%"},
-        "Ryu Ryu fruit: Model Pteranodon": {"type": "Ancient Zoan", "effect": "pteranodon", "bonus": "Gain a 15% chance to evade attacks"},
-        "Inu Inu fruit: Model Okuchi no Makami": {"type": "Mythical Zoan", "effect": "wolf deity", "bonus": "Healing abilities are doubled"},
-        "Kumo Kumo fruit: Model Rosamygale Grauvogeli": {"type": "Ancient Zoan", "effect": "spider", "bonus": "Web attacks slow enemies, reducing their speed"},
-        "Toki Toki fruit": {"type": "Paramecia", "effect": "time", "bonus": "Can speed up cooldowns for abilities"},
-        "Bari Bari fruit": {"type": "Paramecia", "effect": "barrier", "bonus": "Block 40% of incoming melee damage"},
-        "Doku Doku fruit": {"type": "Paramecia", "effect": "poison", "bonus": "Deals poison damage over time"},
-        "Ushi Ushi fruit: Model Bison": {"type": "Zoan", "effect": "bison", "bonus": "Attack power increases the longer the battle lasts"},
-        "Tori Tori fruit: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
-        "Uo Uo fruit: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
-        "Hito Hito fruit: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
-        "Gura Gura fruit": {"type": "Paramecia", "effect": "quake", "bonus": "Earthquake attack deals massive AoE damage"},
-        "Pika Pika fruit": {"type": "Logia", "effect": "light", "bonus": "Moves first in every battle"},
-        "Magu Magu fruit": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
-        "Shibo Shibo fruit": {"type": "Paramecia", "effect": "dehydration", "bonus": "Can drain water from an opponent to weaken them"},
-        "Kira Kira fruit": {"type": "Paramecia", "effect": "diamond", "bonus": "Defense increases by 30%"},
-        "Ishi Ishi fruit": {"type": "Paramecia", "effect": "stone", "bonus": "Can manipulate the battlefield by moving rocks"},
-        "Ryu Ryu fruit: Model Allosaurus": {"type": "Ancient Zoan", "effect": "allosaurus", "bonus": "Increase attack damage by 25%"},
-        "Inu Inu fruit: Model Cerberus": {"type": "Mythical Zoan", "effect": "three-headed dog", "bonus": "Can attack twice per turn"},
-        "Mori Mori fruit": {"type": "Logia", "effect": "forest", "bonus": "Can summon roots to immobilize opponents"},
-        "Kaze Kaze fruit": {"type": "Logia", "effect": "wind", "bonus": "Has a 20% chance to dodge any attack"},
-        "Tori Tori fruit: Model Thunderbird": {"type": "Mythical Zoan", "effect": "thunderbird", "bonus": "Lightning attacks deal extra damage"},
-        "Hito Hito fruit: Model Daibutsu": {"type": "Mythical Zoan", "effect": "giant buddha", "bonus": "Boosts defense and attack power"},
-	    "Hito Hito fruit: Model Human": {"type": "Mythical Zoan", "effect": "Pro Poker Player", "bonus": "Player becomes the worlds best Poker Player"},
-        "Hebi Hebi fruit: Model Yamata no Orochi": {"type": "Mythical Zoan", "effect": "eight-headed snake", "bonus": "Gain 2 extra attacks every 3 turns"},
+        "Yami Yami no Mi": {"type": "Logia", "effect": "darkness", "bonus": "Can absorb 15% of the opponent's attack damage as HP"},
+        "Mochi Mochi no Mi": {"type": "Special Paramecia", "effect": "mochi", "bonus": "Can dodge one attack every 4 turns"},
+        "Hie Hie no Mi": {"type": "Logia", "effect": "ice", "bonus": "Can freeze an opponent, skipping their next turn"},
+        "Mera Mera no Mi": {"type": "Logia", "effect": "fire", "bonus": "Fire attacks do double damage"},
+        "Tatsu Tatsu no Mi: Model Azure Dragon": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "25% resistance to elemental attacks"},
+        "Suna Suna no Mi": {"type": "Logia", "effect": "sand", "bonus": "10% chance to drain enemy’s HP"},
+        "Zushi Zushi no Mi": {"type": "Paramecia", "effect": "gravity", "bonus": "20% chance to stun an enemy every turn"},
+        "Kami Kami no Mi": {"type": "Mythical Zoan", "effect": "god", "bonus": "Chance to nullify damage once per match"},
+        "Ryu Ryu no Mi: Model Spinosaurus": {"type": "Ancient Zoan", "effect": "spinosaurus", "bonus": "Increase HP by 20%"},
+        "Ryu Ryu no Mi: Model Pteranodon": {"type": "Ancient Zoan", "effect": "pteranodon", "bonus": "Gain a 15% chance to evade attacks"},
+        "Inu Inu no Mi: Model Okuchi no Makami": {"type": "Mythical Zoan", "effect": "wolf deity", "bonus": "Healing abilities are doubled"},
+        "Kumo Kumo no Mi: Model Rosamygale Grauvogeli": {"type": "Ancient Zoan", "effect": "spider", "bonus": "Web attacks slow enemies, reducing their speed"},
+        "Toki Toki no Mi": {"type": "Paramecia", "effect": "time", "bonus": "Can speed up cooldowns for abilities"},
+        "Bari Bari no Mi": {"type": "Paramecia", "effect": "barrier", "bonus": "Block 40% of incoming melee damage"},
+        "Doku Doku no Mi": {"type": "Paramecia", "effect": "poison", "bonus": "Deals poison damage over time"},
+        "Ushi Ushi no Mi: Model Bison": {"type": "Zoan", "effect": "bison", "bonus": "Attack power increases the longer the battle lasts"},
+        "Tori Tori no Mi: Model Phoenix": {"type": "Mythical Zoan", "effect": "phoenix", "bonus": "Heals 10% HP every 3 turns"},
+        "Uo Uo no Mi: Model Seiryu": {"type": "Mythical Zoan", "effect": "dragon", "bonus": "30% stronger attacks in battles"},
+        "Hito Hito no Mi: Model Nika": {"type": "Mythical Zoan", "effect": "nika", "bonus": "Randomly boosts attack, speed, or defense"},
+        "Gura Gura no Mi": {"type": "Paramecia", "effect": "quake", "bonus": "Earthquake attack deals massive AoE damage"},
+        "Pika Pika no Mi": {"type": "Logia", "effect": "light", "bonus": "Moves first in every battle"},
+        "Magu Magu no Mi": {"type": "Logia", "effect": "magma", "bonus": "Deals additional burn damage over time"},
+        "Shibo Shibo no Mi": {"type": "Paramecia", "effect": "dehydration", "bonus": "Can drain water from an opponent to weaken them"},
+        "Kira Kira no Mi": {"type": "Paramecia", "effect": "diamond", "bonus": "Defense increases by 30%"},
+        "Ishi Ishi no Mi": {"type": "Paramecia", "effect": "stone", "bonus": "Can manipulate the battlefield by moving rocks"},
+        "Ryu Ryu no Mi: Model Allosaurus": {"type": "Ancient Zoan", "effect": "allosaurus", "bonus": "Increase attack damage by 25%"},
+        "Inu Inu no Mi: Model Cerberus": {"type": "Mythical Zoan", "effect": "three-headed dog", "bonus": "Can attack twice per turn"},
+        "Mori Mori no Mi": {"type": "Logia", "effect": "forest", "bonus": "Can summon roots to immobilize opponents"},
+        "Kaze Kaze no Mi": {"type": "Logia", "effect": "wind", "bonus": "Has a 20% chance to dodge any attack"},
+        "Tori Tori no Mi: Model Thunderbird": {"type": "Mythical Zoan", "effect": "thunderbird", "bonus": "Lightning attacks deal extra damage"},
+        "Hito Hito no Mi: Model Daibutsu": {"type": "Mythical Zoan", "effect": "giant buddha", "bonus": "Boosts defense and attack power"},
+	    "Hito Hito no Mi: Model Human": {"type": "Mythical Zoan", "effect": "Pro Poker Player", "bonus": "Player becomes the worlds best Poker Player"},
+        "Hebi Hebi no Mi: Model Yamata no Orochi": {"type": "Mythical Zoan", "effect": "eight-headed snake", "bonus": "Gain 2 extra attacks every 3 turns"},
     }
 }
 
@@ -429,13 +429,13 @@ class DevilFruitManager:
         
         # Effect cooldowns for Devil Fruits
         self.fruit_cooldowns = {
-            "Mera Mera fruit": 3,      # Fire abilities
-            "Goro Goro fruit": 4,      # Lightning abilities
-            "Hie Hie fruit": 3,        # Ice abilities
-            "Ope Ope fruit": 4,        # Room abilities
-            "Pika Pika fruit": 3,      # Light abilities
-            "Magu Magu fruit": 4,      # Magma abilities
-            "Gura Gura fruit": 5,      # Quake abilities
+            "Mera Mera no Mi": 3,      # Fire abilities
+            "Goro Goro no Mi": 4,      # Lightning abilities
+            "Hie Hie no Mi": 3,        # Ice abilities
+            "Ope Ope no Mi": 4,        # Room abilities
+            "Pika Pika no Mi": 3,      # Light abilities
+            "Magu Magu no Mi": 4,      # Magma abilities
+            "Gura Gura no Mi": 5,      # Quake abilities
         }
     
     async def process_devil_fruit_effect(self, attacker, defender, move, environment):
@@ -488,7 +488,7 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Mera Mera fruit (Rare)
+        # Mera Mera no Mi (Rare)
         if effect == "fire":
             if random.random() < 0.45:  # Reduced from 0.60 to 0.45 (45% proc rate)
                 await self.status_manager.apply_effect("burn", defender, value=2)  # Reduced from 3 to 2 burn stacks
@@ -499,7 +499,7 @@ class DevilFruitManager:
                     f"💥 {bonus_damage} fire damage + Burn (2 stacks)"
                 )
 
-        # Goro Goro fruit
+        # Goro Goro no Mi
         elif effect == "lightning":
             if random.random() < 0.45:  # Increased proc chance
                 await self.status_manager.apply_effect("stun", defender, duration=2)
@@ -510,7 +510,7 @@ class DevilFruitManager:
                     f"💫 2-turn stun + {bonus_damage} bonus damage!"
                 )
 
-        # Moku Moku fruit
+        # Moku Moku no Mi
         elif effect == "smoke":
             if random.random() < 0.40:  # Increased proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
@@ -521,10 +521,10 @@ class DevilFruitManager:
                     f"✨ 2-turn evasion + {bonus_damage} bonus damage!"
                 )
 
-        # Suna Suna fruit
+        # Suna Suna no Mi
         elif effect == "sand":
             if random.random() < 0.35:  # Increased proc rate
-                drain_amount = int(defender["hp"] * 0.25)  # Increased drain
+                drain_amount = int(defender["hp"] * 0.15)  # Increased drain
                 defender["hp"] -= drain_amount
                 attacker["hp"] = min(250, attacker["hp"] + drain_amount)
                 bonus_damage = int(base_damage * 0.4)  # Added damage bonus
@@ -534,7 +534,7 @@ class DevilFruitManager:
                     f"💀 Drained {drain_amount} HP + {bonus_damage} bonus damage!"
                 )
 
-        # Hie Hie fruit
+        # Hie Hie no Mi
         elif effect == "ice":
             if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("freeze", defender, duration=2)
@@ -545,7 +545,7 @@ class DevilFruitManager:
                     f"🥶 2-turn freeze + {bonus_damage} bonus damage!"
                 )
 
-        # Yami Yami fruit
+        # Yami Yami no Mi
         elif effect == "darkness":
             if random.random() < 0.50:  # High proc rate for signature fruit
                 absorb_amount = int(base_damage * 1.5)  
@@ -557,7 +557,7 @@ class DevilFruitManager:
                     f"⚫ Absorbed {absorb_amount} HP + {bonus_damage} bonus damage!"
                 )
 
-        # Pika Pika fruit
+        # Pika Pika no Mi
         elif effect == "light":
             if random.random() < 0.45:  # Balanced proc rate
                 bonus_damage = int(base_damage * 1.2)  # Very high damage bonus
@@ -567,7 +567,7 @@ class DevilFruitManager:
                     f"⚡ {bonus_damage} piercing damage!"
                 )
 
-        # Magu Magu fruit
+        # Magu Magu no Mi
         elif effect == "magma":
             if random.random() < 0.55:  # High proc rate
                 await self.status_manager.apply_effect("burn", defender, value=4, duration=3)
@@ -578,7 +578,7 @@ class DevilFruitManager:
                     f"🔥 4-stack burn + {bonus_damage} bonus damage!"
                 )
 
-        # Mori Mori fruit
+        # Mori Mori no Mi
         elif effect == "forest":
             if random.random() < 0.40:  # Balanced proc rate
                 await self.status_manager.apply_effect("root", defender, duration=2)
@@ -589,7 +589,7 @@ class DevilFruitManager:
                     f"🌿 2-turn root + {bonus_damage} bonus damage!"
                 )
 
-        # Kaze Kaze fruit
+        # Kaze Kaze no Mi
         elif effect == "wind":
             if random.random() < 0.45:  # Balanced proc rate
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
@@ -635,7 +635,7 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Model Leopard (Neko Neko fruit: Model Leopard)
+        # Model Leopard (Neko Neko no Mi: Model Leopard)
         if effect == "leopard":
             if random.random() < 0.45:
                 await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
@@ -659,7 +659,7 @@ class DevilFruitManager:
                     f"✨ 2-turn protection + {bonus_damage} divine damage!"
                 )
 
-        # Model Phoenix (Tori Tori fruit: Model Phoenix)
+        # Model Phoenix (Tori Tori no Mi: Model Phoenix)
         elif "Phoenix" in effect:
             if random.random() < 0.45:
                 heal_amount = int(attacker["max_hp"] * 0.15)
@@ -716,7 +716,7 @@ class DevilFruitManager:
                     f"🕸️ 2-turn slow + {bonus_damage} web damage!"
                 )
 
-        # Model Nika (Hito Hito fruit: Model Nika)
+        # Model Nika (Hito Hito no Mi: Model Nika)
         elif effect == "nika":
             if random.random() < 0.50:  # 50% proc rate for special fruit
                 effect_choice = random.choice(["drumbeat", "giant", "freedom"])
@@ -785,7 +785,7 @@ class DevilFruitManager:
                     f"💥 {hits} coordinated strikes for {bonus_damage} total damage!"
                 )
 
-        # Model Seiryu (Uo Uo fruit: Model Seiryu)
+        # Model Seiryu (Uo Uo no Mi: Model Seiryu)
         elif "Seiryu" in effect:
             if random.random() < 0.45:
                 bonus_damage = int(base_damage * 1.2)
@@ -862,7 +862,7 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Gomu Gomu fruit
+        # Gomu Gomu no Mi
         if effect == "rubber" and move.get("type") == "strong":
             if random.random() < 0.45:
                 bonus_damage = int(base_damage * 1.2)
@@ -872,7 +872,7 @@ class DevilFruitManager:
                     f"💥 {bonus_damage} elastic bonus damage!"
                 )
 
-        # Toge Toge fruit (Fixed counter damage)
+        # Toge Toge no Mi (Fixed counter damage)
         elif effect == "spikes":
             if random.random() < 0.40:
                 counter_damage = int(base_damage * 0.75)  # 75% damage reflection
@@ -885,7 +885,7 @@ class DevilFruitManager:
                     f"💥 Reflected {counter_damage} damage + {bonus_damage} bonus damage!"
                 )
 
-        # Ope Ope fruit
+        # Ope Ope no Mi
         elif effect == "surgical":
             if random.random() < 0.35:
                 await self.status_manager.apply_effect("stun", defender, duration=2)
@@ -896,7 +896,7 @@ class DevilFruitManager:
                     f"✨ 2-turn stun + {bonus_damage} bonus damage!"
                 )
 
-        # Baku Baku fruit
+        # Baku Baku no Mi
         elif effect == "eat anything":
             if random.random() < 0.40:
                 bonus_damage = int(base_damage * 0.9)
@@ -908,7 +908,7 @@ class DevilFruitManager:
                     f"💥 {bonus_damage} bonus damage + {heal_amount} HP restored!"
                 )
 
-        # Bomu Bomu fruit
+        # Bomu Bomu no Mi
         elif effect == "explosion":
             if random.random() < 0.50:
                 bonus_damage = int(base_damage * 1.1)  # High damage multiplier
@@ -918,7 +918,7 @@ class DevilFruitManager:
                     f"🎯 {bonus_damage} explosive damage!"
                 )
 
-        # Kilo Kilo fruit
+        # Kilo Kilo no Mi
         elif effect == "weight":
             if random.random() < 0.45:
                 if random.random() < 0.5:  # 50/50 heavy or light form
@@ -937,7 +937,7 @@ class DevilFruitManager:
                         f"✨ 2-turn dodge + {bonus_damage} bonus damage!"
                     )
 
-        # Bane Bane fruit
+        # Bane Bane no Mi
         elif effect == "springs":
             if random.random() < 0.40:
                 bonus_damage = int(base_damage * 0.85)
@@ -948,7 +948,7 @@ class DevilFruitManager:
                     f"💫 Speed boost + {bonus_damage} bonus damage!"
                 )
 
-        # Hana Hana fruit
+        # Hana Hana no Mi
         elif effect == "multiple limbs":
             if random.random() < 0.45:
                 hits = random.randint(2, 4)
@@ -959,7 +959,7 @@ class DevilFruitManager:
                     f"👊 {hits} hits for {bonus_damage} total damage!"
                 )
 
-        # Doru Doru fruit
+        # Doru Doru no Mi
         elif effect == "wax":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("protect", attacker, duration=2)
@@ -970,7 +970,7 @@ class DevilFruitManager:
                     f"🛡️ 2-turn protection + {bonus_damage} bonus damage!"
                 )
 
-        # Supa Supa fruit
+        # Supa Supa no Mi
         elif effect == "blades":
             if random.random() < 0.45:
                 bonus_damage = int(base_damage * 0.95)
@@ -980,7 +980,7 @@ class DevilFruitManager:
                     f"🗡️ {bonus_damage} slicing damage!"
                 )
 
-        # Mane Mane fruit
+        # Mane Mane no Mi
         elif effect == "copy":
             if random.random() < 0.35:
                 bonus_damage = int(base_damage * 1.0)
@@ -990,7 +990,7 @@ class DevilFruitManager:
                     f"✨ {bonus_damage} mirrored damage!"
                 )
 
-        # Goe Goe fruit
+        # Goe Goe no Mi
         elif effect == "sound waves":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("stun", defender, duration=1)
@@ -1001,7 +1001,7 @@ class DevilFruitManager:
                     f"💫 1-turn stun + {bonus_damage} sonic damage!"
                 )
 
-        # Ori Ori fruit
+        # Ori Ori no Mi
         elif effect == "binding":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("bind", defender, duration=2)
@@ -1012,7 +1012,7 @@ class DevilFruitManager:
                     f"🔒 2-turn bind + {bonus_damage} bonus damage!"
                 )
             
-        # Kage Kage fruit
+        # Kage Kage no Mi
         elif effect == "shadows":
             if random.random() < 0.40:
                 steal_amount = int(base_damage * 0.5)
@@ -1025,7 +1025,7 @@ class DevilFruitManager:
                     f"🌑 Drained {steal_amount} HP + {bonus_damage} bonus damage!"
                 )
 
-        # Shari Shari fruit
+        # Shari Shari no Mi
         elif effect == "wheels":
             if random.random() < 0.45:
                 bonus_damage = int(base_damage * 0.8)
@@ -1036,7 +1036,7 @@ class DevilFruitManager:
                     f"💨 Speed boost + {bonus_damage} spinning damage!"
                 )
 
-        # Awa Awa fruit
+        # Awa Awa no Mi
         elif effect == "bubbles":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("defense_down", defender, duration=2)
@@ -1047,7 +1047,7 @@ class DevilFruitManager:
                     f"✨ 2-turn defense reduction + {bonus_damage} damage!"
                 )
 
-        # Sabi Sabi fruit
+        # Sabi Sabi no Mi
         elif effect == "rust":
             if random.random() < 0.45:
                 await self.status_manager.apply_effect("defense_down", defender, duration=3)
@@ -1058,7 +1058,7 @@ class DevilFruitManager:
                     f"💫 3-turn defense reduction + {bonus_damage} damage!"
                 )
 
-        # Noro Noro fruit
+        # Noro Noro no Mi
         elif effect == "slow beam":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("slow", defender, duration=2)
@@ -1069,7 +1069,7 @@ class DevilFruitManager:
                     f"🐌 2-turn slow + {bonus_damage} damage!"
                 )
 
-        # Doa Doa fruit
+        # Doa Doa no Mi
         elif effect == "doors":
             if random.random() < 0.35:
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
@@ -1080,7 +1080,7 @@ class DevilFruitManager:
                     f"✨ 2-turn dodge + {bonus_damage} damage!"
                 )
 
-        # Beri Beri fruit
+        # Beri Beri no Mi
         elif effect == "barrier balls":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
@@ -1091,7 +1091,7 @@ class DevilFruitManager:
                     f"✨ 2-turn dodge + {bonus_damage} damage!"
                 )
 
-        # Yomi Yomi fruit
+        # Yomi Yomi no Mi
         elif effect == "revival":
             if attacker["hp"] <= 75 and random.random() < 0.40:
                 heal_amount = 100
@@ -1103,7 +1103,7 @@ class DevilFruitManager:
                     f"✨ Recovered {heal_amount} HP + {bonus_damage} damage!"
                 )
 
-        # Horo Horo fruit
+        # Horo Horo no Mi
         elif effect == "ghosts":
             if random.random() < 0.40:
                 await self.status_manager.apply_effect("attack_down", defender, duration=2)
@@ -1114,7 +1114,7 @@ class DevilFruitManager:
                     f"💔 2-turn attack reduction + {bonus_damage} damage!"
                 )
 
-        # Hobi Hobi fruit
+        # Hobi Hobi no Mi
         elif effect == "toy":
             if random.random() < 0.35:
                 await self.status_manager.apply_effect("stun", defender, duration=1)
@@ -1126,7 +1126,7 @@ class DevilFruitManager:
                     f"✨ 1-turn stun + Attack reduction + {bonus_damage} damage!"
                 )
 
-        # Gura Gura fruit
+        # Gura Gura no Mi
         elif effect == "quake":
             if random.random() < 0.45:
                 bonus_damage = int(base_damage * 1.4)  # High damage multiplier
@@ -1989,7 +1989,7 @@ class BountyBattle(commands.Cog):
                 await ctx.send(f"❌ {member.display_name} already has the `{bounties[user_id]['fruit']}`!")
                 return False
 
-            # Only check for uniqueness if it's a rare fruit
+            # Check if it's a rare fruit and if it's already taken
             if fruit_rarity == "Rare":
                 for user_data in bounties.values():
                     if user_data.get("fruit") == fruit_name:
@@ -2670,14 +2670,22 @@ class BountyBattle(commands.Cog):
             channel = ctx.guild.get_channel(restricted_channel)
             if channel:
                 await ctx.send(f"📍 BountyBattle commands can only be used in {channel.mention}!")
-                return False
-                
+            return False
+            
         return True
 
     async def cog_before_invoke(self, ctx):
         """Check restrictions before running any command."""
-        if not await self.check_command_available(ctx):
-            raise commands.CheckFailure("Command not available in this channel")
+        return await self.check_command_available(ctx)
+
+    def __init__(self, bot):
+        super().__init__(bot)
+        self.config.register_guild(
+            is_paused=False,
+            restricted_channel=None,
+            disabled_commands=[],
+            maintenance_mode=False
+        )
 
     @commands.command()
     @commands.cooldown(1, 3600, commands.BucketType.guild)
@@ -3387,19 +3395,20 @@ class BountyBattle(commands.Cog):
         if bounties[user_id].get("fruit"):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
 
-        # Get all currently taken rare fruits
-        taken_rare_fruits = {
-            data.get("fruit") for data in bounties.values() 
-            if data.get("fruit") in DEVIL_FRUITS["Rare"]
-        }
+        # Get all currently taken fruits
+        all_taken_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit")}
 
-        # Get available rare and common fruits
+        # Get available rare fruits (removing taken ones)
         available_rare_fruits = [
             fruit for fruit in DEVIL_FRUITS["Rare"].keys() 
-            if fruit not in taken_rare_fruits
+            if fruit not in all_taken_fruits
         ]
 
-        available_common_fruits = list(DEVIL_FRUITS["Common"].keys())
+        # Get available common fruits
+        available_common_fruits = [
+            fruit for fruit in DEVIL_FRUITS["Common"].keys() 
+            if fruit not in all_taken_fruits
+        ]
 
         if not available_rare_fruits and not available_common_fruits:
             return await ctx.send("❌ There are no Devil Fruits available right now! Try again later.")
@@ -3410,6 +3419,8 @@ class BountyBattle(commands.Cog):
             fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
             is_rare = True
         else:
+            if not available_common_fruits:
+                return await ctx.send("❌ No common Devil Fruits are available right now! Try again later.")
             new_fruit = random.choice(available_common_fruits)
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
             is_rare = False
@@ -3484,31 +3495,7 @@ class BountyBattle(commands.Cog):
         if key not in ACHIEVEMENTS:
             return await ctx.send("❌ Achievement not found!")
             
-        if key in [
-            "first_blood",        # First win
-            "big_hitter",        # Big damage
-            "burn_master",       # Burn effects
-            "comeback_king",     # Low HP comeback
-            "perfect_game",      # No damage win
-            "stunning_performance", # Stun effects
-            "overkill",          # Massive damage
-            "healing_touch",     # Healing
-            "unstoppable",       # Win streak
-            "sea_emperor",       # Win milestone
-            "legendary_warrior", # Win milestone
-            "iron_wall",        # Blocking
-            "damage_master",    # Total damage
-            "burning_legacy",   # Total burns
-            "guardian_angel",   # Damage prevented
-            "swift_finisher",   # Quick victory
-            "relentless",      # Critical hits
-            "elemental_master", # Element variety
-            "unstoppable_force", # Win streak
-            "immortal",         # 1 HP survival
-            "devastator",       # High damage
-            "pyromaniac",       # Fire mastery
-            "titan"            # Long battle
-        ]: 
+        if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
             return await ctx.send("❌ Cannot remove default achievements!")
             
         achievement_data = ACHIEVEMENTS.pop(key)
@@ -3536,57 +3523,15 @@ class BountyBattle(commands.Cog):
         
         for key, data in ACHIEVEMENTS.items():
             achievement_text = f"**{key}**\n{data['description']}\nCondition: {data['condition']} >= {data['count']}"
-            if key in ["first_blood", "big_hitter", "burn_master"]:  # Default achievements
+            if key in ["first_blood", "big_hitter", "burn_master"]:  # Add more default achievements
                 default_achievements.append(achievement_text)
             else:
                 custom_achievements.append(achievement_text)
         
-        # Split default achievements into chunks if needed
         if default_achievements:
-            chunks = []
-            current_chunk = []
-            current_length = 0
-            
-            for achievement in default_achievements:
-                if current_length + len(achievement) + 2 > 1024:  # +2 for newlines
-                    chunks.append("\n\n".join(current_chunk))
-                    current_chunk = [achievement]
-                    current_length = len(achievement)
-                else:
-                    current_chunk.append(achievement)
-                    current_length += len(achievement) + 2
-            
-            if current_chunk:
-                chunks.append("\n\n".join(current_chunk))
-                
-            for i, chunk in enumerate(chunks):
-                field_name = "Default Achievements" if i == 0 else "Default Achievements (Continued)"
-                embed.add_field(name=field_name, value=chunk, inline=False)
-        
-        # Split custom achievements into chunks if needed
+            embed.add_field(name="Default Achievements", value="\n\n".join(default_achievements), inline=False)
         if custom_achievements:
-            chunks = []
-            current_chunk = []
-            current_length = 0
-            
-            for achievement in custom_achievements:
-                if current_length + len(achievement) + 2 > 1024:  # +2 for newlines
-                    chunks.append("\n\n".join(current_chunk))
-                    current_chunk = [achievement]
-                    current_length = len(achievement)
-                else:
-                    current_chunk.append(achievement)
-                    current_length += len(achievement) + 2
-            
-            if current_chunk:
-                chunks.append("\n\n".join(current_chunk))
-                
-            for i, chunk in enumerate(chunks):
-                field_name = "Custom Achievements" if i == 0 else "Custom Achievements (Continued)"
-                embed.add_field(name=field_name, value=chunk, inline=False)
-        
-        if not (default_achievements or custom_achievements):
-            embed.description = "No achievements found."
+            embed.add_field(name="Custom Achievements", value="\n\n".join(custom_achievements), inline=False)
         
         await ctx.send(embed=embed)
     
@@ -5049,7 +4994,7 @@ class BountyBattle(commands.Cog):
             )
 
             available_targets = []
-            for _, (target, data) in enumerate(self.current_bosses.items(), 1):
+            for idx, (target, data) in enumerate(self.current_bosses.items(), 1):
                 if true_bounty >= 100000 and target == "Marine Fortress":
                     available_targets.append(target)
                 elif true_bounty >= 500000 and target == "Impel Down":
@@ -5076,7 +5021,7 @@ class BountyBattle(commands.Cog):
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send("❌ No raid targets available at your bounty level!")
 
-            await ctx.send(embed=embed)
+            raid_msg = await ctx.send(embed=embed)
 
             try:
                 def check(m):
@@ -5087,178 +5032,77 @@ class BountyBattle(commands.Cog):
                 selected_target = available_targets[int(target_choice.content) - 1]
                 target_data = self.current_bosses[selected_target]
 
-                # Get required number of players
-                required_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
-
-                # Create raid preparation embed
+                # Start raid preparation
                 prep_embed = discord.Embed(
                     title=f"⚔️ Raid on {selected_target}",
                     description=(
                         f"**Target:** {selected_target}\n"
                         f"**Boss:** {target_data['boss']}\n"
-                        f"**Required Crew:** {required_players} players\n\n"
-                        f"Type `enter` to join the raid! ({required_players} spots available)\n"
-                        f"Captain can type `battle` when ready!"
+                        f"**Required Crew:** {1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4} players\n\n"
+                        f"React ⚔️ to join the raid! Starting in 60 seconds..."
                     ),
                     color=discord.Color.blue()
                 )
                 prep_msg = await ctx.send(embed=prep_embed)
+                await prep_msg.add_reaction("⚔️")
 
-                # Track raiders
-                raiders = [user]  # Include raid starter
-                required_remaining = required_players - 1  # Subtract raid starter
+                # Wait for raiders to join
+                await asyncio.sleep(60)
+                
+                # Fetch fresh message
+                try:
+                    prep_msg = await ctx.channel.fetch_message(prep_msg.id)
+                    raiders = []
+                    
+                    # Get reaction and collect raiders
+                    raid_reaction = discord.utils.get(prep_msg.reactions, emoji="⚔️")
+                    if raid_reaction:
+                        async for user in raid_reaction.users():
+                            if not user.bot:
+                                raiders.append(user)
+                    
+                    logger.info(f"Found {len(raiders)} raiders")
+                    
+                except discord.NotFound:
+                    return await ctx.send("❌ Could not find the raid message. Please try again.")
+                except discord.Forbidden:
+                    return await ctx.send("❌ I don't have permission to read message reactions.")
+                except Exception as e:
+                    logger.error(f"Error processing reactions: {e}")
+                    return await ctx.send("❌ An error occurred while processing raid participants.")
 
-                # Wait for raiders
-                while len(raiders) < required_players and required_remaining > 0:
-                    def raider_check(m):
-                        return (m.content.lower() == 'enter' and m.author not in raiders and not m.author.bot) or \
-                            (m.content.lower() == 'battle' and m.author == user)
+                # Check minimum players
+                min_players = 1 if target_data['level'] == 'Easy' else 2 if target_data['level'] == 'Medium' else 3 if target_data['level'] == 'Hard' else 4
+                if len(raiders) < min_players:
+                    return await ctx.send(f"❌ Raid cancelled! Need at least {min_players} players! (Got {len(raiders)})")
 
-                    try:
-                        response = await self.bot.wait_for('message', timeout=60.0, check=raider_check)
-                        
-                        if response.content.lower() == 'battle':
-                            if len(raiders) >= required_players:
-                                break
-                            else:
-                                await ctx.send(f"❌ Need {required_remaining} more raiders before starting!")
-                                continue
-                                
-                        elif response.content.lower() == 'enter' and response.author not in raiders:
-                            # Verify raider has enough bounty
-                            raider_bounty = await self.sync_user_data(response.author)
-                            if raider_bounty is None or raider_bounty < 100000:
-                                await ctx.send(f"❌ {response.author.mention} needs at least `100,000` Berries bounty to join!")
-                                continue
-
-                            raiders.append(response.author)
-                            required_remaining -= 1
-                            
-                            # Update embed with current raiders
-                            prep_embed.description = (
-                                f"**Target:** {selected_target}\n"
-                                f"**Boss:** {target_data['boss']}\n"
-                                f"**Required Crew:** {required_players} players\n\n"
-                                f"**Current Raiders:**\n"
-                                + "\n".join([f"• {raider.display_name}" for raider in raiders])
-                                + f"\n\n{required_remaining} spots remaining!"
-                                + "\nCaptain can type `battle` when ready!"
-                            )
-                            await prep_msg.edit(embed=prep_embed)
-
-                    except asyncio.TimeoutError:
-                        return await ctx.send("❌ Not enough raiders joined in time! Raid cancelled.")
-
-                # Calculate success chance based on level and difficulty
-                base_chance = 0.0  # Initialize base chance
-                if target_data['level'] == "Easy":
-                    base_chance = 0.7
-                elif target_data['level'] == "Medium":
-                    base_chance = 0.5
-                elif target_data['level'] == "Hard":
-                    base_chance = 0.3
-                elif target_data['level'] == "Very Hard":
-                    base_chance = 0.2
-                elif target_data['level'] == "Extreme":
-                    base_chance = 0.1
+                # Calculate success chance based on level
+                base_chance = {
+                    "Easy": 0.7,
+                    "Medium": 0.5,
+                    "Hard": 0.3,
+                    "Very Hard": 0.2,
+                    "Extreme": 0.1
+                }[target_data['level']]
 
                 # Add bonuses
-                player_bonus = min(0.1 * (len(raiders) - required_players), 0.3)
-
-                # Count fruit users correctly
-                fruit_users = 0
-                for raider in raiders:
-                    devil_fruit = await self.config.member(raider).devil_fruit()
-                    if devil_fruit:
-                        fruit_users += 1
-
+                player_bonus = min(0.1 * (len(raiders) - min_players), 0.3)
+                fruit_users = sum(1 for raider in raiders if await self.config.member(raider).devil_fruit())
                 fruit_bonus = min(0.05 * fruit_users, 0.15)
 
-                # Calculate final chance
                 final_chance = min(base_chance + player_bonus + fruit_bonus, 0.9)
 
-                # Calculate base reward based on difficulty
-                if target_data['level'] == "Easy":
-                    base_reward = random.randint(50000, 100000)
-                elif target_data['level'] == "Medium":
-                    base_reward = random.randint(100000, 200000)
-                elif target_data['level'] == "Hard":
-                    base_reward = random.randint(200000, 400000)
-                elif target_data['level'] == "Very Hard":
-                    base_reward = random.randint(400000, 800000)
-                else:  # Extreme
-                    base_reward = random.randint(800000, 1600000)
-
-                # Create battle embed
-                battle_embed = discord.Embed(
-                    title=f"⚔️ Raid Battle Against {target_data['boss']}",
-                    description=(
-                        f"**Raiders:**\n"
-                        + "\n".join([f"• {raider.display_name}" for raider in raiders])
-                        + f"\n\nSuccess Chance: `{final_chance*100:.1f}%`"
-                    ),
-                    color=discord.Color.gold()
+                # Calculate base reward before determining outcome
+                base_reward = random.randint(
+                    50000 * (2 ** (len(available_targets)-1)),
+                    100000 * (2 ** (len(available_targets)-1))
                 )
-                await ctx.send(embed=battle_embed)
-
-                # Add battle animation
-                battle_messages = [
-                    f"💨 **{target_data['boss']}** prepares for battle...",
-                    f"💥 The raiders charge into combat!",
-                    "⚔️ **CLASH!** The sound of battle echoes across the seas!"
-                ]
-
-                battle_msg = await ctx.send(battle_messages[0])
-                await asyncio.sleep(2)
-
-                for message in battle_messages[1:]:
-                    await battle_msg.edit(content=message)
-                    await asyncio.sleep(2)
-
-                # Add random battle events
-                battle_events = [
-                    f"🌊 A massive wave crashes into the battlefield!",
-                    f"⚡ Lightning strikes illuminate the sky!",
-                    f"💫 {random.choice(raiders).display_name} lands a powerful blow!",
-                    f"🔥 The air itself seems to burn with fighting spirit!",
-                    f"💪 The raiders show their true strength!",
-                    f"🌪️ A storm begins to brew from the intensity!",
-                    f"🚀 Special techniques are flying everywhere!",
-                    f"💥 The ground shakes from the powerful attacks!"
-                ]
-
-                # Show 2-3 random battle events
-                for _ in range(random.randint(2, 3)):
-                    event = random.choice(battle_events)
-                    await ctx.send(content=event)
-                    await asyncio.sleep(2)
-
-                # Final dramatic pause
-                final_messages = [
-                    "💭 The dust begins to settle...",
-                    "👀 Everyone holds their breath...",
-                    "⏳ The outcome will be decided..."
-                ]
-
-                final_msg = await ctx.send(final_messages[0])
-                for message in final_messages[1:]:
-                    await asyncio.sleep(2)
-                    await final_msg.edit(content=message)
-
-                await asyncio.sleep(2)
 
                 # Determine outcome
                 success = random.random() < final_chance
 
                 if success:
                     # Give rewards to all raiders
-                    success_embed = discord.Embed(
-                        title="🎉 Raid Successful!",
-                        description=f"The raid on {selected_target} was successful!",
-                        color=discord.Color.green()
-                    )
-
-                    # Process rewards
                     for raider in raiders:
                         bounties = load_bounties()
                         raider_id = str(raider.id)
@@ -5268,6 +5112,11 @@ class BountyBattle(commands.Cog):
                             save_bounties(bounties)
                             await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
+                    success_embed = discord.Embed(
+                        title="🎉 Raid Successful!",
+                        description=f"The raid on {selected_target} was successful!",
+                        color=discord.Color.green()
+                    )
                     success_embed.add_field(
                         name="<:Beli:1237118142774247425> Rewards",
                         value=f"Each raider earned `{base_reward:,}` Berries!",
@@ -5285,12 +5134,6 @@ class BountyBattle(commands.Cog):
                     # Calculate penalties
                     penalty = int(base_reward * 0.1)  # 10% of potential reward
                     
-                    failure_embed = discord.Embed(
-                        title="❌ Raid Failed!",
-                        description=f"The raid on {selected_target} was unsuccessful!",
-                        color=discord.Color.red()
-                    )
-
                     # Apply penalties
                     for raider in raiders:
                         bounties = load_bounties()
@@ -5301,6 +5144,11 @@ class BountyBattle(commands.Cog):
                             save_bounties(bounties)
                             await self.config.member(raider).bounty.set(bounties[raider_id]["amount"])
 
+                    failure_embed = discord.Embed(
+                        title="❌ Raid Failed!",
+                        description=f"The raid on {selected_target} was unsuccessful!",
+                        color=discord.Color.red()
+                    )
                     failure_embed.add_field(
                         name="💸 Penalties",
                         value=f"Each raider lost `{penalty:,}` Berries!",
