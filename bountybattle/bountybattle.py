@@ -1989,7 +1989,7 @@ class BountyBattle(commands.Cog):
                 await ctx.send(f"❌ {member.display_name} already has the `{bounties[user_id]['fruit']}`!")
                 return False
 
-            # Check if it's a rare fruit and if it's already taken
+            # Only check for uniqueness if it's a rare fruit
             if fruit_rarity == "Rare":
                 for user_data in bounties.values():
                     if user_data.get("fruit") == fruit_name:
@@ -3387,20 +3387,19 @@ class BountyBattle(commands.Cog):
         if bounties[user_id].get("fruit"):
             return await ctx.send(f"❌ You already have the `{bounties[user_id]['fruit']}`! You can only eat one Devil Fruit!")
 
-        # Get all currently taken fruits
-        all_taken_fruits = {data.get("fruit") for data in bounties.values() if data.get("fruit")}
+        # Get all currently taken rare fruits
+        taken_rare_fruits = {
+            data.get("fruit") for data in bounties.values() 
+            if data.get("fruit") in DEVIL_FRUITS["Rare"]
+        }
 
-        # Get available rare fruits (removing taken ones)
+        # Get available rare and common fruits
         available_rare_fruits = [
             fruit for fruit in DEVIL_FRUITS["Rare"].keys() 
-            if fruit not in all_taken_fruits
+            if fruit not in taken_rare_fruits
         ]
 
-        # Get available common fruits
-        available_common_fruits = [
-            fruit for fruit in DEVIL_FRUITS["Common"].keys() 
-            if fruit not in all_taken_fruits
-        ]
+        available_common_fruits = list(DEVIL_FRUITS["Common"].keys())
 
         if not available_rare_fruits and not available_common_fruits:
             return await ctx.send("❌ There are no Devil Fruits available right now! Try again later.")
@@ -3411,8 +3410,6 @@ class BountyBattle(commands.Cog):
             fruit_data = DEVIL_FRUITS["Rare"][new_fruit]
             is_rare = True
         else:
-            if not available_common_fruits:
-                return await ctx.send("❌ No common Devil Fruits are available right now! Try again later.")
             new_fruit = random.choice(available_common_fruits)
             fruit_data = DEVIL_FRUITS["Common"][new_fruit]
             is_rare = False
