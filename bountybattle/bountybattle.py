@@ -536,99 +536,99 @@ class DevilFruitManager:
             min_damage, max_damage = move_type["base_damage_range"]
             base_damage = (min_damage + max_damage) // 2
 
-        # Mera Mera no Mi (Rare)
+        # Mera Mera no Mi (Fire)
         if effect == "fire":
-            if random.random() < 0.45:  # Reduced from 0.60 to 0.45 (45% proc rate)
-                await self.status_manager.apply_effect("burn", defender, value=2)  # Reduced from 3 to 2 burn stacks
-                bonus_damage = int(base_damage * 0.75)  # Reduced from 1.0 to 0.75 (75% damage bonus)
+            if random.random() < 0.45:  # 45% proc rate
+                await self.status_manager.apply_effect("burn", defender, value=2)
+                bonus_damage = int(base_damage * 0.75)
                 effect_message = (
                     f"🔥 **FLAME EMPEROR**! 🔥\n"
                     f"**{attacker['name']}** unleashes flames!\n"
                     f"💥 {bonus_damage} fire damage + Burn (2 stacks)"
                 )
 
-        # Goro Goro no Mi
-        elif effect == "lightning":
-            if random.random() < 0.45:  # Increased proc chance
-                await self.status_manager.apply_effect("stun", defender, duration=2)
-                bonus_damage = int(base_damage * 1.0)  # Full damage bonus
-                effect_message = (
-                    f"⚡ **THUNDER GOD**! ⚡\n"
-                    f"**{attacker['name']}** channels lightning!\n"
-                    f"💫 2-turn stun + {bonus_damage} bonus damage!"
-                )
-
-        # Moku Moku no Mi
-        elif effect == "smoke":
-            if random.random() < 0.40:  # Increased proc rate
-                await self.status_manager.apply_effect("dodge", attacker, duration=2)
-                bonus_damage = int(base_damage * 0.5)  # Added damage bonus
-                effect_message = (
-                    f"💨 **WHITE LAUNCHER**! 💨\n"
-                    f"**{attacker['name']}** becomes smoke!\n"
-                    f"✨ 2-turn evasion + {bonus_damage} bonus damage!"
-                )
-
-        # Suna Suna no Mi
-        elif effect == "sand":
-            if random.random() < 0.35:  # Increased proc rate
-                drain_amount = int(defender["hp"] * 0.25)  # Increased drain
-                defender["hp"] -= drain_amount
-                attacker["hp"] = min(250, attacker["hp"] + drain_amount)
-                bonus_damage = int(base_damage * 0.4)  # Added damage bonus
-                effect_message = (
-                    f"🏜️ **GROUND DEATH**! 🏜️\n"
-                    f"**{attacker['name']}** drains life force!\n"
-                    f"💀 Drained {drain_amount} HP + {bonus_damage} bonus damage!"
-                )
-
-        # Hie Hie no Mi
+        # Hie Hie no Mi (Ice)
         elif effect == "ice":
-            if random.random() < 0.40:  # Balanced proc rate
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("freeze", defender, duration=2)
-                bonus_damage = int(base_damage * 0.8)  # Strong damage bonus
+                bonus_damage = int(base_damage * 0.8)
                 effect_message = (
                     f"❄️ **ICE AGE**! ❄️\n"
                     f"**{attacker['name']}** freezes the battlefield!\n"
                     f"🥶 2-turn freeze + {bonus_damage} bonus damage!"
                 )
 
-        # Yami Yami no Mi
+        # Yami Yami no Mi (Darkness)
         elif effect == "darkness":
-            if random.random() < 0.50:  # High proc rate for signature fruit
+            if random.random() < 0.50:
                 absorb_amount = int(base_damage * 1.5)  
                 attacker["hp"] = min(250, attacker["hp"] + absorb_amount)
-                bonus_damage = int(base_damage * 1.0)  # Strong damage bonus
+                bonus_damage = int(base_damage * 1.0)
                 effect_message = (
                     f"🌑 **BLACK HOLE**! 🌑\n"
                     f"**{attacker['name']}** commands darkness!\n"
                     f"⚫ Absorbed {absorb_amount} HP + {bonus_damage} bonus damage!"
                 )
 
-        # Pika Pika no Mi
+        # Pika Pika no Mi (Light)
         elif effect == "light":
-            if random.random() < 0.45:  # Balanced proc rate
-                bonus_damage = int(base_damage * 1.2)  # Very high damage bonus
+            if random.random() < 0.45:
+                bonus_damage = int(base_damage * 1.2)
                 effect_message = (
                     f"✨ **SACRED YASAKANI**! ✨\n"
                     f"**{attacker['name']}** attacks at light speed!\n"
                     f"⚡ {bonus_damage} piercing damage!"
                 )
 
-        # Magu Magu no Mi
+        # Goro Goro no Mi (Lightning)
+        elif effect == "lightning":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("stun", defender, duration=2)
+                bonus_damage = int(base_damage * 1.0)
+                effect_message = (
+                    f"⚡ **THUNDER GOD**! ⚡\n"
+                    f"**{attacker['name']}** channels lightning!\n"
+                    f"💫 2-turn stun + {bonus_damage} bonus damage!"
+                )
+
+        # Magu Magu no Mi (Magma)
         elif effect == "magma":
-            if random.random() < 0.55:  # High proc rate
+            if random.random() < 0.55:
                 await self.status_manager.apply_effect("burn", defender, value=4, duration=3)
-                bonus_damage = int(base_damage * 0.9)  # Very high damage
+                bonus_damage = int(base_damage * 0.9)
                 effect_message = (
                     f"🌋 **GREAT ERUPTION**! 🌋\n"
                     f"**{attacker['name']}** unleashes magma!\n"
                     f"🔥 4-stack burn + {bonus_damage} bonus damage!"
                 )
 
-        # Mori Mori no Mi
+        # Suna Suna no Mi (Sand)
+        elif effect == "sand":
+            if random.random() < 0.35:
+                drain_amount = int(defender["hp"] * 0.25)
+                defender["hp"] -= drain_amount
+                attacker["hp"] = min(250, attacker["hp"] + drain_amount)
+                bonus_damage = int(base_damage * 0.4)
+                effect_message = (
+                    f"🏜️ **GROUND DEATH**! 🏜️\n"
+                    f"**{attacker['name']}** drains life force!\n"
+                    f"💀 Drained {drain_amount} HP + {bonus_damage} bonus damage!"
+                )
+
+        # Moku Moku no Mi (Smoke)
+        elif effect == "smoke":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("dodge", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.5)
+                effect_message = (
+                    f"💨 **WHITE LAUNCHER**! 💨\n"
+                    f"**{attacker['name']}** becomes smoke!\n"
+                    f"✨ 2-turn evasion + {bonus_damage} bonus damage!"
+                )
+
+        # Mori Mori no Mi (Forest)
         elif effect == "forest":
-            if random.random() < 0.40:  # Balanced proc rate
+            if random.random() < 0.40:
                 await self.status_manager.apply_effect("root", defender, duration=2)
                 bonus_damage = int(base_damage * 0.6)
                 effect_message = (
@@ -637,15 +637,48 @@ class DevilFruitManager:
                     f"🌿 2-turn root + {bonus_damage} bonus damage!"
                 )
 
-        # Kaze Kaze no Mi
+        # Kaze Kaze no Mi (Wind)
         elif effect == "wind":
-            if random.random() < 0.45:  # Balanced proc rate
+            if random.random() < 0.45:
                 await self.status_manager.apply_effect("dodge", attacker, duration=2)
                 bonus_damage = int(base_damage * 0.65)
                 effect_message = (
                     f"🌪️ **DIVINE WIND**! 🌪️\n"
                     f"**{attacker['name']}** harnesses the wind!\n"
                     f"💨 2-turn evasion + {bonus_damage} bonus damage!"
+                )
+
+        # Gasu Gasu no Mi (Gas)
+        elif effect == "gas":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("poison", defender, duration=3)
+                bonus_damage = int(base_damage * 0.7)
+                effect_message = (
+                    f"☠️ **POISON GAS**! ☠️\n"
+                    f"**{attacker['name']}** releases toxic gas!\n"
+                    f"💀 3-turn poison + {bonus_damage} bonus damage!"
+                )
+
+        # Yuki Yuki no Mi (Snow)
+        elif effect == "snow":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("slow", defender, duration=2)
+                bonus_damage = int(base_damage * 0.6)
+                effect_message = (
+                    f"❄️ **WHITE OUT**! ❄️\n"
+                    f"**{attacker['name']}** creates a blizzard!\n"
+                    f"🌨️ 2-turn slow + {bonus_damage} bonus damage!"
+                )
+
+        # Numa Numa no Mi (Swamp)
+        elif effect == "swamp":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("bind", defender, duration=2)
+                bonus_damage = int(base_damage * 0.55)
+                effect_message = (
+                    f"💀 **SWAMP TRAP**! 💀\n"
+                    f"**{attacker['name']}** creates a deadly swamp!\n"
+                    f"🌫️ 2-turn bind + {bonus_damage} bonus damage!"
                 )
 
         # Environment interactions with proper scaling
@@ -878,13 +911,89 @@ class DevilFruitManager:
                     f"**{attacker['name']}** builds momentum!\n"
                     f"💥 Turn {attacker['battle_turns']} power: {bonus_damage} damage!"
                 )
+        # Model Thunderbird (Tori Tori no Mi: Model Thunderbird)
+        elif "Thunderbird" in effect:
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("thunder_charge", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.3)
+                effect_message = (
+                    f"⚡ **STORM MONARCH**! ⚡\n"
+                    f"**{attacker['name']}** summons the storm!\n"
+                    f"🌩️ Lightning damage boost for 2 turns + {bonus_damage} storm damage!"
+                )
+
+        # Model Brachiosaurus (Ryu Ryu no Mi: Model Brachiosaurus)
+        elif "Brachiosaurus" in effect:
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("strength_boost", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.5)
+                effect_message = (
+                    f"🦕 **ANCIENT COLOSSUS**! 🦕\n"
+                    f"**{attacker['name']}** towers over the battlefield!\n"
+                    f"💪 Massive strength boost + {bonus_damage} crushing damage!"
+                )
+
+        # Model Pachycephalosaurus (Ryu Ryu no Mi: Model Pachycephalosaurus)
+        elif "Pachycephalosaurus" in effect:
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("stun", defender, duration=1)
+                bonus_damage = int(base_damage * 1.2)
+                effect_message = (
+                    f"🦕 **DOME CRUSHER**! 🦕\n"
+                    f"**{attacker['name']}** delivers a devastating headbutt!\n"
+                    f"💫 1-turn stun + {bonus_damage} impact damage!"
+                )
+
+        # Model Triceratops (Ryu Ryu no Mi: Model Triceratops)
+        elif "Triceratops" in effect:
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("defense_break", defender, duration=2)
+                bonus_damage = int(base_damage * 1.3)
+                effect_message = (
+                    f"🦕 **TRIPLE HORN STRIKE**! 🦕\n"
+                    f"**{attacker['name']}** charges with devastating force!\n"
+                    f"🛡️ Defense break + {bonus_damage} piercing damage!"
+                )
+
+        # Model Uma (Uma Uma no Mi)
+        elif effect == "horse":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.1)
+                effect_message = (
+                    f"🐎 **STAMPEDING CHARGE**! 🐎\n"
+                    f"**{attacker['name']}** charges at incredible speed!\n"
+                    f"💨 2-turn speed boost + {bonus_damage} trampling damage!"
+                )
+
+        # Model Kame (Kame Kame no Mi)
+        elif effect == "turtle":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("shell_defense", attacker, duration=3)
+                bonus_damage = int(base_damage * 0.7)
+                effect_message = (
+                    f"🐢 **SHELL FORTRESS**! 🐢\n"
+                    f"**{attacker['name']}** withdraws into an iron-hard shell!\n"
+                    f"🛡️ 3-turn enhanced defense + {bonus_damage} shell damage!"
+                )
+
+        # Model Hornet (Mushi Mushi no Mi: Model Hornet)
+        elif effect == "hornet":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("poison", defender, duration=3)
+                bonus_damage = int(base_damage * 0.8)
+                effect_message = (
+                    f"🐝 **VENOMOUS STRIKE**! 🐝\n"
+                    f"**{attacker['name']}** delivers a poisonous sting!\n"
+                    f"☠️ 3-turn poison + {bonus_damage} sting damage!"
+                )
 
         # Environment interactions
         if environment == "Wano" and ("Dragon" in effect or "Orochi" in effect):
             bonus_damage = int(bonus_damage * 1.3)
             if effect_message:
                 effect_message = f"{effect_message}\n⚔️ Power enhanced by Wano's legendary aura!"
-        elif environment == "Zou" and effect in ["elephant", "mammoth"]:
+        elif environment == "Zou" and ("elephant" in effect or "mammoth" in effect):
             bonus_damage = int(bonus_damage * 1.2)
             if effect_message:
                 effect_message = f"{effect_message}\n🐘 Power amplified by Zou's ancient might!"
@@ -1184,6 +1293,141 @@ class DevilFruitManager:
                     f"**{attacker['name']}** shatters the air itself!\n"
                     f"🌋 {bonus_damage} quake damage + 1-turn stun!"
                 )
+        # Zushi Zushi no Mi (Gravity)
+        elif effect == "gravity":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("stun", defender, duration=1)
+                bonus_damage = int(base_damage * 1.1)
+                effect_message = (
+                    f"🌍 **GRAVITY CRUSH**! 🌍\n"
+                    f"**{attacker['name']}** manipulates gravity!\n"
+                    f"💫 1-turn stun + {bonus_damage} crushing damage!"
+                )
+
+        # Toki Toki no Mi (Time)
+        elif effect == "time":
+            if random.random() < 0.35:
+                for move in attacker["moves_on_cooldown"]:
+                    attacker["moves_on_cooldown"][move] = max(0, attacker["moves_on_cooldown"][move] - 2)
+                bonus_damage = int(base_damage * 0.7)
+                effect_message = (
+                    f"⏰ **TIME MANIPULATION**! ⏰\n"
+                    f"**{attacker['name']}** accelerates time!\n"
+                    f"⚡ Cooldowns reduced + {bonus_damage} temporal damage!"
+                )
+
+        # Gold Gold no Mi
+        elif effect == "gold":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("defense_boost", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.2)
+                effect_message = (
+                    f"💰 **GOLDEN IMPACT**! 💰\n"
+                    f"**{attacker['name']}** creates golden weapons!\n"
+                    f"✨ 2-turn defense boost + {bonus_damage} golden damage!"
+                )
+
+        # More More no Mi
+        elif effect == "multiplication":
+            if random.random() < 0.40:
+                hits = random.randint(2, 3)
+                bonus_damage = int(base_damage * 0.6 * hits)
+                effect_message = (
+                    f"📋 **DUPLICATE STRIKE**! 📋\n"
+                    f"**{attacker['name']}** multiplies their attack!\n"
+                    f"💥 {hits} copies deal {bonus_damage} total damage!"
+                )
+
+        # Luck Luck no Mi
+        elif effect == "fortune":
+            if random.random() < 0.40:
+                crit_bonus = random.choice([1.5, 2.0, 2.5])  # Random critical multiplier
+                bonus_damage = int(base_damage * crit_bonus)
+                effect_message = (
+                    f"🍀 **FORTUNE'S FAVOR**! 🍀\n"
+                    f"**{attacker['name']}** channels their luck!\n"
+                    f"✨ {crit_bonus}x critical bonus for {bonus_damage} damage!"
+                )
+
+        # Through Through no Mi
+        elif effect == "phasing":
+            if random.random() < 0.35:
+                await self.status_manager.apply_effect("dodge", attacker, duration=3)
+                bonus_damage = int(base_damage * 0.6)
+                effect_message = (
+                    f"👻 **PHASE SHIFT**! 👻\n"
+                    f"**{attacker['name']}** becomes intangible!\n"
+                    f"💫 3-turn dodge + {bonus_damage} damage!"
+                )
+
+        # Return Return no Mi
+        elif effect == "reversal":
+            if random.random() < 0.35:
+                if defender["stats"]["damage_dealt"] > 0:
+                    bonus_damage = int(defender["stats"]["damage_dealt"] * 0.3)  # 30% of damage dealt by opponent
+                    effect_message = (
+                        f"↩️ **DAMAGE REVERSAL**! ↩️\n"
+                        f"**{attacker['name']}** returns damage!\n"
+                        f"💫 {bonus_damage} reflected damage!"
+                    )
+
+        # Soru Soru no Mi
+        elif effect == "soul manipulation":
+            if random.random() < 0.40:
+                steal_amount = int(defender["hp"] * 0.15)  # 15% HP drain
+                defender["hp"] -= steal_amount
+                attacker["hp"] = min(250, attacker["hp"] + steal_amount)
+                bonus_damage = int(base_damage * 0.7)
+                effect_message = (
+                    f"👻 **SOUL POCUS**! 👻\n"
+                    f"**{attacker['name']}** steals life force!\n"
+                    f"💀 Drained {steal_amount} HP + {bonus_damage} damage!"
+                )
+
+        # Bari Bari no Mi
+        elif effect == "barrier":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                bonus_damage = int(base_damage * 0.5)
+                effect_message = (
+                    f"🛡️ **BARRIER CRUSH**! 🛡️\n"
+                    f"**{attacker['name']}** creates an unbreakable barrier!\n"
+                    f"✨ 2-turn protection + {bonus_damage} barrier damage!"
+                )
+
+        # Doku Doku no Mi
+        elif effect == "poison":
+            if random.random() < 0.45:
+                await self.status_manager.apply_effect("poison", defender, duration=3)
+                bonus_damage = int(base_damage * 0.7)
+                effect_message = (
+                    f"☠️ **VENOM STRIKE**! ☠️\n"
+                    f"**{attacker['name']}** injects deadly poison!\n"
+                    f"💀 3-turn poison + {bonus_damage} toxic damage!"
+                )
+
+        # Kira Kira no Mi
+        elif effect == "diamond":
+            if random.random() < 0.40:
+                await self.status_manager.apply_effect("protect", attacker, duration=2)
+                bonus_damage = int(base_damage * 1.1)
+                effect_message = (
+                    f"💎 **DIAMOND BODY**! 💎\n"
+                    f"**{attacker['name']}** hardens like diamond!\n"
+                    f"✨ 2-turn protection + {bonus_damage} crystalline damage!"
+                )
+
+        # Ito Ito no Mi
+        elif effect == "string control":
+            if random.random() < 0.45:
+                hits = random.randint(2, 4)  # Multiple string attacks
+                await self.status_manager.apply_effect("bind", defender, duration=2)
+                bonus_damage = int(base_damage * 0.5 * hits)
+                effect_message = (
+                    f"🕸️ **PARASITE STRING**! 🕸️\n"
+                    f"**{attacker['name']}** controls with strings!\n"
+                    f"🎯 {hits} hits for {bonus_damage} damage + 2-turn bind!"
+                )
 
         # Environment interactions
         if environment == "Dressrosa" and effect in ["string", "toy"]:
@@ -1322,40 +1566,99 @@ class StatusEffectManager:
     """Manages all status effects in battles."""
     
     def __init__(self):
+        # Max stacks/durations for effects
         self.MAX_BURN_STACKS = 3
         self.MAX_STUN_DURATION = 2
         self.MAX_FREEZE_DURATION = 2
+        self.MAX_POISON_STACKS = 3
+        self.MAX_BIND_DURATION = 3
+        self.MAX_ROOT_DURATION = 2
+        self.MAX_SLOW_DURATION = 2
         
     async def apply_effect(self, effect_type: str, target: dict, value: int = 1, duration: int = 1):
         """Apply a status effect with proper stacking rules."""
         if "status" not in target:
             target["status"] = {}
             
+        # Original effects
         if effect_type == "burn":
-            # Burn stacks up to MAX_BURN_STACKS
             current_stacks = target["status"].get("burn", 0)
             target["status"]["burn"] = min(current_stacks + value, self.MAX_BURN_STACKS)
             return f"🔥 Burn stacks: {target['status']['burn']}"
             
         elif effect_type == "stun":
-            # Stun doesn't stack duration but refreshes
             if not target["status"].get("stun", False):
                 target["status"]["stun"] = min(duration, self.MAX_STUN_DURATION)
                 return "⚡ Stunned!"
-            return None
-            
+                
         elif effect_type == "freeze":
-            # Freeze extends duration up to MAX_FREEZE_DURATION
             current_freeze = target["status"].get("freeze", 0)
             target["status"]["freeze"] = min(current_freeze + duration, self.MAX_FREEZE_DURATION)
             return f"❄️ Frozen for {target['status']['freeze']} turns!"
             
         elif effect_type == "protect":
-            # Protection doesn't stack, just refreshes
             target["status"]["protected"] = True
             target["status"]["protect_duration"] = duration
             return "🛡️ Protected!"
+
+        # New effects for updated fruits
+        elif effect_type == "poison":
+            current_stacks = target["status"].get("poison", 0)
+            target["status"]["poison"] = min(current_stacks + value, self.MAX_POISON_STACKS)
+            return f"☠️ Poison stacks: {target['status']['poison']}"
             
+        elif effect_type == "bind":
+            target["status"]["bind"] = min(duration, self.MAX_BIND_DURATION)
+            return f"🔒 Bound for {duration} turns!"
+            
+        elif effect_type == "root":
+            target["status"]["root"] = min(duration, self.MAX_ROOT_DURATION)
+            return f"🌿 Rooted for {duration} turns!"
+            
+        elif effect_type == "slow":
+            target["status"]["slow"] = min(duration, self.MAX_SLOW_DURATION)
+            return f"🐌 Slowed for {duration} turns!"
+            
+        elif effect_type == "defense_down":
+            target["status"]["defense_down"] = duration
+            return "🛡️ Defense reduced!"
+            
+        elif effect_type == "attack_down":
+            target["status"]["attack_down"] = duration
+            return "⚔️ Attack reduced!"
+            
+        elif effect_type == "defense_boost":
+            target["status"]["defense_boost"] = duration
+            return "🛡️ Defense boosted!"
+            
+        elif effect_type == "attack_boost":
+            target["status"]["attack_boost"] = duration
+            return "⚔️ Attack boosted!"
+            
+        elif effect_type == "speed_boost":
+            target["status"]["speed_boost"] = duration
+            return "💨 Speed boosted!"
+            
+        elif effect_type == "dodge":
+            target["status"]["dodge"] = duration
+            return "👻 Dodge active!"
+            
+        elif effect_type == "elemental_boost":
+            target["status"]["elemental_boost"] = duration
+            return "✨ Elemental power boosted!"
+            
+        elif effect_type == "status_immunity":
+            target["status"]["status_immunity"] = duration
+            return "🌟 Status immunity active!"
+            
+        elif effect_type == "thunder_charge":
+            target["status"]["thunder_charge"] = duration
+            return "⚡ Thunder charged!"
+            
+        elif effect_type == "shell_defense":
+            target["status"]["shell_defense"] = duration
+            return "🐢 Shell defense active!"
+
         return None
 
     async def process_effects(self, player: dict) -> tuple[list[str], int]:
@@ -1368,29 +1671,41 @@ class StatusEffectManager:
         
         # Process burn
         if player["status"].get("burn", 0) > 0:
-            damage = 5 * player["status"]["burn"]  # 5 damage per burn stack
+            damage = 5 * player["status"]["burn"]
             total_damage += damage
             messages.append(f"🔥 Burn deals {damage} damage!")
-            player["status"]["burn"] -= 1  # Reduce burn stacks
+            player["status"]["burn"] -= 1
+
+        # Process poison
+        if player["status"].get("poison", 0) > 0:
+            damage = 8 * player["status"]["poison"]  # Poison does more damage than burn
+            total_damage += damage
+            messages.append(f"☠️ Poison deals {damage} damage!")
+            player["status"]["poison"] -= 1
             
-        # Process stun
-        if player["status"].get("stun", 0) > 0:
-            messages.append("⚡ Stunned - Skip turn!")
-            player["status"]["stun"] -= 1
-            
-        # Process freeze
-        if player["status"].get("freeze", 0) > 0:
-            messages.append("❄️ Frozen - Skip turn!")
-            player["status"]["freeze"] -= 1
-            
-        # Process protection
-        if player["status"].get("protected", False):
-            if player["status"].get("protect_duration", 0) > 0:
-                messages.append("🛡️ Protected from damage!")
-                player["status"]["protect_duration"] -= 1
-            else:
-                player["status"]["protected"] = False
-                
+        # Process status effects that prevent actions
+        for effect, message in [
+            ("stun", "⚡ Stunned - Skip turn!"),
+            ("freeze", "❄️ Frozen - Skip turn!"),
+            ("bind", "🔒 Bound - Skip turn!"),
+            ("root", "🌿 Rooted - Skip turn!")
+        ]:
+            if player["status"].get(effect, 0) > 0:
+                messages.append(message)
+                player["status"][effect] -= 1
+
+        # Process buff/debuff durations
+        for effect in [
+            "protect", "defense_down", "attack_down", "defense_boost",
+            "attack_boost", "speed_boost", "dodge", "elemental_boost",
+            "status_immunity", "thunder_charge", "shell_defense"
+        ]:
+            effect_duration = f"{effect}_duration" if effect == "protect" else effect
+            if player["status"].get(effect_duration, 0) > 0:
+                player["status"][effect_duration] -= 1
+                if player["status"][effect_duration] <= 0:
+                    player["status"][effect] = False
+
         return messages, total_damage
 
     async def calculate_damage_with_effects(self, base_damage: int, attacker: dict, defender: dict) -> tuple[int, list[str]]:
@@ -1398,15 +1713,35 @@ class StatusEffectManager:
         messages = []
         final_damage = base_damage
         
-        # Check defender's protection
+        # Defender effects
         if defender["status"].get("protected", False):
-            final_damage = int(final_damage * 0.5)  # 50% damage reduction
+            final_damage = int(final_damage * 0.5)
             messages.append("🛡️ Damage reduced by protection!")
             
-        # Apply attacker's bonuses
-        if attacker["status"].get("empowered", False):
-            final_damage = int(final_damage * 1.2)  # 20% damage boost
-            messages.append("💪 Damage boosted by empowerment!")
+        if defender["status"].get("shell_defense", False):
+            final_damage = int(final_damage * 0.6)  # 40% reduction
+            messages.append("🐢 Shell defense reduces damage!")
+            
+        if defender["status"].get("defense_down", False):
+            final_damage = int(final_damage * 1.3)  # 30% more damage taken
+            messages.append("🛡️ Reduced defense increases damage!")
+            
+        # Attacker effects
+        if attacker["status"].get("attack_boost", False):
+            final_damage = int(final_damage * 1.3)
+            messages.append("⚔️ Attack boost increases damage!")
+            
+        if attacker["status"].get("thunder_charge", False):
+            final_damage = int(final_damage * 1.25)
+            messages.append("⚡ Thunder charge amplifies damage!")
+            
+        if attacker["status"].get("elemental_boost", False):
+            final_damage = int(final_damage * 1.2)
+            messages.append("✨ Elemental boost increases damage!")
+            
+        if attacker["status"].get("attack_down", False):
+            final_damage = int(final_damage * 0.7)  # 30% less damage dealt
+            messages.append("⚔️ Attack down reduces damage!")
             
         return max(0, final_damage), messages
         
