@@ -3584,98 +3584,101 @@ class BountyBattle(commands.Cog):
         # Get available fruits
         available_fruits = [fruit for fruit in rare_fruits if fruit not in owned_fruits]
         
-        # Split into pages (5 fruits per page for better readability)
-        owned_chunks = [list(owned_fruits.items())[i:i + 5] for i in range(0, len(owned_fruits), 5)]
-        available_chunks = [available_fruits[i:i + 5] for i in range(0, len(available_fruits), 5)]
+        # Create pages - separate owners and available fruits
+        owned_embeds = []
+        available_embeds = []
         
-        # Create pages
-        embeds = []
-        total_pages = max(len(owned_chunks) if owned_chunks else 1, len(available_chunks) if available_chunks else 1)
+        # Process owned fruits (3 per page)
+        owned_chunks = [list(owned_fruits.items())[i:i + 3] for i in range(0, len(owned_fruits), 3)]
         
-        for page in range(total_pages):
+        for page, chunk in enumerate(owned_chunks):
             embed = discord.Embed(
-                title="🌟 Rare Devil Fruits",
+                title="🌟 Rare Devil Fruits - Owned",
+                description=f"Page {page + 1}/{len(owned_chunks) or 1}",
                 color=discord.Color.gold()
             )
             
-            # Add owned fruits for this page
-            if owned_chunks and page < len(owned_chunks):
-                owned_text = []
-                for fruit, data in owned_chunks[page]:
-                    owned_text.append(
-                        f"**{fruit}**\n"
+            for fruit, data in chunk:
+                embed.add_field(
+                    name=f"{fruit} ({data['type']})",
+                    value=(
                         f"👤 Owner: {data['owner']}\n"
-                        f"📜 Type: {data['type']}\n"
-                        f"✨ Power: {data['bonus']}\n"
-                    )
-                if owned_text:
-                    embed.add_field(
-                        name="🏴‍☠️ Currently Owned Rare Fruits",
-                        value="\n".join(owned_text),
-                        inline=False
-                    )
+                        f"✨ Power: {data['bonus']}"
+                    ),
+                    inline=False
+                )
             
-            # Add available fruits for this page
-            if available_chunks and page < len(available_chunks):
-                available_text = []
-                for fruit in available_chunks[page]:
-                    fruit_data = rare_fruits[fruit]
-                    available_text.append(
-                        f"**{fruit}**\n"
-                        f"📜 Type: {fruit_data['type']}\n"
-                        f"✨ Power: {fruit_data['bonus']}\n"
-                    )
-                if available_text:
-                    embed.add_field(
-                        name="✨ Available Rare Fruits",
-                        value="\n".join(available_text),
-                        inline=False
-                    )
-            
-            # Add statistics
-            embed.add_field(
-                name="📊 Statistics",
-                value=(
-                    f"Total Rare Fruits: `{len(rare_fruits)}`\n"
-                    f"Owned Fruits: `{len(owned_fruits)}`\n"
-                    f"Available Fruits: `{len(available_fruits)}`"
-                ),
-                inline=False
+            owned_embeds.append(embed)
+        
+        # Process available fruits (5 per page)
+        available_chunks = [available_fruits[i:i + 5] for i in range(0, len(available_fruits), 5)]
+        
+        for page, chunk in enumerate(available_chunks):
+            embed = discord.Embed(
+                title="🌟 Rare Devil Fruits - Available",
+                description=f"Page {page + 1}/{len(available_chunks) or 1}",
+                color=discord.Color.purple()
             )
             
-            embed.set_footer(text=f"Page {page + 1}/{total_pages}")
-            embeds.append(embed)
+            for fruit in chunk:
+                fruit_data = rare_fruits[fruit]
+                embed.add_field(
+                    name=f"{fruit} ({fruit_data['type']})",
+                    value=f"✨ Power: {fruit_data['bonus']}",
+                    inline=False
+                )
+            
+            available_embeds.append(embed)
         
-        if not embeds:
+        # Add statistics embed
+        stats_embed = discord.Embed(
+            title="🌟 Rare Devil Fruits - Statistics",
+            color=discord.Color.gold()
+        )
+        
+        stats_embed.add_field(
+            name="📊 Statistics",
+            value=(
+                f"Total Rare Fruits: `{len(rare_fruits)}`\n"
+                f"Owned Fruits: `{len(owned_fruits)}`\n"
+                f"Available Fruits: `{len(available_fruits)}`"
+            ),
+            inline=False
+        )
+        
+        # Combine all embeds
+        all_embeds = owned_embeds + available_embeds + [stats_embed]
+        
+        if not all_embeds:
             embed = discord.Embed(
                 title="🌟 Rare Devil Fruits",
-                description="No Devil Fruits found!",
+                description="No rare Devil Fruits found!",
                 color=discord.Color.gold()
             )
             return await ctx.send(embed=embed)
         
         # Send first embed
         current_page = 0
-        message = await ctx.send(embed=embeds[current_page])
+        message = await ctx.send(embed=all_embeds[current_page])
         
         # Add navigation reactions if multiple pages
-        if len(embeds) > 1:
+        if len(all_embeds) > 1:
             await message.add_reaction("⬅️")
             await message.add_reaction("➡️")
             
             def check(reaction, user):
-                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
             
             while True:
                 try:
                     reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
                     
                     if str(reaction.emoji) == "➡️":
-                        current_page = (current_page + 1) % len(embeds)
+                        current_page = (current_page + 1) % len(all_embeds)
                     elif str(reaction.emoji) == "⬅️":
-                        current_page = (current_page - 1) % len(embeds)
+                        current_page = (current_page - 1) % len(all_embeds)
                         
-                    await message.edit(embed=embeds[current_page])
+                    await message.edit(embed=all_embeds[current_page])
                     await message.remove_reaction(reaction, user)
                     
                 except asyncio.TimeoutError:
@@ -3715,69 +3718,72 @@ class BountyBattle(commands.Cog):
         # Get available fruits
         available_fruits = [fruit for fruit in common_fruits if fruit not in owned_fruits]
         
-        # Split into pages (10 fruits per page)
-        owned_chunks = [list(owned_fruits.items())[i:i + 10] for i in range(0, len(owned_fruits), 10)]
-        available_chunks = [available_fruits[i:i + 10] for i in range(0, len(available_fruits), 10)]
+        # Create pages - separate owners and available fruits across multiple pages
+        owned_embeds = []
+        available_embeds = []
         
-        # Create pages
-        embeds = []
-        total_pages = max(len(owned_chunks) if owned_chunks else 1, len(available_chunks) if available_chunks else 1)
+        # Process owned fruits (5 per page to ensure we don't exceed limits)
+        owned_chunks = [list(owned_fruits.items())[i:i + 5] for i in range(0, len(owned_fruits), 5)]
         
-        for page in range(total_pages):
+        for page, chunk in enumerate(owned_chunks):
             embed = discord.Embed(
-                title="🍎 Common Devil Fruits",
+                title="🍎 Common Devil Fruits - Owned",
+                description=f"Page {page + 1}/{len(owned_chunks)}",
                 color=discord.Color.blue()
             )
             
-            # Add owned fruits for this page
-            if owned_chunks and page < len(owned_chunks):
-                owned_text = []
-                for fruit, data in owned_chunks[page]:
-                    owned_text.append(
-                        f"**{fruit}**\n"
+            for fruit, data in chunk:
+                embed.add_field(
+                    name=f"{fruit} ({data['type']})",
+                    value=(
                         f"👤 Owner: {data['owner']}\n"
-                        f"📜 Type: {data['type']}\n"
-                        f"✨ Power: {data['bonus']}\n"
-                    )
-                if owned_text:
-                    embed.add_field(
-                        name="🏴‍☠️ Currently Owned Common Fruits",
-                        value="\n".join(owned_text),
-                        inline=False
-                    )
+                        f"✨ Power: {data['bonus']}"
+                    ),
+                    inline=False
+                )
             
-            # Add available fruits for this page
-            if available_chunks and page < len(available_chunks):
-                available_text = []
-                for fruit in available_chunks[page]:
-                    fruit_data = common_fruits[fruit]
-                    available_text.append(
-                        f"**{fruit}**\n"
-                        f"📜 Type: {fruit_data['type']}\n"
-                        f"✨ Power: {fruit_data['bonus']}\n"
-                    )
-                if available_text:
-                    embed.add_field(
-                        name="✨ Available Common Fruits",
-                        value="\n".join(available_text),
-                        inline=False
-                    )
-            
-            # Add statistics
-            embed.add_field(
-                name="📊 Statistics",
-                value=(
-                    f"Total Common Fruits: `{len(common_fruits)}`\n"
-                    f"Owned Fruits: `{len(owned_fruits)}`\n"
-                    f"Available Fruits: `{len(available_fruits)}`"
-                ),
-                inline=False
+            owned_embeds.append(embed)
+        
+        # Process available fruits (10 per page - they're shorter)
+        available_chunks = [available_fruits[i:i + 10] for i in range(0, len(available_fruits), 10)]
+        
+        for page, chunk in enumerate(available_chunks):
+            embed = discord.Embed(
+                title="🍎 Common Devil Fruits - Available",
+                description=f"Page {page + 1}/{len(available_chunks)}",
+                color=discord.Color.green()
             )
             
-            embed.set_footer(text=f"Page {page + 1}/{total_pages}")
-            embeds.append(embed)
+            for fruit in chunk:
+                fruit_data = common_fruits[fruit]
+                embed.add_field(
+                    name=f"{fruit} ({fruit_data['type']})",
+                    value=f"✨ Power: {fruit_data['bonus']}",
+                    inline=False
+                )
+            
+            available_embeds.append(embed)
         
-        if not embeds:
+        # Add statistics embed
+        stats_embed = discord.Embed(
+            title="🍎 Common Devil Fruits - Statistics",
+            color=discord.Color.gold()
+        )
+        
+        stats_embed.add_field(
+            name="📊 Statistics",
+            value=(
+                f"Total Common Fruits: `{len(common_fruits)}`\n"
+                f"Owned Fruits: `{len(owned_fruits)}`\n"
+                f"Available Fruits: `{len(available_fruits)}`"
+            ),
+            inline=False
+        )
+        
+        # Combine all embeds
+        all_embeds = owned_embeds + available_embeds + [stats_embed]
+        
+        if not all_embeds:
             embed = discord.Embed(
                 title="🍎 Common Devil Fruits",
                 description="No Devil Fruits found!",
@@ -3787,26 +3793,26 @@ class BountyBattle(commands.Cog):
         
         # Send first embed
         current_page = 0
-        message = await ctx.send(embed=embeds[current_page])
+        message = await ctx.send(embed=all_embeds[current_page])
         
         # Add navigation reactions if multiple pages
-        if len(embeds) > 1:
+        if len(all_embeds) > 1:
             await message.add_reaction("⬅️")
             await message.add_reaction("➡️")
             
             def check(reaction, user):
-                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"]
+                return user == ctx.author and str(reaction.emoji) in ["⬅️", "➡️"] and reaction.message.id == message.id
             
             while True:
                 try:
                     reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
                     
                     if str(reaction.emoji) == "➡️":
-                        current_page = (current_page + 1) % len(embeds)
+                        current_page = (current_page + 1) % len(all_embeds)
                     elif str(reaction.emoji) == "⬅️":
-                        current_page = (current_page - 1) % len(embeds)
+                        current_page = (current_page - 1) % len(all_embeds)
                         
-                    await message.edit(embed=embeds[current_page])
+                    await message.edit(embed=all_embeds[current_page])
                     await message.remove_reaction(reaction, user)
                     
                 except asyncio.TimeoutError:
