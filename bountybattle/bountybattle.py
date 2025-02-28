@@ -2385,6 +2385,47 @@ class BountyBattle(commands.Cog):
             logger.error(f"Error in validate_fruit_transfer: {e}")
             await ctx.send("❌ An error occurred while validating the fruit transfer.")
             return False
+        
+    async def check_hidden_titles(self, member):
+        """Check if a user has earned any hidden titles based on their stats."""
+        # Get user stats from config
+        stats = await self.config.member(member).all()
+        earned_hidden_titles = []
+        
+        # Check each hidden title condition
+        for title, data in HIDDEN_TITLES.items():
+            condition = data["condition"]
+            
+            # Win streak titles
+            if "Win 10 battles without losing" in condition and stats.get("win_streak", 0) >= 10:
+                earned_hidden_titles.append(title)
+                
+            # Bounty hunter title
+            if "Steal 100,000 Berries" in condition and stats.get("bounty_hunted", 0) >= 100000:
+                earned_hidden_titles.append(title)
+                
+            # Underdog title
+            if "bounty 5x higher" in condition and stats.get("underdog_wins", 0) > 0:
+                earned_hidden_titles.append(title)
+                
+            # Kingmaker title
+            if "Help an ally win" in condition and stats.get("ally_victories", 0) >= 5:
+                earned_hidden_titles.append(title)
+                
+            # Ghost title
+            if "Evade 3 attacks" in condition and stats.get("consecutive_evades", 0) >= 3:
+                earned_hidden_titles.append(title)
+                
+            # Berserker title  
+            if "Deal 100 damage" in condition and stats.get("highest_damage", 0) >= 100:
+                earned_hidden_titles.append(title)
+                
+            # Marine Slayer title
+            if "Marine-themed titles" in condition and stats.get("marine_defeats", 0) >= 5:
+                earned_hidden_titles.append(title)
+        
+        return earned_hidden_titles
+
     # ------------------ Bounty System ------------------
 
     @commands.command()
@@ -4784,6 +4825,7 @@ class BountyBattle(commands.Cog):
         titles_qualified.sort(key=lambda x: x[1], reverse=True)
         return titles_qualified[0][0]
 
+    
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
     async def getdata(self, ctx):
@@ -6977,21 +7019,55 @@ class BountyBattle(commands.Cog):
         if true_bounty is None:
             return await ctx.send("❌ An error occurred while checking titles.")
 
-        # Get all titles based on synced bounty
-        unlocked_titles = {t for t, c in TITLES.items() if true_bounty >= c["bounty"]}
-        user_titles = await self.config.member(user).titles()
-        unlocked_titles.update(user_titles)
+        # Get all titles based on bounty level
+        bounty_titles = []
+        for t, req in TITLES.items():
+            if true_bounty >= req["bounty"]:
+                bounty_titles.append(t)
+                
+        # Get achievement/special titles
+        custom_titles = await self.config.member(user).titles()
+        
+        # Check for hidden titles
+        hidden_titles = await self.check_hidden_titles(user)
+        
+        # Combine all titles
+        all_titles = sorted(set(bounty_titles + custom_titles + hidden_titles))
         current_title = await self.config.member(user).current_title()
 
         if action == "equip" and title:
-            if title not in unlocked_titles:
-                return await ctx.send(f"❌ You haven't unlocked the title `{title}` yet!")
-            await self.config.member(user).current_title.set(title)
-            return await ctx.send(f"✅ Title equipped: `{title}`")
+            # Call equiptitle command for consistent behavior
+            await ctx.invoke(self.equiptitle, title=title)
+            return
 
         embed = discord.Embed(title=f"🏆 {user.display_name}'s Titles", color=discord.Color.gold())
-        embed.add_field(name="Unlocked Titles", value="\n".join(unlocked_titles) or "None", inline=False)
-        embed.add_field(name="Current Title", value=current_title or "None", inline=False)
+        
+        if all_titles:
+            embed.add_field(
+                name="Unlocked Titles", 
+                value="\n".join(f"• {t}" for t in all_titles) or "None", 
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="Unlocked Titles", 
+                value="None yet! Increase your bounty to unlock titles.", 
+                inline=False
+            )
+            
+        embed.add_field(
+            name="Current Title", 
+            value=f"`{current_title}`" if current_title else "None equipped", 
+            inline=False
+        )
+        
+        # Add instructions
+        embed.add_field(
+            name="How to Equip", 
+            value="Use `.equiptitle \"Title Name\"` to equip a title", 
+            inline=False
+        )
+        
         await ctx.send(embed=embed)
         
     @commands.command(name="equiptitle")
@@ -7004,12 +7080,13 @@ class BountyBattle(commands.Cog):
         if true_bounty is None:
             return await ctx.send("❌ An error occurred while checking titles.")
 
-        # Get all available titles (both bounty-based and achievement-based)
+        # Get all available titles (bounty-based, achievement-based, and hidden)
         bounty_titles = {t for t, c in TITLES.items() if true_bounty >= c["bounty"]}
         custom_titles = await self.config.member(user).titles()
+        hidden_titles = await self.check_hidden_titles(user)
         
         # Combine all available titles
-        all_available_titles = list(bounty_titles) + custom_titles
+        all_available_titles = list(bounty_titles) + custom_titles + hidden_titles
         
         # Normalize input title and available titles for comparison
         title_lower = title.lower().strip()
@@ -7046,7 +7123,7 @@ class BountyBattle(commands.Cog):
                 color=discord.Color.gold()
             )
             for i, t in enumerate(partial_matches[:10], 1):  # Limit to first 10 to avoid too large embeds
-                embed.add_field(name=f"{i}. {t}", value="Use `.equiptitle \"{t}\"` to equip", inline=False)
+                embed.add_field(name=f"{i}. {t}", value=f"Use `.equiptitle \"{t}\"` to equip", inline=False)
             
             await ctx.send(embed=embed)
             
@@ -7124,6 +7201,7 @@ class BountyBattle(commands.Cog):
                 bounty_titles.append((title, req["bounty"]))
                 
         custom_titles = await self.config.member(member).titles()
+        hidden_titles = await self.check_hidden_titles(member)
         current_title = await self.config.member(member).current_title()
         
         # Create detailed debug embed
@@ -7147,6 +7225,13 @@ class BountyBattle(commands.Cog):
             inline=False
         )
         
+        # Show hidden titles
+        embed.add_field(
+            name="Hidden Titles",
+            value="\n".join([f"• {title}" for title in hidden_titles]) or "None",
+            inline=False
+        )
+        
         # Show current equipped title
         embed.add_field(
             name="Current Title",
@@ -7161,6 +7246,15 @@ class BountyBattle(commands.Cog):
             value=f"`{computed_title}`",
             inline=False
         )
+        
+        # Show all available titles
+        all_titles = bounty_titles + [(t, "achievement") for t in custom_titles] + [(t, "hidden") for t in hidden_titles]
+        if all_titles:
+            embed.add_field(
+                name="All Available Titles",
+                value="\n".join([f"• {title}" for title, _ in all_titles]),
+                inline=False
+            )
         
         await ctx.send(embed=embed)
     
