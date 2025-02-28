@@ -4763,33 +4763,26 @@ class BountyBattle(commands.Cog):
             await channel.send(f"🎉 Congratulations to {user.mention} for reaching the rank of **{title}** with a bounty of {user.display_name}'s bounty!")
 
     def get_bounty_title(self, bounty_amount):
-        """Get the bounty title based on the bounty amount."""
+        """Get the bounty title based on the bounty amount.
+        Returns the highest title the user has qualified for."""
+        if bounty_amount is None or bounty_amount <= 0:
+            return "Unknown Pirate"
+            
         # Define titles and their required bounties
-        titles = {
-            "Small-time Pirate": {"bounty": 10_000},
-            "Rookie Pirate": {"bounty": 50_000},
-            "Super Rookie": {"bounty": 100_000},
-            "Notorious Pirate": {"bounty": 200_000},
-            "Supernova": {"bounty": 300_000},
-            "Rising Star": {"bounty": 400_000},
-            "Infamous Pirate": {"bounty": 500_000},
-            "Feared Pirate": {"bounty": 600_000},
-            "Pirate Captain": {"bounty": 700_000},
-            "Pirate Lord": {"bounty": 800_000},
-            "Pirate Emperor": {"bounty": 900_000},
-            "Yonko Candidate": {"bounty": 1_000_000},
-            "Pirate King Candidate": {"bounty": 1_500_000_000},
-            "Emperor of the Sea (Yonko)": {"bounty": 2_000_000_000},
-            "King of the Pirates": {"bounty": 5_000_000_000},
-        }
+        titles_qualified = []
         
-        # Find the highest title the bounty qualifies for
-        current_title = "Unknown Pirate"
-        for title, requirements in titles.items():
-            if bounty_amount >= requirements["bounty"]:
-                current_title = title
-                
-        return current_title
+        for title, requirements in TITLES.items():
+            required_bounty = requirements["bounty"]
+            if bounty_amount >= required_bounty:
+                titles_qualified.append((title, required_bounty))
+        
+        # If no titles are qualified
+        if not titles_qualified:
+            return "Unknown Pirate"
+            
+        # Sort by required bounty (descending) and return the highest one
+        titles_qualified.sort(key=lambda x: x[1], reverse=True)
+        return titles_qualified[0][0]
 
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
