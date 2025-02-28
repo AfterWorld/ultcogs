@@ -7004,17 +7004,58 @@ class BountyBattle(commands.Cog):
     @commands.command(name="equiptitle")
     async def equiptitle(self, ctx: commands.Context, *, title: str):
         """Equip a title for yourself."""
-        titles = await self.config.member(ctx.author).titles()
-        title_lower = title.lower()
-        matched_title = next((t for t in titles if t.lower() == title_lower), None)
+        user = ctx.author
         
-        if not matched_title:
-            await ctx.send(f"❌ You have not unlocked the title `{title}`.")
-            return
+        # Sync data first
+        true_bounty = await self.sync_user_data(user)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking titles.")
 
-        # ✅ Save the equipped title as `current_title`
-        await self.config.member(ctx.author).current_title.set(matched_title)
-        await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
+        # Get all available titles (both bounty-based and achievement-based)
+        bounty_titles = {t for t, c in TITLES.items() if true_bounty >= c["bounty"]}
+        custom_titles = await self.config.member(user).titles()
+        
+        # Combine all available titles
+        all_available_titles = list(bounty_titles) + custom_titles
+        
+        # Normalize input title and available titles for comparison
+        title_lower = title.lower().strip()
+        
+        # Try exact match first
+        exact_match = next((t for t in all_available_titles if t.lower() == title_lower), None)
+        if exact_match:
+            await self.config.member(user).current_title.set(exact_match)
+            return await ctx.send(f"✅ You have equipped the title `{exact_match}`!")
+        
+        # Try partial match if exact match fails
+        partial_matches = [t for t in all_available_titles if title_lower in t.lower()]
+        
+        if not partial_matches:
+            # Try to find the closest match for better feedback
+            if all_available_titles:
+                closest = difflib.get_close_matches(title, all_available_titles, n=1)
+                suggestion = f" Did you mean `{closest[0]}`?" if closest else ""
+                await ctx.send(f"❌ You have not unlocked the title `{title}`.{suggestion}")
+            else:
+                await ctx.send(f"❌ You have not unlocked any titles yet. Increase your bounty to unlock titles!")
+            return
+        
+        if len(partial_matches) == 1:
+            # Single partial match found
+            matched_title = partial_matches[0]
+            await self.config.member(user).current_title.set(matched_title)
+            return await ctx.send(f"✅ You have equipped the title `{matched_title}`!")
+        else:
+            # Multiple matches found - ask user to be more specific
+            embed = discord.Embed(
+                title="🎖️ Multiple Matching Titles Found",
+                description="Please be more specific. Did you mean one of these?",
+                color=discord.Color.gold()
+            )
+            for i, t in enumerate(partial_matches[:10], 1):  # Limit to first 10 to avoid too large embeds
+                embed.add_field(name=f"{i}. {t}", value="Use `.equiptitle \"{t}\"` to equip", inline=False)
+            
+            await ctx.send(embed=embed)
 
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
