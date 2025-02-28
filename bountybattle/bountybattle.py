@@ -7056,7 +7056,121 @@ class BountyBattle(commands.Cog):
                 embed.add_field(name=f"{i}. {t}", value="Use `.equiptitle \"{t}\"` to equip", inline=False)
             
             await ctx.send(embed=embed)
+            
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)
+    async def granttitle(self, ctx, member: discord.Member, *, title: str):
+        """Grant a title to a user (Admin/Owner only)."""
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+        
+        # Ensure the user has a bounty entry
+        await self.sync_user_data(member)
+        
+        # Get current titles
+        current_titles = await self.config.member(member).titles()
+        
+        # Check if they already have this title
+        if title in current_titles:
+            return await ctx.send(f"⚠️ {member.display_name} already has the title `{title}`!")
+        
+        # Add the new title
+        current_titles.append(title)
+        await self.config.member(member).titles.set(current_titles)
+        
+        # Create response embed
+        embed = discord.Embed(
+            title="🏆 Title Granted",
+            description=f"Granted the title `{title}` to **{member.display_name}**!",
+            color=discord.Color.green()
+        )
+        
+        embed.add_field(
+            name="All Titles",
+            value="\n".join([f"• {t}" for t in current_titles]),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+        
+        # DM the user
+        try:
+            user_embed = discord.Embed(
+                title="🎖️ New Title Awarded!",
+                description=f"You have been granted the title `{title}`!",
+                color=discord.Color.gold()
+            )
+            user_embed.add_field(
+                name="How to Equip",
+                value=f"Use `.equiptitle \"{title}\"` to equip your new title!",
+                inline=False
+            )
+            await member.send(embed=user_embed)
+        except discord.Forbidden:
+            # User might have DMs disabled
+            pass
 
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)
+    async def debugtitles(self, ctx, member: discord.Member = None):
+        """Debug a user's titles (Admin/Owner only)."""
+        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ You need administrator permissions to use this command!")
+        
+        member = member or ctx.author
+        
+        # Sync data first
+        true_bounty = await self.sync_user_data(member)
+        if true_bounty is None:
+            return await ctx.send("❌ An error occurred while checking titles.")
+        
+        # Get all possible titles from all sources
+        bounty_titles = []
+        for title, req in TITLES.items():
+            if true_bounty >= req["bounty"]:
+                bounty_titles.append((title, req["bounty"]))
+                
+        custom_titles = await self.config.member(member).titles()
+        current_title = await self.config.member(member).current_title()
+        
+        # Create detailed debug embed
+        embed = discord.Embed(
+            title=f"🔍 Title Debug for {member.display_name}",
+            description=f"Current Bounty: `{true_bounty:,}` Berries",
+            color=discord.Color.blue()
+        )
+        
+        # Show all bounty-based titles with their requirements
+        embed.add_field(
+            name="Bounty-Based Titles",
+            value="\n".join([f"• {title} (Req: {req:,})" for title, req in bounty_titles]) or "None",
+            inline=False
+        )
+        
+        # Show achievement/custom titles
+        embed.add_field(
+            name="Achievement Titles",
+            value="\n".join([f"• {title}" for title in custom_titles]) or "None",
+            inline=False
+        )
+        
+        # Show current equipped title
+        embed.add_field(
+            name="Current Title",
+            value=f"`{current_title}`" if current_title else "None equipped",
+            inline=False
+        )
+        
+        # Show title from get_bounty_title function
+        computed_title = self.get_bounty_title(true_bounty)
+        embed.add_field(
+            name="Computed Default Title",
+            value=f"`{computed_title}`",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+    
     @commands.command()
     async def deathstats(self, ctx, member: discord.Member = None):
         """Check a player's deathmatch stats."""
