@@ -6153,42 +6153,66 @@ class BountyBattle(commands.Cog):
     def generate_fight_card(self, user1, user2):
         """
         Generates a dynamic fight card image with avatars and usernames.
+        Uses asyncio-friendly approach for image processing.
         """
         TEMPLATE_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/deathbattle.png"
         FONT_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/BountyBattle/onepiece.ttf"
-    
+
         # Open the local template image
-        template = Image.open(TEMPLATE_PATH)
-        draw = ImageDraw.Draw(template)
-    
+        try:
+            template = Image.open(TEMPLATE_PATH)
+            draw = ImageDraw.Draw(template)
+        except (FileNotFoundError, IOError):
+            self.log.error(f"Template image not found at {TEMPLATE_PATH}")
+            # Create a fallback blank image
+            template = Image.new('RGBA', (650, 500), color=(255, 255, 255, 255))
+            draw = ImageDraw.Draw(template)
+            draw.text((50, 200), "Fight Card Template Missing", fill="black")
+
         # Load font
         try:
             username_font = ImageFont.truetype(FONT_PATH, 25)
-        except OSError:
-            raise FileNotFoundError(f"Font file not found at {FONT_PATH}")
-    
+        except (OSError, IOError):
+            self.log.warning(f"Font file not found at {FONT_PATH}, using default")
+            username_font = ImageFont.load_default()
+
         # Avatar dimensions and positions
         avatar_size = (250, 260)  # Adjust as needed
         avatar_positions = [(15, 130), (358, 130)]  # Positions for avatars
         username_positions = [(75, 410), (430, 410)]  # Positions for usernames
-    
+
         # Fetch and paste avatars
         for i, user in enumerate((user1, user2)):
-            avatar_response = requests.get(user.display_avatar.url)
-            avatar = Image.open(io.BytesIO(avatar_response.content)).convert("RGBA")
-            avatar = avatar.resize(avatar_size)
-    
-            # Paste avatar onto the template
-            template.paste(avatar, avatar_positions[i], avatar)
-    
-            # Draw username
-            draw.text(username_positions[i], user.display_name, font=username_font, fill="black")
-    
+            try:
+                # Use a more efficient, direct approach to fetch avatars
+                avatar_url = user.display_avatar.url
+                
+                # Use requests with a timeout
+                avatar_response = requests.get(avatar_url, timeout=2)
+                avatar = Image.open(io.BytesIO(avatar_response.content)).convert("RGBA")
+                avatar = avatar.resize(avatar_size)
+                
+                # Paste avatar onto the template
+                template.paste(avatar, avatar_positions[i], avatar)
+                
+                # Draw username
+                username = user.display_name[:20]  # Limit username length
+                draw.text(username_positions[i], username, font=username_font, fill="black")
+            except Exception as e:
+                self.log.error(f"Error processing avatar for {user.display_name}: {e}")
+                # Add a placeholder text instead
+                draw.rectangle([avatar_positions[i], 
+                            (avatar_positions[i][0] + avatar_size[0], 
+                            avatar_positions[i][1] + avatar_size[1])], 
+                            outline="black", fill="gray")
+                draw.text((avatar_positions[i][0] + 50, avatar_positions[i][1] + 130), 
+                        "Avatar Error", fill="black")
+
         # Save the image to a BytesIO object
         output = io.BytesIO()
-        template.save(output, format="PNG")
+        template.save(output, format="PNG", optimize=True)
         output.seek(0)
-    
+
         return output
 
     async def apply_effects(self, move: dict, attacker: dict, defender: dict):
@@ -6355,75 +6379,90 @@ class BountyBattle(commands.Cog):
         Start a One Piece deathmatch against another user with a bounty.
         """
         try:
-            # Sync data for the challenger
-            user_bounty = await self.sync_user_data(ctx.author)
-            
-            # If no opponent is provided, choose a random bounty holder
-            if opponent is None:
-                # Use sync_user_data to get accurate bounties for all members
-                valid_opponents = []
-                all_members = await self.config.all_members(ctx.guild)
-                
-                for member_id, data in all_members.items():
-                    try:
-                        member = ctx.guild.get_member(int(member_id))
-                        if member and member != ctx.author and not member.bot:
-                            # Sync each potential opponent's bounty
-                            opponent_bounty = await self.sync_user_data(member)
-                            
-                            if opponent_bounty and opponent_bounty > 0:
-                                valid_opponents.append(member)
-                    except Exception as e:
-                        logger.error(f"Error checking opponent bounty: {e}")
-                        continue
-
-                if not valid_opponents:
-                    return await ctx.send("❌ **There are no valid users with a bounty to challenge!**")
-
-                opponent = random.choice(valid_opponents)
-            
-            # Verify opponent exists and is valid
-            if not opponent:
-                return await ctx.send("❌ Could not find a valid opponent!")
-            
-            if opponent.bot:
-                return await ctx.send("❌ You cannot challenge a bot to a deathmatch!")
-                
-            if opponent == ctx.author:
-                return await ctx.send("❌ You cannot challenge yourself to a deathmatch!")
-
-            # Sync opponent's bounty
-            opponent_bounty = await self.sync_user_data(opponent)
-            
-            # Ensure both users have a valid bounty
-            if user_bounty <= 0:
-                return await ctx.send(f"❌ **{ctx.author.display_name}** needs to start their bounty journey first by typing `.startbounty`!")
-
-            if opponent_bounty <= 0:
-                return await ctx.send(f"❌ **{opponent.display_name}** does not have a bounty to challenge!")
-            
-            # Check if a battle is already in progress
+            # Quick check if battle is already in progress
             if ctx.channel.id in self.active_channels:
                 return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
 
-            # Mark the channel as active
+            # Mark the channel as active immediately
             self.active_channels.add(ctx.channel.id)
 
+            # Send an initial message to provide immediate feedback
+            loading_msg = await ctx.send("⚔️ **Preparing for battle...**")
+
             try:
-                # Generate fight card
-                fight_card = self.generate_fight_card(ctx.author, opponent)
+                # Sync data for the challenger in the background
+                user_bounty = await self.sync_user_data(ctx.author)
+                
+                # If no opponent is provided, choose a random bounty holder
+                if opponent is None:
+                    await loading_msg.edit(content="🔍 **Finding a worthy opponent...**")
+                    
+                    # Use more efficient approach to finding opponents
+                    valid_opponents = []
+                    all_members = await self.config.all_members(ctx.guild)
+                    
+                    # Limit potential opponents to 20 to avoid checking too many
+                    for member_id, data in list(all_members.items())[:20]:
+                        try:
+                            if int(member_id) == ctx.author.id or data.get("bounty", 0) <= 0:
+                                continue
+                                
+                            member = ctx.guild.get_member(int(member_id))
+                            if member and not member.bot:
+                                valid_opponents.append(member)
+                        except Exception:
+                            continue
 
-                # Send the dynamically generated fight card image
+                    if not valid_opponents:
+                        self.active_channels.remove(ctx.channel.id)
+                        await loading_msg.edit(content="❌ **There are no valid users with a bounty to challenge!**")
+                        return
+
+                    opponent = random.choice(valid_opponents)
+                    opponent_bounty = await self.sync_user_data(opponent)
+                else:
+                    # Verify opponent exists and is valid
+                    if opponent.bot:
+                        self.active_channels.remove(ctx.channel.id)
+                        await loading_msg.edit(content="❌ You cannot challenge a bot to a deathmatch!")
+                        return
+                        
+                    if opponent == ctx.author:
+                        self.active_channels.remove(ctx.channel.id)
+                        await loading_msg.edit(content="❌ You cannot challenge yourself to a deathmatch!")
+                        return
+                        
+                    # Sync opponent's bounty
+                    opponent_bounty = await self.sync_user_data(opponent)
+                
+                # Ensure both users have a valid bounty (after we have the data)
+                if user_bounty <= 0:
+                    self.active_channels.remove(ctx.channel.id)
+                    await loading_msg.edit(content=f"❌ **{ctx.author.display_name}** needs to start their bounty journey first by typing `.startbounty`!")
+                    return
+
+                if opponent_bounty <= 0:
+                    self.active_channels.remove(ctx.channel.id)
+                    await loading_msg.edit(content=f"❌ **{opponent.display_name}** does not have a bounty to challenge!")
+                    return
+                
+                # Delete the loading message before proceeding
+                await loading_msg.delete()
+                
+                # Generate fight card in the background
+                fight_card = await ctx.bot.loop.run_in_executor(
+                    None, self.generate_fight_card, ctx.author, opponent
+                )
+                
+                # Send the fight card and start the battle
                 await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
-
-                # Call the fight function
                 await self.fight(ctx, ctx.author, opponent)
                 
             except Exception as e:
                 await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
                 self.log.error(f"Battle error: {str(e)}")
             finally:
-                # Always attempt to remove the channel ID
+                # Always clean up
                 if ctx.channel.id in self.active_channels:
                     self.active_channels.remove(ctx.channel.id)
 
@@ -6918,21 +6957,35 @@ class BountyBattle(commands.Cog):
         """Show the top 10 players by wins."""
         all_members = await self.config.all_members(ctx.guild)
         
-        # Sort by Wins
-        sorted_by_wins = sorted(all_members.items(), key=lambda x: x[1]["wins"], reverse=True)
+        # Filter out members with 0 wins and sort by wins
+        valid_members = []
+        for member_id, data in all_members.items():
+            wins = data.get("wins", 0)
+            if wins > 0:
+                member = ctx.guild.get_member(int(member_id))
+                if member:
+                    valid_members.append((member, wins, data.get("losses", 0)))
+        
+        # Sort by wins in descending order
+        sorted_by_wins = sorted(valid_members, key=lambda x: x[1], reverse=True)
+        
+        if not sorted_by_wins:
+            return await ctx.send("No players with wins found!")
         
         embed = discord.Embed(
             title="🏆 Top 10 Players by Wins 🏆",
             color=0xFFD700,
         )
-        for i, (member_id, data) in enumerate(sorted_by_wins[:10], start=1):
-            member = ctx.guild.get_member(member_id)
-            if member:
-                embed.add_field(
-                    name=f"{i}. {member.display_name}",
-                    value=f"Wins: {data['wins']}\nLosses: {data['losses']}",
-                    inline=False,
-                )
+        
+        # Use explicit loop with proper indexing
+        for i in range(min(10, len(sorted_by_wins))):
+            member, wins, losses = sorted_by_wins[i]
+            # Use i+1 to ensure we start at 1, not 0
+            embed.add_field(
+                name=f"{i+1}. {member.display_name}",
+                value=f"Wins: {wins}\nLosses: {losses}",
+                inline=False,
+            )
         
         await ctx.send(embed=embed)
 
@@ -6940,27 +6993,37 @@ class BountyBattle(commands.Cog):
     async def deathboard_kdr(self, ctx: commands.Context):
         """Show the top 10 players by Kill/Death Ratio (KDR)."""
         all_members = await self.config.all_members(ctx.guild)
-    
-        # Calculate KDR
+        
+        # Calculate KDR for players with battles
         kdr_list = []
         for member_id, data in all_members.items():
-            wins = data["wins"]
-            losses = data["losses"]
-            kdr = wins / losses if losses > 0 else wins  # Avoid division by zero
-            member = ctx.guild.get_member(member_id)
-            if member:
-                kdr_list.append((member, kdr, wins, losses))
+            wins = data.get("wins", 0)
+            losses = data.get("losses", 0)
+            
+            # Only include players who have participated in battles
+            if wins > 0 or losses > 0:
+                kdr = wins / losses if losses > 0 else wins  # Avoid division by zero
+                member = ctx.guild.get_member(int(member_id))
+                if member:
+                    kdr_list.append((member, kdr, wins, losses))
         
         # Sort by KDR
         sorted_by_kdr = sorted(kdr_list, key=lambda x: x[1], reverse=True)
+        
+        if not sorted_by_kdr:
+            return await ctx.send("No players with KDR found!")
         
         embed = discord.Embed(
             title="🏅 Top 10 Players by KDR 🏅",
             color=0x00FF00,
         )
-        for i, (member, kdr, wins, losses) in enumerate(sorted_by_kdr[:10], start=1):
+        
+        # Use explicit loop with proper indexing
+        for i in range(min(10, len(sorted_by_kdr))):
+            member, kdr, wins, losses = sorted_by_kdr[i]
+            # Use i+1 to ensure we start at 1, not 0
             embed.add_field(
-                name=f"{i}. {member.display_name}",
+                name=f"{i+1}. {member.display_name}",
                 value=f"KDR: {kdr:.2f}\nWins: {wins}\nLosses: {losses}",
                 inline=False,
             )
