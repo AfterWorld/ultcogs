@@ -3880,11 +3880,135 @@ class BountyBattle(commands.Cog):
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
     async def fruitcleanup(self, ctx, days: int = 30):
-        """Clean up Devil Fruits from inactive players (Admin/Owner only)."""
+        """Clean up Devil Fruits from inactive players and users who left the server (Admin/Owner only)."""
         if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
             return await ctx.send("❌ You need administrator permissions to use this command!")
+                
+        try:
+            current_time = datetime.utcnow()
+            bounties = load_bounties()
+            cleaned_fruits = []
+            left_server_fruits = []
             
-        await self.cleanup_inactive_fruits(ctx, days)
+            # Step 1: Process inactive users in the server
+            for user_id, data in list(bounties.items()):
+                # Skip if no fruit
+                if not data.get("fruit"):
+                    continue
+
+                try:
+                    # Check if user is still in server
+                    member = ctx.guild.get_member(int(user_id))
+                    if not member:
+                        # User left server, clean up their fruit
+                        fruit_name = data["fruit"]
+                        bounties[user_id]["fruit"] = None
+                        left_server_fruits.append((user_id, fruit_name))
+                        continue
+                        
+                    # User is in server, check if inactive
+                    last_active = await self.config.member(member).last_active()
+                    if not last_active:
+                        continue
+
+                    last_active_date = datetime.fromisoformat(last_active)
+                    days_since_active = (current_time - last_active_date).days
+
+                    # Remove fruit if inactive for specified period
+                    if days_since_active >= days:
+                        fruit_name = data["fruit"]
+                        bounties[user_id]["fruit"] = None
+                        await self.config.member(member).devil_fruit.set(None)
+                        cleaned_fruits.append((member.display_name, fruit_name))
+
+                except (ValueError, AttributeError) as e:
+                    self.log.error(f"Error processing user {user_id}: {e}")
+                    continue
+
+            # Save changes
+            save_bounties(bounties)
+
+            # Create report embed
+            embed = discord.Embed(
+                title="<:MeraMera:1336888578705330318> Devil Fruit Cleanup Report",
+                description="Results of the cleanup operation:",
+                color=discord.Color.blue()
+            )
+            
+            # Add section for inactive users
+            if cleaned_fruits:
+                embed.add_field(
+                    name=f"🕒 Removed from {len(cleaned_fruits)} inactive players",
+                    value="\n".join([f"**{name}**: `{fruit}`" for name, fruit in cleaned_fruits[:10]]) + 
+                        (f"\n*...and {len(cleaned_fruits) - 10} more*" if len(cleaned_fruits) > 10 else ""),
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="🕒 Inactive Players",
+                    value="No inactive Devil Fruit users found!",
+                    inline=False
+                )
+                
+            # Add section for users who left the server
+            if left_server_fruits:
+                embed.add_field(
+                    name=f"👋 Removed from {len(left_server_fruits)} users who left the server",
+                    value="\n".join([f"**ID {user_id}**: `{fruit}`" for user_id, fruit in left_server_fruits[:10]]) +
+                        (f"\n*...and {len(left_server_fruits) - 10} more*" if len(left_server_fruits) > 10 else ""),
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="👋 Left Server Users",
+                    value="No Devil Fruit users have left the server!",
+                    inline=False
+                )
+                
+            # Add summary
+            total_cleaned = len(cleaned_fruits) + len(left_server_fruits)
+            if total_cleaned > 0:
+                embed.add_field(
+                    name="📊 Summary",
+                    value=f"**{total_cleaned}** Devil Fruits have been returned to circulation!",
+                    inline=False
+                )
+                
+                # Check for rare fruits that were reclaimed
+                rare_fruits = [fruit for _, fruit in cleaned_fruits + left_server_fruits 
+                            if fruit in DEVIL_FRUITS.get("Rare", {})]
+                if rare_fruits:
+                    embed.add_field(
+                        name="🌟 Rare Fruits Reclaimed",
+                        value="\n".join([f"`{fruit}`" for fruit in rare_fruits]),
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+            
+            # Send announcements for rare fruits
+            for _, fruit in cleaned_fruits + left_server_fruits:
+                if fruit in DEVIL_FRUITS.get("Rare", {}):
+                    announcement_embed = discord.Embed(
+                        title="🌟 Rare Devil Fruit Available!",
+                        description=(
+                            f"The `{fruit}` has returned to circulation!\n"
+                            f"Previous owner is no longer using it."
+                        ),
+                        color=discord.Color.gold()
+                    )
+                    
+                    # Try to send to a designated channel if it exists
+                    announcement_channel = discord.utils.get(ctx.guild.text_channels, name="fruit-announcements") or \
+                                        discord.utils.get(ctx.guild.text_channels, name="announcements") or \
+                                        discord.utils.get(ctx.guild.text_channels, name="general")
+                    
+                    if announcement_channel and announcement_channel != ctx.channel:
+                        await announcement_channel.send(embed=announcement_embed)
+
+        except Exception as e:
+            self.log.error(f"Error in cleanup_inactive_fruits: {e}")
+            await ctx.send("❌ An error occurred during fruit cleanup.")
     
     @commands.command()
     async def mostwanted(self, ctx):
