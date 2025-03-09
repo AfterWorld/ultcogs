@@ -621,8 +621,8 @@ class CrewTournament(commands.Cog):
             "created_at": ctx.message.created_at.isoformat()
         }
         
-        # Give roles to captain
-        await captain.add_roles(captain_role, crew_role)
+        # Give only captain role to captain (not member role)
+        await captain.add_roles(captain_role)
         
         # Update nickname with truncation
         try:
