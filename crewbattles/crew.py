@@ -24,17 +24,17 @@ class CrewButton(discord.ui.Button):
         if not crew:
             await interaction.response.send_message("❌ This crew no longer exists.", ephemeral=True)
             return
-
+    
         if member.id in crew["members"]:
             await interaction.response.send_message("❌ You are already in this crew.", ephemeral=True)
             return
-
+    
         # Check if already in another crew
         for other_name, other_crew in self.cog.crews.get(guild_id, {}).items():
             if member.id in other_crew["members"]:
                 await interaction.response.send_message("❌ You cannot switch crews once you join one.", ephemeral=True)
                 return
-
+    
         # Add to crew
         crew["members"].append(member.id)
         
@@ -48,12 +48,13 @@ class CrewButton(discord.ui.Button):
                 await self.cog.save_crews(interaction.guild)
                 return
         
-        # Update nickname
+        # Update nickname with truncation
         try:
             original_nick = member.display_name
             # Make sure we don't add the emoji twice
             if not original_nick.startswith(self.crew_emoji):
-                await member.edit(nick=f"{self.crew_emoji} {original_nick}")
+                truncated_name = self.cog.truncate_nickname(original_nick, self.crew_emoji)
+                await member.edit(nick=f"{self.crew_emoji} {truncated_name}")
         except discord.Forbidden:
             await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't update your nickname due to permission issues.", ephemeral=True)
             await self.cog.save_crews(interaction.guild)
@@ -265,6 +266,13 @@ class CrewTournament(commands.Cog):
     async def save_tournaments(self, guild):
         """Save only tournament data for a specific guild."""
         await self.save_data(guild)
+
+    def truncate_nickname(self, original_name, prefix):
+        """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
+        max_length = 32 - len(prefix) - 1  
+        if len(original_name) > max_length:
+            return original_name[:max_length-3] + "..." 
+        return original_name
 
     # --- Utility Methods ---
     async def fetch_custom_emoji(self, emoji_url, guild):
@@ -616,10 +624,13 @@ class CrewTournament(commands.Cog):
         # Give roles to captain
         await captain.add_roles(captain_role, crew_role)
         
-        # Update nickname
+        # Update nickname with truncation
         try:
             original_nick = captain.display_name
-            await captain.edit(nick=f"{crew_emoji} {original_nick}")
+            # Make sure we don't add the emoji twice
+            if not original_nick.startswith(crew_emoji):
+                truncated_name = self.truncate_nickname(original_nick, crew_emoji)
+                await captain.edit(nick=f"{crew_emoji} {truncated_name}")
         except discord.Forbidden:
             await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
             
@@ -667,19 +678,19 @@ class CrewTournament(commands.Cog):
             except discord.Forbidden:
                 await ctx.send("⚠️ I don't have permission to assign roles, but you've been added to the crew.")
     
-        # Update nickname with crew emoji
+        # Update nickname with crew emoji and truncation
         try:
             original_nick = member.display_name
             # Make sure we don't add the emoji twice
             if not original_nick.startswith(crew["emoji"]):
-                await member.edit(nick=f"{crew['emoji']} {original_nick}")
+                truncated_name = self.truncate_nickname(original_nick, crew["emoji"])
+                await member.edit(nick=f"{crew['emoji']} {truncated_name}")
         except discord.Forbidden:
             await ctx.send("⚠️ I don't have permission to change your nickname, but you've joined the crew.")
             
         await self.save_crews(ctx.guild)
         await ctx.send(f"✅ You have joined the crew `{crew_name}`!")
     
-    # Update crew_leave to handle restoring original nickname
     @crew_commands.command(name="leave")
     async def crew_leave(self, ctx):
         """Leave your current crew."""
