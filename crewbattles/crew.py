@@ -812,7 +812,7 @@ class CrewTournament(commands.Cog):
         if not crews:
             await ctx.send("❌ No crews available. Ask an admin to create some with `crew create`.")
             return
-
+    
         embed = discord.Embed(
             title="Available Crews",
             description="Here's a list of all crews in this server.",
@@ -834,7 +834,7 @@ class CrewTournament(commands.Cog):
                 value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}\nWins: {crew_data['stats']['wins']} | Losses: {crew_data['stats']['losses']}",
                 inline=True
             )
-
+    
         await ctx.send(embed=embed)
 
     @crew_commands.command(name="view")
