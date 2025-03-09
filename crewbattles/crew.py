@@ -475,6 +475,89 @@ class CrewTournament(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error reorganizing roles: {e}")
 
+    @commands.command(name="debugcrews")
+    @commands.admin_or_permissions(administrator=True)
+    async def debug_crews(self, ctx):
+        """Debug command to show the raw crew data and fix any formatting issues."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        # Show the raw data
+        crew_data_text = ""
+        for crew_name, crew_data in crews.items():
+            crew_data_text += f"Crew: '{crew_name}'\n"
+            crew_data_text += f"- Stored name: '{crew_data['name']}'\n"
+            crew_data_text += f"- Emoji: {crew_data['emoji']}\n"
+            crew_data_text += f"- Members: {len(crew_data['members'])}\n\n"
+        
+        # Check for mention-like crew names and offer to fix them
+        has_mention_format = any("<@" in name for name in crews.keys())
+        
+        if has_mention_format:
+            crew_data_text += "\nDetected mention formatting in crew names. Use `fixcrewnames` to fix this issue."
+        
+        # Send the debug info in chunks if needed
+        if len(crew_data_text) > 1900:
+            chunks = [crew_data_text[i:i+1900] for i in range(0, len(crew_data_text), 1900)]
+            for chunk in chunks:
+                await ctx.send(f"```\n{chunk}\n```")
+        else:
+            await ctx.send(f"```\n{crew_data_text}\n```")
+    
+    @commands.command(name="fixcrewnames")
+    @commands.admin_or_permissions(administrator=True)
+    async def fix_crew_names(self, ctx):
+        """Fix crew names that have mention formatting."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        fixed_crews = 0
+        
+        # Create a new dictionary to store the fixed crews
+        fixed_crews_dict = {}
+        
+        for crew_name, crew_data in crews.items():
+            # Check if the crew name contains a mention
+            if "<@" in crew_name:
+                # Extract actual name after the mention
+                parts = crew_name.split()
+                if len(parts) > 1:
+                    # The first part is the mention, remaining parts form the actual name
+                    new_name = " ".join(parts[1:])
+                    # Update the crew_data name
+                    crew_data["name"] = new_name
+                    # Store in new dictionary with fixed name
+                    fixed_crews_dict[new_name] = crew_data
+                    fixed_crews += 1
+                else:
+                    # No space after mention, try to make a generic name
+                    new_name = f"Crew_{len(fixed_crews_dict)}"
+                    crew_data["name"] = new_name
+                    fixed_crews_dict[new_name] = crew_data
+                    fixed_crews += 1
+            else:
+                # No issue with this crew name, keep as is
+                fixed_crews_dict[crew_name] = crew_data
+        
+        # Replace the crews dictionary
+        self.crews[guild_id] = fixed_crews_dict
+        
+        # Save the changes
+        await self.save_crews(ctx.guild)
+        
+        if fixed_crews > 0:
+            await ctx.send(f"✅ Fixed {fixed_crews} crew names with mention formatting.")
+        else:
+            await ctx.send("✅ No crew names needed fixing.")
+
     # --- Crew Command Group ---
     @commands.group(name="crew")
     @commands.guild_only()
