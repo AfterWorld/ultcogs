@@ -267,17 +267,50 @@ class CrewTournament(commands.Cog):
         """Save only tournament data for a specific guild."""
         await self.save_data(guild)
 
-    def truncate_nickname(self, original_name, prefix):
-        """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
-        # Account for the emoji and a space after it
-        max_length = 32 - len(prefix) - 1
+    def truncate_nickname(self, original_name, emoji_prefix):
+        """
+        Truncate a nickname to ensure it fits within Discord's 32 character limit.
+        This version is more conservative and handles custom emojis better.
+        """
+        # For safety, limit the emoji representation to a smaller size
+        # Some custom emojis can have very long string representations
+        if len(emoji_prefix) > 8:  # If emoji is very long (like a custom emoji)
+            emoji_prefix = "🏴‍☠️"  # Use a standard emoji instead
         
-        # If the original name is already short enough, return it as is
-        if len(original_name) <= max_length:
+        # Maximum length available for the name (accounting for emoji and space)
+        max_name_length = 30 - len(emoji_prefix)
+        
+        # If original name is already short enough, return it as is
+        if len(original_name) <= max_name_length:
             return original_name
         
         # Otherwise, truncate the name and add "..." to indicate truncation
-        return original_name[:max_length-3] + "..."
+        return original_name[:max_name_length-3] + "..."
+    
+    async def set_nickname_safely(self, member, emoji, name_base, is_captain=False):
+        """
+        Safely set a nickname for a crew member accounting for Discord's 32 character limit.
+        Falls back to simpler nicknames if needed.
+        """
+        try:
+            # Try with the full emoji and truncated name
+            truncated_name = self.truncate_nickname(name_base, emoji)
+            nickname = f"{emoji} {truncated_name}"
+            
+            # Make sure the final nickname isn't too long
+            if len(nickname) > 32:
+                # If still too long, try with a very simplified version
+                role_suffix = " Captain" if is_captain else ""
+                nickname = f"🏴‍☠️ Crew{role_suffix}"
+                
+            await member.edit(nick=nickname)
+            return True
+        except discord.Forbidden:
+            return False
+        except discord.HTTPException as e:
+            print(f"Error setting nickname: {str(e)}")
+            # Last resort - don't set nickname at all
+            return False
     
         # --- Utility Methods ---
         async def fetch_custom_emoji(self, emoji_url, guild):
@@ -732,19 +765,11 @@ class CrewTournament(commands.Cog):
             original_nick = captain.display_name
             # Make sure we don't add the emoji twice
             if not original_nick.startswith(crew_emoji):
-                truncated_name = self.truncate_nickname(original_nick, crew_emoji)
-                try:
-                    await captain.edit(nick=f"{crew_emoji} {truncated_name}")
-                except discord.HTTPException as e:
-                    if "nick" in str(e) and "32" in str(e):
-                        # Fallback for very long nicknames
-                        simple_nick = f"{crew_emoji} Captain"
-                        await captain.edit(nick=simple_nick)
-                        await ctx.send(f"⚠️ Nickname was too long even after truncation. Set to '{simple_nick}' instead.")
-                    else:
-                        raise
-        except discord.Forbidden:
-            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
+                success = await self.set_nickname_safely(captain, crew_emoji, original_nick, is_captain=True)
+                if not success:
+                    await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to technical issues, but the crew was created successfully.")
+        except Exception as e:
+            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname: {str(e)}, but the crew was created successfully.")
             
         await self.save_crews(ctx.guild)
         await ctx.send(f"✅ Crew `{crew_name}` created with {captain.mention} as captain!")
