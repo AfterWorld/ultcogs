@@ -268,11 +268,16 @@ class CrewTournament(commands.Cog):
         await self.save_data(guild)
 
     def truncate_nickname(self, original_name, prefix):
-        """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
-        max_length = 32 - len(prefix) - 1  
-        if len(original_name) > max_length:
-            return original_name[:max_length-3] + "..."  
+    """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
+    # Account for the emoji and a space after it
+    max_length = 32 - len(prefix) - 1
+    
+    # If the original name is already short enough, return it as is
+    if len(original_name) <= max_length:
         return original_name
+    
+    # Otherwise, truncate the name and add "..." to indicate truncation
+    return original_name[:max_length-3] + "..."
 
     # --- Utility Methods ---
     async def fetch_custom_emoji(self, emoji_url, guild):
@@ -728,7 +733,16 @@ class CrewTournament(commands.Cog):
             # Make sure we don't add the emoji twice
             if not original_nick.startswith(crew_emoji):
                 truncated_name = self.truncate_nickname(original_nick, crew_emoji)
-                await captain.edit(nick=f"{crew_emoji} {truncated_name}")
+                try:
+                    await captain.edit(nick=f"{crew_emoji} {truncated_name}")
+                except discord.HTTPException as e:
+                    if "nick" in str(e) and "32" in str(e):
+                        # Fallback for very long nicknames
+                        simple_nick = f"{crew_emoji} Captain"
+                        await captain.edit(nick=simple_nick)
+                        await ctx.send(f"⚠️ Nickname was too long even after truncation. Set to '{simple_nick}' instead.")
+                    else:
+                        raise
         except discord.Forbidden:
             await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
             
@@ -778,13 +792,22 @@ class CrewTournament(commands.Cog):
     
         # Update nickname with crew emoji and truncation
         try:
-            original_nick = member.display_name
+            original_nick = captain.display_name
             # Make sure we don't add the emoji twice
-            if not original_nick.startswith(crew["emoji"]):
-                truncated_name = self.truncate_nickname(original_nick, crew["emoji"])
-                await member.edit(nick=f"{crew['emoji']} {truncated_name}")
+            if not original_nick.startswith(crew_emoji):
+                truncated_name = self.truncate_nickname(original_nick, crew_emoji)
+                try:
+                    await captain.edit(nick=f"{crew_emoji} {truncated_name}")
+                except discord.HTTPException as e:
+                    if "nick" in str(e) and "32" in str(e):
+                        # Fallback for very long nicknames
+                        simple_nick = f"{crew_emoji} Captain"
+                        await captain.edit(nick=simple_nick)
+                        await ctx.send(f"⚠️ Nickname was too long even after truncation. Set to '{simple_nick}' instead.")
+                    else:
+                        raise
         except discord.Forbidden:
-            await ctx.send("⚠️ I don't have permission to change your nickname, but you've joined the crew.")
+            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
             
         await self.save_crews(ctx.guild)
         await ctx.send(f"✅ You have joined the crew `{crew_name}`!")
