@@ -268,33 +268,33 @@ class CrewTournament(commands.Cog):
         await self.save_data(guild)
 
     def truncate_nickname(self, original_name, prefix):
-    """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
-    # Account for the emoji and a space after it
-    max_length = 32 - len(prefix) - 1
+        """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
+        # Account for the emoji and a space after it
+        max_length = 32 - len(prefix) - 1
+        
+        # If the original name is already short enough, return it as is
+        if len(original_name) <= max_length:
+            return original_name
+        
+        # Otherwise, truncate the name and add "..." to indicate truncation
+        return original_name[:max_length-3] + "..."
     
-    # If the original name is already short enough, return it as is
-    if len(original_name) <= max_length:
-        return original_name
-    
-    # Otherwise, truncate the name and add "..." to indicate truncation
-    return original_name[:max_length-3] + "..."
-
-    # --- Utility Methods ---
-    async def fetch_custom_emoji(self, emoji_url, guild):
-        """Fetch and upload a custom emoji to the guild."""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(emoji_url) as response:
-                if response.status == 200:
-                    image_data = await response.read()
-                    try:
-                        emoji = await guild.create_custom_emoji(name="crew_emoji", image=image_data)
-                        return str(emoji)
-                    except discord.Forbidden:
-                        return "🏴‍☠️"  # Default emoji if permission denied
-                    except Exception as e:
-                        print(f"Error creating custom emoji: {e}")
-                        return "🏴‍☠️"  # Default emoji on error
-                return "🏴‍☠️"  # Default emoji if fetch fails
+        # --- Utility Methods ---
+        async def fetch_custom_emoji(self, emoji_url, guild):
+            """Fetch and upload a custom emoji to the guild."""
+            async with aiohttp.ClientSession() as session:
+                async with session.get(emoji_url) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        try:
+                            emoji = await guild.create_custom_emoji(name="crew_emoji", image=image_data)
+                            return str(emoji)
+                        except discord.Forbidden:
+                            return "🏴‍☠️"  # Default emoji if permission denied
+                        except Exception as e:
+                            print(f"Error creating custom emoji: {e}")
+                            return "🏴‍☠️"  # Default emoji on error
+                    return "🏴‍☠️"  # Default emoji if fetch fails
 
     def get_crew_for_guild(self, guild_id):
         """Get crews for a specific guild."""
