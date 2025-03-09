@@ -164,6 +164,7 @@ class CrewTournament(commands.Cog):
         # Default configuration
         default_guild = {
             "finished_setup": False,
+            "separator_roles": None
         }
         
         self.config.register_guild(**default_guild)
@@ -388,6 +389,84 @@ class CrewTournament(commands.Cog):
         await ctx.send("✅ Crew setup has been finalized! Here are the available crews:", embed=embed, view=view)
         await ctx.send("Users can now join crews using the buttons above or by using the `crew join` command.")
 
+    @crew_setup.command(name="roles")
+    async def setup_roles(self, ctx):
+        """Create separator roles to organize crew roles in the role list."""
+        guild = ctx.guild
+        try:
+            # Create separator roles
+            top_separator = await guild.create_role(
+                name="═════════ CREWS ═════════",
+                color=discord.Color.dark_theme(),
+                hoist=True,  # Makes the role show as a separator in the member list
+                mentionable=False
+            )
+            
+            bottom_separator = await guild.create_role(
+                name="═════════════════════════",
+                color=discord.Color.dark_theme(),
+                mentionable=False
+            )
+            
+            # Store separator role IDs in config
+            await self.config.guild(guild).set_raw("separator_roles", value={
+                "top": top_separator.id,
+                "bottom": bottom_separator.id
+            })
+            
+            await ctx.send("✅ Crew role separators created successfully!")
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to manage roles.")
+        except Exception as e:
+            await ctx.send(f"❌ Error creating separator roles: {e}")
+
+    @crew_setup.command(name="reorganize")
+    @commands.admin_or_permissions(administrator=True)
+    async def reorganize_roles(self, ctx):
+        """Reorganize all crew roles between separators."""
+        guild = ctx.guild
+        guild_id = str(guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        # Check if separator roles exist
+        separator_roles = await self.config.guild(guild).get_raw("separator_roles", default=None)
+        if not separator_roles:
+            await ctx.send("❌ Separator roles don't exist. Creating them now...")
+            await ctx.invoke(self.setup_roles)
+            separator_roles = await self.config.guild(guild).get_raw("separator_roles", default={})
+        
+        top_separator = guild.get_role(separator_roles.get("top"))
+        bottom_separator = guild.get_role(separator_roles.get("bottom"))
+        
+        if not top_separator or not bottom_separator:
+            await ctx.send("❌ Separator roles couldn't be found. Please run `crewsetup roles` first.")
+            return
+        
+        try:
+            bottom_position = guild.roles.index(bottom_separator)
+            
+            # Collect all crew roles
+            all_roles = []
+            for crew_name, crew in crews.items():
+                captain_role = guild.get_role(crew["captain_role"])
+                vice_captain_role = guild.get_role(crew["vice_captain_role"])
+                crew_role = guild.get_role(crew["crew_role"])
+                
+                if captain_role:
+                    all_roles.append(captain_role)
+                if vice_captain_role:
+                    all_roles.append(vice_captain_role)
+                if crew_role:
+                    all_roles.append(crew_role)
+            
+            # Move all roles above the bottom separator
+            for role in all_roles:
+                await role.edit(position=bottom_position+1)
+            
+            await ctx.send("✅ All crew roles have been reorganized between the separators.")
+        except Exception as e:
+            await ctx.send(f"❌ Error reorganizing roles: {e}")
+
     # --- Crew Command Group ---
     @commands.group(name="crew")
     @commands.guild_only()
@@ -437,6 +516,19 @@ class CrewTournament(commands.Cog):
                 await ctx.send(f"❌ Error processing custom emoji: {e}")
                 crew_emoji = "🏴‍☠️"  # Default fallback
     
+        # Check if separator roles exist, if not create them
+        separator_roles = await self.config.guild(guild).get_raw("separator_roles", default=None)
+        if not separator_roles:
+            await ctx.invoke(self.setup_roles)
+            separator_roles = await self.config.guild(guild).get_raw("separator_roles", default={})
+        
+        # Get position for new roles
+        position_reference = None
+        if separator_roles:
+            top_separator = guild.get_role(separator_roles.get("top"))
+            bottom_separator = guild.get_role(separator_roles.get("bottom"))
+            position_reference = bottom_separator
+        
         try:
             # Create roles with appropriate permissions
             captain_role = await guild.create_role(
@@ -454,6 +546,14 @@ class CrewTournament(commands.Cog):
                 color=discord.Color.blue(),
                 mentionable=True
             )
+            
+            # Position roles between separators
+            if position_reference:
+                positions = guild.roles.index(position_reference)
+                await captain_role.edit(position=positions+1)
+                await vice_captain_role.edit(position=positions+1)
+                await crew_role.edit(position=positions+1)
+                
         except discord.Forbidden:
             await ctx.send("❌ I don't have permission to create roles.")
             return
