@@ -158,34 +158,34 @@ class CrewTournament(commands.Cog):
     """A cog for managing crews and tournaments in your server."""
 
     def __init__(self, bot):
-        self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
-        
-        # Default configuration
-        default_guild = {
-            "finished_setup": False,
-            "separator_roles": None
-        }
-        
-        self.config.register_guild(**default_guild)
-        self.crews = {}
-        self.tournaments = {}
-        self.active_channels = set()
-        
-        # Define battle moves
-        self.MOVES = [
-            {"name": "Strike", "type": "regular", "description": "A basic attack", "effect": None},
-            {"name": "Slash", "type": "regular", "description": "A quick sword slash", "effect": None},
-            {"name": "Punch", "type": "regular", "description": "A direct hit", "effect": None},
-            {"name": "Fireball", "type": "strong", "description": "A ball of fire", "effect": "burn", "burn_chance": 0.5},
-            {"name": "Thunder Strike", "type": "strong", "description": "A bolt of lightning", "effect": "stun", "stun_chance": 0.3},
-            {"name": "Heavy Blow", "type": "strong", "description": "A powerful attack", "effect": None},
-            {"name": "Critical Smash", "type": "critical", "description": "A devastating attack", "effect": None},
-            {"name": "Ultimate Strike", "type": "critical", "description": "An ultimate power move", "effect": None}
-        ]
-        
-        # Task to load data on bot startup
-        self.bot.loop._task(self.initialize())
+    self.bot = bot
+    self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+    
+    # Default configuration
+    default_guild = {
+        "finished_setup": False,
+        "separator_roles": None
+    }
+    
+    self.config.register_guild(**default_guild)
+    self.crews = {}
+    self.tournaments = {}
+    self.active_channels = set()
+    
+    # Define battle moves
+    self.MOVES = [
+        {"name": "Strike", "type": "regular", "description": "A basic attack", "effect": None},
+        {"name": "Slash", "type": "regular", "description": "A quick sword slash", "effect": None},
+        {"name": "Punch", "type": "regular", "description": "A direct hit", "effect": None},
+        {"name": "Fireball", "type": "strong", "description": "A ball of fire", "effect": "burn", "burn_chance": 0.5},
+        {"name": "Thunder Strike", "type": "strong", "description": "A bolt of lightning", "effect": "stun", "stun_chance": 0.3},
+        {"name": "Heavy Blow", "type": "strong", "description": "A powerful attack", "effect": None},
+        {"name": "Critical Smash", "type": "critical", "description": "A devastating attack", "effect": None},
+        {"name": "Ultimate Strike", "type": "critical", "description": "An ultimate power move", "effect": None}
+    ]
+    
+    # Task to load data on bot startup 
+    self.bot.loop.create_task(self.initialize())
 
     async def initialize(self):
         """Initialize the cog by loading data from all guilds."""
