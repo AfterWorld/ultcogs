@@ -569,19 +569,19 @@ class CrewTournament(commands.Cog):
             position_reference = bottom_separator
         
         try:
-            # Create roles with appropriate permissions
+            # Create roles with updated naming format (without emoji)
             captain_role = await guild.create_role(
-                name=f"{crew_emoji} {crew_name} Captain",
+                name=f"{crew_name} Captain",
                 color=discord.Color.gold(),
                 mentionable=True
             )
             vice_captain_role = await guild.create_role(
-                name=f"{crew_emoji} {crew_name} Vice Captain",
+                name=f"{crew_name} Vice Captain",
                 color=discord.Color(0xC0C0C0),  # Silver color using hex code
                 mentionable=True
             )
             crew_role = await guild.create_role(
-                name=f"{crew_emoji} {crew_name} Member",
+                name=f"{crew_name} Member",
                 color=discord.Color.blue(),
                 mentionable=True
             )
