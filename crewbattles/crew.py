@@ -820,19 +820,11 @@ class CrewTournament(commands.Cog):
             original_nick = captain.display_name
             # Make sure we don't add the emoji twice
             if not original_nick.startswith(crew_emoji):
-                truncated_name = self.truncate_nickname(original_nick, crew_emoji)
-                try:
-                    await captain.edit(nick=f"{crew_emoji} {truncated_name}")
-                except discord.HTTPException as e:
-                    if "nick" in str(e) and "32" in str(e):
-                        # Fallback for very long nicknames
-                        simple_nick = f"{crew_emoji} Captain"
-                        await captain.edit(nick=simple_nick)
-                        await ctx.send(f"⚠️ Nickname was too long even after truncation. Set to '{simple_nick}' instead.")
-                    else:
-                        raise
-        except discord.Forbidden:
-            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
+                success = await self.set_nickname_safely(captain, crew_emoji, original_nick, is_captain=True)
+                if not success:
+                    await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname, but the crew was created successfully.")
+        except Exception as e:
+            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname, but the crew was created successfully.")
             
         await self.save_crews(ctx.guild)
         await ctx.send(f"✅ You have joined the crew `{crew_name}`!")
