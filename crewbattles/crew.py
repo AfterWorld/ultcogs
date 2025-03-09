@@ -1,4 +1,6 @@
 from redbot.core import commands, Config
+from redbot.core.data_manager import cog_data_path
+import pathlib
 import discord
 import random
 import asyncio
@@ -146,7 +148,6 @@ class CrewTournament(commands.Cog):
         # Default configuration
         default_guild = {
             "finished_setup": False,
-            "data_file": "crew_data.json"
         }
         
         self.config.register_guild(**default_guild)
@@ -175,17 +176,48 @@ class CrewTournament(commands.Cog):
         for guild in self.bot.guilds:
             await self.load_data(guild)
 
+    async def save_data(self, guild):
+        """Save both crew and tournament data for a specific guild."""
+        finished_setup = await self.config.guild(guild).finished_setup()
+        if not finished_setup:
+            return
+    
+        # Use Red-Bot's data path structure
+        data_path = cog_data_path(self)
+        # Create 'Crews' directory if it doesn't exist
+        crews_dir = data_path / "Crews"
+        if not os.path.exists(crews_dir):
+            os.makedirs(crews_dir, exist_ok=True)
+        
+        # Save to Crews.json in the proper directory
+        file_path = crews_dir / f"{guild.id}.json"
+        
+        try:
+            data = {
+                "crews": self.crews.get(str(guild.id), {}),
+                "tournaments": self.tournaments.get(str(guild.id), {})
+            }
+            
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=4)
+            
+            print(f"Saved crew data for guild {guild.name} ({guild.id}) to {file_path}")
+        except Exception as e:
+            print(f"Error saving crew data for guild {guild.name}: {e}")
+    
     async def load_data(self, guild):
         """Load crew and tournament data for a specific guild."""
         if not guild:
             return
-
+    
         finished_setup = await self.config.guild(guild).finished_setup()
         if not finished_setup:
             return
-
-        data_file = await self.config.guild(guild).data_file()
-        file_path = f"data/crew_tournament/{guild.id}/{data_file}"
+    
+        # Use Red-Bot's data path structure
+        data_path = cog_data_path(self)
+        crews_dir = data_path / "Crews"
+        file_path = crews_dir / f"{guild.id}.json"
         
         try:
             if os.path.exists(file_path):
@@ -202,39 +234,12 @@ class CrewTournament(commands.Cog):
                     self.crews[str(guild.id)] = data.get("crews", {})
                     self.tournaments[str(guild.id)] = data.get("tournaments", {})
                     
-                    print(f"Loaded crew data for guild {guild.name} ({guild.id}).")
+                    print(f"Loaded crew data for guild {guild.name} ({guild.id}) from {file_path}")
             else:
-                print(f"No data file found for guild {guild.name} ({guild.id}).")
-                # Create directory if it doesn't exist
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                await self.save_data(guild)
+                print(f"No data file found for guild {guild.name} ({guild.id})")
+                # Directory will be created in save_data if needed
         except Exception as e:
             print(f"Error loading crew data for guild {guild.name}: {e}")
-
-    async def save_data(self, guild):
-        """Save both crew and tournament data for a specific guild."""
-        finished_setup = await self.config.guild(guild).finished_setup()
-        if not finished_setup:
-            return
-
-        data_file = await self.config.guild(guild).data_file()
-        file_path = f"data/crew_tournament/{guild.id}/{data_file}"
-        
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        try:
-            data = {
-                "crews": self.crews.get(str(guild.id), {}),
-                "tournaments": self.tournaments.get(str(guild.id), {})
-            }
-            
-            with open(file_path, 'w') as f:
-                json.dump(data, f, indent=4)
-            
-            print(f"Saved crew data for guild {guild.name} ({guild.id}).")
-        except Exception as e:
-            print(f"Error saving crew data for guild {guild.name}: {e}")
 
     async def save_crews(self, guild):
         """Save only crew data for a specific guild."""
@@ -294,6 +299,12 @@ class CrewTournament(commands.Cog):
             self.crews[guild_id] = {}
         if guild_id not in self.tournaments:
             self.tournaments[guild_id] = {}
+        
+        # Create data directory if it doesn't exist
+        data_path = cog_data_path(self)
+        crews_dir = data_path / "Crews"
+        if not os.path.exists(crews_dir):
+            os.makedirs(crews_dir, exist_ok=True)
         
         await self.config.guild(ctx.guild).finished_setup.set(True)
         await self.save_data(ctx.guild)
