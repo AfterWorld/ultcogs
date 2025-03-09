@@ -271,7 +271,7 @@ class CrewTournament(commands.Cog):
         """Truncate a nickname to ensure it fits within Discord's 32 character limit when a prefix is added."""
         max_length = 32 - len(prefix) - 1  
         if len(original_name) > max_length:
-            return original_name[:max_length-3] + "..." 
+            return original_name[:max_length-3] + "..."  
         return original_name
 
     # --- Utility Methods ---
@@ -504,6 +504,12 @@ class CrewTournament(commands.Cog):
             return
         
         crew_name = args_parts[1].strip()
+        
+        # Ensure the crew name doesn't start with a mention or have unexpected formatting
+        if crew_name.startswith('<@') or '@' in crew_name:
+            await ctx.send("❌ Crew name should not include mentions or @ symbols.")
+            return
+            
         remaining = args_parts[2].strip()
         
         # Extract emoji and captain from remaining text
