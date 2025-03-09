@@ -185,7 +185,7 @@ class CrewTournament(commands.Cog):
         ]
         
         # Task to load data on bot startup
-        self.bot.loop.create_task(self.initialize())
+        self.bot.loop._task(self.initialize())
 
     async def initialize(self):
         """Initialize the cog by loading data from all guilds."""
@@ -477,14 +477,46 @@ class CrewTournament(commands.Cog):
 
     @crew_commands.command(name="create")
     @commands.admin_or_permissions(administrator=True)
-    async def crew_create(self, ctx, crew_name: str, crew_emoji: str, captain: discord.Member = None):
-        """Create a new crew. 
+    async def crew_create(self, ctx, *, args):
+        """Create a new crew with multi-word name.
+        
+        Usage:
+        [p]crew create "The Shadow Armada" 🏴‍☠️ @Captain
+        [p]crew create "Blue Pirates" 🔵
         
         Args:
-            crew_name: The name of the crew
-            crew_emoji: The emoji to represent the crew (can be custom or unicode)
-            captain: The member to assign as captain (optional, defaults to command issuer)
+            args: A string containing the crew name in quotes, 
+                  followed by an emoji and optionally @Captain
         """
+        # Parse arguments
+        args_parts = args.split('"')
+        
+        if len(args_parts) < 3:
+            await ctx.send("❌ Crew name must be in quotes. Example: `crew create \"The Shadow Armada\" 🏴‍☠️ @Captain`")
+            return
+        
+        crew_name = args_parts[1].strip()
+        remaining = args_parts[2].strip()
+        
+        # Extract emoji and captain from remaining text
+        remaining_parts = remaining.split()
+        if not remaining_parts:
+            await ctx.send("❌ Missing emoji. Example: `crew create \"The Shadow Armada\" 🏴‍☠️ @Captain`")
+            return
+        
+        crew_emoji = remaining_parts[0]
+        
+        # Find captain mention if it exists
+        captain = ctx.author  # Default to command user
+        if len(remaining_parts) > 1 and remaining_parts[1].startswith('<@') and remaining_parts[1].endswith('>'):
+            try:
+                captain_id = int(remaining_parts[1].strip('<@!&>'))
+                mentioned_captain = ctx.guild.get_member(captain_id)
+                if mentioned_captain:
+                    captain = mentioned_captain
+            except ValueError:
+                pass  # Invalid ID format, use default captain
+        
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
         if not finished_setup:
@@ -499,7 +531,6 @@ class CrewTournament(commands.Cog):
             return
     
         guild = ctx.guild
-        captain = captain or ctx.author
     
         # Check if the emoji is a custom emoji
         if crew_emoji.startswith("<:") and crew_emoji.endswith(">"):
