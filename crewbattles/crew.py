@@ -508,10 +508,10 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send(f"```\n{crew_data_text}\n```")
     
-    @commands.command(name="fixcrewnames")
+    @commands.command(name="fixcrewemoji")
     @commands.admin_or_permissions(administrator=True)
-    async def fix_crew_names(self, ctx):
-        """Fix crew names that have mention formatting."""
+    async def fix_crew_emoji(self, ctx):
+        """Fix crew emojis that have user IDs stored instead of actual emojis."""
         guild_id = str(ctx.guild.id)
         crews = self.crews.get(guild_id, {})
         
@@ -521,42 +521,43 @@ class CrewTournament(commands.Cog):
         
         fixed_crews = 0
         
-        # Create a new dictionary to store the fixed crews
-        fixed_crews_dict = {}
-        
         for crew_name, crew_data in crews.items():
-            # Check if the crew name contains a mention
+            emoji = crew_data["emoji"]
+            
+            # Check if the emoji is actually a user ID
+            if emoji and emoji.startswith("<@") and emoji.endswith(">"):
+                # It's a user ID, not an emoji - set a default emoji
+                crew_data["emoji"] = "🏴‍☠️"  # Default fallback emoji
+                fixed_crews += 1
+                
+                # Print debug info
+                await ctx.send(f"Fixed crew `{crew_name}`: Changed emoji from `{emoji}` to 🏴‍☠️")
+                
+            # Also check if we have a proper crew name or if it's user ID
             if "<@" in crew_name:
-                # Extract actual name after the mention
+                # The crew name has a user ID in it - need to create a new entry
+                # Extract the actual name after the mention
                 parts = crew_name.split()
                 if len(parts) > 1:
                     # The first part is the mention, remaining parts form the actual name
                     new_name = " ".join(parts[1:])
-                    # Update the crew_data name
-                    crew_data["name"] = new_name
-                    # Store in new dictionary with fixed name
-                    fixed_crews_dict[new_name] = crew_data
+                    
+                    # Create a new entry with the fixed name
+                    crews[new_name] = crew_data.copy()
+                    crews[new_name]["name"] = new_name
+                    
+                    # Delete the old entry
+                    del crews[crew_name]
+                    
+                    await ctx.send(f"Fixed crew name from `{crew_name}` to `{new_name}`")
                     fixed_crews += 1
-                else:
-                    # No space after mention, try to make a generic name
-                    new_name = f"Crew_{len(fixed_crews_dict)}"
-                    crew_data["name"] = new_name
-                    fixed_crews_dict[new_name] = crew_data
-                    fixed_crews += 1
-            else:
-                # No issue with this crew name, keep as is
-                fixed_crews_dict[crew_name] = crew_data
-        
-        # Replace the crews dictionary
-        self.crews[guild_id] = fixed_crews_dict
         
         # Save the changes
-        await self.save_crews(ctx.guild)
-        
         if fixed_crews > 0:
-            await ctx.send(f"✅ Fixed {fixed_crews} crew names with mention formatting.")
+            await self.save_crews(ctx.guild)
+            await ctx.send(f"✅ Fixed {fixed_crews} crew emojis/names.")
         else:
-            await ctx.send("✅ No crew names needed fixing.")
+            await ctx.send("✅ No crews needed fixing.")
 
     # --- Crew Command Group ---
     @commands.group(name="crew")
@@ -603,6 +604,11 @@ class CrewTournament(commands.Cog):
         
         crew_emoji = remaining_parts[0]
         
+        # Validate that the emoji is actually an emoji and not a user mention
+        if crew_emoji.startswith("<@"):
+            await ctx.send("❌ The first parameter after the crew name should be an emoji, not a user mention.")
+            return
+        
         # Find captain mention if it exists
         captain = ctx.author  # Default to command user
         if len(remaining_parts) > 1 and remaining_parts[1].startswith('<@') and remaining_parts[1].endswith('>'):
@@ -632,14 +638,17 @@ class CrewTournament(commands.Cog):
         # Check if the emoji is a custom emoji
         if crew_emoji.startswith("<:") and crew_emoji.endswith(">"):
             try:
-                emoji_id = crew_emoji.split(":")[-1][:-1]
-                emoji = self.bot.get_emoji(int(emoji_id))
-                if not emoji:
-                    # Fetch and upload the custom emoji to the guild
-                    emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.png"
-                    crew_emoji = await self.fetch_custom_emoji(emoji_url, guild)
-                else:
-                    crew_emoji = str(emoji)
+                # For custom emojis like <:emojiname:12345>
+                emoji_parts = crew_emoji.split(":")
+                if len(emoji_parts) >= 3:
+                    emoji_id = emoji_parts[2][:-1]  # Remove the trailing '>'
+                    emoji = self.bot.get_emoji(int(emoji_id))
+                    if emoji:
+                        crew_emoji = str(emoji)
+                    else:
+                        # If we can't find the emoji, use a default
+                        await ctx.send(f"⚠️ Couldn't find the custom emoji. Using default emoji instead.")
+                        crew_emoji = "🏴‍☠️"
             except Exception as e:
                 await ctx.send(f"❌ Error processing custom emoji: {e}")
                 crew_emoji = "🏴‍☠️"  # Default fallback
@@ -725,7 +734,7 @@ class CrewTournament(commands.Cog):
             
         await self.save_crews(ctx.guild)
         await ctx.send(f"✅ Crew `{crew_name}` created with {captain.mention} as captain!")
-
+    
     @crew_commands.command(name="join")
     async def crew_join(self, ctx, crew_name: str):
         """Join a crew."""
