@@ -569,7 +569,7 @@ class CrewTournament(commands.Cog):
             )
             vice_captain_role = await guild.create_role(
                 name=f"{crew_emoji} {crew_name} Vice Captain",
-                color=discord.Color.silver(),
+                color=discord.Color(0xC0C0C0),  # Silver color using hex code
                 mentionable=True
             )
             crew_role = await guild.create_role(
