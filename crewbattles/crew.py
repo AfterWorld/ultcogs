@@ -11,14 +11,15 @@ import os
 # --- Helper Classes for UI Elements ---
 class CrewButton(discord.ui.Button):
     def __init__(self, crew_name, crew_emoji, cog):
-        super().__init__(label=f"Join {crew_name}", style=discord.ButtonStyle.primary)
+        super().__init__(label=f"Join {crew_name}", style=discord.ButtonStyle.primary, custom_id=f"crew_join_{crew_name}")
         self.crew_name = crew_name
         self.crew_emoji = crew_emoji
         self.cog = cog
 
     async def callback(self, interaction: discord.Interaction):
         member = interaction.user
-        crew = self.cog.crews.get(self.crew_name)
+        guild_id = str(interaction.guild_id)
+        crew = self.cog.crews.get(guild_id, {}).get(self.crew_name)
         
         if not crew:
             await interaction.response.send_message("❌ This crew no longer exists.", ephemeral=True)
@@ -28,23 +29,38 @@ class CrewButton(discord.ui.Button):
             await interaction.response.send_message("❌ You are already in this crew.", ephemeral=True)
             return
 
-        for other_crew_name, other_crew in self.cog.crews.items():
+        # Check if already in another crew
+        for other_name, other_crew in self.cog.crews.get(guild_id, {}).items():
             if member.id in other_crew["members"]:
                 await interaction.response.send_message("❌ You cannot switch crews once you join one.", ephemeral=True)
                 return
 
+        # Add to crew
         crew["members"].append(member.id)
-        await self.cog.save_crews(interaction.guild)
         
+        # Assign crew role
+        crew_role = interaction.guild.get_role(crew["crew_role"])
+        if crew_role:
+            try:
+                await member.add_roles(crew_role)
+            except discord.Forbidden:
+                await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't assign you the crew role due to permission issues.", ephemeral=True)
+                await self.cog.save_crews(interaction.guild)
+                return
+        
+        # Update nickname
         try:
-            await member.edit(nick=f"{self.crew_emoji} {member.display_name}")
+            original_nick = member.display_name
+            # Make sure we don't add the emoji twice
+            if not original_nick.startswith(self.crew_emoji):
+                await member.edit(nick=f"{self.crew_emoji} {original_nick}")
         except discord.Forbidden:
             await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't update your nickname due to permission issues.", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`!", ephemeral=True)
-        
-        await self.cog.update_crew_message(interaction.message, self.crew_name)
-
+            await self.cog.save_crews(interaction.guild)
+            return
+            
+        await self.cog.save_crews(interaction.guild)
+        await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`!", ephemeral=True)
 
 class CrewView(discord.ui.View):
     def __init__(self, crew_name, crew_emoji, cog):
@@ -324,6 +340,54 @@ class CrewTournament(commands.Cog):
         await self.save_data(ctx.guild)
         await ctx.send("✅ All crew and tournament data has been reset for this server.")
 
+    @crew_setup.command(name="finish")
+    async def setup_finish(self, ctx):
+        """Finalizes crew setup and posts an interactive message for users to join crews."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews have been created yet. Create some crews first with `crew create`.")
+            return
+        
+        # Create an embed with all crew information
+        embed = discord.Embed(
+            title="🏴‍☠️ Available Crews",
+            description="Click the buttons below to join a crew!",
+            color=0x00FF00,
+        )
+        
+        for crew_name, crew_data in crews.items():
+            # Find the captain
+            captain_role = ctx.guild.get_role(crew_data["captain_role"])
+            captain = None
+            for member_id in crew_data["members"]:
+                member = ctx.guild.get_member(member_id)
+                if member and captain_role in member.roles:
+                    captain = member
+                    break
+            
+            embed.add_field(
+                name=f"{crew_data['emoji']} {crew_name}",
+                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}",
+                inline=True
+            )
+        
+        # Create a view with buttons for each crew
+        view = discord.ui.View(timeout=None)
+        for crew_name, crew_data in crews.items():
+            view.add_item(CrewButton(crew_name, crew_data["emoji"], self))
+        
+        # Send the interactive message
+        await ctx.send("✅ Crew setup has been finalized! Here are the available crews:", embed=embed, view=view)
+        await ctx.send("Users can now join crews using the buttons above or by using the `crew join` command.")
+
     # --- Crew Command Group ---
     @commands.group(name="crew")
     @commands.guild_only()
@@ -354,10 +418,10 @@ class CrewTournament(commands.Cog):
         if crew_name in crews:
             await ctx.send(f"❌ A crew with the name `{crew_name}` already exists.")
             return
-
+    
         guild = ctx.guild
         captain = captain or ctx.author
-
+    
         # Check if the emoji is a custom emoji
         if crew_emoji.startswith("<:") and crew_emoji.endswith(">"):
             try:
@@ -372,18 +436,31 @@ class CrewTournament(commands.Cog):
             except Exception as e:
                 await ctx.send(f"❌ Error processing custom emoji: {e}")
                 crew_emoji = "🏴‍☠️"  # Default fallback
-
+    
         try:
-            captain_role = await guild.create_role(name=f"{crew_emoji} {crew_name} Captain")
-            vice_captain_role = await guild.create_role(name=f"{crew_emoji} {crew_name} Vice Captain")
-            crew_role = await guild.create_role(name=f"{crew_emoji} {crew_name} Member")
+            # Create roles with appropriate permissions
+            captain_role = await guild.create_role(
+                name=f"{crew_emoji} {crew_name} Captain",
+                color=discord.Color.gold(),
+                mentionable=True
+            )
+            vice_captain_role = await guild.create_role(
+                name=f"{crew_emoji} {crew_name} Vice Captain",
+                color=discord.Color.silver(),
+                mentionable=True
+            )
+            crew_role = await guild.create_role(
+                name=f"{crew_emoji} {crew_name} Member",
+                color=discord.Color.blue(),
+                mentionable=True
+            )
         except discord.Forbidden:
             await ctx.send("❌ I don't have permission to create roles.")
             return
         except Exception as e:
             await ctx.send(f"❌ Error creating roles: {e}")
             return
-
+    
         # Initialize guild namespace if not exists
         if guild_id not in self.crews:
             self.crews[guild_id] = {}
@@ -410,13 +487,126 @@ class CrewTournament(commands.Cog):
         
         # Update nickname
         try:
-            await captain.edit(nick=f"{crew_emoji} {captain.display_name}")
+            original_nick = captain.display_name
+            await captain.edit(nick=f"{crew_emoji} {original_nick}")
         except discord.Forbidden:
-            pass  # Skip if we don't have permission
+            await ctx.send(f"⚠️ I couldn't update {captain.display_name}'s nickname due to permission issues, but the crew was created successfully.")
             
         await self.save_crews(ctx.guild)
-        await ctx.send(f"✅ Crew `{crew_name}` created with {captain.mention} as captain.")
+        await ctx.send(f"✅ Crew `{crew_name}` created with {captain.mention} as captain!")
 
+    @crew_commands.command(name="join")
+    async def crew_join(self, ctx, crew_name: str):
+        """Join a crew."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if crew_name not in crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+    
+        member = ctx.author
+        crew = crews[crew_name]
+    
+        # Check if already in this crew
+        if member.id in crew["members"]:
+            await ctx.send("❌ You are already in this crew.")
+            return
+    
+        # Check if already in another crew
+        for other_crew_name, other_crew in crews.items():
+            if member.id in other_crew["members"]:
+                await ctx.send("❌ You cannot switch crews once you join one.")
+                return
+    
+        # Add to crew
+        crew["members"].append(member.id)
+        
+        # Assign crew role
+        crew_role = ctx.guild.get_role(crew["crew_role"])
+        if crew_role:
+            try:
+                await member.add_roles(crew_role)
+            except discord.Forbidden:
+                await ctx.send("⚠️ I don't have permission to assign roles, but you've been added to the crew.")
+    
+        # Update nickname with crew emoji
+        try:
+            original_nick = member.display_name
+            # Make sure we don't add the emoji twice
+            if not original_nick.startswith(crew["emoji"]):
+                await member.edit(nick=f"{crew['emoji']} {original_nick}")
+        except discord.Forbidden:
+            await ctx.send("⚠️ I don't have permission to change your nickname, but you've joined the crew.")
+            
+        await self.save_crews(ctx.guild)
+        await ctx.send(f"✅ You have joined the crew `{crew_name}`!")
+    
+    # Update crew_leave to handle restoring original nickname
+    @crew_commands.command(name="leave")
+    async def crew_leave(self, ctx):
+        """Leave your current crew."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        member = ctx.author
+        user_crew = None
+        
+        # Find the crew the user is in
+        for crew_name, crew in crews.items():
+            if member.id in crew["members"]:
+                user_crew = crew_name
+                break
+                
+        if not user_crew:
+            await ctx.send("❌ You are not in any crew.")
+            return
+            
+        crew = crews[user_crew]
+        
+        # Check if user is captain
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        if captain_role in member.roles:
+            await ctx.send("❌ As the captain, you cannot leave the crew. Transfer captaincy first or ask an admin to delete the crew.")
+            return
+            
+        # Remove from crew
+        crew["members"].remove(member.id)
+        
+        # Remove crew roles
+        for role_key in ["vice_captain_role", "crew_role"]:
+            if role_key in crew:
+                role = ctx.guild.get_role(crew[role_key])
+                if role and role in member.roles:
+                    try:
+                        await member.remove_roles(role)
+                    except discord.Forbidden:
+                        await ctx.send(f"⚠️ Couldn't remove {role.name} role due to permission issues.")
+        
+        # Restore original nickname
+        try:
+            current_nick = member.display_name
+            if current_nick.startswith(f"{crew['emoji']} "):
+                new_nick = current_nick[len(f"{crew['emoji']} "):]
+                await member.edit(nick=new_nick)
+        except discord.Forbidden:
+            await ctx.send("⚠️ I don't have permission to restore your original nickname.")
+            
+        await self.save_crews(ctx.guild)
+        await ctx.send(f"✅ You have left the crew `{user_crew}`.")
+    
     @crew_commands.command(name="delete")
     @commands.admin_or_permissions(administrator=True)
     async def crew_delete(self, ctx, crew_name: str):
@@ -555,115 +745,6 @@ class CrewTournament(commands.Cog):
         # Create a button to join this crew
         view = CrewView(crew_name, crew["emoji"], self)
         await ctx.send(embed=embed, view=view)
-
-    @crew_commands.command(name="join")
-    async def crew_join(self, ctx, crew_name: str):
-        """Join a crew."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if crew_name not in crews:
-            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
-            return
-
-        member = ctx.author
-        crew = crews[crew_name]
-
-        # Check if already in this crew
-        if member.id in crew["members"]:
-            await ctx.send("❌ You are already in this crew.")
-            return
-
-        # Check if already in another crew
-        for other_crew_name, other_crew in crews.items():
-            if member.id in other_crew["members"]:
-                await ctx.send("❌ You cannot switch crews once you join one.")
-                return
-
-        # Add to crew
-        crew["members"].append(member.id)
-        
-        # Assign crew role
-        crew_role = ctx.guild.get_role(crew["crew_role"])
-        if crew_role:
-            try:
-                await member.add_roles(crew_role)
-            except discord.Forbidden:
-                await ctx.send("⚠️ I don't have permission to assign roles.")
-
-        # Update nickname
-        try:
-            await member.edit(nick=f"{crew['emoji']} {member.display_name}")
-        except discord.Forbidden:
-            await ctx.send("⚠️ I don't have permission to change your nickname, but you've joined the crew.")
-            
-        await self.save_crews(ctx.guild)
-        await ctx.send(f"✅ You have joined the crew `{crew_name}`!")
-
-    @crew_commands.command(name="leave")
-    async def crew_leave(self, ctx):
-        """Leave your current crew."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        member = ctx.author
-        user_crew = None
-        
-        # Find the crew the user is in
-        for crew_name, crew in crews.items():
-            if member.id in crew["members"]:
-                user_crew = crew_name
-                break
-                
-        if not user_crew:
-            await ctx.send("❌ You are not in any crew.")
-            return
-            
-        crew = crews[user_crew]
-        
-        # Check if user is captain
-        captain_role = ctx.guild.get_role(crew["captain_role"])
-        if captain_role in member.roles:
-            await ctx.send("❌ As the captain, you cannot leave the crew. Transfer captaincy first or ask an admin to delete the crew.")
-            return
-            
-        # Remove from crew
-        crew["members"].remove(member.id)
-        
-        # Remove crew roles
-        for role_key in ["vice_captain_role", "crew_role"]:
-            if role_key in crew:
-                role = ctx.guild.get_role(crew[role_key])
-                if role and role in member.roles:
-                    try:
-                        await member.remove_roles(role)
-                    except discord.Forbidden:
-                        await ctx.send(f"⚠️ Couldn't remove {role.name} role due to permission issues.")
-        
-        # Update nickname
-        try:
-            # Remove crew emoji from nickname
-            new_nick = member.display_name
-            if crew["emoji"] in new_nick:
-                new_nick = new_nick.replace(f"{crew['emoji']} ", "")
-                await member.edit(nick=new_nick)
-        except discord.Forbidden:
-            pass
-            
-        await self.save_crews(ctx.guild)
-        await ctx.send(f"✅ You have left the crew `{user_crew}`.")
 
     @crew_commands.command(name="kick")
     async def crew_kick(self, ctx, member: discord.Member):
