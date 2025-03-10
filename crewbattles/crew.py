@@ -683,9 +683,13 @@ class CrewTournament(commands.Cog):
             return
             
         guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
         
-        if crew_name in crews:
+        # Initialize guild namespace if not exists
+        if guild_id not in self.crews:
+            self.crews[guild_id] = {}
+        
+        # Now check if the crew already exists
+        if crew_name in self.crews[guild_id]:
             await ctx.send(f"❌ A crew with the name `{crew_name}` already exists.")
             return
     
@@ -753,12 +757,8 @@ class CrewTournament(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error creating roles: {e}")
             return
-    
-        # Initialize guild namespace if not exists
-        if guild_id not in self.crews:
-            self.crews[guild_id] = {}
-            
-        # Store crew data
+        
+        # Add the new crew to the existing crews dictionary
         self.crews[guild_id][crew_name] = {
             "name": crew_name,
             "emoji": crew_emoji,
