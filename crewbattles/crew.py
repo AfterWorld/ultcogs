@@ -1469,7 +1469,6 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send("✅ No crew keys needed fixing.")
     
-    # Fixed version of crew_view that works with problematic keys
     @crew_commands.command(name="view")
     async def crew_view(self, ctx, *, crew_name: str):
         """View the details of a crew."""
@@ -1506,7 +1505,7 @@ class CrewTournament(commands.Cog):
             if not crew_data:
                 for key, data in crews.items():
                     internal_name = data.get('name', '')
-                    if internal_name.lower() == crew_name.lower():
+                    if internal_name and internal_name.lower() == crew_name.lower():
                         crew_data = data
                         matched_crew = key
                         break
@@ -1523,7 +1522,7 @@ class CrewTournament(commands.Cog):
             if not crew_data:
                 for key, data in crews.items():
                     internal_name = data.get('name', '')
-                    if crew_name.lower() in internal_name.lower():
+                    if internal_name and crew_name.lower() in internal_name.lower():
                         crew_data = data
                         matched_crew = key
                         break
@@ -1536,22 +1535,37 @@ class CrewTournament(commands.Cog):
     
         # Continue with creating the embed using the found crew_data
         try:
-            # Extract member objects
+            # Extract member objects and usernames for IDs we can't resolve
             member_objects = []
+            member_usernames = {}  # Dict to store ID -> username mappings
+            
             for mid in crew_data.get("members", []):
                 try:
-                    # Convert to int if it's a string
+                    # Handle different ID formats
+                    member_id = mid
                     if isinstance(mid, str):
                         if mid.isdigit():
-                            mid = int(mid)
+                            member_id = int(mid)
                         elif mid.startswith("<@") and mid.endswith(">"):
                             # Extract ID from mention format
-                            mid = int(mid.strip("<@!&>"))
+                            member_id = int(mid.strip("<@!&>"))
                     
-                    member = ctx.guild.get_member(mid)
+                    member = ctx.guild.get_member(member_id)
                     if member:
                         member_objects.append(member)
+                        member_usernames[member_id] = member.display_name
+                    else:
+                        # If we can't find the member, try to get the username from the API
+                        try:
+                            # For cases where the member might be cached by the bot but not in the guild
+                            user = await self.bot.fetch_user(member_id)
+                            if user:
+                                member_usernames[member_id] = user.name
+                        except:
+                            # If we can't resolve the username, just use the ID as fallback
+                            member_usernames[member_id] = f"User-{member_id}"
                 except:
+                    # For completely unresolvable cases, just skip
                     continue
             
             # Get role objects
@@ -1565,14 +1579,22 @@ class CrewTournament(commands.Cog):
             captain = next((m for m in member_objects if captain_role and captain_role in m.roles), None)
             vice_captain = next((m for m in member_objects if vice_captain_role and vice_captain_role in m.roles), None)
             
-            # Get regular members
+            # Get regular members (exclude captain and vice captain)
             regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
+            
+            # For members that have left the server but are still in the crew
+            unresolved_ids = [mid for mid in crew_data.get("members", []) 
+                            if not any(getattr(m, 'id', None) == (
+                                int(mid) if isinstance(mid, str) and mid.isdigit() 
+                                else int(mid.strip("<@!&>")) if isinstance(mid, str) and mid.startswith("<@") 
+                                else mid) 
+                               for m in member_objects)]
             
             # Create the embed
             emoji = crew_data.get("emoji", "🏴‍☠️")
             embed = discord.Embed(
                 title=f"Crew: {matched_crew} {emoji}",
-                description=f"Total Members: {len(member_objects)}",
+                description=f"Total Members: {len(crew_data.get('members', []))}",
                 color=0x00FF00,
             )
             
@@ -1591,14 +1613,36 @@ class CrewTournament(commands.Cog):
             )
             
             # Add regular members
-            if regular_members:
-                member_mentions = [m.mention for m in regular_members[:10]]
-                member_list = ", ".join(member_mentions)
+            if regular_members or unresolved_ids:
+                # First add all members we could resolve
+                member_strings = [m.mention for m in regular_members[:10]]
                 
-                if len(regular_members) > 10:
-                    member_list += f" and {len(regular_members) - 10} more..."
+                # Then add usernames for unresolved IDs (if we found any usernames earlier)
+                for uid in unresolved_ids[:max(0, 10-len(member_strings))]:
+                    try:
+                        # Convert to int if it's a string ID
+                        user_id = uid
+                        if isinstance(uid, str):
+                            if uid.isdigit():
+                                user_id = int(uid)
+                            elif uid.startswith("<@") and uid.endswith(">"):
+                                user_id = int(uid.strip("<@!&>"))
+                        
+                        # Get username from our mapping, or use placeholder
+                        username = member_usernames.get(user_id, f"User-{user_id}")
+                        if not username.startswith("User-"):  # Only add if we have a real username
+                            member_strings.append(f"@{username}")
+                    except:
+                        # If all else fails, just use the raw ID
+                        member_strings.append(str(uid))
+                
+                member_list = ", ".join(member_strings)
+                
+                total_remaining = len(regular_members) + len(unresolved_ids) - len(member_strings)
+                if total_remaining > 0:
+                    member_list += f" and {total_remaining} more..."
                     
-                embed.add_field(name="Members", value=member_list, inline=False)
+                embed.add_field(name="Members", value=member_list if member_list else "No regular members yet", inline=False)
             else:
                 embed.add_field(name="Members", value="No regular members yet", inline=False)
             
@@ -1624,6 +1668,73 @@ class CrewTournament(commands.Cog):
             
         except Exception as e:
             await ctx.send(f"❌ Error displaying crew information: {str(e)}")
+    
+    @commands.command(name="cleancrewids")
+    @commands.admin_or_permissions(administrator=True)
+    async def clean_crew_ids(self, ctx):
+        """Clean up crew member IDs and replace unresolvable mentions with usernames."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        fixed_count = 0
+        username_replacements = 0
+        
+        for crew_name, crew_data in crews.items():
+            clean_members = []
+            usernames_added = []
+            
+            # Process each member ID
+            for mid in crew_data.get("members", []):
+                try:
+                    # Handle raw mentions and string IDs
+                    if isinstance(mid, str):
+                        if mid.isdigit():
+                            # Convert string ID to int
+                            clean_members.append(int(mid))
+                            fixed_count += 1
+                        elif mid.startswith("<@") and mid.endswith(">"):
+                            # Extract ID from mention
+                            user_id = int(mid.strip("<@!&>"))
+                            clean_members.append(user_id)
+                            fixed_count += 1
+                        else:
+                            # Check if it might be a username
+                            member = discord.utils.get(ctx.guild.members, display_name=mid)
+                            if member:
+                                clean_members.append(member.id)
+                                usernames_added.append(f"{mid} → {member.id}")
+                                username_replacements += 1
+                            else:
+                                # Keep the string if we can't resolve it
+                                clean_members.append(mid)
+                    else:
+                        # Already an int ID
+                        clean_members.append(mid)
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error cleaning ID in crew `{crew_name}`: `{mid}` - {str(e)}")
+                    # Keep the original ID if we can't clean it
+                    clean_members.append(mid)
+            
+            # Update the crew with clean member IDs
+            crew_data["members"] = clean_members
+        
+        # Save the changes
+        await self.save_crews(ctx.guild)
+        
+        status = f"✅ Cleaned {fixed_count} member IDs and resolved {username_replacements} usernames."
+        if usernames_added:
+            status += "\n\nResolved usernames:"
+            for entry in usernames_added[:10]:  # Show first 10 to avoid overly long messages
+                status += f"\n- {entry}"
+            if len(usernames_added) > 10:
+                status += f"\n- and {len(usernames_added) - 10} more..."
+        
+        await ctx.send(status)
+    
     @crew_commands.command(name="kick")
     async def crew_kick(self, ctx, member: discord.Member):
         """Kick a member from your crew. Only captains and vice-captains can use this command."""
