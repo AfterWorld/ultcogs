@@ -1376,29 +1376,41 @@ class CrewTournament(commands.Cog):
         if crew_name not in crews:
             await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
             return
-
+    
         crew = crews[crew_name]
-        members = [ctx.guild.get_member(mid) for mid in crew["members"]]
-        members = [m for m in members if m is not None]  # Filter out None values
+        
+        # Properly fetch all members and filter out None values (members who left)
+        member_objects = []
+        for mid in crew["members"]:
+            member = ctx.guild.get_member(int(mid)) # Ensure we're working with int IDs
+            if member is not None:
+                member_objects.append(member)
         
         captain_role = ctx.guild.get_role(crew["captain_role"])
         vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
         
-        captain = next((m for m in members if captain_role in m.roles), None)
-        vice_captain = next((m for m in members if vice_captain_role in m.roles), None)
+        # Identify captain and vice captain using role checks
+        captain = next((m for m in member_objects if captain_role in m.roles), None)
+        vice_captain = next((m for m in member_objects if vice_captain_role in m.roles), None)
         
-        regular_members = [m for m in members if m not in [captain, vice_captain]]
-
+        # Filter out captain and vice captain from regular members list
+        regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
+    
         embed = discord.Embed(
             title=f"Crew: {crew_name} {crew['emoji']}",
-            description=f"Total Members: {len(members)}",
+            description=f"Total Members: {len(member_objects)}",
             color=0x00FF00,
         )
         
+        # Add captain info
         embed.add_field(name="Captain", value=captain.mention if captain else "None", inline=False)
+        
+        # Add vice captain info
         embed.add_field(name="Vice Captain", value=vice_captain.mention if vice_captain else "None", inline=False)
         
+        # Add regular members, properly formatting all mentions
         if regular_members:
+            # Use proper Discord mentions for each member
             member_list = ", ".join([m.mention for m in regular_members[:10]])
             if len(regular_members) > 10:
                 member_list += f" and {len(regular_members) - 10} more..."
@@ -1417,6 +1429,56 @@ class CrewTournament(commands.Cog):
         # Create a button to join this crew
         view = CrewView(crew_name, crew["emoji"], self)
         await ctx.send(embed=embed, view=view)
+    
+    @commands.command(name="fixcrewids")
+    @commands.admin_or_permissions(administrator=True)
+    async def fix_crew_ids(self, ctx):
+        """Fix crew member IDs to ensure they're stored as integers."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        fixed_count = 0
+        
+        for crew_name, crew_data in crews.items():
+            # Fix the members list to ensure all IDs are integers
+            fixed_members = []
+            for member_id in crew_data["members"]:
+                try:
+                    # Check if it's a string that might be a user mention
+                    if isinstance(member_id, str) and member_id.startswith("<@") and member_id.endswith(">"):
+                        # Extract the numeric ID from the mention
+                        clean_id = member_id.strip("<@!&>")
+                        if clean_id.isdigit():
+                            fixed_members.append(int(clean_id))
+                            fixed_count += 1
+                            await ctx.send(f"Fixed member ID in crew `{crew_name}`: `{member_id}` → `{int(clean_id)}`")
+                    # Convert string IDs to integers
+                    elif isinstance(member_id, str) and member_id.isdigit():
+                        fixed_members.append(int(member_id))
+                        fixed_count += 1
+                    # Already an integer ID
+                    elif isinstance(member_id, int):
+                        fixed_members.append(member_id)
+                    else:
+                        # Invalid ID, report but skip
+                        await ctx.send(f"⚠️ Skipping invalid member ID in crew `{crew_name}`: `{member_id}`")
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error processing ID in crew `{crew_name}`: `{member_id}` - {str(e)}")
+            
+            # Update the crew with fixed member IDs
+            crew_data["members"] = fixed_members
+        
+        # Save the changes
+        await self.save_crews(ctx.guild)
+        
+        if fixed_count > 0:
+            await ctx.send(f"✅ Fixed {fixed_count} member IDs across all crews.")
+        else:
+            await ctx.send("✅ No member IDs needed fixing.")
 
     @crew_commands.command(name="kick")
     async def crew_kick(self, ctx, member: discord.Member):
