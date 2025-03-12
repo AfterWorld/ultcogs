@@ -1361,8 +1361,118 @@ class CrewTournament(commands.Cog):
     
         await ctx.send(embed=embed)
 
+    @commands.command(name="fixallcrews")
+    @commands.admin_or_permissions(administrator=True)
+    async def fix_all_crews(self, ctx):
+        """Comprehensive fix for all crew data including member IDs and display issues."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        fixed_crews = 0
+        fixed_members = 0
+        fixed_mentions = 0
+        
+        for crew_name, crew_data in list(crews.items()):  # Use list() to allow modification during iteration
+            # Check if the crew name contains a mention
+            if "<@" in crew_name:
+                # Extract a clean name
+                parts = crew_name.split()
+                clean_name = " ".join([p for p in parts if not (p.startswith("<@") and p.endswith(">"))])
+                
+                if not clean_name:  # If we couldn't get a clean name, use a default
+                    clean_name = f"Crew {len(crews)}"
+                
+                # Create a new entry with the clean name
+                crews[clean_name] = crew_data.copy()
+                crews[clean_name]["name"] = clean_name
+                
+                # Delete the old entry
+                del crews[crew_name]
+                
+                await ctx.send(f"Fixed crew name: `{crew_name}` → `{clean_name}`")
+                fixed_crews += 1
+                
+                # Update the crew name for the rest of the processing
+                crew_name = clean_name
+                crew_data = crews[clean_name]
+            
+            # Fix the members list to ensure all IDs are integers
+            clean_members = []
+            for member_id in crew_data["members"]:
+                try:
+                    # Handle various cases of member IDs
+                    if isinstance(member_id, str):
+                        if member_id.startswith("<@") and member_id.endswith(">"):
+                            # Extract ID from mention format
+                            clean_id = member_id.strip("<@!&>")
+                            if clean_id.isdigit():
+                                clean_members.append(int(clean_id))
+                                fixed_mentions += 1
+                        elif member_id.isdigit():
+                            # Convert string numeric ID to int
+                            clean_members.append(int(member_id))
+                            fixed_members += 1
+                        else:
+                            # Try to find member by name in guild
+                            member = discord.utils.get(ctx.guild.members, display_name=member_id)
+                            if member:
+                                clean_members.append(member.id)
+                                fixed_members += 1
+                            else:
+                                await ctx.send(f"⚠️ Could not resolve member: `{member_id}` in crew `{crew_name}`")
+                    elif isinstance(member_id, int):
+                        # Already a clean integer ID
+                        clean_members.append(member_id)
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error processing member ID in crew `{crew_name}`: `{member_id}` - {str(e)}")
+            
+            # Update with clean member list
+            crew_data["members"] = clean_members
+            
+            # Ensure all required fields exist
+            if "stats" not in crew_data:
+                crew_data["stats"] = {
+                    "wins": 0,
+                    "losses": 0,
+                    "tournaments_won": 0,
+                    "tournaments_participated": 0
+                }
+            
+            # Make sure the emoji is properly set
+            if "emoji" not in crew_data or not crew_data["emoji"]:
+                crew_data["emoji"] = "🏴‍☠️"  # Default fallback emoji
+        
+        # Also update any tournament data
+        tournaments = self.tournaments.get(guild_id, {})
+        for tournament_name, tournament_data in tournaments.items():
+            # Update crew references in tournaments
+            if "crews" in tournament_data:
+                clean_crews = []
+                for t_crew_name in tournament_data["crews"]:
+                    # If this was a renamed crew, update the reference
+                    if t_crew_name not in crews and any(c_data.get("name") == t_crew_name for c_data in crews.values()):
+                        # Find the new name
+                        for new_name, c_data in crews.items():
+                            if c_data.get("name") == t_crew_name:
+                                clean_crews.append(new_name)
+                                break
+                    else:
+                        clean_crews.append(t_crew_name)
+                
+                tournament_data["crews"] = clean_crews
+        
+        # Save all changes
+        await self.save_data(ctx.guild)
+        
+        status = f"✅ Fixed {fixed_crews} crew names, {fixed_mentions} member mentions, and {fixed_members} member IDs."
+        await ctx.send(status)
+    
     @crew_commands.command(name="view")
-    async def crew_view(self, ctx, crew_name: str):
+    async def crew_view(self, ctx, *, crew_name: str):
         """View the details of a crew."""
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
@@ -1373,112 +1483,120 @@ class CrewTournament(commands.Cog):
         guild_id = str(ctx.guild.id)
         crews = self.crews.get(guild_id, {})
         
-        if crew_name not in crews:
+        # Try to find the crew, being flexible with case and partial matches
+        matched_crew = None
+        crew_data = None
+        
+        # First try exact match
+        if crew_name in crews:
+            matched_crew = crew_name
+            crew_data = crews[crew_name]
+        else:
+            # Try case-insensitive match
+            for name, data in crews.items():
+                if name.lower() == crew_name.lower():
+                    matched_crew = name
+                    crew_data = data
+                    break
+                    
+            # If still not found, try partial match
+            if not matched_crew:
+                for name, data in crews.items():
+                    if crew_name.lower() in name.lower():
+                        matched_crew = name
+                        crew_data = data
+                        break
+        
+        if not matched_crew:
             await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
             return
     
-        crew = crews[crew_name]
-        
-        # Properly fetch all members and filter out None values (members who left)
+        # Properly fetch all members
         member_objects = []
-        for mid in crew["members"]:
-            member = ctx.guild.get_member(int(mid)) # Ensure we're working with int IDs
-            if member is not None:
-                member_objects.append(member)
+        for mid in crew_data["members"]:
+            try:
+                member = ctx.guild.get_member(int(mid))
+                if member is not None:
+                    member_objects.append(member)
+            except (ValueError, TypeError):
+                # Skip invalid member IDs
+                continue
         
-        captain_role = ctx.guild.get_role(crew["captain_role"])
-        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+        captain_role = ctx.guild.get_role(crew_data["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew_data["vice_captain_role"])
         
-        # Identify captain and vice captain using role checks
-        captain = next((m for m in member_objects if captain_role in m.roles), None)
-        vice_captain = next((m for m in member_objects if vice_captain_role in m.roles), None)
+        # Find captain and vice captain
+        captain = None
+        vice_captain = None
         
-        # Filter out captain and vice captain from regular members list
-        regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
+        # First try to find by role
+        if captain_role:
+            captain = next((m for m in member_objects if captain_role in m.roles), None)
+        
+        if vice_captain_role:
+            vice_captain = next((m for m in member_objects if vice_captain_role in m.roles), None)
+        
+        # Filter regular members
+        regular_members = [m for m in member_objects if m != captain and m != vice_captain]
     
+        # Create the embed
         embed = discord.Embed(
-            title=f"Crew: {crew_name} {crew['emoji']}",
+            title=f"Crew: {matched_crew} {crew_data['emoji']}",
             description=f"Total Members: {len(member_objects)}",
             color=0x00FF00,
         )
         
         # Add captain info
-        embed.add_field(name="Captain", value=captain.mention if captain else "None", inline=False)
+        embed.add_field(
+            name="Captain", 
+            value=captain.mention if captain else "None", 
+            inline=False
+        )
         
         # Add vice captain info
-        embed.add_field(name="Vice Captain", value=vice_captain.mention if vice_captain else "None", inline=False)
+        embed.add_field(
+            name="Vice Captain", 
+            value=vice_captain.mention if vice_captain else "None", 
+            inline=False
+        )
         
-        # Add regular members, properly formatting all mentions
+        # Add regular members with proper mention formatting
         if regular_members:
-            # Use proper Discord mentions for each member
-            member_list = ", ".join([m.mention for m in regular_members[:10]])
+            # Ensure we use proper mention objects, not strings
+            member_mentions = []
+            for member in regular_members[:10]:
+                try:
+                    member_mentions.append(member.mention)
+                except:
+                    # Fallback to string representation if mention fails
+                    member_mentions.append(str(member))
+                    
+            member_list = ", ".join(member_mentions)
+            
+            # Add "and X more" if necessary
             if len(regular_members) > 10:
                 member_list += f" and {len(regular_members) - 10} more..."
+                
             embed.add_field(name="Members", value=member_list, inline=False)
         else:
             embed.add_field(name="Members", value="No regular members yet", inline=False)
             
         # Add statistics
-        stats = crew["stats"]
+        stats = crew_data.get("stats", {})
         embed.add_field(
             name="Statistics",
-            value=f"Wins: {stats['wins']}\nLosses: {stats['losses']}\nTournaments Won: {stats['tournaments_won']}\nTournaments Participated: {stats['tournaments_participated']}",
+            value=(
+                f"Wins: {stats.get('wins', 0)}\n"
+                f"Losses: {stats.get('losses', 0)}\n"
+                f"Tournaments Won: {stats.get('tournaments_won', 0)}\n"
+                f"Tournaments Participated: {stats.get('tournaments_participated', 0)}"
+            ),
             inline=False
         )
         
         # Create a button to join this crew
-        view = CrewView(crew_name, crew["emoji"], self)
+        view = CrewView(matched_crew, crew_data["emoji"], self)
         await ctx.send(embed=embed, view=view)
-    
-    @commands.command(name="fixcrewids")
-    @commands.admin_or_permissions(administrator=True)
-    async def fix_crew_ids(self, ctx):
-        """Fix crew member IDs to ensure they're stored as integers."""
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if not crews:
-            await ctx.send("❌ No crews found.")
-            return
-        
-        fixed_count = 0
-        
-        for crew_name, crew_data in crews.items():
-            # Fix the members list to ensure all IDs are integers
-            fixed_members = []
-            for member_id in crew_data["members"]:
-                try:
-                    # Check if it's a string that might be a user mention
-                    if isinstance(member_id, str) and member_id.startswith("<@") and member_id.endswith(">"):
-                        # Extract the numeric ID from the mention
-                        clean_id = member_id.strip("<@!&>")
-                        if clean_id.isdigit():
-                            fixed_members.append(int(clean_id))
-                            fixed_count += 1
-                            await ctx.send(f"Fixed member ID in crew `{crew_name}`: `{member_id}` → `{int(clean_id)}`")
-                    # Convert string IDs to integers
-                    elif isinstance(member_id, str) and member_id.isdigit():
-                        fixed_members.append(int(member_id))
-                        fixed_count += 1
-                    # Already an integer ID
-                    elif isinstance(member_id, int):
-                        fixed_members.append(member_id)
-                    else:
-                        # Invalid ID, report but skip
-                        await ctx.send(f"⚠️ Skipping invalid member ID in crew `{crew_name}`: `{member_id}`")
-                except Exception as e:
-                    await ctx.send(f"⚠️ Error processing ID in crew `{crew_name}`: `{member_id}` - {str(e)}")
-            
-            # Update the crew with fixed member IDs
-            crew_data["members"] = fixed_members
-        
-        # Save the changes
-        await self.save_crews(ctx.guild)
-        
-        if fixed_count > 0:
-            await ctx.send(f"✅ Fixed {fixed_count} member IDs across all crews.")
-        else:
-            await ctx.send("✅ No member IDs needed fixing.")
 
     @crew_commands.command(name="kick")
     async def crew_kick(self, ctx, member: discord.Member):
