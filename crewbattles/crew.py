@@ -1361,10 +1361,10 @@ class CrewTournament(commands.Cog):
     
         await ctx.send(embed=embed)
 
-    @commands.command(name="fixallcrews")
+    @commands.command(name="crewdiagnose")
     @commands.admin_or_permissions(administrator=True)
-    async def fix_all_crews(self, ctx):
-        """Comprehensive fix for all crew data including member IDs and display issues."""
+    async def crew_diagnose(self, ctx):
+        """Diagnose crew data issues by displaying internal crew keys."""
         guild_id = str(ctx.guild.id)
         crews = self.crews.get(guild_id, {})
         
@@ -1372,105 +1372,104 @@ class CrewTournament(commands.Cog):
             await ctx.send("❌ No crews found.")
             return
         
-        fixed_crews = 0
-        fixed_members = 0
-        fixed_mentions = 0
+        # Create a detailed diagnostic message
+        message = "**Crew System Diagnostic**\n\n"
+        message += "**Internal Crew Dictionary Keys:**\n"
         
-        for crew_name, crew_data in list(crews.items()):  # Use list() to allow modification during iteration
-            # Check if the crew name contains a mention
-            if "<@" in crew_name:
-                # Extract a clean name
-                parts = crew_name.split()
-                clean_name = " ".join([p for p in parts if not (p.startswith("<@") and p.endswith(">"))])
-                
-                if not clean_name:  # If we couldn't get a clean name, use a default
-                    clean_name = f"Crew {len(crews)}"
-                
-                # Create a new entry with the clean name
-                crews[clean_name] = crew_data.copy()
-                crews[clean_name]["name"] = clean_name
-                
-                # Delete the old entry
-                del crews[crew_name]
-                
-                await ctx.send(f"Fixed crew name: `{crew_name}` → `{clean_name}`")
-                fixed_crews += 1
-                
-                # Update the crew name for the rest of the processing
-                crew_name = clean_name
-                crew_data = crews[clean_name]
-            
-            # Fix the members list to ensure all IDs are integers
-            clean_members = []
-            for member_id in crew_data["members"]:
-                try:
-                    # Handle various cases of member IDs
-                    if isinstance(member_id, str):
-                        if member_id.startswith("<@") and member_id.endswith(">"):
-                            # Extract ID from mention format
-                            clean_id = member_id.strip("<@!&>")
-                            if clean_id.isdigit():
-                                clean_members.append(int(clean_id))
-                                fixed_mentions += 1
-                        elif member_id.isdigit():
-                            # Convert string numeric ID to int
-                            clean_members.append(int(member_id))
-                            fixed_members += 1
-                        else:
-                            # Try to find member by name in guild
-                            member = discord.utils.get(ctx.guild.members, display_name=member_id)
-                            if member:
-                                clean_members.append(member.id)
-                                fixed_members += 1
-                            else:
-                                await ctx.send(f"⚠️ Could not resolve member: `{member_id}` in crew `{crew_name}`")
-                    elif isinstance(member_id, int):
-                        # Already a clean integer ID
-                        clean_members.append(member_id)
-                except Exception as e:
-                    await ctx.send(f"⚠️ Error processing member ID in crew `{crew_name}`: `{member_id}` - {str(e)}")
-            
-            # Update with clean member list
-            crew_data["members"] = clean_members
-            
-            # Ensure all required fields exist
-            if "stats" not in crew_data:
-                crew_data["stats"] = {
-                    "wins": 0,
-                    "losses": 0,
-                    "tournaments_won": 0,
-                    "tournaments_participated": 0
-                }
-            
-            # Make sure the emoji is properly set
-            if "emoji" not in crew_data or not crew_data["emoji"]:
-                crew_data["emoji"] = "🏴‍☠️"  # Default fallback emoji
+        for crew_key in crews.keys():
+            message += f"- `{crew_key}`\n"
         
-        # Also update any tournament data
-        tournaments = self.tournaments.get(guild_id, {})
-        for tournament_name, tournament_data in tournaments.items():
-            # Update crew references in tournaments
-            if "crews" in tournament_data:
-                clean_crews = []
-                for t_crew_name in tournament_data["crews"]:
-                    # If this was a renamed crew, update the reference
-                    if t_crew_name not in crews and any(c_data.get("name") == t_crew_name for c_data in crews.values()):
-                        # Find the new name
-                        for new_name, c_data in crews.items():
-                            if c_data.get("name") == t_crew_name:
-                                clean_crews.append(new_name)
-                                break
-                    else:
-                        clean_crews.append(t_crew_name)
-                
-                tournament_data["crews"] = clean_crews
+        message += "\n**Detailed Crew Information:**\n"
         
-        # Save all changes
+        for crew_key, crew_data in crews.items():
+            message += f"\n**Crew Key:** `{crew_key}`\n"
+            message += f"  - Internal name: `{crew_data.get('name', 'Not set')}`\n"
+            message += f"  - Emoji: {crew_data.get('emoji', 'Not set')}\n"
+            message += f"  - Member count: {len(crew_data.get('members', []))}\n"
+            message += f"  - Captain role ID: {crew_data.get('captain_role', 'Not set')}\n"
+            
+            # Check for special characters or whitespace issues
+            if crew_key != crew_key.strip():
+                message += f"  - ⚠️ Key has leading/trailing whitespace\n"
+            if "  " in crew_key:
+                message += f"  - ⚠️ Key has double spaces\n"
+            if "\n" in crew_key or "\r" in crew_key:
+                message += f"  - ⚠️ Key has newline characters\n"
+            if "\t" in crew_key:
+                message += f"  - ⚠️ Key has tab characters\n"
+        
+        # Split long messages
+        if len(message) > 1900:
+            chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
+            for chunk in chunks:
+                await ctx.send(chunk)
+        else:
+            await ctx.send(message)
+    
+    @commands.command(name="crewfixkeys")
+    @commands.admin_or_permissions(administrator=True)
+    async def crew_fix_keys(self, ctx):
+        """Fix crew keys to match with display names."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        fixed_count = 0
+        changes = []
+        
+        # First, create a clean copy of the crews dictionary
+        clean_crews = {}
+        
+        for crew_key, crew_data in crews.items():
+            # Get the internal stored name (if available)
+            internal_name = crew_data.get('name')
+            
+            # Clean the key (remove extra whitespace, etc.)
+            clean_key = crew_key.strip()
+            
+            # If there's an internal name that's different from the key, use that
+            if internal_name and internal_name != crew_key:
+                # Clean the internal name too
+                clean_name = internal_name.strip()
+                old_key = crew_key
+                new_key = clean_name
+                
+                # Store with the clean name as the key
+                clean_crews[clean_name] = crew_data.copy()
+                clean_crews[clean_name]['name'] = clean_name
+                fixed_count += 1
+                changes.append(f"`{old_key}` → `{new_key}`")
+            else:
+                # Just use the cleaned key
+                if clean_key != crew_key:
+                    old_key = crew_key
+                    new_key = clean_key
+                    
+                    # Store with the clean key
+                    clean_crews[clean_key] = crew_data.copy()
+                    clean_crews[clean_key]['name'] = clean_key
+                    fixed_count += 1
+                    changes.append(f"`{old_key}` → `{new_key}`")
+                else:
+                    # No change needed
+                    clean_crews[crew_key] = crew_data.copy()
+        
+        # Replace the crews dictionary with the clean one
+        self.crews[guild_id] = clean_crews
+        
+        # Save the changes
         await self.save_data(ctx.guild)
         
-        status = f"✅ Fixed {fixed_crews} crew names, {fixed_mentions} member mentions, and {fixed_members} member IDs."
-        await ctx.send(status)
+        if fixed_count > 0:
+            changes_msg = "\n".join(changes)
+            await ctx.send(f"✅ Fixed {fixed_count} crew keys:\n{changes_msg}")
+        else:
+            await ctx.send("✅ No crew keys needed fixing.")
     
+    # Fixed version of crew_view that works with problematic keys
     @crew_commands.command(name="view")
     async def crew_view(self, ctx, *, crew_name: str):
         """View the details of a crew."""
@@ -1483,121 +1482,148 @@ class CrewTournament(commands.Cog):
         guild_id = str(ctx.guild.id)
         crews = self.crews.get(guild_id, {})
         
-        # Try to find the crew, being flexible with case and partial matches
-        matched_crew = None
-        crew_data = None
+        if not crews:
+            await ctx.send("❌ No crews available.")
+            return
         
-        # First try exact match
+        # Try different methods to find the crew
+        crew_data = None
+        matched_crew = None
+        
+        # Method 1: Direct dictionary lookup (exact match)
         if crew_name in crews:
-            matched_crew = crew_name
             crew_data = crews[crew_name]
+            matched_crew = crew_name
         else:
-            # Try case-insensitive match
-            for name, data in crews.items():
-                if name.lower() == crew_name.lower():
-                    matched_crew = name
-                    crew_data = data
+            # Method 2: Case-insensitive match on keys
+            for key in crews.keys():
+                if key.lower() == crew_name.lower():
+                    crew_data = crews[key]
+                    matched_crew = key
                     break
                     
-            # If still not found, try partial match
-            if not matched_crew:
-                for name, data in crews.items():
-                    if crew_name.lower() in name.lower():
-                        matched_crew = name
+            # Method 3: Match on internal 'name' field
+            if not crew_data:
+                for key, data in crews.items():
+                    internal_name = data.get('name', '')
+                    if internal_name.lower() == crew_name.lower():
                         crew_data = data
+                        matched_crew = key
                         break
-        
-        if not matched_crew:
-            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            
+            # Method 4: Partial match on keys
+            if not crew_data:
+                for key in crews.keys():
+                    if crew_name.lower() in key.lower():
+                        crew_data = crews[key]
+                        matched_crew = key
+                        break
+                        
+            # Method 5: Partial match on internal 'name' field
+            if not crew_data:
+                for key, data in crews.items():
+                    internal_name = data.get('name', '')
+                    if crew_name.lower() in internal_name.lower():
+                        crew_data = data
+                        matched_crew = key
+                        break
+                        
+        # If still not found, show an error with available crews
+        if not crew_data:
+            crew_list = ", ".join([f"`{key}`" for key in crews.keys()])
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.\n\nAvailable crews: {crew_list}")
             return
     
-        # Properly fetch all members
-        member_objects = []
-        for mid in crew_data["members"]:
-            try:
-                member = ctx.guild.get_member(int(mid))
-                if member is not None:
-                    member_objects.append(member)
-            except (ValueError, TypeError):
-                # Skip invalid member IDs
-                continue
-        
-        captain_role = ctx.guild.get_role(crew_data["captain_role"])
-        vice_captain_role = ctx.guild.get_role(crew_data["vice_captain_role"])
-        
-        # Find captain and vice captain
-        captain = None
-        vice_captain = None
-        
-        # First try to find by role
-        if captain_role:
-            captain = next((m for m in member_objects if captain_role in m.roles), None)
-        
-        if vice_captain_role:
-            vice_captain = next((m for m in member_objects if vice_captain_role in m.roles), None)
-        
-        # Filter regular members
-        regular_members = [m for m in member_objects if m != captain and m != vice_captain]
-    
-        # Create the embed
-        embed = discord.Embed(
-            title=f"Crew: {matched_crew} {crew_data['emoji']}",
-            description=f"Total Members: {len(member_objects)}",
-            color=0x00FF00,
-        )
-        
-        # Add captain info
-        embed.add_field(
-            name="Captain", 
-            value=captain.mention if captain else "None", 
-            inline=False
-        )
-        
-        # Add vice captain info
-        embed.add_field(
-            name="Vice Captain", 
-            value=vice_captain.mention if vice_captain else "None", 
-            inline=False
-        )
-        
-        # Add regular members with proper mention formatting
-        if regular_members:
-            # Ensure we use proper mention objects, not strings
-            member_mentions = []
-            for member in regular_members[:10]:
+        # Continue with creating the embed using the found crew_data
+        try:
+            # Extract member objects
+            member_objects = []
+            for mid in crew_data.get("members", []):
                 try:
-                    member_mentions.append(member.mention)
-                except:
-                    # Fallback to string representation if mention fails
-                    member_mentions.append(str(member))
+                    # Convert to int if it's a string
+                    if isinstance(mid, str):
+                        if mid.isdigit():
+                            mid = int(mid)
+                        elif mid.startswith("<@") and mid.endswith(">"):
+                            # Extract ID from mention format
+                            mid = int(mid.strip("<@!&>"))
                     
-            member_list = ", ".join(member_mentions)
+                    member = ctx.guild.get_member(mid)
+                    if member:
+                        member_objects.append(member)
+                except:
+                    continue
             
-            # Add "and X more" if necessary
-            if len(regular_members) > 10:
-                member_list += f" and {len(regular_members) - 10} more..."
+            # Get role objects
+            captain_role_id = crew_data.get("captain_role")
+            vice_captain_role_id = crew_data.get("vice_captain_role")
+            
+            captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
+            vice_captain_role = ctx.guild.get_role(vice_captain_role_id) if vice_captain_role_id else None
+            
+            # Find captain and vice captain
+            captain = next((m for m in member_objects if captain_role and captain_role in m.roles), None)
+            vice_captain = next((m for m in member_objects if vice_captain_role and vice_captain_role in m.roles), None)
+            
+            # Get regular members
+            regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
+            
+            # Create the embed
+            emoji = crew_data.get("emoji", "🏴‍☠️")
+            embed = discord.Embed(
+                title=f"Crew: {matched_crew} {emoji}",
+                description=f"Total Members: {len(member_objects)}",
+                color=0x00FF00,
+            )
+            
+            # Add captain info
+            embed.add_field(
+                name="Captain", 
+                value=captain.mention if captain else "None", 
+                inline=False
+            )
+            
+            # Add vice captain info
+            embed.add_field(
+                name="Vice Captain", 
+                value=vice_captain.mention if vice_captain else "None", 
+                inline=False
+            )
+            
+            # Add regular members
+            if regular_members:
+                member_mentions = [m.mention for m in regular_members[:10]]
+                member_list = ", ".join(member_mentions)
                 
-            embed.add_field(name="Members", value=member_list, inline=False)
-        else:
-            embed.add_field(name="Members", value="No regular members yet", inline=False)
+                if len(regular_members) > 10:
+                    member_list += f" and {len(regular_members) - 10} more..."
+                    
+                embed.add_field(name="Members", value=member_list, inline=False)
+            else:
+                embed.add_field(name="Members", value="No regular members yet", inline=False)
             
-        # Add statistics
-        stats = crew_data.get("stats", {})
-        embed.add_field(
-            name="Statistics",
-            value=(
-                f"Wins: {stats.get('wins', 0)}\n"
-                f"Losses: {stats.get('losses', 0)}\n"
-                f"Tournaments Won: {stats.get('tournaments_won', 0)}\n"
-                f"Tournaments Participated: {stats.get('tournaments_participated', 0)}"
-            ),
-            inline=False
-        )
-        
-        # Create a button to join this crew
-        view = CrewView(matched_crew, crew_data["emoji"], self)
-        await ctx.send(embed=embed, view=view)
-
+            # Add statistics
+            stats = crew_data.get("stats", {})
+            if not stats:
+                stats = {"wins": 0, "losses": 0, "tournaments_won": 0, "tournaments_participated": 0}
+                
+            embed.add_field(
+                name="Statistics",
+                value=(
+                    f"Wins: {stats.get('wins', 0)}\n"
+                    f"Losses: {stats.get('losses', 0)}\n"
+                    f"Tournaments Won: {stats.get('tournaments_won', 0)}\n"
+                    f"Tournaments Participated: {stats.get('tournaments_participated', 0)}"
+                ),
+                inline=False
+            )
+            
+            # Create a button to join this crew
+            view = CrewView(matched_crew, emoji, self)
+            await ctx.send(embed=embed, view=view)
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error displaying crew information: {str(e)}")
     @crew_commands.command(name="kick")
     async def crew_kick(self, ctx, member: discord.Member):
         """Kick a member from your crew. Only captains and vice-captains can use this command."""
