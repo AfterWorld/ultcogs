@@ -117,9 +117,9 @@ class JoinTournamentButton(discord.ui.Button):
 
         tournament["crews"].append(user_crew)
     
-    await self.cog.save_tournaments(interaction.guild)
-    await interaction.response.send_message(f"✅ Your crew `{user_crew}` has joined the tournament `{self.tournament_name}`!", ephemeral=True)
-    await self.cog.update_tournament_message(interaction.message, self.tournament_name)
+        await self.cog.save_tournaments(interaction.guild)
+        await interaction.response.send_message(f"✅ Your crew `{user_crew}` has joined the tournament `{self.tournament_name}`!", ephemeral=True)
+        await self.cog.update_tournament_message(interaction.message, self.tournament_name)
 
 
 class StartTournamentButton(discord.ui.Button):
