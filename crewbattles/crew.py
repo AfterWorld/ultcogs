@@ -995,6 +995,332 @@ class CrewTournament(commands.Cog):
         await self.save_data(ctx.guild)
         await ctx.send(f"✅ Crew `{crew_name}` has been deleted.")
 
+    @crew_commands.command(name="invite")
+    async def crew_invite(self, ctx, member: discord.Member):
+        """Invite a member to your crew. Only captains and vice-captains can use this command."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        author = ctx.author
+        author_crew = None
+        
+        # Find the crew the command issuer is in
+        for crew_name, crew in crews.items():
+            if author.id in crew["members"]:
+                author_crew = crew_name
+                break
+                
+        if not author_crew:
+            await ctx.send("❌ You are not in any crew.")
+            return
+            
+        crew = crews[author_crew]
+        
+        # Check if author is captain or vice captain
+        captain_role = ctx.guild.get_role(crew["captain_role"])
+        vice_captain_role = ctx.guild.get_role(crew["vice_captain_role"])
+        
+        if not (captain_role in author.roles or vice_captain_role in author.roles):
+            await ctx.send("❌ Only the captain or vice-captain can invite members.")
+            return
+        
+        # Check if target is already in a crew
+        for other_crew_name, other_crew in crews.items():
+            if member.id in other_crew["members"]:
+                await ctx.send(f"❌ {member.display_name} is already in the crew `{other_crew_name}`.")
+                return
+        
+        # Send invitation
+        crew_emoji = crew["emoji"]
+        invite_embed = discord.Embed(
+            title=f"{crew_emoji} Crew Invitation",
+            description=f"{author.mention} is inviting you to join the crew `{author_crew}`!",
+            color=0x00FF00,
+        )
+        
+        # Create buttons for accept/decline
+        class InviteView(discord.ui.View):
+            def __init__(self, cog, crew_name, crew_emoji):
+                super().__init__(timeout=300)  # 5 minute timeout
+                self.cog = cog
+                self.crew_name = crew_name
+                self.crew_emoji = crew_emoji
+                
+            @discord.ui.button(label="Accept", style=discord.ButtonStyle.success)
+            async def accept_button(self, button, interaction):
+                if interaction.user.id != member.id:
+                    await interaction.response.send_message("❌ This invitation is not for you.", ephemeral=True)
+                    return
+                    
+                crew = self.cog.crews.get(guild_id, {}).get(self.crew_name)
+                if not crew:
+                    await interaction.response.send_message("❌ This crew no longer exists.", ephemeral=True)
+                    return
+                    
+                # Add to crew
+                crew["members"].append(member.id)
+                
+                # Assign crew role
+                crew_role = interaction.guild.get_role(crew["crew_role"])
+                if crew_role:
+                    try:
+                        await member.add_roles(crew_role)
+                    except discord.Forbidden:
+                        await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't assign you the crew role due to permission issues.", ephemeral=True)
+                        await self.cog.save_crews(interaction.guild)
+                        return
+                
+                # Update nickname with crew emoji
+                try:
+                    original_nick = member.display_name
+                    # Make sure we don't add the emoji twice
+                    if not original_nick.startswith(self.crew_emoji):
+                        success = await self.cog.set_nickname_safely(member, self.crew_emoji, original_nick)
+                        if not success:
+                            await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't update your nickname due to permission issues.", ephemeral=True)
+                            await self.cog.save_crews(interaction.guild)
+                            return
+                except Exception as e:
+                    await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`! Note: I couldn't update your nickname. Error: {str(e)}", ephemeral=True)
+                    await self.cog.save_crews(interaction.guild)
+                    return
+                    
+                await self.cog.save_crews(interaction.guild)
+                await interaction.response.send_message(f"✅ You have joined the crew `{self.crew_name}`!", ephemeral=True)
+                
+                # Notify the channel
+                try:
+                    await interaction.message.edit(content=f"✅ {member.mention} has accepted the invitation to join `{self.crew_name}`!", embed=None, view=None)
+                except:
+                    pass
+                    
+            @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger)
+            async def decline_button(self, button, interaction):
+                if interaction.user.id != member.id:
+                    await interaction.response.send_message("❌ This invitation is not for you.", ephemeral=True)
+                    return
+                    
+                await interaction.response.send_message(f"You have declined the invitation to join the crew `{self.crew_name}`.", ephemeral=True)
+                
+                # Notify the channel
+                try:
+                    await interaction.message.edit(content=f"❌ {member.mention} has declined the invitation to join `{self.crew_name}`.", embed=None, view=None)
+                except:
+                    pass
+        
+        # Send the invitation with buttons
+        invite_view = InviteView(self, author_crew, crew_emoji)
+        await ctx.send(f"{member.mention}, you've been invited to a crew!", embed=invite_embed, view=invite_view)
+        await ctx.send(f"✅ Invitation sent to {member.mention}!")
+    
+    @crew_commands.command(name="edit")
+    @commands.admin_or_permissions(administrator=True)
+    async def crew_edit(self, ctx, crew_name: str, property_type: str, *, new_value: str):
+        """
+        Edit crew properties.
+        
+        Usage:
+        [p]crew edit "Blue Pirates" name "Red Pirates"
+        [p]crew edit "Blue Pirates" emoji 🔴
+        
+        Only administrators can use this command.
+        """
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if crew_name not in crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+        
+        crew = crews[crew_name]
+        property_type = property_type.lower()
+        
+        # Handle name change
+        if property_type == "name":
+            if new_value in crews:
+                await ctx.send(f"❌ A crew with the name `{new_value}` already exists.")
+                return
+                
+            # Update the crew name in any tournaments
+            tournaments = self.tournaments.get(guild_id, {})
+            for tournament in tournaments.values():
+                if crew_name in tournament["crews"]:
+                    tournament["crews"].remove(crew_name)
+                    tournament["crews"].append(new_value)
+                    
+            # Update role names
+            for role_key, role_suffix in [
+                ("captain_role", "Captain"),
+                ("vice_captain_role", "Vice Captain"),
+                ("crew_role", "Member")
+            ]:
+                role = ctx.guild.get_role(crew[role_key])
+                if role:
+                    try:
+                        await role.edit(name=f"{new_value} {role_suffix}")
+                    except discord.Forbidden:
+                        await ctx.send(f"⚠️ Couldn't rename {role.name} due to permission issues.")
+                        
+            # Update the crew name in the crews dictionary
+            crews[new_value] = crews.pop(crew_name)
+            crews[new_value]["name"] = new_value
+            
+            await self.save_data(ctx.guild)
+            await ctx.send(f"✅ Crew `{crew_name}` has been renamed to `{new_value}`.")
+        
+        # Handle emoji change
+        elif property_type == "emoji":
+            old_emoji = crew["emoji"]
+            
+            # Validate that the emoji is actually an emoji and not a user mention
+            if new_value.startswith("<@"):
+                await ctx.send("❌ Please provide a valid emoji, not a user mention.")
+                return
+                
+            # Check if the emoji is a custom emoji
+            if new_value.startswith("<:") and new_value.endswith(">"):
+                try:
+                    # For custom emojis like <:emojiname:12345>
+                    emoji_parts = new_value.split(":")
+                    if len(emoji_parts) >= 3:
+                        emoji_id = emoji_parts[2][:-1]  # Remove the trailing '>'
+                        emoji = self.bot.get_emoji(int(emoji_id))
+                        if emoji:
+                            new_value = str(emoji)
+                        else:
+                            # If we can't find the emoji, use a default
+                            await ctx.send(f"⚠️ Couldn't find the custom emoji. Using default emoji instead.")
+                            new_value = "🏴‍☠️"
+                except Exception as e:
+                    await ctx.send(f"❌ Error processing custom emoji: {e}")
+                    new_value = "🏴‍☠️"  # Default fallback
+                    
+            # Update the emoji in the crew data
+            crew["emoji"] = new_value
+            
+            # Update nicknames of crew members
+            updated_count = 0
+            failed_count = 0
+            
+            for member_id in crew["members"]:
+                member = ctx.guild.get_member(member_id)
+                if member:
+                    try:
+                        current_nick = member.display_name
+                        # Check if the nickname starts with the old emoji
+                        if current_nick.startswith(f"{old_emoji} "):
+                            new_nick = current_nick.replace(f"{old_emoji} ", f"{new_value} ", 1)
+                            await member.edit(nick=new_nick)
+                            updated_count += 1
+                    except Exception:
+                        failed_count += 1
+                        
+            await self.save_data(ctx.guild)
+            
+            status = f"✅ Crew emoji changed from {old_emoji} to {new_value}."
+            if updated_count > 0:
+                status += f" Updated {updated_count} member nicknames."
+            if failed_count > 0:
+                status += f" Failed to update {failed_count} member nicknames due to permission issues."
+                
+            await ctx.send(status)
+        
+        else:
+            await ctx.send("❌ Invalid property type. Valid options are: `name`, `emoji`.")
+    
+    @crew_commands.command(name="finish")
+    @commands.admin_or_permissions(administrator=True)
+    async def crew_finish(self, ctx, channel_id: int = None):
+        """
+        Posts all crews with join buttons in the specified channel.
+        If no channel is specified, posts in the current channel.
+        
+        Usage:
+        [p]crew finish
+        [p]crew finish 123456789012345678
+        """
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews have been created yet. Create some crews first with `crew create`.")
+            return
+        
+        # Determine the target channel
+        target_channel = None
+        if channel_id:
+            target_channel = ctx.guild.get_channel(channel_id)
+            if not target_channel:
+                await ctx.send(f"❌ Could not find a channel with ID {channel_id}.")
+                return
+        else:
+            target_channel = ctx.channel
+        
+        # Check permissions in the target channel
+        if not target_channel.permissions_for(ctx.guild.me).send_messages:
+            await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.")
+            return
+        
+        # Create an eye-catching header
+        header_embed = discord.Embed(
+            title="🏴‍☠️ Join a Crew Today! 🏴‍☠️",
+            description="Select a crew below to join. Choose wisely - you can't switch once you join!",
+            color=discord.Color.gold()
+        )
+        await target_channel.send(embed=header_embed)
+        
+        # Post each crew with its own join button
+        for crew_name, crew_data in crews.items():
+            # Find the captain
+            captain_role = ctx.guild.get_role(crew_data["captain_role"])
+            captain = None
+            for member_id in crew_data["members"]:
+                member = ctx.guild.get_member(member_id)
+                if member and captain_role in member.roles:
+                    captain = member
+                    break
+            
+            # Create the crew embed
+            crew_embed = discord.Embed(
+                title=f"{crew_data['emoji']} {crew_name}",
+                description=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}",
+                color=discord.Color.blue()
+            )
+            
+            # Add stats if they exist
+            if "stats" in crew_data:
+                stats = crew_data["stats"]
+                crew_embed.add_field(
+                    name="Statistics",
+                    value=f"Wins: {stats['wins']}\nLosses: {stats['losses']}\nTournaments Won: {stats.get('tournaments_won', 0)}",
+                    inline=True
+                )
+            
+            # Create and send the view with a join button
+            view = CrewView(crew_name, crew_data["emoji"], self)
+            await target_channel.send(embed=crew_embed, view=view)
+        
+        # Confirmation message
+        await ctx.send(f"✅ Successfully posted all crews in {target_channel.mention}!")
+
     @crew_commands.command(name="list")
     async def crew_list(self, ctx):
         """List all available crews for users to join."""
