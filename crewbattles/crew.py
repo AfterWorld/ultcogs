@@ -1471,7 +1471,9 @@ class CrewTournament(commands.Cog):
     
     @crew_commands.command(name="view")
     async def crew_view(self, ctx, *, crew_name: str):
-        """View the details of a crew."""
+        """View the details of a crew with a clean, formatted display."""
+        import datetime  # Add this import for the timestamp
+        
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
         if not finished_setup:
@@ -1590,41 +1592,45 @@ class CrewTournament(commands.Cog):
                                 else mid) 
                             for m in member_objects)]
             
-            # Create the embed
+            # Create the embed with a nicer appearance
             emoji = crew_data.get("emoji", "🏴‍☠️")
+            
+            # Get a color based on the crew name or use a default color
+            # This creates a consistent color for each crew based on its name
+            import hashlib
+            color_hash = int(hashlib.md5(matched_crew.encode()).hexdigest()[:6], 16)
+            
             embed = discord.Embed(
-                title=f"Crew: {matched_crew} {emoji}",
-                description=f"Total Members: {len(crew_data.get('members', []))}",
-                color=0x00FF00,
+                title=f"{emoji} Crew: {matched_crew}",
+                description=f"**{len(crew_data.get('members', []))} Members**",
+                color=color_hash,
             )
             
-            # Add captain info with display_name instead of mention
+            # Add leadership section with both captain and vice captain in one field
+            leadership = []
             if captain:
-                embed.add_field(
-                    name="Captain", 
-                    value=captain.display_name, 
-                    inline=False
-                )
+                leadership.append(f"**Captain:** {captain.display_name}")
             else:
-                embed.add_field(name="Captain", value="None", inline=False)
-            
-            # Add vice captain info with display_name instead of mention
+                leadership.append("**Captain:** *None assigned*")
+                
             if vice_captain:
-                embed.add_field(
-                    name="Vice Captain", 
-                    value=vice_captain.display_name, 
-                    inline=False
-                )
+                leadership.append(f"**Vice Captain:** {vice_captain.display_name}")
             else:
-                embed.add_field(name="Vice Captain", value="None", inline=False)
+                leadership.append("**Vice Captain:** *None assigned*")
+                
+            embed.add_field(
+                name="👑 Leadership",
+                value="\n".join(leadership),
+                inline=False
+            )
             
-            # Add regular members
+            # Add regular members with better formatting
             if regular_members or unresolved_ids:
                 # First add all members we could resolve using display_name
-                member_strings = [m.display_name for m in regular_members[:10]]
+                member_strings = [m.display_name for m in regular_members[:15]]
                 
                 # Then add usernames for unresolved IDs (if we found any usernames earlier)
-                for uid in unresolved_ids[:max(0, 10-len(member_strings))]:
+                for uid in unresolved_ids[:max(0, 15-len(member_strings))]:
                     try:
                         # Convert to int if it's a string ID
                         user_id = uid
@@ -1642,31 +1648,53 @@ class CrewTournament(commands.Cog):
                         # Skip unresolvable IDs completely
                         continue
                 
-                member_list = ", ".join(member_strings)
-                
-                total_remaining = len(regular_members) + len(unresolved_ids) - len(member_strings)
-                if total_remaining > 0:
-                    member_list += f" and {total_remaining} more..."
+                # Format the member list as a bulleted list if there are members
+                if member_strings:
+                    member_list = "\n".join([f"• {name}" for name in member_strings])
                     
-                embed.add_field(name="Members", value=member_list if member_list else "No regular members yet", inline=False)
+                    total_remaining = len(regular_members) + len(unresolved_ids) - len(member_strings)
+                    if total_remaining > 0:
+                        member_list += f"\n*...and {total_remaining} more*"
+                else:
+                    member_list = "*No regular members yet*"
+                    
+                embed.add_field(
+                    name="👥 Members", 
+                    value=member_list, 
+                    inline=False
+                )
             else:
-                embed.add_field(name="Members", value="No regular members yet", inline=False)
+                embed.add_field(
+                    name="👥 Members", 
+                    value="*No regular members yet*", 
+                    inline=False
+                )
             
-            # Add statistics
+            # Add statistics with icons and better formatting
             stats = crew_data.get("stats", {})
             if not stats:
                 stats = {"wins": 0, "losses": 0, "tournaments_won": 0, "tournaments_participated": 0}
-                
+            
+            # Calculate win rate
+            total_matches = stats.get('wins', 0) + stats.get('losses', 0)
+            win_rate = round((stats.get('wins', 0) / total_matches) * 100) if total_matches > 0 else 0
+            
+            # Format stats with emojis
             embed.add_field(
-                name="Statistics",
+                name="📊 Statistics",
                 value=(
-                    f"Wins: {stats.get('wins', 0)}\n"
-                    f"Losses: {stats.get('losses', 0)}\n"
-                    f"Tournaments Won: {stats.get('tournaments_won', 0)}\n"
-                    f"Tournaments Participated: {stats.get('tournaments_participated', 0)}"
+                    f"🏆 **Wins:** {stats.get('wins', 0)}\n"
+                    f"❌ **Losses:** {stats.get('losses', 0)}\n"
+                    f"📈 **Win Rate:** {win_rate}%\n"
+                    f"🏅 **Tournaments Won:** {stats.get('tournaments_won', 0)}\n"
+                    f"🏟️ **Tournaments Entered:** {stats.get('tournaments_participated', 0)}"
                 ),
                 inline=False
             )
+            
+            # Add footer with timestamp
+            embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url if hasattr(ctx.author, 'display_avatar') else None)
+            embed.timestamp = datetime.datetime.now()
             
             # Send the embed without any view/buttons
             await ctx.send(embed=embed)
