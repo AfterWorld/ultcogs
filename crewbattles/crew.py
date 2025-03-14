@@ -453,54 +453,6 @@ class CrewTournament(commands.Cog):
         await self.save_data(ctx.guild)
         await ctx.send("✅ All crew and tournament data has been reset for this server.")
 
-    @crew_setup.command(name="finish")
-    async def setup_finish(self, ctx):
-        """Finalizes crew setup and posts an interactive message for users to join crews."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if not crews:
-            await ctx.send("❌ No crews have been created yet. Create some crews first with `crew create`.")
-            return
-        
-        # Create an embed with all crew information
-        embed = discord.Embed(
-            title="🏴‍☠️ Available Crews",
-            description="Click the buttons below to join a crew!",
-            color=0x00FF00,
-        )
-        
-        for crew_name, crew_data in crews.items():
-            # Find the captain
-            captain_role = ctx.guild.get_role(crew_data["captain_role"])
-            captain = None
-            for member_id in crew_data["members"]:
-                member = ctx.guild.get_member(member_id)
-                if member and captain_role in member.roles:
-                    captain = member
-                    break
-            
-            embed.add_field(
-                name=f"{crew_data['emoji']} {crew_name}",
-                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}",
-                inline=True
-            )
-        
-        # Create a view with buttons for each crew
-        view = discord.ui.View(timeout=None)
-        for crew_name, crew_data in crews.items():
-            view.add_item(CrewButton(crew_name, crew_data["emoji"], self))
-        
-        # Send the interactive message
-        await ctx.send("✅ Crew setup has been finalized! Here are the available crews:", embed=embed, view=view)
-        await ctx.send("Users can now join crews using the buttons above or by using the `crew join` command.")
-
     @crew_setup.command(name="roles")
     async def setup_roles(self, ctx):
         """Create separator roles to organize crew roles in the role list."""
