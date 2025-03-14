@@ -1240,6 +1240,59 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send("❌ Invalid property type. Valid options are: `name`, `emoji`.")
     
+    @crew_setup.command(name="finish")
+    async def setup_finish(self, ctx):
+        """Finalizes crew setup and posts an interactive message for users to join crews."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews have been created yet. Create some crews first with `crew create`.")
+            return
+        
+        # Create an embed with all crew information
+        embed = discord.Embed(
+            title="🏴‍☠️ Available Crews",
+            description="Click the buttons below to join a crew!",
+            color=0x00FF00,
+        )
+        
+        for crew_name, crew_data in crews.items():
+            # Find the captain
+            captain_role = ctx.guild.get_role(crew_data["captain_role"])
+            crew_role = ctx.guild.get_role(crew_data["crew_role"])
+            
+            # Get member count by role instead of stored IDs
+            member_count = len(crew_role.members) if crew_role else 0
+            
+            captain = None
+            for member_id in crew_data["members"]:
+                member = ctx.guild.get_member(member_id)
+                if member and captain_role in member.roles:
+                    captain = member
+                    break
+            
+            embed.add_field(
+                name=f"{crew_data['emoji']} {crew_name}",
+                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}",
+                inline=True
+            )
+        
+        # Create a view with buttons for each crew
+        view = discord.ui.View(timeout=None)
+        for crew_name, crew_data in crews.items():
+            view.add_item(CrewButton(crew_name, crew_data["emoji"], self))
+        
+        # Send the interactive message
+        await ctx.send("✅ Crew setup has been finalized! Here are the available crews:", embed=embed, view=view)
+        await ctx.send("Users can now join crews using the buttons above or by using the `crew join` command.")
+
     @crew_commands.command(name="finish")
     @commands.admin_or_permissions(administrator=True)
     async def crew_finish(self, ctx, channel_id: int = None):
@@ -1291,6 +1344,11 @@ class CrewTournament(commands.Cog):
         for crew_name, crew_data in crews.items():
             # Find the captain
             captain_role = ctx.guild.get_role(crew_data["captain_role"])
+            crew_role = ctx.guild.get_role(crew_data["crew_role"])
+            
+            # Get member count by role instead of stored IDs
+            member_count = len(crew_role.members) if crew_role else 0
+            
             captain = None
             for member_id in crew_data["members"]:
                 member = ctx.guild.get_member(member_id)
@@ -1301,7 +1359,7 @@ class CrewTournament(commands.Cog):
             # Create the crew embed
             crew_embed = discord.Embed(
                 title=f"{crew_data['emoji']} {crew_name}",
-                description=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}",
+                description=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}",
                 color=discord.Color.blue()
             )
             
@@ -1345,7 +1403,11 @@ class CrewTournament(commands.Cog):
         
         for crew_name, crew_data in crews.items():
             captain_role = ctx.guild.get_role(crew_data["captain_role"])
+            crew_role = ctx.guild.get_role(crew_data["crew_role"])
             captain = None
+            
+            # Count members by role instead of by stored member IDs
+            member_count = len(crew_role.members) if crew_role else 0
             
             for member_id in crew_data["members"]:
                 member = ctx.guild.get_member(member_id)
@@ -1355,7 +1417,7 @@ class CrewTournament(commands.Cog):
                     
             embed.add_field(
                 name=f"{crew_data['emoji']} {crew_name}",
-                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {len(crew_data['members'])}\nWins: {crew_data['stats']['wins']} | Losses: {crew_data['stats']['losses']}",
+                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}\nWins: {crew_data['stats']['wins']} | Losses: {crew_data['stats']['losses']}",
                 inline=True
             )
     
@@ -1537,60 +1599,24 @@ class CrewTournament(commands.Cog):
 
         # Continue with creating the embed using the found crew_data
         try:
-            # Extract member objects and usernames for IDs we can't resolve
-            member_objects = []
-            member_usernames = {}  # Dict to store ID -> username mappings
-            
-            for mid in crew_data.get("members", []):
-                try:
-                    # Handle different ID formats
-                    member_id = mid
-                    if isinstance(mid, str):
-                        if mid.isdigit():
-                            member_id = int(mid)
-                        elif mid.startswith("<@") and mid.endswith(">"):
-                            # Extract ID from mention format
-                            member_id = int(mid.strip("<@!&>"))
-                    
-                    member = ctx.guild.get_member(member_id)
-                    if member:
-                        member_objects.append(member)
-                        member_usernames[member_id] = member.display_name
-                    else:
-                        # If we can't find the member, try to get the username from the API
-                        try:
-                            # For cases where the member might be cached by the bot but not in the guild
-                            user = await self.bot.fetch_user(member_id)
-                            if user:
-                                member_usernames[member_id] = user.name
-                        except:
-                            # If we can't resolve the username, just use the ID as fallback
-                            member_usernames[member_id] = f"Unknown User"
-                except:
-                    # For completely unresolvable cases, just skip
-                    continue
-            
             # Get role objects
             captain_role_id = crew_data.get("captain_role")
             vice_captain_role_id = crew_data.get("vice_captain_role")
+            crew_role_id = crew_data.get("crew_role")
             
             captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
             vice_captain_role = ctx.guild.get_role(vice_captain_role_id) if vice_captain_role_id else None
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
             
-            # Find captain and vice captain
+            # Get members by role instead of stored IDs
+            member_objects = crew_role.members if crew_role else []
+            
+            # Find captain and vice captain using roles
             captain = next((m for m in member_objects if captain_role and captain_role in m.roles), None)
             vice_captain = next((m for m in member_objects if vice_captain_role and vice_captain_role in m.roles), None)
             
             # Get regular members (exclude captain and vice captain)
             regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
-            
-            # For members that have left the server but are still in the crew
-            unresolved_ids = [mid for mid in crew_data.get("members", []) 
-                            if not any(getattr(m, 'id', None) == (
-                                int(mid) if isinstance(mid, str) and mid.isdigit() 
-                                else int(mid.strip("<@!&>")) if isinstance(mid, str) and mid.startswith("<@") 
-                                else mid) 
-                            for m in member_objects)]
             
             # Create the embed with a nicer appearance
             emoji = crew_data.get("emoji", "🏴‍☠️")
@@ -1602,7 +1628,7 @@ class CrewTournament(commands.Cog):
             
             embed = discord.Embed(
                 title=f"{emoji} Crew: {matched_crew}",
-                description=f"**{len(crew_data.get('members', []))} Members**",
+                description=f"**{len(member_objects)} Members**",
                 color=color_hash,
             )
             
@@ -1625,34 +1651,15 @@ class CrewTournament(commands.Cog):
             )
             
             # Add regular members with better formatting
-            if regular_members or unresolved_ids:
+            if regular_members:
                 # First add all members we could resolve using display_name
                 member_strings = [m.display_name for m in regular_members[:15]]
-                
-                # Then add usernames for unresolved IDs (if we found any usernames earlier)
-                for uid in unresolved_ids[:max(0, 15-len(member_strings))]:
-                    try:
-                        # Convert to int if it's a string ID
-                        user_id = uid
-                        if isinstance(uid, str):
-                            if uid.isdigit():
-                                user_id = int(uid)
-                            elif uid.startswith("<@") and uid.endswith(">"):
-                                user_id = int(uid.strip("<@!&>"))
-                        
-                        # Get username from our mapping, or use placeholder
-                        username = member_usernames.get(user_id, "Unknown User")
-                        if username != "Unknown User":  # Only add if we have a real username
-                            member_strings.append(username)
-                    except:
-                        # Skip unresolvable IDs completely
-                        continue
                 
                 # Format the member list as a bulleted list if there are members
                 if member_strings:
                     member_list = "\n".join([f"• {name}" for name in member_strings])
                     
-                    total_remaining = len(regular_members) + len(unresolved_ids) - len(member_strings)
+                    total_remaining = len(regular_members) - len(member_strings)
                     if total_remaining > 0:
                         member_list += f"\n*...and {total_remaining} more*"
                 else:
@@ -2105,14 +2112,18 @@ class CrewTournament(commands.Cog):
                 return
                 
             crew = crews[crew_name]
-            members = [guild.get_member(mid) for mid in crew["members"]]
-            members = [m for m in members if m is not None]  # Filter out None values
+            
+            # Get crew role
+            crew_role = guild.get_role(crew["crew_role"])
+            
+            # Get members by role instead of stored IDs
+            members = crew_role.members if crew_role else []
             
             captain_role = guild.get_role(crew["captain_role"])
             vice_captain_role = guild.get_role(crew["vice_captain_role"])
             
-            captain = next((m for m in members if captain_role in m.roles), None)
-            vice_captain = next((m for m in members if vice_captain_role in m.roles), None)
+            captain = next((m for m in members if captain_role and captain_role in m.roles), None)
+            vice_captain = next((m for m in members if vice_captain_role and vice_captain_role in m.roles), None)
             
             regular_members = [m for m in members if m not in [captain, vice_captain]]
             
@@ -2138,6 +2149,121 @@ class CrewTournament(commands.Cog):
             pass  # Message was deleted
         except Exception as e:
             print(f"Error updating crew message: {e}")
+
+    @commands.command(name="debugcrews")
+    @commands.admin_or_permissions(administrator=True)
+    async def debug_crews(self, ctx):
+        """Debug command to show the raw crew data and fix any formatting issues."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+        
+        # Show the raw data
+        crew_data_text = ""
+        for crew_name, crew_data in crews.items():
+            # Get member count by role
+            crew_role_id = crew_data.get("crew_role")
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
+            role_member_count = len(crew_role.members) if crew_role else 0
+            
+            crew_data_text += f"Crew: '{crew_name}'\n"
+            crew_data_text += f"- Stored name: '{crew_data['name']}'\n"
+            crew_data_text += f"- Emoji: {crew_data['emoji']}\n"
+            crew_data_text += f"- Members in array: {len(crew_data['members'])}\n"
+            crew_data_text += f"- Members in role: {role_member_count}\n\n"
+        
+        # Check for mention-like crew names and offer to fix them
+        has_mention_format = any("<@" in name for name in crews.keys())
+        
+        if has_mention_format:
+            crew_data_text += "\nDetected mention formatting in crew names. Use `fixcrewnames` to fix this issue."
+        
+        # Send the debug info in chunks if needed
+        if len(crew_data_text) > 1900:
+            chunks = [crew_data_text[i:i+1900] for i in range(0, len(crew_data_text), 1900)]
+            for chunk in chunks:
+                await ctx.send(f"```\n{chunk}\n```")
+        else:
+            await ctx.send(f"```\n{crew_data_text}\n```")
+
+    @commands.command(name="synccrew")
+    @commands.admin_or_permissions(administrator=True)
+    async def sync_crew(self, ctx, crew_name: str):
+        """Sync the crew members list with the actual role members."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if crew_name not in crews:
+            await ctx.send(f"❌ No crew found with the name `{crew_name}`.")
+            return
+            
+        crew = crews[crew_name]
+        crew_role = ctx.guild.get_role(crew["crew_role"])
+        
+        if not crew_role:
+            await ctx.send(f"❌ Could not find the crew role for `{crew_name}`.")
+            return
+            
+        # Get all members with the crew role
+        role_members = crew_role.members
+        
+        # Create a new members list from the role members
+        new_members = [member.id for member in role_members]
+        
+        # Update the crew's members list
+        old_count = len(crew["members"])
+        crew["members"] = new_members
+        new_count = len(new_members)
+        
+        await self.save_crews(ctx.guild)
+        await ctx.send(f"✅ Crew `{crew_name}` members list synced with role members. Updated from {old_count} to {new_count} members.")
+
+    @commands.command(name="syncallcrews")
+    @commands.admin_or_permissions(administrator=True)
+    async def sync_all_crews(self, ctx):
+        """Sync all crews' members lists with their actual role members."""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews found.")
+            return
+            
+        results = []
+        
+        for crew_name, crew in crews.items():
+            crew_role = ctx.guild.get_role(crew["crew_role"])
+            
+            if not crew_role:
+                results.append(f"❌ `{crew_name}`: Could not find crew role")
+                continue
+                
+            # Get all members with the crew role
+            role_members = crew_role.members
+            
+            # Create a new members list from the role members
+            new_members = [member.id for member in role_members]
+            
+            # Update the crew's members list
+            old_count = len(crew["members"])
+            crew["members"] = new_members
+            new_count = len(new_members)
+            
+            results.append(f"✅ `{crew_name}`: Updated from {old_count} to {new_count} members")
+            
+        await self.save_crews(ctx.guild)
+        
+        # Send results in chunks if needed
+        results_text = "\n".join(results)
+        if len(results_text) > 1900:
+            chunks = [results_text[i:i+1900] for i in range(0, len(results_text), 1900)]
+            for chunk in chunks:
+                await ctx.send(chunk)
+        else:
+            await ctx.send(results_text)
 
     # --- Tournament Command Group ---
     @commands.group(name="tournament")
