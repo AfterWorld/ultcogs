@@ -1240,7 +1240,7 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send("❌ Invalid property type. Valid options are: `name`, `emoji`.")
     
-    @crew_setup.command(name="done")
+    @crew_setup.command(name="finish")
     async def setup_finish(self, ctx):
         """Finalizes crew setup and posts an interactive message for users to join crews."""
         # Validate setup
@@ -1271,12 +1271,8 @@ class CrewTournament(commands.Cog):
             # Get member count by role instead of stored IDs
             member_count = len(crew_role.members) if crew_role else 0
             
-            captain = None
-            for member_id in crew_data["members"]:
-                member = ctx.guild.get_member(member_id)
-                if member and captain_role in member.roles:
-                    captain = member
-                    break
+            # Find captain by role across all guild members
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
             
             embed.add_field(
                 name=f"{crew_data['emoji']} {crew_name}",
@@ -1349,12 +1345,8 @@ class CrewTournament(commands.Cog):
             # Get member count by role instead of stored IDs
             member_count = len(crew_role.members) if crew_role else 0
             
-            captain = None
-            for member_id in crew_data["members"]:
-                member = ctx.guild.get_member(member_id)
-                if member and captain_role in member.roles:
-                    captain = member
-                    break
+            # Find captain by role across all guild members
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
             
             # Create the crew embed
             crew_embed = discord.Embed(
@@ -1422,7 +1414,7 @@ class CrewTournament(commands.Cog):
             )
     
         await ctx.send(embed=embed)
-
+        
     @commands.command(name="crewdiagnose")
     @commands.admin_or_permissions(administrator=True)
     async def crew_diagnose(self, ctx):
@@ -1612,8 +1604,9 @@ class CrewTournament(commands.Cog):
             member_objects = crew_role.members if crew_role else []
             
             # Find captain and vice captain using roles
-            captain = next((m for m in member_objects if captain_role and captain_role in m.roles), None)
-            vice_captain = next((m for m in member_objects if vice_captain_role and vice_captain_role in m.roles), None)
+            # First look for members with the specific roles
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
+            vice_captain = next((m for m in ctx.guild.members if vice_captain_role and vice_captain_role in m.roles), None)
             
             # Get regular members (exclude captain and vice captain)
             regular_members = [m for m in member_objects if m not in [captain, vice_captain]]
@@ -2122,8 +2115,9 @@ class CrewTournament(commands.Cog):
             captain_role = guild.get_role(crew["captain_role"])
             vice_captain_role = guild.get_role(crew["vice_captain_role"])
             
-            captain = next((m for m in members if captain_role and captain_role in m.roles), None)
-            vice_captain = next((m for m in members if vice_captain_role and vice_captain_role in m.roles), None)
+            # Look for captain and vice-captain across all guild members
+            captain = next((m for m in guild.members if captain_role and captain_role in m.roles), None)
+            vice_captain = next((m for m in guild.members if vice_captain_role and vice_captain_role in m.roles), None)
             
             regular_members = [m for m in members if m not in [captain, vice_captain]]
             
