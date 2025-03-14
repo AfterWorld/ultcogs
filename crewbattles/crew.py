@@ -1348,16 +1348,12 @@ class CrewTournament(commands.Cog):
         for crew_name, crew_data in crews.items():
             captain_role = ctx.guild.get_role(crew_data["captain_role"])
             crew_role = ctx.guild.get_role(crew_data["crew_role"])
-            captain = None
             
             # Count members by role instead of by stored member IDs
             member_count = len(crew_role.members) if crew_role else 0
             
-            for member_id in crew_data["members"]:
-                member = ctx.guild.get_member(member_id)
-                if member and captain_role in member.roles:
-                    captain = member
-                    break
+            # Find captain from all guild members
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
                     
             embed.add_field(
                 name=f"{crew_data['emoji']} {crew_name}",
