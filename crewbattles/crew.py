@@ -1685,7 +1685,6 @@ class CrewTournament(commands.Cog):
                 value=(
                     f"🏆 **Wins:** {stats.get('wins', 0)}\n"
                     f"❌ **Losses:** {stats.get('losses', 0)}\n"
-                    f"📈 **Win Rate:** {win_rate}%\n"
                     f"🏅 **Tournaments Won:** {stats.get('tournaments_won', 0)}\n"
                     f"🏟️ **Tournaments Entered:** {stats.get('tournaments_participated', 0)}"
                 ),
