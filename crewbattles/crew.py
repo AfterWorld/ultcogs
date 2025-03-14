@@ -1532,7 +1532,7 @@ class CrewTournament(commands.Cog):
             crew_list = ", ".join([f"`{key}`" for key in crews.keys()])
             await ctx.send(f"❌ No crew found with the name `{crew_name}`.\n\nAvailable crews: {crew_list}")
             return
-    
+
         # Continue with creating the embed using the found crew_data
         try:
             # Extract member objects and usernames for IDs we can't resolve
@@ -1563,7 +1563,7 @@ class CrewTournament(commands.Cog):
                                 member_usernames[member_id] = user.name
                         except:
                             # If we can't resolve the username, just use the ID as fallback
-                            member_usernames[member_id] = f"User-{member_id}"
+                            member_usernames[member_id] = f"Unknown User"
                 except:
                     # For completely unresolvable cases, just skip
                     continue
@@ -1588,7 +1588,7 @@ class CrewTournament(commands.Cog):
                                 int(mid) if isinstance(mid, str) and mid.isdigit() 
                                 else int(mid.strip("<@!&>")) if isinstance(mid, str) and mid.startswith("<@") 
                                 else mid) 
-                               for m in member_objects)]
+                            for m in member_objects)]
             
             # Create the embed
             emoji = crew_data.get("emoji", "🏴‍☠️")
@@ -1598,24 +1598,30 @@ class CrewTournament(commands.Cog):
                 color=0x00FF00,
             )
             
-            # Add captain info
-            embed.add_field(
-                name="Captain", 
-                value=captain.mention if captain else "None", 
-                inline=False
-            )
+            # Add captain info with display_name instead of mention
+            if captain:
+                embed.add_field(
+                    name="Captain", 
+                    value=captain.display_name, 
+                    inline=False
+                )
+            else:
+                embed.add_field(name="Captain", value="None", inline=False)
             
-            # Add vice captain info
-            embed.add_field(
-                name="Vice Captain", 
-                value=vice_captain.mention if vice_captain else "None", 
-                inline=False
-            )
+            # Add vice captain info with display_name instead of mention
+            if vice_captain:
+                embed.add_field(
+                    name="Vice Captain", 
+                    value=vice_captain.display_name, 
+                    inline=False
+                )
+            else:
+                embed.add_field(name="Vice Captain", value="None", inline=False)
             
             # Add regular members
             if regular_members or unresolved_ids:
-                # First add all members we could resolve
-                member_strings = [m.mention for m in regular_members[:10]]
+                # First add all members we could resolve using display_name
+                member_strings = [m.display_name for m in regular_members[:10]]
                 
                 # Then add usernames for unresolved IDs (if we found any usernames earlier)
                 for uid in unresolved_ids[:max(0, 10-len(member_strings))]:
@@ -1629,12 +1635,12 @@ class CrewTournament(commands.Cog):
                                 user_id = int(uid.strip("<@!&>"))
                         
                         # Get username from our mapping, or use placeholder
-                        username = member_usernames.get(user_id, f"User-{user_id}")
-                        if not username.startswith("User-"):  # Only add if we have a real username
-                            member_strings.append(f"@{username}")
+                        username = member_usernames.get(user_id, "Unknown User")
+                        if username != "Unknown User":  # Only add if we have a real username
+                            member_strings.append(username)
                     except:
-                        # If all else fails, just use the raw ID
-                        member_strings.append(str(uid))
+                        # Skip unresolvable IDs completely
+                        continue
                 
                 member_list = ", ".join(member_strings)
                 
@@ -1662,13 +1668,12 @@ class CrewTournament(commands.Cog):
                 inline=False
             )
             
-            # Create a button to join this crew
-            view = CrewView(matched_crew, emoji, self)
-            await ctx.send(embed=embed, view=view)
+            # Send the embed without any view/buttons
+            await ctx.send(embed=embed)
             
         except Exception as e:
             await ctx.send(f"❌ Error displaying crew information: {str(e)}")
-    
+        
     @commands.command(name="cleancrewids")
     @commands.admin_or_permissions(administrator=True)
     async def clean_crew_ids(self, ctx):
