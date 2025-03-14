@@ -1240,7 +1240,7 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send("❌ Invalid property type. Valid options are: `name`, `emoji`.")
     
-    @crew_setup.command(name="finish")
+    @crew_setup.command(name="done")
     async def setup_finish(self, ctx):
         """Finalizes crew setup and posts an interactive message for users to join crews."""
         # Validate setup
