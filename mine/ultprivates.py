@@ -851,25 +851,25 @@ class UltPrivates(commands.Cog):
         
         embed.add_field(
             name="🔑 Authorization",
-            value="```\n!addauth [user_id] - Add authorized user\n!removeauth [user_id] - Remove authorized user\n!listauth - List all authorized users\n```",
+            value="```\n.addauth [user_id] - Add authorized user\n.removeauth [user_id] - Remove authorized user\n.listauth - List all authorized users\n```",
             inline=False
         )
         
         embed.add_field(
             name="✨ Entrance Management",
-            value="```\n!createentrance [name] [messages] - Create new entrance\n!deleteentrance [name] - Delete an entrance\n!listentrances - List all your entrances\n!entranceinfo [name] - Show entrance details\n!setdefault [name] - Set your default entrance\n```",
+            value="```\n.createentrance [name] [messages] - Create new entrance\n.deleteentrance [name] - Delete an entrance\n.listentrances - List all your entrances\n.entranceinfo [name] - Show entrance details\n.setdefault [name] - Set your default entrance\n```",
             inline=False
         )
         
         embed.add_field(
             name="⚙️ Entrance Settings",
-            value="```\n!settriggers [name] [phrases] - Set trigger phrases\n!setembed [name] [setting] [value] - Customize embed\n!setdelay [seconds] - Set delay between messages\n```",
+            value="```\n.settriggers [name] [phrases] - Set trigger phrases\n.setembed [name] [setting] [value] - Customize embed\n.setdelay [seconds] - Set delay between messages\n```",
             inline=False
         )
         
         embed.add_field(
             name="🎬 Execute Effects",
-            value="```\n!skadoosh - Execute skadoosh effect\n!entrance [name] - Execute specific entrance\n```",
+            value="```\n.skadoosh - Execute skadoosh effect\n.entrance [name] - Execute specific entrance\n```",
             inline=False
         )
         
