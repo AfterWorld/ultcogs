@@ -962,9 +962,20 @@ class CrewTournament(commands.Cog):
         author = ctx.author
         author_crew = None
         
-        # Find the crew the command issuer is in
+        # Find the crew the command issuer is in by checking roles instead of member IDs
         for crew_name, crew in crews.items():
-            if author.id in crew["members"]:
+            captain_role_id = crew.get("captain_role")
+            vice_captain_role_id = crew.get("vice_captain_role")
+            crew_role_id = crew.get("crew_role")
+            
+            captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
+            vice_captain_role = ctx.guild.get_role(vice_captain_role_id) if vice_captain_role_id else None
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
+            
+            # Check if author has any of the crew roles
+            if (captain_role and captain_role in author.roles) or \
+               (vice_captain_role and vice_captain_role in author.roles) or \
+               (crew_role and crew_role in author.roles):
                 author_crew = crew_name
                 break
                 
@@ -982,9 +993,19 @@ class CrewTournament(commands.Cog):
             await ctx.send("❌ Only the captain or vice-captain can invite members.")
             return
         
-        # Check if target is already in a crew
+        # Check if target is already in a crew by checking roles
         for other_crew_name, other_crew in crews.items():
-            if member.id in other_crew["members"]:
+            crew_role_id = other_crew.get("crew_role")
+            captain_role_id = other_crew.get("captain_role")
+            vice_captain_role_id = other_crew.get("vice_captain_role")
+            
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
+            captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
+            vice_captain_role = ctx.guild.get_role(vice_captain_role_id) if vice_captain_role_id else None
+            
+            if ((crew_role and crew_role in member.roles) or 
+                (captain_role and captain_role in member.roles) or 
+                (vice_captain_role and vice_captain_role in member.roles)):
                 await ctx.send(f"❌ {member.display_name} is already in the crew `{other_crew_name}`.")
                 return
         
