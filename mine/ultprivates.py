@@ -223,8 +223,10 @@ class UltPrivates(commands.Cog):
             # Add image if available
             if embed_image:
                 embed.set_image(url=embed_image)
-                
-            embed.set_footer(text=embed_footer)
+            
+            # Ensure the footer text is passed through without modification to preserve custom emojis
+            if embed_footer:
+                embed.set_footer(text=embed_footer)
             
             # Send initial message
             entrance_msg = await message.channel.send(embed=embed)
