@@ -762,8 +762,17 @@ class UltPrivates(commands.Cog):
             await ctx.send(f"Embed title for '{entrance_name}' set to: {value}")
             
         elif setting.lower() == "footer":
-            user_entrances[user_id_str][entrance_name]["embed_settings"]["footer"] = value
-            await ctx.send(f"Embed footer for '{entrance_name}' set to: {value}")
+        user_entrances[user_id_str][entrance_name]["embed_settings"]["footer"] = value
+        
+        # Create a preview of the footer to show emoji rendering
+        preview_embed = discord.Embed(
+            title="Footer Preview",
+            description="Here's how your footer will appear:",
+            color=discord.Color.blue()
+        )
+        preview_embed.set_footer(text=value)
+        
+        await ctx.send(f"Embed footer for '{entrance_name}' set to: {value}", embed=preview_embed)
             
         elif setting.lower() == "color":
             # Parse color hex
