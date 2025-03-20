@@ -815,7 +815,7 @@ class UltPrivates(commands.Cog):
         await self.skadoosh(ctx.message)
         
     @commands.command(name="entrance")
-    async def cmd_entrance(self, ctx, entrance_name: str = None):
+    async def cmd_entrance(self, ctx, entrance_id: str = None):
         """
         Execute a specific entrance effect.
         
@@ -830,12 +830,12 @@ class UltPrivates(commands.Cog):
         await self.migrate_old_data(ctx.guild)
         
         # If no entrance specified, use default
-        if entrance_name is None:
+        if entrance_id is None:
             default_ids = await self.config.guild(ctx.guild).default_entrance_id()
             user_id_str = str(ctx.author.id)
-            entrance_name = default_ids.get(user_id_str, "default")
+            entrance_id = default_ids.get(user_id_str, "default")
             
-        await self.grand_entrance(ctx.message, entrance_name=entrance_name)
+        await self.grand_entrance(ctx.message, entrance_id=entrance_id)
 
     @commands.command(name="help_entrance")
     async def help_entrance(self, ctx):
