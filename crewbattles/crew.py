@@ -1914,6 +1914,11 @@ class CrewManagement(commands.Cog):
                 crew["members"].remove(member.id)
                 await self.save_crews(guild)
                 break
+
+    @commands.command()
+    async def crewtest(self, ctx):
+        """Test if crew commands are working."""
+        await ctx.send("Crew test command works!")
                 
 def setup(bot):
     """Add the cog to the bot."""
