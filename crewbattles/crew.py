@@ -9,6 +9,7 @@ import aiohttp
 import json
 import os
 import datetime
+import io 
 
 # --- Helper Classes for UI Elements ---
 class CrewButton(discord.ui.Button):
