@@ -1920,6 +1920,85 @@ class CrewManagement(commands.Cog):
     async def crewtest(self, ctx):
         """Test if crew commands are working."""
         await ctx.send("Crew test command works!")
+
+    @commands.command(name="importcrewjson")
+    @commands.admin_or_permissions(administrator=True)
+    async def import_crew_json(self, ctx):
+        """
+        Import crew data from an uploaded JSON file.
+        
+        Upload a JSON file with your message when using this command.
+        The file should contain valid crew data in the format used by the bot.
+        """
+        # Check if a file was attached
+        if not ctx.message.attachments:
+            await ctx.send("❌ No file attached. Please upload a JSON file with your command.")
+            return
+            
+        attachment = ctx.message.attachments[0]
+        
+        # Check if it's a JSON file
+        if not attachment.filename.endswith('.json'):
+            await ctx.send("❌ The attached file must be a JSON file (ending with .json).")
+            return
+            
+        # Download the file
+        try:
+            json_content = await attachment.read()
+            json_data = json.loads(json_content)
+            
+            # Validate the JSON structure
+            if not isinstance(json_data, dict):
+                await ctx.send("❌ Invalid JSON format. The file should contain a dictionary of crews.")
+                return
+                
+            # Get current guild ID
+            guild_id = str(ctx.guild.id)
+            
+            # Confirm with user
+            crew_count = len(json_data)
+            confirm_msg = await ctx.send(
+                f"⚠️ This will import {crew_count} crews from the JSON file to this server. "
+                f"Any existing crew data in this server will be overwritten. Are you sure? (yes/no)"
+            )
+            
+            # Wait for confirmation
+            try:
+                def check(m):
+                    return m.author == ctx.author and m.channel == ctx.channel and m.content.lower() in ["yes", "no"]
+                    
+                msg = await self.bot.wait_for("message", check=check, timeout=30.0)
+                
+                if msg.content.lower() != "yes":
+                    await ctx.send("❌ Import canceled.")
+                    return
+                    
+            except asyncio.TimeoutError:
+                await ctx.send("❌ Import timed out. Please try again.")
+                return
+                
+            # Import the data
+            self.crews[guild_id] = json_data
+            
+            # Update guild setup status
+            await self.config.guild(ctx.guild).finished_setup.set(True)
+            
+            # Save the data
+            await self.save_data(ctx.guild)
+            
+            await ctx.send(f"✅ Successfully imported {crew_count} crews from the JSON file!")
+            
+            # Suggest next steps
+            await ctx.send(
+                "Note: This command only imports the data structure. "
+                "You will still need to create the actual roles and update member assignments. "
+                "Run `crewsetup roles` to create separator roles and then use `crewsetup finish` to set up the crews."
+            )
+            
+        except json.JSONDecodeError:
+            await ctx.send("❌ Invalid JSON file. Please ensure the file contains valid JSON data.")
+        except Exception as e:
+            await ctx.send(f"❌ An error occurred during import: {str(e)}")
                 
 async def setup(bot):
     """Add the cog to the bot."""
