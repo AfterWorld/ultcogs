@@ -2023,8 +2023,8 @@ class CrewManagement(commands.Cog):
             await ctx.send(f"❌ An error occurred during import: {str(e)}")
 
     @commands.command(name="crews")
-    async def list_crews_with_buttons(self, ctx):
-        """Display all crews with their emojis and allow users to join by clicking."""
+    async def list_crews_with_emojis(self, ctx):
+        """Display all crews with their emojis and allow users to join by clicking the emoji reactions."""
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
         if not finished_setup:
@@ -2038,19 +2038,15 @@ class CrewManagement(commands.Cog):
             await ctx.send("❌ No crews available. Ask an admin to create some with `crew create`.")
             return
     
-        # Create an eye-catching embed for the crews
+        # Create an embed listing all crews
         embed = discord.Embed(
             title="🏴‍☠️ Available Crews 🏴‍☠️",
-            description="Click the button below a crew to join it!\n**Note:** You can only join one crew and cannot switch later.",
+            description="React with the emoji below to join a crew!\n**Note:** You can only join one crew and cannot switch later.",
             color=discord.Color.gold()
         )
         
-        # Send the header embed
-        await ctx.send(embed=embed)
-        
-        # Create and send an individual embed + button for each crew
+        # Add crew information to the embed
         for crew_name, crew_data in crews.items():
-            # Get the crew emoji
             emoji = crew_data.get("emoji", "🏴‍☠️")
             
             # Find the captain
@@ -2060,22 +2056,48 @@ class CrewManagement(commands.Cog):
             captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
             crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
             
-            # Get member count by role
+            # Find captain and get member count
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
             member_count = len(crew_role.members) if crew_role else 0
             
-            # Find captain from role
-            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
-            
-            # Create the crew embed
-            crew_embed = discord.Embed(
-                title=f"{emoji} {crew_name}",
-                description=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}",
-                color=discord.Color.blue()
+            embed.add_field(
+                name=f"{emoji} {crew_name}",
+                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}",
+                inline=False
             )
+        
+        # Send the embed
+        message = await ctx.send(embed=embed)
+        
+        # Add emoji reactions for each crew
+        emoji_to_crew = {}
+        for crew_name, crew_data in crews.items():
+            emoji = crew_data.get("emoji", "🏴‍☠️")
             
-            # Create and send the view with a join button
-            view = CrewView(crew_name, emoji, self)
-            await ctx.send(embed=crew_embed, view=view)
+            # Handle Discord custom emojis vs Unicode emojis
+            if emoji.startswith('<:') or emoji.startswith('<a:'):
+                # Extract emoji ID for custom emojis
+                emoji_parts = emoji.split(':')
+                if len(emoji_parts) >= 3:
+                    emoji_id = emoji_parts[2][:-1]  # Remove the trailing '>'
+                    emoji_obj = self.bot.get_emoji(int(emoji_id))
+                    if emoji_obj:
+                        await message.add_reaction(emoji_obj)
+                        emoji_to_crew[str(emoji_obj)] = crew_name
+                    else:
+                        # Fallback to default emoji if custom emoji not found
+                        await message.add_reaction("🏴‍☠️")
+                        emoji_to_crew["🏴‍☠️"] = crew_name
+            else:
+                # Unicode emoji
+                await message.add_reaction(emoji)
+                emoji_to_crew[emoji] = crew_name
+        
+        # Store the message ID and emoji mapping for reaction handling
+        self.active_crew_messages[message.id] = {
+            "guild_id": guild_id,
+            "emoji_to_crew": emoji_to_crew
+        }
                 
 async def setup(bot):
     """Add the cog to the bot."""
