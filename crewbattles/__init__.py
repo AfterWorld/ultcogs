@@ -1,7 +1,7 @@
 from redbot.core.bot import Red
-from .crew import CrewTournament  # Make sure this matches your main class name
+from .crew import CrewSystem  # Updated to match your actual class name
 
 async def setup(bot: Red):
-    """Load the CrewTournament cog."""
-    cog = CrewTournament(bot)  # Instantiate the main cog
+    """Load the CrewSystem cog."""
+    cog = CrewSystem(bot)  # Instantiate the main cog
     await bot.add_cog(cog)
