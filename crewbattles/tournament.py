@@ -1167,6 +1167,11 @@ class TournamentSystem(commands.Cog):
         if guild.id not in self.tournaments:
             self.tournaments[str(guild.id)] = {}
 
+    @commands.command()
+    async def tournamenttest(self, ctx):
+        """Test if tournament commands are working."""
+        await ctx.send("Tournament test command works!")
+
 def setup(bot):
     """Add the cog to the bot."""
     bot.add_cog(TournamentSystem(bot))
