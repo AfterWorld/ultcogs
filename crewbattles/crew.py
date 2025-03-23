@@ -1956,18 +1956,22 @@ class CrewManagement(commands.Cog):
         # Download the file
         try:
             json_content = await attachment.read()
-            json_data = json.loads(json_content)
+            json_str = json_content.decode('utf-8')
+            json_data = json.loads(json_str)
             
-            # Validate the JSON structure
-            if not isinstance(json_data, dict):
-                await ctx.send("❌ Invalid JSON format. The file should contain a dictionary of crews.")
+            # Check if the file has the expected top-level structure
+            if "crews" not in json_data:
+                await ctx.send("❌ Invalid crew data format. File should have a 'crews' key at the top level.")
                 return
                 
+            # Extract actual crew data
+            crew_data = json_data["crews"]
+            
             # Get current guild ID
             guild_id = str(ctx.guild.id)
             
             # Confirm with user
-            crew_count = len(json_data)
+            crew_count = len(crew_data)
             confirm_msg = await ctx.send(
                 f"⚠️ This will import {crew_count} crews from the JSON file to this server. "
                 f"Any existing crew data in this server will be overwritten. Are you sure? (yes/no)"
@@ -1988,40 +1992,12 @@ class CrewManagement(commands.Cog):
                 await ctx.send("❌ Import timed out. Please try again.")
                 return
             
-            # Validate and fix each crew's data structure
-            for crew_name, crew_data in json_data.items():
-                # Ensure all required fields exist
-                required_fields = {
-                    "name": crew_name,
-                    "emoji": "🏴‍☠️",
-                    "members": [],
-                    "captain_role": None,
-                    "vice_captain_role": None,
-                    "crew_role": None,
-                    "stats": {
-                        "wins": 0,
-                        "losses": 0,
-                        "tournaments_won": 0,
-                        "tournaments_participated": 0
-                    },
-                    "created_at": datetime.datetime.now().isoformat()
-                }
-                
-                # Add any missing fields
-                for field, default_value in required_fields.items():
-                    if field not in crew_data:
-                        crew_data[field] = default_value
-                        
-                # Ensure stats has the correct structure
-                if "stats" not in crew_data or not isinstance(crew_data["stats"], dict):
-                    crew_data["stats"] = required_fields["stats"]
-                else:
-                    for stat, default_value in required_fields["stats"].items():
-                        if stat not in crew_data["stats"]:
-                            crew_data["stats"][stat] = default_value
-                
-            # Import the data
-            self.crews[guild_id] = json_data
+            # Initialize guild namespace if needed
+            if guild_id not in self.crews:
+                self.crews[guild_id] = {}
+            
+            # Import the crew data
+            self.crews[guild_id] = crew_data
             
             # Update guild setup status
             await self.config.guild(ctx.guild).finished_setup.set(True)
@@ -2033,13 +2009,14 @@ class CrewManagement(commands.Cog):
             
             # Suggest next steps
             await ctx.send(
-                "Note: The imported data is missing role IDs. "
-                "You will need to create roles for each crew using `crew create` commands. "
-                "Run `crewsetup roles` first to create separator roles."
+                "Note: The imported data includes role IDs, but you'll need to recreate these roles. "
+                "Run `crewsetup roles` to create separator roles, then use `crew create` to recreate each crew."
             )
             
-        except json.JSONDecodeError:
-            await ctx.send("❌ Invalid JSON file. Please ensure the file contains valid JSON data.")
+        except json.JSONDecodeError as e:
+            await ctx.send(f"❌ Invalid JSON file: {str(e)}")
+        except UnicodeDecodeError:
+            await ctx.send("❌ Could not decode the file. Make sure it's a valid UTF-8 encoded JSON file.")
         except Exception as e:
             await ctx.send(f"❌ An error occurred during import: {str(e)}")
                 
