@@ -2021,6 +2021,61 @@ class CrewManagement(commands.Cog):
             await ctx.send("❌ Could not decode the file. Make sure it's a valid UTF-8 encoded JSON file.")
         except Exception as e:
             await ctx.send(f"❌ An error occurred during import: {str(e)}")
+
+    @commands.command(name="crews")
+    async def list_crews_with_buttons(self, ctx):
+        """Display all crews with their emojis and allow users to join by clicking."""
+        # Validate setup
+        finished_setup = await self.config.guild(ctx.guild).finished_setup()
+        if not finished_setup:
+            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
+            return
+            
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            await ctx.send("❌ No crews available. Ask an admin to create some with `crew create`.")
+            return
+    
+        # Create an eye-catching embed for the crews
+        embed = discord.Embed(
+            title="🏴‍☠️ Available Crews 🏴‍☠️",
+            description="Click the button below a crew to join it!\n**Note:** You can only join one crew and cannot switch later.",
+            color=discord.Color.gold()
+        )
+        
+        # Send the header embed
+        await ctx.send(embed=embed)
+        
+        # Create and send an individual embed + button for each crew
+        for crew_name, crew_data in crews.items():
+            # Get the crew emoji
+            emoji = crew_data.get("emoji", "🏴‍☠️")
+            
+            # Find the captain
+            captain_role_id = crew_data.get("captain_role")
+            crew_role_id = crew_data.get("crew_role")
+            
+            captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
+            
+            # Get member count by role
+            member_count = len(crew_role.members) if crew_role else 0
+            
+            # Find captain from role
+            captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
+            
+            # Create the crew embed
+            crew_embed = discord.Embed(
+                title=f"{emoji} {crew_name}",
+                description=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}",
+                color=discord.Color.blue()
+            )
+            
+            # Create and send the view with a join button
+            view = CrewView(crew_name, emoji, self)
+            await ctx.send(embed=crew_embed, view=view)
                 
 async def setup(bot):
     """Add the cog to the bot."""
