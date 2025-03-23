@@ -11,6 +11,8 @@ import os
 import datetime
 import io 
 
+from .tournament import TournamentCommands
+
 # --- Helper Classes for UI Elements ---
 class CrewButton(discord.ui.Button):
     def __init__(self, crew_name, crew_emoji, cog):
