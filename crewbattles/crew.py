@@ -1920,6 +1920,6 @@ class CrewManagement(commands.Cog):
         """Test if crew commands are working."""
         await ctx.send("Crew test command works!")
                 
-def setup(bot):
+async def setup(bot):
     """Add the cog to the bot."""
-    bot.add_cog(CrewManagement(bot))
+    await bot.add_cog(CrewManagement(bot))
