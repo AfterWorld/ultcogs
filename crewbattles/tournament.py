@@ -1172,6 +1172,6 @@ class TournamentSystem(commands.Cog):
         """Test if tournament commands are working."""
         await ctx.send("Tournament test command works!")
 
-def setup(bot):
-    """Add the cog to the bot."""
-    bot.add_cog(TournamentSystem(bot))
+async def setup(bot):
+     """Add the cog to the bot."""
+     await bot.add_cog(TournamentSystem(bot))
