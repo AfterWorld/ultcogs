@@ -1233,18 +1233,28 @@ class CrewManagement(commands.Cog):
         )
         
         for crew_name, crew_data in crews.items():
-            captain_role = ctx.guild.get_role(crew_data["captain_role"])
-            crew_role = ctx.guild.get_role(crew_data["crew_role"])
+            # Safely get role IDs, using None as default
+            captain_role_id = crew_data.get("captain_role")
+            crew_role_id = crew_data.get("crew_role")
+            
+            captain_role = ctx.guild.get_role(captain_role_id) if captain_role_id else None
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
             
             # Count members by role instead of by stored member IDs
-            member_count = len(crew_role.members) if crew_role else 0
+            member_count = len(crew_role.members) if crew_role else len(crew_data.get("members", []))
             
             # Find captain from all guild members
             captain = next((m for m in ctx.guild.members if captain_role and captain_role in m.roles), None)
+            
+            # Get stats safely
+            stats = crew_data.get("stats", {"wins": 0, "losses": 0})
+            
+            # Get emoji safely
+            emoji = crew_data.get("emoji", "🏴‍☠️")
                     
             embed.add_field(
-                name=f"{crew_data['emoji']} {crew_name}",
-                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}\nWins: {crew_data['stats']['wins']} | Losses: {crew_data['stats']['losses']}",
+                name=f"{emoji} {crew_name}",
+                value=f"Captain: {captain.mention if captain else 'None'}\nMembers: {member_count}\nWins: {stats.get('wins', 0)} | Losses: {stats.get('losses', 0)}",
                 inline=True
             )
     
@@ -1977,6 +1987,38 @@ class CrewManagement(commands.Cog):
             except asyncio.TimeoutError:
                 await ctx.send("❌ Import timed out. Please try again.")
                 return
+            
+            # Validate and fix each crew's data structure
+            for crew_name, crew_data in json_data.items():
+                # Ensure all required fields exist
+                required_fields = {
+                    "name": crew_name,
+                    "emoji": "🏴‍☠️",
+                    "members": [],
+                    "captain_role": None,
+                    "vice_captain_role": None,
+                    "crew_role": None,
+                    "stats": {
+                        "wins": 0,
+                        "losses": 0,
+                        "tournaments_won": 0,
+                        "tournaments_participated": 0
+                    },
+                    "created_at": datetime.datetime.now().isoformat()
+                }
+                
+                # Add any missing fields
+                for field, default_value in required_fields.items():
+                    if field not in crew_data:
+                        crew_data[field] = default_value
+                        
+                # Ensure stats has the correct structure
+                if "stats" not in crew_data or not isinstance(crew_data["stats"], dict):
+                    crew_data["stats"] = required_fields["stats"]
+                else:
+                    for stat, default_value in required_fields["stats"].items():
+                        if stat not in crew_data["stats"]:
+                            crew_data["stats"][stat] = default_value
                 
             # Import the data
             self.crews[guild_id] = json_data
@@ -1991,9 +2033,9 @@ class CrewManagement(commands.Cog):
             
             # Suggest next steps
             await ctx.send(
-                "Note: This command only imports the data structure. "
-                "You will still need to create the actual roles and update member assignments. "
-                "Run `crewsetup roles` to create separator roles and then use `crewsetup finish` to set up the crews."
+                "Note: The imported data is missing role IDs. "
+                "You will need to create roles for each crew using `crew create` commands. "
+                "Run `crewsetup roles` first to create separator roles."
             )
             
         except json.JSONDecodeError:
