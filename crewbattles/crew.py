@@ -1917,4 +1917,4 @@ class CrewManagement:
                 
 def setup(bot):
     """Add the cog to the bot."""
-    bot.add_cog(CrewTournament(bot))
+    bot.add_cog(CrewManagement(bot))
