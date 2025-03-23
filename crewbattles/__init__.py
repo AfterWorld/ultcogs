@@ -13,4 +13,4 @@ class CombinedCrewSystem(commands.Cog):
     
 def setup(bot):
     """Add the cog to the bot."""
-    bot.add_cog(CombinedCrewSystem(bot))
+    bot.add_cog(CrewTournament(bot))
