@@ -72,7 +72,7 @@ class CrewView(discord.ui.View):
 
 
 # --- Main Cog ---
-class CrewManagement:
+class CrewManagement(commands.Cog):
     """A cog for managing crews in your server."""
 
     def __init__(self, bot):
