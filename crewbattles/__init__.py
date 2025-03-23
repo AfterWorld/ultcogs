@@ -1,5 +1,5 @@
 from redbot.core.bot import Red
-from .crew import CrewSystem  # Updated to match your actual class name
+from .crew import CrewManagement
 
 async def setup(bot: Red):
     """Load the CrewSystem cog."""
