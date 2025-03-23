@@ -1,16 +1,7 @@
-from redbot.core import commands
-from .crew import CrewManagement
-from .tournament import TournamentSystem
+from redbot.core.bot import Red
+from .crew import CrewTournament  # Make sure this matches your main class name
 
-class CombinedCrewSystem(commands.Cog):
-    """Main cog that combines crew and tournament functionality"""
-    
-    def __init__(self, bot):
-        self.bot = bot
-        self.crew_manager = CrewManagement(bot, self)
-        self.tournament_system = TournamentSystem(bot, self)
-    
-    
-def setup(bot):
-    """Add the cog to the bot."""
-    bot.add_cog(CrewTournament(bot))
+async def setup(bot: Red):
+    """Load the CrewTournament cog."""
+    cog = CrewTournament(bot)  # Instantiate the main cog
+    await bot.add_cog(cog)
