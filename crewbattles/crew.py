@@ -8,6 +8,7 @@ import asyncio
 import aiohttp
 import json
 import os
+import datetime
 
 # --- Helper Classes for UI Elements ---
 class CrewButton(discord.ui.Button):
@@ -70,99 +71,9 @@ class CrewView(discord.ui.View):
         self.add_item(CrewButton(crew_name, crew_emoji, cog))
 
 
-class JoinTournamentButton(discord.ui.Button):
-    def __init__(self, tournament_name, cog):
-        super().__init__(label="Join Tournament", style=discord.ButtonStyle.primary)
-        self.tournament_name = tournament_name
-        self.cog = cog
-
-    async def callback(self, interaction: discord.Interaction):
-        member = interaction.user
-        guild_id = str(interaction.guild_id)
-        lock = self.cog.get_guild_lock(guild_id)
-    
-        async with lock:
-            tournament = self.cog.tournaments.get(guild_id, {}).get(self.tournament_name)
-        
-        if not tournament:
-            await interaction.response.send_message("❌ This tournament no longer exists.", ephemeral=True)
-            return
-
-        if tournament["started"]:
-            await interaction.response.send_message("❌ This tournament has already started.", ephemeral=True)
-            return
-
-        user_crew = None
-        for crew_name, crew in self.cog.crews.items():
-            if member.id in crew["members"]:
-                user_crew = crew_name
-                break
-
-        if not user_crew:
-            await interaction.response.send_message("❌ You are not in any crew. Join a crew first to participate in tournaments.", ephemeral=True)
-            return
-
-        if user_crew in tournament["crews"]:
-            await interaction.response.send_message(f"❌ Your crew `{user_crew}` is already registered for this tournament.", ephemeral=True)
-            return
-
-        # Check if user is captain or vice captain of their crew
-        crew = self.cog.crews[user_crew]
-        captain_role = interaction.guild.get_role(crew["captain_role"])
-        vice_captain_role = interaction.guild.get_role(crew["vice_captain_role"])
-        
-        if not (captain_role in member.roles or vice_captain_role in member.roles):
-            await interaction.response.send_message("❌ Only the captain or vice captain can register a crew for tournaments.", ephemeral=True)
-            return
-
-        tournament["crews"].append(user_crew)
-    
-        await self.cog.save_tournaments(interaction.guild)
-        await interaction.response.send_message(f"✅ Your crew `{user_crew}` has joined the tournament `{self.tournament_name}`!", ephemeral=True)
-        await self.cog.update_tournament_message(interaction.message, self.tournament_name)
-
-
-class StartTournamentButton(discord.ui.Button):
-    def __init__(self, tournament_name, cog):
-        super().__init__(label="Start Tournament", style=discord.ButtonStyle.success)
-        self.tournament_name = tournament_name
-        self.cog = cog
-
-    async def callback(self, interaction: discord.Interaction):
-        guild_id = str(interaction.guild_id)  # Get guild ID from interaction
-        tournament = self.cog.tournaments.get(guild_id, {}).get(self.tournament_name)  # Use guild_id namespace
-        
-        if not tournament:
-            await interaction.response.send_message("❌ This tournament no longer exists.", ephemeral=True)
-            return
-
-        if tournament["started"]:
-            await interaction.response.send_message("❌ This tournament has already started.", ephemeral=True)
-            return
-
-        if tournament["creator"] != interaction.user.id:
-            await interaction.response.send_message("❌ Only the creator of the tournament can start it.", ephemeral=True)
-            return
-
-        if len(tournament["crews"]) < 2:
-            await interaction.response.send_message("❌ Tournament needs at least 2 crews to start.", ephemeral=True)
-            return
-
-        tournament["started"] = True
-        await self.cog.save_tournaments(interaction.guild)
-        await interaction.response.send_message(f"✅ Tournament `{self.tournament_name}` has started!", ephemeral=True)
-        await self.cog.run_tournament(interaction.channel, self.tournament_name)
-
-class TournamentView(discord.ui.View):
-    def __init__(self, tournament_name, cog):
-        super().__init__(timeout=None)
-        self.add_item(JoinTournamentButton(tournament_name, cog))
-        self.add_item(StartTournamentButton(tournament_name, cog))
-
-
 # --- Main Cog ---
 class CrewTournament(commands.Cog):
-    """A cog for managing crews and tournaments in your server."""
+    """A cog for managing crews in your server."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -176,21 +87,7 @@ class CrewTournament(commands.Cog):
         
         self.config.register_guild(**default_guild)
         self.crews = {}
-        self.tournaments = {}
-        self.active_channels = set()
-        self.guild_locks = {}  # Add this line: Dict to store locks for each guild
-        
-        # Define battle moves
-        self.MOVES = [
-            {"name": "Strike", "type": "regular", "description": "A basic attack", "effect": None},
-            {"name": "Slash", "type": "regular", "description": "A quick sword slash", "effect": None},
-            {"name": "Punch", "type": "regular", "description": "A direct hit", "effect": None},
-            {"name": "Fireball", "type": "strong", "description": "A ball of fire", "effect": "burn", "burn_chance": 0.5},
-            {"name": "Thunder Strike", "type": "strong", "description": "A bolt of lightning", "effect": "stun", "stun_chance": 0.3},
-            {"name": "Heavy Blow", "type": "strong", "description": "A powerful attack", "effect": None},
-            {"name": "Critical Smash", "type": "critical", "description": "A devastating attack", "effect": None},
-            {"name": "Ultimate Strike", "type": "critical", "description": "An ultimate power move", "effect": None}
-        ]
+        self.guild_locks = {}  # Dict to store locks for each guild
         
         # Task to load data on bot startup 
         self.bot.loop.create_task(self.initialize())
@@ -209,7 +106,7 @@ class CrewTournament(commands.Cog):
             await self.load_data(guild)
 
     async def save_data(self, guild):
-        """Save both crew and tournament data for a specific guild."""
+        """Save crew data for a specific guild."""
         finished_setup = await self.config.guild(guild).finished_setup()
         if not finished_setup:
             return
@@ -226,8 +123,7 @@ class CrewTournament(commands.Cog):
         
         try:
             data = {
-                "crews": self.crews.get(str(guild.id), {}),
-                "tournaments": self.tournaments.get(str(guild.id), {})
+                "crews": self.crews.get(str(guild.id), {})
             }
             
             with open(file_path, 'w') as f:
@@ -238,7 +134,7 @@ class CrewTournament(commands.Cog):
             print(f"Error saving crew data for guild {guild.name}: {e}")
     
     async def load_data(self, guild):
-        """Load crew and tournament data for a specific guild."""
+        """Load crew data for a specific guild."""
         if not guild:
             return
     
@@ -259,12 +155,9 @@ class CrewTournament(commands.Cog):
                     # Ensure guild has its own namespace in memory
                     if str(guild.id) not in self.crews:
                         self.crews[str(guild.id)] = {}
-                    if str(guild.id) not in self.tournaments:
-                        self.tournaments[str(guild.id)] = {}
                     
                     # Load the data into memory
                     self.crews[str(guild.id)] = data.get("crews", {})
-                    self.tournaments[str(guild.id)] = data.get("tournaments", {})
                     
                     print(f"Loaded crew data for guild {guild.name} ({guild.id}) from {file_path}")
             else:
@@ -276,14 +169,6 @@ class CrewTournament(commands.Cog):
     async def save_crews(self, guild):
         """Save only crew data for a specific guild."""
         await self.save_data(guild)
-
-    async def save_tournaments(self, guild):
-        """Save only tournament data for a specific guild with lock protection."""
-        guild_id = str(guild.id)
-        lock = self.get_guild_lock(guild_id)
-        
-        async with lock:
-            await self.save_data(guild)
 
     def truncate_nickname(self, original_name, emoji_prefix):
         """
@@ -348,66 +233,56 @@ class CrewTournament(commands.Cog):
             print(f"Unexpected error setting nickname: {str(e)}")
             return False
 
-        def log_message(self, level, message):
-            """
-            Log a message with the specified level.
+    def log_message(self, level, message):
+        """
+        Log a message with the specified level.
+        
+        Parameters:
+        level (str): The log level - "INFO", "WARNING", "ERROR"
+        message (str): The message to log
+        """
+        # Format the log message with a timestamp
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_message = f"[{timestamp}] [{level}] [CrewTournament]: {message}"
+        
+        # Print to console
+        print(formatted_message)
+        
+        # Additional logging to file if needed
+        try:
+            # Log to a file in the cog data directory
+            data_path = cog_data_path(self)
+            log_dir = data_path / "Logs"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
             
-            Parameters:
-            level (str): The log level - "INFO", "WARNING", "ERROR"
-            message (str): The message to log
-            """
-            # Format the log message with a timestamp
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            formatted_message = f"[{timestamp}] [{level}] [CrewTournament]: {message}"
-            
-            # Print to console
-            print(formatted_message)
-            
-            # Additional logging to file if needed
-            try:
-                # Log to a file in the cog data directory
-                data_path = cog_data_path(self)
-                log_dir = data_path / "Logs"
-                if not os.path.exists(log_dir):
-                    os.makedirs(log_dir, exist_ok=True)
-                
-                log_file = log_dir / "tournament.log"
-                with open(log_file, 'a', encoding='utf-8') as f:
-                    f.write(f"{formatted_message}\n")
-            except Exception as e:
-                # Don't let logging errors disrupt the bot
-                print(f"Error writing to log file: {e}")
+            log_file = log_dir / "crew.log"
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(f"{formatted_message}\n")
+        except Exception as e:
+            # Don't let logging errors disrupt the bot
+            print(f"Error writing to log file: {e}")
     
-        # --- Utility Methods ---
-        async def fetch_custom_emoji(self, emoji_url, guild):
-            """Fetch and upload a custom emoji to the guild."""
-            async with aiohttp.ClientSession() as session:
-                async with session.get(emoji_url) as response:
-                    if response.status == 200:
-                        image_data = await response.read()
-                        try:
-                            emoji = await guild.create_custom_emoji(name="crew_emoji", image=image_data)
-                            return str(emoji)
-                        except discord.Forbidden:
-                            return "🏴‍☠️"  # Default emoji if permission denied
-                        except Exception as e:
-                            print(f"Error creating custom emoji: {e}")
-                            return "🏴‍☠️"  # Default emoji on error
-                    return "🏴‍☠️"  # Default emoji if fetch fails
+    # --- Utility Methods ---
+    async def fetch_custom_emoji(self, emoji_url, guild):
+        """Fetch and upload a custom emoji to the guild."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(emoji_url) as response:
+                if response.status == 200:
+                    image_data = await response.read()
+                    try:
+                        emoji = await guild.create_custom_emoji(name="crew_emoji", image=image_data)
+                        return str(emoji)
+                    except discord.Forbidden:
+                        return "🏴‍☠️"  # Default emoji if permission denied
+                    except Exception as e:
+                        print(f"Error creating custom emoji: {e}")
+                        return "🏴‍☠️"  # Default emoji on error
+                return "🏴‍☠️"  # Default emoji if fetch fails
 
-    def get_crew_for_guild(self, guild_id):
+    def get_crews_for_guild(self, guild_id):
         """Get crews for a specific guild."""
         return self.crews.get(str(guild_id), {})
-
-    def get_tournaments_for_guild(self, guild_id):
-        """Get tournaments for a specific guild."""
-        return self.tournaments.get(str(guild_id), {})
-        
-    def generate_health_bar(self, hp, max_hp=100, bar_length=10):
-        """Generate a visual health bar."""
-        filled_length = int(hp / max_hp * bar_length)
-        bar = '█' * filled_length + '░' * (bar_length - filled_length)
-        return bar
 
     # --- Setup Command Group ---
     @commands.group(name="crewsetup")
@@ -426,8 +301,6 @@ class CrewTournament(commands.Cog):
         # Initialize guild namespaces if they don't exist
         if guild_id not in self.crews:
             self.crews[guild_id] = {}
-        if guild_id not in self.tournaments:
-            self.tournaments[guild_id] = {}
         
         # Create data directory if it doesn't exist
         data_path = cog_data_path(self)
@@ -437,21 +310,19 @@ class CrewTournament(commands.Cog):
         
         await self.config.guild(ctx.guild).finished_setup.set(True)
         await self.save_data(ctx.guild)
-        await ctx.send("✅ Crew system initialized for this server. You can now create crews and tournaments.")
+        await ctx.send("✅ Crew system initialized for this server. You can now create crews.")
 
     @crew_setup.command(name="reset")
     async def setup_reset(self, ctx):
-        """Reset all crew and tournament data for this server."""
+        """Reset all crew data for this server."""
         guild_id = str(ctx.guild.id)
         
         # Clear data
         if guild_id in self.crews:
             self.crews[guild_id] = {}
-        if guild_id in self.tournaments:
-            self.tournaments[guild_id] = {}
         
         await self.save_data(ctx.guild)
-        await ctx.send("✅ All crew and tournament data has been reset for this server.")
+        await ctx.send("✅ All crew data has been reset for this server.")
 
     @crew_setup.command(name="roles")
     async def setup_roles(self, ctx):
@@ -545,10 +416,16 @@ class CrewTournament(commands.Cog):
         # Show the raw data
         crew_data_text = ""
         for crew_name, crew_data in crews.items():
+            # Get member count by role
+            crew_role_id = crew_data.get("crew_role")
+            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
+            role_member_count = len(crew_role.members) if crew_role else 0
+            
             crew_data_text += f"Crew: '{crew_name}'\n"
             crew_data_text += f"- Stored name: '{crew_data['name']}'\n"
             crew_data_text += f"- Emoji: {crew_data['emoji']}\n"
-            crew_data_text += f"- Members: {len(crew_data['members'])}\n\n"
+            crew_data_text += f"- Members in array: {len(crew_data['members'])}\n"
+            crew_data_text += f"- Members in role: {role_member_count}\n\n"
         
         # Check for mention-like crew names and offer to fix them
         has_mention_format = any("<@" in name for name in crews.keys())
@@ -575,7 +452,7 @@ class CrewTournament(commands.Cog):
             await ctx.send("❌ No crews found.")
             return
         
-        fixed_crews = 0
+        fixed_count = 0
         
         for crew_name, crew_data in crews.items():
             emoji = crew_data["emoji"]
@@ -584,7 +461,7 @@ class CrewTournament(commands.Cog):
             if emoji and emoji.startswith("<@") and emoji.endswith(">"):
                 # It's a user ID, not an emoji - set a default emoji
                 crew_data["emoji"] = "🏴‍☠️"  # Default fallback emoji
-                fixed_crews += 1
+                fixed_count += 1
                 
                 # Print debug info
                 await ctx.send(f"Fixed crew `{crew_name}`: Changed emoji from `{emoji}` to 🏴‍☠️")
@@ -606,12 +483,12 @@ class CrewTournament(commands.Cog):
                     del crews[crew_name]
                     
                     await ctx.send(f"Fixed crew name from `{crew_name}` to `{new_name}`")
-                    fixed_crews += 1
+                    fixed_count += 1
         
         # Save the changes
-        if fixed_crews > 0:
+        if fixed_count > 0:
             await self.save_crews(ctx.guild)
-            await ctx.send(f"✅ Fixed {fixed_crews} crew emojis/names.")
+            await ctx.send(f"✅ Fixed {fixed_count} crew emojis/names.")
         else:
             await ctx.send("✅ No crews needed fixing.")
 
@@ -793,7 +670,7 @@ class CrewTournament(commands.Cog):
         await ctx.send(f"✅ Crew `{crew_name}` created with {captain.mention} as captain!")
     
     @crew_commands.command(name="join")
-    async def crew_join(self, ctx, crew_name: str):
+    async def crew_join(self, ctx, *, crew_name: str):
         """Join a crew."""
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
@@ -907,7 +784,7 @@ class CrewTournament(commands.Cog):
     
     @crew_commands.command(name="delete")
     @commands.admin_or_permissions(administrator=True)
-    async def crew_delete(self, ctx, crew_name: str):
+    async def crew_delete(self, ctx, *, crew_name: str):
         """Delete a crew. Only admins can use this command."""
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
@@ -935,12 +812,6 @@ class CrewTournament(commands.Cog):
                         await ctx.send(f"⚠️ Couldn't delete {role.name} due to permission issues.")
                     except Exception as e:
                         await ctx.send(f"⚠️ Error deleting {role_key}: {e}")
-
-        # Remove crew from tournaments
-        tournaments = self.tournaments.get(guild_id, {})
-        for tournament_name, tournament in tournaments.items():
-            if crew_name in tournament["crews"]:
-                tournament["crews"].remove(crew_name)
 
         # Delete crew
         del self.crews[guild_id][crew_name]
@@ -1126,13 +997,6 @@ class CrewTournament(commands.Cog):
                 await ctx.send(f"❌ A crew with the name `{new_value}` already exists.")
                 return
                 
-            # Update the crew name in any tournaments
-            tournaments = self.tournaments.get(guild_id, {})
-            for tournament in tournaments.values():
-                if crew_name in tournament["crews"]:
-                    tournament["crews"].remove(crew_name)
-                    tournament["crews"].append(new_value)
-                    
             # Update role names
             for role_key, role_suffix in [
                 ("captain_role", "Captain"),
@@ -1383,119 +1247,12 @@ class CrewTournament(commands.Cog):
             )
     
         await ctx.send(embed=embed)
-        
-    @commands.command(name="crewdiagnose")
-    @commands.admin_or_permissions(administrator=True)
-    async def crew_diagnose(self, ctx):
-        """Diagnose crew data issues by displaying internal crew keys."""
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if not crews:
-            await ctx.send("❌ No crews found.")
-            return
-        
-        # Create a detailed diagnostic message
-        message = "**Crew System Diagnostic**\n\n"
-        message += "**Internal Crew Dictionary Keys:**\n"
-        
-        for crew_key in crews.keys():
-            message += f"- `{crew_key}`\n"
-        
-        message += "\n**Detailed Crew Information:**\n"
-        
-        for crew_key, crew_data in crews.items():
-            message += f"\n**Crew Key:** `{crew_key}`\n"
-            message += f"  - Internal name: `{crew_data.get('name', 'Not set')}`\n"
-            message += f"  - Emoji: {crew_data.get('emoji', 'Not set')}\n"
-            message += f"  - Member count: {len(crew_data.get('members', []))}\n"
-            message += f"  - Captain role ID: {crew_data.get('captain_role', 'Not set')}\n"
-            
-            # Check for special characters or whitespace issues
-            if crew_key != crew_key.strip():
-                message += f"  - ⚠️ Key has leading/trailing whitespace\n"
-            if "  " in crew_key:
-                message += f"  - ⚠️ Key has double spaces\n"
-            if "\n" in crew_key or "\r" in crew_key:
-                message += f"  - ⚠️ Key has newline characters\n"
-            if "\t" in crew_key:
-                message += f"  - ⚠️ Key has tab characters\n"
-        
-        # Split long messages
-        if len(message) > 1900:
-            chunks = [message[i:i+1900] for i in range(0, len(message), 1900)]
-            for chunk in chunks:
-                await ctx.send(chunk)
-        else:
-            await ctx.send(message)
-    
-    @commands.command(name="crewfixkeys")
-    @commands.admin_or_permissions(administrator=True)
-    async def crew_fix_keys(self, ctx):
-        """Fix crew keys to match with display names."""
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if not crews:
-            await ctx.send("❌ No crews found.")
-            return
-        
-        fixed_count = 0
-        changes = []
-        
-        # First, create a clean copy of the crews dictionary
-        clean_crews = {}
-        
-        for crew_key, crew_data in crews.items():
-            # Get the internal stored name (if available)
-            internal_name = crew_data.get('name')
-            
-            # Clean the key (remove extra whitespace, etc.)
-            clean_key = crew_key.strip()
-            
-            # If there's an internal name that's different from the key, use that
-            if internal_name and internal_name != crew_key:
-                # Clean the internal name too
-                clean_name = internal_name.strip()
-                old_key = crew_key
-                new_key = clean_name
-                
-                # Store with the clean name as the key
-                clean_crews[clean_name] = crew_data.copy()
-                clean_crews[clean_name]['name'] = clean_name
-                fixed_count += 1
-                changes.append(f"`{old_key}` → `{new_key}`")
-            else:
-                # Just use the cleaned key
-                if clean_key != crew_key:
-                    old_key = crew_key
-                    new_key = clean_key
-                    
-                    # Store with the clean key
-                    clean_crews[clean_key] = crew_data.copy()
-                    clean_crews[clean_key]['name'] = clean_key
-                    fixed_count += 1
-                    changes.append(f"`{old_key}` → `{new_key}`")
-                else:
-                    # No change needed
-                    clean_crews[crew_key] = crew_data.copy()
-        
-        # Replace the crews dictionary with the clean one
-        self.crews[guild_id] = clean_crews
-        
-        # Save the changes
-        await self.save_data(ctx.guild)
-        
-        if fixed_count > 0:
-            changes_msg = "\n".join(changes)
-            await ctx.send(f"✅ Fixed {fixed_count} crew keys:\n{changes_msg}")
-        else:
-            await ctx.send("✅ No crew keys needed fixing.")
     
     @crew_commands.command(name="view")
     async def crew_view(self, ctx, *, crew_name: str):
         """View the details of a crew with a clean, formatted display."""
         import datetime  # Add this import for the timestamp
+        import hashlib  # For creating a consistent color from crew name
         
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
@@ -1585,7 +1342,6 @@ class CrewTournament(commands.Cog):
             
             # Get a color based on the crew name or use a default color
             # This creates a consistent color for each crew based on its name
-            import hashlib
             color_hash = int(hashlib.md5(matched_crew.encode()).hexdigest()[:6], 16)
             
             embed = discord.Embed(
@@ -1669,7 +1425,7 @@ class CrewTournament(commands.Cog):
             
         except Exception as e:
             await ctx.send(f"❌ Error displaying crew information: {str(e)}")
-        
+            
     @commands.command(name="cleancrewids")
     @commands.admin_or_permissions(administrator=True)
     async def clean_crew_ids(self, ctx):
@@ -1967,60 +1723,8 @@ class CrewTournament(commands.Cog):
         except discord.Forbidden:
             await ctx.send("❌ I don't have permission to manage roles.")
 
-    @crew_commands.command(name="rename")
-    @commands.admin_or_permissions(administrator=True)
-    async def crew_rename(self, ctx, old_name: str, new_name: str):
-        """Rename a crew. Only admins can use this command."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if old_name not in crews:
-            await ctx.send(f"❌ No crew found with the name `{old_name}`.")
-            return
-            
-        if new_name in crews:
-            await ctx.send(f"❌ A crew with the name `{new_name}` already exists.")
-            return
-            
-        # Get the crew and its emoji
-        crew = crews[old_name]
-        crew_emoji = crew["emoji"]
-        
-        # Update role names
-        for role_key, role_suffix in [
-            ("captain_role", "Captain"),
-            ("vice_captain_role", "Vice Captain"),
-            ("crew_role", "Member")
-        ]:
-            role = ctx.guild.get_role(crew[role_key])
-            if role:
-                try:
-                    await role.edit(name=f"{crew_emoji} {new_name} {role_suffix}")
-                except discord.Forbidden:
-                    await ctx.send(f"⚠️ Couldn't rename {role.name} due to permission issues.")
-                    
-        # Update the crew name in any tournaments
-        tournaments = self.tournaments.get(guild_id, {})
-        for tournament in tournaments.values():
-            if old_name in tournament["crews"]:
-                tournament["crews"].remove(old_name)
-                tournament["crews"].append(new_name)
-                
-        # Update the crew name in the crews dictionary
-        crews[new_name] = crews.pop(old_name)
-        crews[new_name]["name"] = new_name
-        
-        await self.save_data(ctx.guild)
-        await ctx.send(f"✅ Crew `{old_name}` has been renamed to `{new_name}`.")
-
     @crew_commands.command(name="stats")
-    async def crew_stats(self, ctx, crew_name: str = None):
+    async def crew_stats(self, ctx, *, crew_name: str = None):
         """View crew statistics. If no crew is specified, shows stats for your crew."""
         # Validate setup
         finished_setup = await self.config.guild(ctx.guild).finished_setup()
@@ -2113,48 +1817,9 @@ class CrewTournament(commands.Cog):
         except Exception as e:
             print(f"Error updating crew message: {e}")
 
-    @commands.command(name="debugcrews")
-    @commands.admin_or_permissions(administrator=True)
-    async def debug_crews(self, ctx):
-        """Debug command to show the raw crew data and fix any formatting issues."""
-        guild_id = str(ctx.guild.id)
-        crews = self.crews.get(guild_id, {})
-        
-        if not crews:
-            await ctx.send("❌ No crews found.")
-            return
-        
-        # Show the raw data
-        crew_data_text = ""
-        for crew_name, crew_data in crews.items():
-            # Get member count by role
-            crew_role_id = crew_data.get("crew_role")
-            crew_role = ctx.guild.get_role(crew_role_id) if crew_role_id else None
-            role_member_count = len(crew_role.members) if crew_role else 0
-            
-            crew_data_text += f"Crew: '{crew_name}'\n"
-            crew_data_text += f"- Stored name: '{crew_data['name']}'\n"
-            crew_data_text += f"- Emoji: {crew_data['emoji']}\n"
-            crew_data_text += f"- Members in array: {len(crew_data['members'])}\n"
-            crew_data_text += f"- Members in role: {role_member_count}\n\n"
-        
-        # Check for mention-like crew names and offer to fix them
-        has_mention_format = any("<@" in name for name in crews.keys())
-        
-        if has_mention_format:
-            crew_data_text += "\nDetected mention formatting in crew names. Use `fixcrewnames` to fix this issue."
-        
-        # Send the debug info in chunks if needed
-        if len(crew_data_text) > 1900:
-            chunks = [crew_data_text[i:i+1900] for i in range(0, len(crew_data_text), 1900)]
-            for chunk in chunks:
-                await ctx.send(f"```\n{chunk}\n```")
-        else:
-            await ctx.send(f"```\n{crew_data_text}\n```")
-
     @commands.command(name="synccrew")
     @commands.admin_or_permissions(administrator=True)
-    async def sync_crew(self, ctx, crew_name: str):
+    async def sync_crew(self, ctx, *, crew_name: str):
         """Sync the crew members list with the actual role members."""
         guild_id = str(ctx.guild.id)
         crews = self.crews.get(guild_id, {})
@@ -2228,498 +1893,12 @@ class CrewTournament(commands.Cog):
         else:
             await ctx.send(results_text)
 
-    # --- Tournament Command Group ---
-    @commands.group(name="tournament")
-    @commands.guild_only()
-    async def tournament_commands(self, ctx):
-        """Commands for managing tournaments."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Please specify a subcommand. Use `help tournament` for more information.")
-
-    @tournament_commands.command(name="create")
-    @commands.admin_or_permissions(administrator=True)
-    async def tournament_create(self, ctx, name: str):
-        """Create a new tournament. Only admins can use this command."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        tournaments = self.tournaments.get(guild_id, {})
-        
-        if name in tournaments:
-            await ctx.send(f"❌ A tournament with the name `{name}` already exists.")
-            self.log_message("WARNING", f"Tournament creation failed: name '{name}' already exists in guild {guild_id}")
-            return
-            
-        # Initialize guild namespace if not exists
-        if guild_id not in self.tournaments:
-            self.tournaments[guild_id] = {}
-            
-        # Create tournament
-        self.tournaments[guild_id][name] = {
-            "name": name,
-            "creator": ctx.author.id,
-            "crews": [],
-            "started": False,
-            "created_at": ctx.message.created_at.isoformat()
-        }
-        
-        await self.save_tournaments(ctx.guild)
-        self.log_message("INFO", f"Tournament '{name}' created in guild {guild_id} by user {ctx.author.id}")
-        await self.send_tournament_message(ctx, name)
-
-    @tournament_commands.command(name="delete")
-    @commands.admin_or_permissions(administrator=True)
-    async def tournament_delete(self, ctx, name: str):
-        """Delete a tournament. Only admins can use this command."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        tournaments = self.tournaments.get(guild_id, {})
-        
-        if name not in tournaments:
-            await ctx.send(f"❌ No tournament found with the name `{name}`.")
-            return
-            
-        # Delete tournament
-        del tournaments[name]
-        await self.save_tournaments(ctx.guild)
-        await ctx.send(f"✅ Tournament `{name}` has been deleted.")
-
-    @tournament_commands.command(name="list")
-    async def tournament_list(self, ctx):
-        """List all available tournaments."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        tournaments = self.tournaments.get(guild_id, {})
-        
-        if not tournaments:
-            await ctx.send("❌ No tournaments available. Ask an admin to create some with `tournament create`.")
-            return
-            
-        embed = discord.Embed(
-            title="Available Tournaments",
-            description="Here's a list of all tournaments in this server.",
-            color=0x00FF00,
-        )
-        
-        for name, tournament in tournaments.items():
-            creator = ctx.guild.get_member(tournament["creator"])
-            status = "In Progress" if tournament["started"] else "Recruiting"
-            
-            embed.add_field(
-                name=name,
-                value=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: {status}\nCrews: {len(tournament['crews'])}",
-                inline=True
-            )
-            
-        await ctx.send(embed=embed)
-
-    @tournament_commands.command(name="view")
-    async def tournament_view(self, ctx, name: str):
-        """View the details of a tournament."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        tournaments = self.tournaments.get(guild_id, {})
-        
-        if name not in tournaments:
-            await ctx.send(f"❌ No tournament found with the name `{name}`.")
-            return
-            
-        tournament = tournaments[name]
-        creator = ctx.guild.get_member(tournament["creator"])
-        
-        embed = discord.Embed(
-            title=f"Tournament: {name}",
-            description=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: {'In Progress' if tournament['started'] else 'Recruiting'}",
-            color=0x00FF00,
-        )
-        
-        # Add crew information
-        crews_text = ""
-        for crew_name in tournament["crews"]:
-            crew = self.crews.get(guild_id, {}).get(crew_name)
-            if crew:
-                crews_text += f"• {crew['emoji']} {crew_name}\n"
-                
-        embed.add_field(
-            name=f"Participating Crews ({len(tournament['crews'])})",
-            value=crews_text if crews_text else "No crews yet",
-            inline=False
-        )
-        
-        # Show join buttons if tournament hasn't started
-        if not tournament["started"]:
-            view = TournamentView(name, self)
-            await ctx.send(embed=embed, view=view)
-        else:
-            await ctx.send(embed=embed)
-
-    @tournament_commands.command(name="start")
-    async def tournament_start(self, ctx, name: str):
-        """Start a tournament. Only the creator or admins can use this command."""
-        # Validate setup
-        finished_setup = await self.config.guild(ctx.guild).finished_setup()
-        if not finished_setup:
-            await ctx.send("❌ Crew system is not set up yet. Ask an admin to run `crewsetup init` first.")
-            return
-            
-        guild_id = str(ctx.guild.id)
-        lock = self.get_guild_lock(guild_id)
-        
-        started = False
-        
-        async with lock:
-            tournaments = self.tournaments.get(guild_id, {})
-            
-            if name not in tournaments:
-                await ctx.send(f"❌ No tournament found with the name `{name}`.")
-                return
-                
-            tournament = tournaments[name]
-            
-            # Check if user is the creator or an admin
-            is_admin = await self.bot.is_admin(ctx.author)
-            if tournament["creator"] != ctx.author.id and not is_admin:
-                await ctx.send("❌ Only the creator or admins can start this tournament.")
-                return
-                
-            if tournament["started"]:
-                await ctx.send("❌ This tournament has already started.")
-                return
-                
-            if len(tournament["crews"]) < 2:
-                await ctx.send("❌ Tournament needs at least 2 crews to start.")
-                return
-            
-            # Mark as started inside the lock to prevent race conditions
-            tournament["started"] = True
-            started = True
-            await self.save_tournaments(ctx.guild)
-        
-        # Only send the message and run the tournament if we successfully marked it as started
-        if started:
-            await ctx.send(f"✅ Tournament `{name}` has started!")
-            await self.run_tournament(ctx.channel, name)
-
-    async def send_tournament_message(self, ctx, name):
-        """Send a message with tournament information and join buttons."""
-        tournament = self.tournaments.get(str(ctx.guild.id), {}).get(name)
-        if not tournament:
-            return
-            
-        creator = ctx.guild.get_member(tournament["creator"])
-        
-        embed = discord.Embed(
-            title=f"Tournament: {name}",
-            description=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: Recruiting",
-            color=0x00FF00,
-        )
-        
-        embed.add_field(
-            name="Participating Crews (0)",
-            value="Be the first to join!",
-            inline=False
-        )
-        
-        view = TournamentView(name, self)
-        await ctx.send(embed=embed, view=view)
-
-    async def update_tournament_message(self, message, name):
-        """Update a tournament message with current information."""
-        try:
-            guild = message.guild
-            guild_id = str(guild.id)
-            tournaments = self.tournaments.get(guild_id, {})
-            
-            if name not in tournaments:
-                return
-                
-            tournament = tournaments[name]
-            creator = guild.get_member(tournament["creator"])
-            
-            embed = discord.Embed(
-                title=f"Tournament: {name}",
-                description=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: {'In Progress' if tournament['started'] else 'Recruiting'}",
-                color=0x00FF00,
-            )
-            
-            # Add crew information
-            crews_text = ""
-            for crew_name in tournament["crews"]:
-                crew = self.crews.get(guild_id, {}).get(crew_name)
-                if crew:
-                    crews_text += f"• {crew['emoji']} {crew_name}\n"
-                    
-            embed.add_field(
-                name=f"Participating Crews ({len(tournament['crews'])})",
-                value=crews_text if crews_text else "No crews yet",
-                inline=False
-            )
-            
-            await message.edit(embed=embed)
-        except discord.NotFound:
-            pass  # Message was deleted
-        except Exception as e:
-            print(f"Error updating tournament message: {e}")
-
-    async def run_tournament(self, channel, name):
-        """Run the tournament matches with improved logging."""
-        guild_id = str(channel.guild.id)
-        
-        if channel.id in self.active_channels:
-            await channel.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
-            self.log_message("WARNING", f"Tournament run failed: channel {channel.id} already active in guild {guild_id}")
-            return
-            
-        # Mark channel as active
-        self.active_channels.add(channel.id)
-        self.log_message("INFO", f"Starting tournament '{name}' in channel {channel.id} (guild {guild_id})")
-        
-        try:
-            guild = channel.guild
-            tournaments = self.tournaments.get(guild_id, {})
-            crews_dict = self.crews.get(guild_id, {})
-            
-            if name not in tournaments:
-                await channel.send(f"❌ Tournament `{name}` not found.")
-                self.log_message("ERROR", f"Tournament '{name}' not found in guild {guild_id}")
-                self.active_channels.remove(channel.id)
-                return
-                
-            tournament = tournaments[name]
-            
-            # Log participating crews
-            participating_crew_names = tournament["crews"]
-            self.log_message("INFO", f"Tournament '{name}' participating crews: {', '.join(participating_crew_names)}")
-            
-            # Update tournament participation stats for all crews
-            for crew_name in tournament["crews"]:
-                if crew_name in crews_dict:
-                    crews_dict[crew_name]["stats"]["tournaments_participated"] += 1
-            
-            # Get participating crews
-            participating_crews = []
-            for crew_name in tournament["crews"]:
-                if crew_name in crews_dict:
-                    participating_crews.append(crews_dict[crew_name])
-            
-            if len(participating_crews) < 2:
-                await channel.send("❌ Not enough crews are participating in this tournament.")
-                self.log_message("ERROR", f"Tournament '{name}' has fewer than 2 valid crews in guild {guild_id}")
-                self.active_channels.remove(channel.id)
-                return
-                
-            # Tournament code continues as normal with added logging at key points
-            
-            # Log tournament rounds
-            self.log_message("INFO", f"Tournament '{name}' starting rounds with {len(participating_crews)} crews")
-            
-            # [Rest of the function with added logging]
-            
-            # Log tournament winner
-            winner = remaining_crews[0]
-            self.log_message("INFO", f"Tournament '{name}' completed. Winner: {winner['name']} in guild {guild_id}")
-            
-            # Safely remove the tournament
-            if name in tournaments:
-                del tournaments[name]
-                await self.save_data(guild)
-                self.log_message("INFO", f"Tournament '{name}' removed from database in guild {guild_id}")
-            else:
-                self.log_message("WARNING", f"Tournament '{name}' not found for deletion in guild {guild_id}")
-            
-        except Exception as e:
-            self.log_message("ERROR", f"Exception in tournament '{name}', guild {guild_id}: {str(e)}")
-            await channel.send(f"❌ An error occurred during the tournament: {e}")
-        finally:
-            if channel.id in self.active_channels:
-                self.active_channels.remove(channel.id)
-                self.log_message("INFO", f"Channel {channel.id} removed from active channels (guild {guild_id})")
-            else:
-                self.log_message("WARNING", f"Channel {channel.id} not found in active_channels when trying to remove it")
-
-    async def run_match(self, channel, crew1, crew2):
-        """Run a battle between two crews."""
-        # Initialize crew data
-        crew1_hp = 100
-        crew2_hp = 100
-        crew1_status = {"burn": 0, "stun": False}
-        crew2_status = {"burn": 0, "stun": False}
-        
-        # Create the initial embed
-        embed = discord.Embed(
-            title="🏴‍☠️ Crew Battle ⚔️",
-            description=f"Battle begins between **{crew1['emoji']} {crew1['name']}** and **{crew2['emoji']} {crew2['name']}**!",
-            color=0x00FF00,
-        )
-        embed.add_field(
-            name="Health Bars",
-            value=(
-                f"**{crew1['emoji']} {crew1['name']}:** {self.generate_health_bar(crew1_hp)} {crew1_hp}/100\n"
-                f"**{crew2['emoji']} {crew2['name']}:** {self.generate_health_bar(crew2_hp)} {crew2_hp}/100"
-            ),
-            inline=False,
-        )
-        message = await channel.send(embed=embed)
-        
-        # Crew battle data
-        crews = [
-            {"name": crew1["name"], "emoji": crew1["emoji"], "hp": crew1_hp, "status": crew1_status, "data": crew1},
-            {"name": crew2["name"], "emoji": crew2["emoji"], "hp": crew2_hp, "status": crew2_status, "data": crew2},
-        ]
-        turn_index = 0
-        turn_count = 0
-        
-        # Battle loop
-        while crews[0]["hp"] > 0 and crews[1]["hp"] > 0 and turn_count < 20:  # Cap at 20 turns to prevent infinite battles
-            turn_count += 1
-            attacker = crews[turn_index]
-            defender = crews[1 - turn_index]
-            
-            # Apply burn damage at start of turn
-            if defender["status"]["burn"] > 0:
-                burn_damage = 5 * defender["status"]["burn"]
-                defender["hp"] = max(0, defender["hp"] - burn_damage)
-                defender["status"]["burn"] -= 1
-                
-                embed.description = f"🔥 **{defender['emoji']} {defender['name']}** takes {burn_damage} burn damage from fire stacks!"
-                embed.set_field_at(
-                    0,
-                    name="Health Bars",
-                    value=(
-                        f"**{crews[0]['emoji']} {crews[0]['name']}:** {self.generate_health_bar(crews[0]['hp'])} {crews[0]['hp']}/100\n"
-                        f"**{crews[1]['emoji']} {crews[1]['name']}:** {self.generate_health_bar(crews[1]['hp'])} {crews[1]['hp']}/100"
-                    ),
-                    inline=False,
-                )
-                await message.edit(embed=embed)
-                await asyncio.sleep(2)
-                
-                # Check if defender died from burn
-                if defender["hp"] <= 0:
-                    break
-            
-            # Skip turn if stunned
-            if attacker["status"]["stun"]:
-                attacker["status"]["stun"] = False
-                embed.description = f"⚡ **{attacker['emoji']} {attacker['name']}** is stunned and cannot act!"
-                await message.edit(embed=embed)
-                await asyncio.sleep(2)
-                turn_index = 1 - turn_index
-                continue
-            
-            # Select a random move
-            move = random.choice(self.MOVES)
-            
-            # Calculate damage
-            damage = self.calculate_damage(move["type"])
-            
-            # Apply special effects
-            effect_text = ""
-            if move["effect"] == "burn" and random.random() < move.get("burn_chance", 0):
-                defender["status"]["burn"] += 1
-                effect_text = f"🔥 Setting {defender['emoji']} {defender['name']} on fire!"
-            elif move["effect"] == "stun" and random.random() < move.get("stun_chance", 0):
-                defender["status"]["stun"] = True
-                effect_text = f"⚡ Stunning {defender['emoji']} {defender['name']}!"
-                
-            # Apply damage
-            defender["hp"] = max(0, defender["hp"] - damage)
-            
-            # Update embed
-            embed.description = (
-                f"**{attacker['emoji']} {attacker['name']}** used **{move['name']}**: {move['description']} "
-                f"and dealt **{damage}** damage to **{defender['emoji']} {defender['name']}**!"
-            )
-            
-            if effect_text:
-                embed.description += f"\n{effect_text}"
-                
-            embed.set_field_at(
-                0,
-                name="Health Bars",
-                value=(
-                    f"**{crews[0]['emoji']} {crews[0]['name']}:** {self.generate_health_bar(crews[0]['hp'])} {crews[0]['hp']}/100\n"
-                    f"**{crews[1]['emoji']} {crews[1]['name']}:** {self.generate_health_bar(crews[1]['hp'])} {crews[1]['hp']}/100"
-                ),
-                inline=False,
-            )
-            
-            await message.edit(embed=embed)
-            await asyncio.sleep(2)
-            
-            # Switch turns
-            turn_index = 1 - turn_index
-        
-        # Determine the winner
-        winner = None
-        if crews[0]["hp"] <= 0:
-            winner = crews[1]["data"]
-            embed.description = f"🏆 **{crews[1]['emoji']} {crews[1]['name']}** wins the battle!"
-        elif crews[1]["hp"] <= 0:
-            winner = crews[0]["data"]
-            embed.description = f"🏆 **{crews[0]['emoji']} {crews[0]['name']}** wins the battle!"
-        else:
-            # If we hit the turn limit, the crew with more HP wins
-            if crews[0]["hp"] > crews[1]["hp"]:
-                winner = crews[0]["data"]
-                embed.description = f"🏆 **{crews[0]['emoji']} {crews[0]['name']}** wins the battle by having more health!"
-            elif crews[1]["hp"] > crews[0]["hp"]:
-                winner = crews[1]["data"]
-                embed.description = f"🏆 **{crews[1]['emoji']} {crews[1]['name']}** wins the battle by having more health!"
-            else:
-                # It's a tie, randomly select winner
-                winner_index = random.randint(0, 1)
-                winner = crews[winner_index]["data"]
-                embed.description = f"It's a tie! 🎲 Random selection: **{crews[winner_index]['emoji']} {crews[winner_index]['name']}** wins!"
-        
-        await message.edit(embed=embed)
-        return winner
-
-    def calculate_damage(self, move_type):
-        """Calculate damage based on move type."""
-        if move_type == "regular":
-            # Regular attacks: 5-10 damage
-            return random.randint(5, 10)
-        elif move_type == "strong":
-            # Strong attacks: 10-15 damage
-            return random.randint(10, 15)
-        elif move_type == "critical":
-            # Critical attacks: 15-25 damage with chance of critical hit
-            damage = random.randint(15, 25)
-            if random.random() < 0.2:  # 20% chance of critical hit
-                damage *= 1.5  # Critical hit multiplier
-                damage = int(damage)  # Convert to integer
-            return damage
-        else:
-            return 0
-
     # --- Cog Setup ---
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         """Initialize data storage when bot joins a guild."""
         if guild.id not in self.crews:
             self.crews[str(guild.id)] = {}
-        if guild.id not in self.tournaments:
-            self.tournaments[str(guild.id)] = {}
             
     @commands.Cog.listener()
     async def on_member_remove(self, member):
