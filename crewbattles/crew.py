@@ -2402,6 +2402,206 @@ class CrewManagement(commands.Cog):
         
         return embed
 
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        """Handle reactions to crew invitations and crew selection messages."""
+        # Ignore bot's own reactions
+        if payload.user_id == self.bot.user.id:
+            return
+        
+        # First check if this is a crew invitation
+        if hasattr(self, 'active_invites') and payload.message_id in self.active_invites:
+            # Get invitation data
+            invite_data = self.active_invites[payload.message_id]
+            
+            # Check if the invitation has expired
+            if datetime.datetime.now() > invite_data["expires_at"]:
+                # Clean up expired invitation
+                del self.active_invites[payload.message_id]
+                return
+            
+            # Only the invitee can react to the invitation
+            if payload.user_id != invite_data["invitee_id"]:
+                return
+            
+            # Get emoji
+            emoji = str(payload.emoji)
+            
+            # Get guild and channel
+            guild = self.bot.get_guild(payload.guild_id)
+            channel = self.bot.get_channel(payload.channel_id)
+            
+            if not guild or not channel:
+                return
+            
+            # Get the invitee
+            member = guild.get_member(payload.user_id)
+            if not member:
+                return
+            
+            # Get the message to update
+            try:
+                message = await channel.fetch_message(payload.message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return
+            
+            # Handle accept (✅)
+            if emoji == "✅":
+                # Get crew data
+                guild_id = invite_data["guild_id"]
+                crew_name = invite_data["crew_name"]
+                crews = self.crews.get(guild_id, {})
+                
+                if crew_name not in crews:
+                    await channel.send(f"❌ The crew `{crew_name}` no longer exists.", delete_after=10)
+                    del self.active_invites[payload.message_id]
+                    return
+                
+                crew = crews[crew_name]
+                
+                # Add to crew
+                crew["members"].append(member.id)
+                
+                # Assign crew role
+                crew_role = guild.get_role(crew["crew_role"])
+                if crew_role:
+                    try:
+                        await member.add_roles(crew_role)
+                    except discord.Forbidden:
+                        await channel.send(f"✅ {member.mention} has joined the crew `{crew_name}`! Note: I couldn't assign the crew role due to permission issues.", delete_after=10)
+                
+                # Update nickname with crew emoji
+                try:
+                    original_nick = member.display_name
+                    emoji = crew["emoji"]
+                    if not original_nick.startswith(emoji):
+                        success = await self.set_nickname_safely(member, emoji, original_nick)
+                        if not success:
+                            await channel.send(f"✅ {member.mention} has joined the crew `{crew_name}`! Note: I couldn't update the nickname due to permission issues.", delete_after=10)
+                except Exception as e:
+                    await channel.send(f"✅ {member.mention} has joined the crew `{crew_name}`! Note: I couldn't update the nickname. Error: {str(e)}", delete_after=10)
+                
+                await self.save_crews(guild)
+                
+                # Update the message
+                new_embed = discord.Embed(
+                    title=f"{crew['emoji']} Crew Invitation - ACCEPTED",
+                    description=f"{member.mention} has accepted the invitation to join the crew `{crew_name}`!",
+                    color=0x00FF00,
+                )
+                await message.edit(embed=new_embed)
+                
+                # Clean up invitation
+                del self.active_invites[payload.message_id]
+                
+            # Handle decline (❌)
+            elif emoji == "❌":
+                # Update the message
+                crew_name = invite_data["crew_name"]
+                
+                new_embed = discord.Embed(
+                    title="❌ Crew Invitation - DECLINED",
+                    description=f"{member.mention} has declined the invitation to join the crew `{crew_name}`.",
+                    color=0xFF0000,
+                )
+                await message.edit(embed=new_embed)
+                
+                # Clean up invitation
+                del self.active_invites[payload.message_id]
+            
+            # Return after handling invitation to prevent further processing
+            return
+                
+        # Check if this is a reaction to a crew selection message
+        if hasattr(self, 'active_crew_messages') and payload.message_id in self.active_crew_messages:
+            message_data = self.active_crew_messages[payload.message_id]
+            guild_id = message_data["guild_id"]
+            emoji_to_crew = message_data["emoji_to_crew"]
+            
+            # Get the emoji string representation
+            emoji = str(payload.emoji)
+            
+            # Check if this emoji corresponds to a crew
+            if emoji not in emoji_to_crew:
+                return
+                
+            crew_name = emoji_to_crew[emoji]
+            crews = self.crews.get(guild_id, {})
+            
+            if crew_name not in crews:
+                return
+                
+            # Get the guild and member objects
+            guild = self.bot.get_guild(payload.guild_id)
+            if not guild:
+                return
+                
+            member = guild.get_member(payload.user_id)
+            if not member:
+                return
+                
+            # Check if user is already in a crew
+            for name, crew in crews.items():
+                if member.id in crew["members"]:
+                    # User is already in a crew, send them a DM
+                    try:
+                        await member.send(f"❌ You are already in the crew `{name}`. You cannot join another crew.")
+                    except discord.Forbidden:
+                        # Can't DM the user, try to get the channel
+                        channel = self.bot.get_channel(payload.channel_id)
+                        if channel:
+                            await channel.send(f"{member.mention}, you are already in a crew and cannot join another one.", delete_after=10)
+                    return
+            
+            # User can join the crew
+            crew = crews[crew_name]
+            
+            # Add to crew
+            crew["members"].append(member.id)
+            
+            # Assign crew role
+            crew_role = guild.get_role(crew["crew_role"])
+            if crew_role:
+                try:
+                    await member.add_roles(crew_role)
+                except discord.Forbidden:
+                    # Can't assign role, send a DM
+                    try:
+                        await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't assign you the crew role due to permission issues.")
+                        await self.save_crews(guild)
+                        return
+                    except discord.Forbidden:
+                        pass
+            
+            # Update nickname with crew emoji
+            try:
+                original_nick = member.display_name
+                emoji = crew["emoji"]
+                # Make sure we don't add the emoji twice
+                if not original_nick.startswith(emoji):
+                    success = await self.set_nickname_safely(member, emoji, original_nick)
+                    if not success:
+                        try:
+                            await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't update your nickname due to permission issues.")
+                        except discord.Forbidden:
+                            pass
+            except Exception as e:
+                try:
+                    await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't update your nickname. Error: {str(e)}")
+                except discord.Forbidden:
+                    pass
+            
+            await self.save_crews(guild)
+            
+            # Notify the user
+            try:
+                await member.send(f"✅ You have successfully joined the crew `{crew_name}`!")
+            except discord.Forbidden:
+                # Can't DM the user, try to get the channel
+                channel = self.bot.get_channel(payload.channel_id)
+                if channel:
+                    await channel.send(f"{member.mention}, you have successfully joined the crew `{crew_name}`!", delete_after=10)
+
     @crew_commands.command(name="updatetag")
     @commands.admin_or_permissions(administrator=True)
     async def update_crew_tag(self, ctx, crew_name: str, new_tag: str):
