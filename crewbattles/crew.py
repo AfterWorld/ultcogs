@@ -1919,7 +1919,7 @@ class CrewManagement(commands.Cog):
                 break
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
+    async def (self, payload):
         """Handle reactions to crew invitations and crew selection messages."""
         # Ignore bot's own reactions
         if payload.user_id == self.bot.user.id:
@@ -2032,105 +2032,6 @@ class CrewManagement(commands.Cog):
             
             # Clean up invitation
             del self.active_invites[payload.message_id]
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        """Handle reactions to crew selection messages."""
-        # Ignore bot's own reactions
-        if payload.user_id == self.bot.user.id:
-            return
-            
-        # Check if this is a reaction to a crew selection message
-        if payload.message_id not in self.active_crew_messages:
-            return
-            
-        message_data = self.active_crew_messages[payload.message_id]
-        guild_id = message_data["guild_id"]
-        emoji_to_crew = message_data["emoji_to_crew"]
-        
-        # Get the emoji string representation
-        emoji = str(payload.emoji)
-        
-        # Check if this emoji corresponds to a crew
-        if emoji not in emoji_to_crew:
-            return
-            
-        crew_name = emoji_to_crew[emoji]
-        crews = self.crews.get(guild_id, {})
-        
-        if crew_name not in crews:
-            return
-            
-        # Get the guild and member objects
-        guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
-            return
-            
-        member = guild.get_member(payload.user_id)
-        if not member:
-            return
-            
-        # Check if user is already in a crew
-        for name, crew in crews.items():
-            if member.id in crew["members"]:
-                # User is already in a crew, send them a DM
-                try:
-                    await member.send(f"❌ You are already in the crew `{name}`. You cannot join another crew.")
-                except discord.Forbidden:
-                    # Can't DM the user, try to get the channel
-                    channel = self.bot.get_channel(payload.channel_id)
-                    if channel:
-                        await channel.send(f"{member.mention}, you are already in a crew and cannot join another one.", delete_after=10)
-                return
-        
-        # User can join the crew
-        crew = crews[crew_name]
-        
-        # Add to crew
-        crew["members"].append(member.id)
-        
-        # Assign crew role
-        crew_role = guild.get_role(crew["crew_role"])
-        if crew_role:
-            try:
-                await member.add_roles(crew_role)
-            except discord.Forbidden:
-                # Can't assign role, send a DM
-                try:
-                    await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't assign you the crew role due to permission issues.")
-                    await self.save_crews(guild)
-                    return
-                except discord.Forbidden:
-                    pass
-        
-        # Update nickname with crew emoji
-        try:
-            original_nick = member.display_name
-            emoji = crew["emoji"]
-            # Make sure we don't add the emoji twice
-            if not original_nick.startswith(emoji):
-                success = await self.set_nickname_safely(member, emoji, original_nick)
-                if not success:
-                    try:
-                        await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't update your nickname due to permission issues.")
-                    except discord.Forbidden:
-                        pass
-        except Exception as e:
-            try:
-                await member.send(f"✅ You've joined the crew `{crew_name}`! Note: I couldn't update your nickname. Error: {str(e)}")
-            except discord.Forbidden:
-                pass
-        
-        await self.save_crews(guild)
-        
-        # Notify the user
-        try:
-            await member.send(f"✅ You have successfully joined the crew `{crew_name}`!")
-        except discord.Forbidden:
-            # Can't DM the user, try to get the channel
-            channel = self.bot.get_channel(payload.channel_id)
-            if channel:
-                await channel.send(f"{member.mention}, you have successfully joined the crew `{crew_name}`!", delete_after=10)
 
     @commands.command()
     async def crewtest(self, ctx):
