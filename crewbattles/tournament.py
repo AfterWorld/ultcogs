@@ -349,7 +349,23 @@ class TournamentSystem(commands.Cog):
         
         await self.save_tournaments(ctx.guild)
         self.log_message("INFO", f"Tournament '{name}' created in guild {guild_id} by user {ctx.author.id}")
-        await self.send_tournament_message(ctx, name)
+        
+        # Send tournament info without buttons
+        creator = ctx.guild.get_member(ctx.author.id)
+        
+        embed = discord.Embed(
+            title=f"Tournament: {name}",
+            description=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: Recruiting",
+            color=0x00FF00,
+        )
+        
+        embed.add_field(
+            name="Participating Crews (0)",
+            value="Use `.tourny add {name} [crew_name]` to add crews to this tournament.",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
 
     @tournament_commands.command(name="delete")
     @commands.admin_or_permissions(administrator=True)
@@ -435,6 +451,10 @@ class TournamentSystem(commands.Cog):
         # Add crew information
         crews_text = ""
         crew_manager = self.get_crew_manager()
+        if not crew_manager:
+            await ctx.send("❌ Crew Manager not available. Is the CrewBattles cog loaded?")
+            return
+            
         crews = crew_manager.get_crews_for_guild(guild_id)
         
         for crew_name in tournament["crews"]:
@@ -448,12 +468,19 @@ class TournamentSystem(commands.Cog):
             inline=False
         )
         
-        # Show join buttons if tournament hasn't started
+        # Add command guidance
         if not tournament["started"]:
-            view = TournamentView(name, self)
-            await ctx.send(embed=embed, view=view)
-        else:
-            await ctx.send(embed=embed)
+            embed.add_field(
+                name="Commands",
+                value=(
+                    f"• `.tourny add {name} [crew_name]` - Add a crew to this tournament\n"
+                    f"• `.tourny remove {name} [crew_name]` - Remove a crew from this tournament\n"
+                    f"• `.tourny start {name}` - Start the tournament"
+                ),
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
 
     @tournament_commands.command(name="start")
     async def tournament_start(self, ctx, *, name: str):
@@ -467,40 +494,47 @@ class TournamentSystem(commands.Cog):
         guild_id = str(ctx.guild.id)
         lock = self.get_guild_lock(guild_id)
         
-        started = False
+        try:
+            async with lock:
+                tournaments = self.tournaments.get(guild_id, {})
+                
+                if not tournaments:
+                    await ctx.send("❌ No tournaments available. Create one with `.tourny create`.")
+                    return
+                    
+                if name not in tournaments:
+                    # Show available tournaments
+                    available = ", ".join([f"`{t}`" for t in tournaments.keys()])
+                    await ctx.send(f"❌ No tournament found with the name `{name}`.\nAvailable tournaments: {available}")
+                    return
+                    
+                tournament = tournaments[name]
+                
+                # Check if user is the creator or an admin
+                is_admin = await self.bot.is_admin(ctx.author)
+                if tournament["creator"] != ctx.author.id and not is_admin:
+                    await ctx.send("❌ Only the creator or admins can start this tournament.")
+                    return
+                    
+                if tournament["started"]:
+                    await ctx.send("❌ This tournament has already started.")
+                    return
+                    
+                if len(tournament["crews"]) < 2:
+                    await ctx.send("❌ Tournament needs at least 2 crews to start.")
+                    return
+                
+                # Mark as started
+                tournament["started"] = True
+                await self.save_tournaments(ctx.guild)
+        except Exception as e:
+            await ctx.send(f"❌ An error occurred: {str(e)}")
+            self.log_message("ERROR", f"Error starting tournament '{name}' in guild {guild_id}: {str(e)}")
+            return
         
-        async with lock:
-            tournaments = self.tournaments.get(guild_id, {})
-            
-            if name not in tournaments:
-                await ctx.send(f"❌ No tournament found with the name `{name}`.")
-                return
-                
-            tournament = tournaments[name]
-            
-            # Check if user is the creator or an admin
-            is_admin = await self.bot.is_admin(ctx.author)
-            if tournament["creator"] != ctx.author.id and not is_admin:
-                await ctx.send("❌ Only the creator or admins can start this tournament.")
-                return
-                
-            if tournament["started"]:
-                await ctx.send("❌ This tournament has already started.")
-                return
-                
-            if len(tournament["crews"]) < 2:
-                await ctx.send("❌ Tournament needs at least 2 crews to start.")
-                return
-            
-            # Mark as started inside the lock to prevent race conditions
-            tournament["started"] = True
-            started = True
-            await self.save_tournaments(ctx.guild)
-        
-        # Only send the message and run the tournament if we successfully marked it as started
-        if started:
-            await ctx.send(f"✅ Tournament `{name}` has started!")
-            await self.run_tournament(ctx.channel, name)
+        # Start the tournament outside the lock
+        await ctx.send(f"✅ Tournament `{name}` has started!")
+        await self.run_tournament(ctx.channel, name)
 
     async def send_tournament_message(self, ctx, name):
         """Send a message with tournament information and join buttons."""
@@ -593,6 +627,11 @@ class TournamentSystem(commands.Cog):
             
             # Get crew manager and crews
             crew_manager = self.get_crew_manager()
+            if not crew_manager:
+                await channel.send("❌ Crew Manager not available. Is the CrewBattles cog loaded?")
+                self.active_channels.remove(channel.id)
+                return
+                
             crews_dict = crew_manager.get_crews_for_guild(guild_id)
             
             # Log participating crews
