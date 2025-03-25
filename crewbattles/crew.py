@@ -2487,6 +2487,40 @@ class CrewManagement(commands.Cog):
         
         return embed
 
+    async def cleanup_expired_invitations(self):
+        """Task to periodically clean up expired crew invitations."""
+        await self.bot.wait_until_ready()
+        while self == self.bot.get_cog("CrewManagement"):
+            try:
+                current_time = datetime.datetime.now()
+                
+                for guild_id, crews in list(self.crews.items()):
+                    for crew_name, crew in list(crews.items()):
+                        if "invitations" in crew:
+                            # Filter out expired invitations
+                            expired = []
+                            for user_id, invite_time in list(crew["invitations"].items()):
+                                # Check if invitation is older than 24 hours
+                                invite_date = datetime.datetime.fromisoformat(invite_time)
+                                if (current_time - invite_date).total_seconds() > 86400:  # 24 hours
+                                    expired.append(user_id)
+                            
+                            # Remove expired invitations
+                            for user_id in expired:
+                                del crew["invitations"][user_id]
+                            
+                            # Save if there were any expired invitations
+                            if expired:
+                                await self.save_crews(self.bot.get_guild(int(guild_id)))
+                
+                # Run task every hour
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error in invitation cleanup task: {e}")
+                await asyncio.sleep(3600)  # Sleep on error too
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """Handle reactions to crew invitations and crew selection messages."""
