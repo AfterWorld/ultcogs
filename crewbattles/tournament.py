@@ -56,6 +56,10 @@ class TournamentSystem(commands.Cog):
         
     def get_crew_manager(self):
         """Get the crew manager reference."""
+        if not self._crew_manager:
+            self._crew_manager = self.bot.get_cog("CrewManagement")
+            if not self._crew_manager:
+                self.log_message("WARNING", "CrewManagement cog not found when needed")
         return self._crew_manager
 
     async def initialize(self):
@@ -388,6 +392,7 @@ class TournamentSystem(commands.Cog):
         await ctx.send(embed=embed)
 
     @tournament_commands.command(name="start")
+    @commands.admin_or_permissions(administrator=True)
     async def tournament_start(self, ctx, *, name: str):
         """Start a tournament. Only the creator or admins can use this command."""
         # Validate setup
@@ -397,23 +402,23 @@ class TournamentSystem(commands.Cog):
             return
             
         guild_id = str(ctx.guild.id)
+        
+        # First check if tournament exists before getting lock
+        if guild_id not in self.tournaments or name not in self.tournaments[guild_id]:
+            # Show available tournaments
+            available_tournaments = list(self.tournaments.get(guild_id, {}).keys())
+            if available_tournaments:
+                available = ", ".join([f"`{t}`" for t in available_tournaments])
+                await ctx.send(f"❌ No tournament found with the name `{name}`.\nAvailable tournaments: {available}")
+            else:
+                await ctx.send(f"❌ No tournament found with the name `{name}`.\nNo tournaments are currently available.")
+            return
+        
         lock = self.get_guild_lock(guild_id)
         
         try:
             async with lock:
-                tournaments = self.tournaments.get(guild_id, {})
-                
-                if not tournaments:
-                    await ctx.send("❌ No tournaments available. Create one with `.tourny create`.")
-                    return
-                    
-                if name not in tournaments:
-                    # Show available tournaments
-                    available = ", ".join([f"`{t}`" for t in tournaments.keys()])
-                    await ctx.send(f"❌ No tournament found with the name `{name}`.\nAvailable tournaments: {available}")
-                    return
-                    
-                tournament = tournaments[name]
+                tournament = self.tournaments[guild_id][name]
                 
                 # Check if user is the creator or an admin
                 is_admin = await self.bot.is_admin(ctx.author)
@@ -432,17 +437,19 @@ class TournamentSystem(commands.Cog):
                 # Mark as started
                 tournament["started"] = True
                 await self.save_tournaments(ctx.guild)
+                
+                # Confirm to user
+                await ctx.send(f"✅ Tournament `{name}` has started!")
         except Exception as e:
             await ctx.send(f"❌ An error occurred: {str(e)}")
             self.log_message("ERROR", f"Error starting tournament '{name}' in guild {guild_id}: {str(e)}")
             return
         
         # Start the tournament outside the lock
-        await ctx.send(f"✅ Tournament `{name}` has started!")
         await self.run_tournament(ctx.channel, name)
-
+    
     async def send_tournament_message(self, ctx, name):
-        """Send a message with tournament information and join buttons."""
+        """Send a message with tournament information."""
         tournament = self.tournaments.get(str(ctx.guild.id), {}).get(name)
         if not tournament:
             return
@@ -457,53 +464,16 @@ class TournamentSystem(commands.Cog):
         
         embed.add_field(
             name="Participating Crews (0)",
-            value="Be the first to join!",
+            value=(
+                "Use the following commands to manage this tournament:\n"
+                f"• `.tourny add {name} [crew_name]` - Add a crew\n"
+                f"• `.tourny remove {name} [crew_name]` - Remove a crew\n"
+                f"• `.tourny start {name}` - Start the tournament"
+            ),
             inline=False
         )
         
-        view = TournamentView(name, self)
-        await ctx.send(embed=embed, view=view)
-
-    async def update_tournament_message(self, message, name):
-        """Update a tournament message with current information."""
-        try:
-            guild = message.guild
-            guild_id = str(guild.id)
-            tournaments = self.tournaments.get(guild_id, {})
-            
-            if name not in tournaments:
-                return
-                
-            tournament = tournaments[name]
-            creator = guild.get_member(tournament["creator"])
-            
-            embed = discord.Embed(
-                title=f"Tournament: {name}",
-                description=f"Creator: {creator.mention if creator else 'Unknown'}\nStatus: {'In Progress' if tournament['started'] else 'Recruiting'}",
-                color=0x00FF00,
-            )
-            
-            # Add crew information
-            crews_text = ""
-            crew_manager = self.get_crew_manager()
-            crews = crew_manager.get_crews_for_guild(guild_id)
-            
-            for crew_name in tournament["crews"]:
-                crew = crews.get(crew_name)
-                if crew:
-                    crews_text += f"• {crew['emoji']} {crew_name}\n"
-                    
-            embed.add_field(
-                name=f"Participating Crews ({len(tournament['crews'])})",
-                value=crews_text if crews_text else "No crews yet",
-                inline=False
-            )
-            
-            await message.edit(embed=embed)
-        except discord.NotFound:
-            pass  # Message was deleted
-        except Exception as e:
-            print(f"Error updating tournament message: {e}")
+        await ctx.send(embed=embed)
 
     async def run_tournament(self, channel, name):
         """Run the tournament matches."""
@@ -533,12 +503,18 @@ class TournamentSystem(commands.Cog):
             # Get crew manager and crews
             crew_manager = self.get_crew_manager()
             if not crew_manager:
-                await channel.send("❌ Crew Manager not available. Is the CrewBattles cog loaded?")
+                await channel.send("❌ CrewManagement cog is not loaded. Cannot run tournament.")
+                self.log_message("ERROR", f"CrewManagement cog not found when running tournament '{name}'")
                 self.active_channels.remove(channel.id)
                 return
                 
             crews_dict = crew_manager.get_crews_for_guild(guild_id)
-            
+            if not crews_dict:
+                await channel.send("❌ No crews found for this server.")
+                self.log_message("ERROR", f"No crews found when running tournament '{name}'")
+                self.active_channels.remove(channel.id)
+                return
+    
             # Log participating crews
             participating_crew_names = tournament["crews"]
             self.log_message("INFO", f"Tournament '{name}' participating crews: {', '.join(participating_crew_names)}")
@@ -562,9 +538,11 @@ class TournamentSystem(commands.Cog):
             for crew_name in tournament["crews"]:
                 if crew_name in crews_dict:
                     participating_crews.append(crews_dict[crew_name])
+                else:
+                    self.log_message("WARNING", f"Crew '{crew_name}' from tournament not found in crews_dict")
             
             if len(participating_crews) < 2:
-                await channel.send("❌ Not enough crews are participating in this tournament.")
+                await channel.send("❌ Not enough valid crews are participating in this tournament.")
                 self.log_message("ERROR", f"Tournament '{name}' has fewer than 2 valid crews in guild {guild_id}")
                 self.active_channels.remove(channel.id)
                 return
@@ -573,7 +551,7 @@ class TournamentSystem(commands.Cog):
             random.shuffle(participating_crews)
             
             # Send tournament start message
-            crew_list = "\n".join([f"• {crew['emoji']} {crew['name']}" for crew in participating_crews])
+            crew_list = "\n".join([f"• {crew.get('emoji', '🏴‍☠️')} {crew['name']}" for crew in participating_crews])
             
             embed = discord.Embed(
                 title=f"🏆 Tournament: {name} 🏆",
@@ -610,7 +588,7 @@ class TournamentSystem(commands.Cog):
                     else:
                         # If odd number of crews, give a bye to the last crew
                         new_remaining_crews.append(remaining_crews[i])
-                        await channel.send(f"{remaining_crews[i]['emoji']} **{remaining_crews[i]['name']}** advances to the next round with a bye!")
+                        await channel.send(f"{remaining_crews[i].get('emoji', '🏴‍☠️')} **{remaining_crews[i]['name']}** advances to the next round with a bye!")
                 
                 # Run each match in the round
                 for crew1, crew2 in pairs:
@@ -618,16 +596,29 @@ class TournamentSystem(commands.Cog):
                     await asyncio.sleep(2)
                     
                     # Run the match
-                    await channel.send(f"**Match:** {crew1['emoji']} {crew1['name']} vs {crew2['emoji']} {crew2['name']}")
+                    await channel.send(f"**Match:** {crew1.get('emoji', '🏴‍☠️')} {crew1['name']} vs {crew2.get('emoji', '🏴‍☠️')} {crew2['name']}")
                     winner = await self.run_match(channel, crew1, crew2)
+                    
+                    if not winner:
+                        self.log_message("ERROR", f"Match between {crew1['name']} and {crew2['name']} failed to return a winner")
+                        # Default to crew1 if no winner returned
+                        winner = crew1
+                        await channel.send(f"⚠️ Error determining winner, defaulting to {crew1.get('emoji', '🏴‍☠️')} {crew1['name']}")
                     
                     # Add winner to next round
                     new_remaining_crews.append(winner)
                     
                     # Update stats
                     loser = crew2 if winner == crew1 else crew1
-                    winner["stats"]["wins"] += 1
-                    loser["stats"]["losses"] += 1
+                    
+                    # Ensure stats dictionaries exist
+                    if "stats" not in winner:
+                        winner["stats"] = {"wins": 0, "losses": 0, "tournaments_won": 0, "tournaments_participated": 0}
+                    if "stats" not in loser:
+                        loser["stats"] = {"wins": 0, "losses": 0, "tournaments_won": 0, "tournaments_participated": 0}
+                    
+                    winner["stats"]["wins"] = winner["stats"].get("wins", 0) + 1
+                    loser["stats"]["losses"] = loser["stats"].get("losses", 0) + 1
                 
                 # Update remaining crews for next round
                 remaining_crews = new_remaining_crews
@@ -635,7 +626,7 @@ class TournamentSystem(commands.Cog):
                 
                 # If we have more than 1 crew remaining, announce the next round
                 if len(remaining_crews) > 1:
-                    next_round_crews = "\n".join([f"• {crew['emoji']} {crew['name']}" for crew in remaining_crews])
+                    next_round_crews = "\n".join([f"• {crew.get('emoji', '🏴‍☠️')} {crew['name']}" for crew in remaining_crews])
                     
                     next_round_embed = discord.Embed(
                         title=f"Round {round_number-1} Complete",
@@ -653,29 +644,40 @@ class TournamentSystem(commands.Cog):
                     await asyncio.sleep(3)
             
             # We have a winner!
-            winner = remaining_crews[0]
-            
-            # Update tournament win stats
-            winner["stats"]["tournaments_won"] += 1
-            
-            # Final announcement
-            final_embed = discord.Embed(
-                title=f"🏆 Tournament Champion: {winner['name']} 🏆",
-                description=f"{winner['emoji']} **{winner['name']}** has won the tournament!",
-                color=0xFFD700,  # Gold color
-            )
-            
-            # Show some stats
-            final_embed.add_field(
-                name="Champion Stats",
-                value=f"Wins: {winner['stats']['wins']}\nLosses: {winner['stats']['losses']}\nTournaments Won: {winner['stats']['tournaments_won']}",
-                inline=False
-            )
-            
-            await channel.send(embed=final_embed)
-            
-            # Save updated crew statistics
-            await crew_manager.save_crews(guild)
+            if remaining_crews:
+                winner = remaining_crews[0]
+                
+                # Update tournament win stats
+                if "stats" not in winner:
+                    winner["stats"] = {"wins": 0, "losses": 0, "tournaments_won": 0, "tournaments_participated": 0}
+                
+                winner["stats"]["tournaments_won"] = winner["stats"].get("tournaments_won", 0) + 1
+                
+                # Final announcement
+                final_embed = discord.Embed(
+                    title=f"🏆 Tournament Champion: {winner['name']} 🏆",
+                    description=f"{winner.get('emoji', '🏴‍☠️')} **{winner['name']}** has won the tournament!",
+                    color=0xFFD700,  # Gold color
+                )
+                
+                # Show some stats
+                final_embed.add_field(
+                    name="Champion Stats",
+                    value=(
+                        f"Wins: {winner['stats'].get('wins', 0)}\n"
+                        f"Losses: {winner['stats'].get('losses', 0)}\n"
+                        f"Tournaments Won: {winner['stats'].get('tournaments_won', 0)}"
+                    ),
+                    inline=False
+                )
+                
+                await channel.send(embed=final_embed)
+                
+                # Save updated crew statistics
+                await crew_manager.save_crews(guild)
+            else:
+                await channel.send("❌ No winner could be determined for the tournament.")
+                self.log_message("ERROR", f"Tournament '{name}' ended with no crews remaining")
             
             # Remove the tournament from the list
             if name in tournaments:
@@ -688,11 +690,10 @@ class TournamentSystem(commands.Cog):
             self.log_message("ERROR", f"Exception in tournament '{name}', guild {guild_id}: {str(e)}")
             await channel.send(f"❌ An error occurred during the tournament: {e}")
         finally:
+            # Always clean up, even if there's an error
             if channel.id in self.active_channels:
                 self.active_channels.remove(channel.id)
                 self.log_message("INFO", f"Channel {channel.id} removed from active channels (guild {guild_id})")
-            else:
-                self.log_message("WARNING", f"Channel {channel.id} not found in active_channels when trying to remove it")
 
     async def run_match(self, channel, crew1, crew2):
         """Run a battle between two crews."""
