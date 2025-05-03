@@ -1,0 +1,14 @@
+{
+    "author": ["UltPanda"],
+    "install_msg": "Thanks for installing BountyBattle! This cog adds a One Piece themed RPG system with bounties, devil fruits, and deathmatches. Use `[p]help BountyBattle` to get started.",
+    "name": "BountyBattle",
+    "short": "One Piece themed RPG system with bounties and battles",
+    "description": "A comprehensive RPG system inspired by One Piece where users can earn bounties, eat devil fruits, battle each other, and participate in raids. Features include economy, titles, achievements, and dynamic battle mechanics.",
+    "tags": ["fun", "games", "rpg", "one piece", "battles"],
+    "requirements": ["pillow", "requests"],
+    "min_bot_version": "3.5.0",
+    "max_bot_version": "3.5.19",
+    "type": "COG",
+    "end_user_data_statement": "This cog stores user data including bounties, devil fruits, battle statistics, achievements, and titles. All data can be removed with the resetstats command.",
+    "permissions": ["embed_links", "attach_files", "add_reactions", "manage_messages"]
+}
