@@ -9,7 +9,7 @@ class DevilFruitManager:
         self.environment_manager = environment_manager
         self.active_transformations = {}
         
-        # Import constants
+        # Import constants (fixed path)
         from ..constants.devil_fruits import DEVIL_FRUITS
         self.DEVIL_FRUITS = DEVIL_FRUITS
         
