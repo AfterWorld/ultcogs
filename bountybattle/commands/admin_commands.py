@@ -306,49 +306,6 @@ class AdminCommands:
             )
         
         await ctx.send(embed=embed)
-
-    @commands.command()
-    @commands.admin_or_permissions(administrator=True)
-    async def setbounty(self, ctx, member: discord.Member, amount: int):
-        """Set a user's bounty (Admin/Owner only)."""
-        if amount < 0:
-            return await ctx.send("❌ Bounty cannot be negative.")
-        
-        # Add permission check message
-        if not await self.bot.is_owner(ctx.author) and not ctx.author.guild_permissions.administrator:
-            return await ctx.send("❌ You need administrator permissions to use this command!")
-        
-        try:
-            # Set the bounty
-            new_bounty = await self.data_manager.safe_modify_bounty(member, amount, "set")
-            if new_bounty is None:
-                return await ctx.send("⚠️ Failed to set bounty. Please try again.")
-
-            # Create embed for response
-            embed = discord.Embed(
-                title="🏴‍☠️ Bounty Updated",
-                description=f"**{member.display_name}**'s bounty has been set to `{amount:,}` Berries!",
-                color=discord.Color.green()
-            )
-
-            # Add current title if applicable
-            new_title = self.cog.data_utils.get_bounty_title(amount)
-            if new_title:
-                embed.add_field(
-                    name="Current Title",
-                    value=f"`{new_title}`",
-                    inline=False
-                )
-
-            await ctx.send(embed=embed)
-
-            # Check if the new bounty warrants an announcement
-            if amount >= 900_000_000:
-                await self.cog.bounty_commands.announce_rank(ctx.guild, member, new_title)
-
-        except Exception as e:
-            self.logger.error(f"Error in setbounty command: {str(e)}")
-            await ctx.send(f"❌ An error occurred while setting the bounty: {str(e)}")
     
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
