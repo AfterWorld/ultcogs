@@ -5,7 +5,8 @@ class EnvironmentManager:
     """Manages environment effects in battles."""
     
     def __init__(self):
-        from .constants.environments import ENVIRONMENTS
+        # Import constants with correct relative path
+        from ..constants.environments import ENVIRONMENTS
         self.ENVIRONMENTS = ENVIRONMENTS
         
         self.EFFECT_COOLDOWNS = {
