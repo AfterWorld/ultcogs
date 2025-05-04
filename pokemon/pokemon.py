@@ -471,76 +471,9 @@ class PokemonCog(commands.Cog):
             await self.config.guild(ctx.guild).spawn_cooldown.set(MIN_SPAWN_COOLDOWN)
             
             await ctx.send("Pokemon settings have been reset to default values.")
+        except asyncio.TimeoutError:
+            await ctx.send("Reset settings confirmation timed out. No changes were made.")
             
-    @pokemon_settings.command(name="force_spawn")
-    @commands.admin_or_permissions(administrator=True)
-    async def force_spawn(self, ctx: commands.Context, pokemon_id: int = None):
-        """Force a Pokemon to spawn (admin only)."""
-        guild = ctx.guild
-        guild_config = await self.config.guild(guild).all()
-        
-        # Check if channel is set
-        if not guild_config["channel"]:
-            await ctx.send("No spawn channel set! Use `!pokemon settings channel` first.")
-            return
-            
-        channel = guild.get_channel(guild_config["channel"])
-        if not channel:
-            await ctx.send("Spawn channel no longer exists! Please set a new one.")
-            return
-            
-        # Check if a Pokemon is already active
-        if guild.id in self.spawns_active:
-            await ctx.send("A Pokemon is already active! Wait for it to be caught or flee.")
-            return
-            
-        # Generate Pokemon data
-        if pokemon_id is None:
-            # Random Pokemon
-            pokemon_id = random.randint(1, 898)
-            
-        # Fetch Pokemon data
-        pokemon_data = await self.fetch_pokemon(pokemon_id)
-        
-        if not pokemon_data:
-            await ctx.send(f"Error fetching Pokemon with ID {pokemon_id}. Please try again.")
-            return
-            
-        # Create embed for spawn
-        embed = discord.Embed(
-            title="A wild Pokémon appeared!",
-            description=f"Type `!catch <pokemon>` to catch it!",
-            color=0x00ff00
-        )
-        
-        # Use silhouette for the mystery
-        embed.set_image(url=pokemon_data["sprite"])
-        
-        # Set expiry time
-        now = datetime.now().timestamp()
-        expiry = now + CATCH_TIMEOUT
-        
-        # Store active spawn
-        self.spawns_active[guild.id] = {
-            "pokemon": pokemon_data,
-            "expiry": expiry
-        }
-        
-        # Update last spawn time
-        await self.config.guild(guild).last_spawn.set(now)
-        
-        # Send spawn message
-        spawn_message = await channel.send(embed=embed)
-        
-        # DM the admin the Pokemon's name (for testing purposes)
-        await ctx.author.send(f"You spawned a {pokemon_data['name'].capitalize()} (ID: {pokemon_id}).")
-        
-        # Set up expiry task
-        self.bot.loop.create_task(self.expire_spawn(guild.id, channel, expiry))
-        
-        # Delete the command message if in the spawn channel
-        if ctx.channel.id == channel.id:
-            await ctx.message.delete()
             
     @pokemon_settings.command(name="clear_cache")
     @commands.is_owner()
