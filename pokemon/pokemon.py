@@ -512,18 +512,65 @@ class PokemonCog(commands.Cog):
                     if callable(self.bot.command_prefix)
                     else self.bot.command_prefix)
             
-            # Create embed for spawn
+            # Format display name properly
+            display_name = "Pokémon"
+            if "-" in pokemon_data["name"]:
+                base_name, form = pokemon_data["name"].split("-", 1)
+                base_name = base_name.capitalize()
+                if form == "mega":
+                    display_name = f"Mega {base_name}"
+                elif form.startswith("mega-"):
+                    form_type = form.split("-")[1].upper()
+                    display_name = f"Mega {base_name} {form_type}"
+                elif form == "gmax":
+                    display_name = f"Gigantamax {base_name}"
+                elif form in ["alola", "galar", "hisui"]:
+                    display_name = f"{form.capitalize()}n {base_name}"
+                else:
+                    display_name = pokemon_data["name"].capitalize()
+            else:
+                display_name = pokemon_data["name"].capitalize()
+            
+            # Create embed for spawn with clearer catching instructions
             embed = discord.Embed(
-                title="A wild Pokémon appeared!",
-                description=f"Type `{prefix}p catch <pokemon>` to catch it!",
+                title=f"A wild {display_name} appeared!",
+                description=f"Type `{prefix}p catch {pokemon_data['name']}` to catch it!",
                 color=0x00ff00
             )
             
-            # Use silhouette for the mystery
-            embed.set_image(url=pokemon_data["sprite"])
+            # Add alternative formats for special forms to make it easier to catch
+            if "-" in pokemon_data["name"]:
+                base_name, form = pokemon_data["name"].split("-", 1)
+                base_name = base_name.capitalize()
+                
+                if form == "mega":
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Mega {base_name}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
+                elif form.startswith("mega-"):
+                    form_type = form.split("-")[1].upper()
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Mega {base_name} {form_type}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
+                elif form == "gmax":
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Gigantamax {base_name}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
             
-            # Center the sprite and make it larger
-            embed.set_thumbnail(url=pokemon_data["sprite"])
+            # Use the sprite for the image
+            embed.set_image(url=pokemon_data["sprite"])
             
             # Set expiry time
             expiry = now + CATCH_TIMEOUT
@@ -1509,7 +1556,7 @@ class PokemonCog(commands.Cog):
             return f"Primal {base_name}"
         
         return name.capitalize()
-    
+   
     @pokemon_commands.command(name="items", aliases=["bag", "inventory"])
     async def view_items(self, ctx: commands.Context, user: discord.Member = None):
         """View your or another user's item inventory."""
@@ -2536,33 +2583,74 @@ class PokemonCog(commands.Cog):
             spawn = self.spawns_active[ctx.guild.id]
             pokemon_data = spawn["pokemon"]
 
-            # Normalize the input and expected names
-            input_name = pokemon_name.lower().replace(" ", "").replace("-", "")
-            expected_name = pokemon_data["name"].lower().replace(" ", "").replace("-", "")
-
-            # Handle special forms
+            # Normalize the input and expected names for more flexible matching
+            input_name = pokemon_name.lower().replace(" ", "").replace("-", "").replace("_", "")
+            correct_name = pokemon_data["name"].lower().replace(" ", "").replace("-", "").replace("_", "")
+            
+            # Fix common typos and spelling mistakes
+            typo_corrections = {
+                "charzard": "charizard",
+                "charlizard": "charizard",
+                "charazard": "charizard",
+                "pokeon": "pokemon",
+                "pokmon": "pokemon",
+                "pikacu": "pikachu",
+                "pikchu": "pikachu"
+            }
+            
+            # Apply typo correction if needed
+            for typo, correction in typo_corrections.items():
+                if typo in input_name:
+                    input_name = input_name.replace(typo, correction)
+            
+            # Extracted base name (without form)
+            expected_base = correct_name
+            if "-" in pokemon_data["name"]:
+                expected_base = pokemon_data["name"].split("-")[0].lower()
+            
+            # Special forms handling
             is_correct = False
-            if "-" in expected_name:
-                base_name, form = expected_name.split("-", 1)
-
-                # Check different variations of names
-                if input_name == expected_name:
-                    is_correct = True
-                elif input_name == base_name:
-                    is_correct = True
-                elif form == "mega" and input_name in [f"mega{base_name}", f"megax{base_name}", f"megay{base_name}"]:
-                    is_correct = True
-                elif form.startswith("mega-") and input_name in [f"mega{base_name}{form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
-                    is_correct = True
-                elif form == "gmax" and input_name in [f"gigantamax{base_name}", f"gmax{base_name}"]:
-                    is_correct = True
-                elif form in ["alola", "galar", "hisui"] and input_name in [f"{form}{base_name}", f"{form}-{base_name}"]:
-                    is_correct = True
-                elif form == "primal" and input_name == f"primal{base_name}":
-                    is_correct = True
+            
+            # Direct match
+            if input_name == correct_name:
+                is_correct = True
+            
+            # Base name match (without any form)
+            elif input_name == expected_base:
+                is_correct = True
+            
+            # Try more flexible form matching
             else:
-                # Handle cases where there is no hyphen
-                is_correct = input_name == expected_name
+                # Handle mega evolutions with various formats
+                if "mega" in pokemon_data["name"].lower():
+                    if (f"mega{expected_base}" in input_name or 
+                        f"m{expected_base}" in input_name or
+                        f"{expected_base}mega" in input_name):
+                        is_correct = True
+                        
+                    # X/Y mega forms
+                    if "-x" in pokemon_data["name"].lower() and ("megax" in input_name or "mega-x" in input_name or "megaevolutionx" in input_name):
+                        is_correct = True
+                    elif "-y" in pokemon_data["name"].lower() and ("megay" in input_name or "mega-y" in input_name or "megaevolutiony" in input_name):
+                        is_correct = True
+                
+                # Handle Gigantamax forms
+                elif "gmax" in pokemon_data["name"].lower() or "gigantamax" in pokemon_data["name"].lower():
+                    if (f"gmax{expected_base}" in input_name or 
+                        f"gigantamax{expected_base}" in input_name or 
+                        f"g{expected_base}" in input_name):
+                        is_correct = True
+                
+                # Handle regional forms
+                elif any(form in pokemon_data["name"].lower() for form in ["alola", "galar", "hisui"]):
+                    regional_forms = ["alola", "galar", "hisui"]
+                    for form in regional_forms:
+                        if form in pokemon_data["name"].lower() and (f"{form}{expected_base}" in input_name or f"{expected_base}{form}" in input_name):
+                            is_correct = True
+                            break
+            
+            # Debug info to help diagnose matching issues
+            # print(f"Input: {input_name}, Correct: {correct_name}, Base: {expected_base}, Result: {is_correct}")
 
             if is_correct:
                 # Caught!
@@ -2577,16 +2665,28 @@ class PokemonCog(commands.Cog):
                 current_money = await self.config.user(ctx.author).money()
                 await self.config.user(ctx.author).money.set(current_money + catch_reward)
 
+                # Format display name properly
+                display_name = pokemon_data["name"].capitalize()
+                if "-" in display_name:
+                    base_name, form = display_name.split("-", 1)
+                    if form == "mega":
+                        display_name = f"Mega {base_name.capitalize()}"
+                    elif form in ["mega-x", "mega-y"]:
+                        mega_type = form.split("-")[1].upper()
+                        display_name = f"Mega {base_name.capitalize()} {mega_type}"
+                    elif form == "gmax":
+                        display_name = f"Gigantamax {base_name.capitalize()}"
+                    elif form in ["alola", "galar", "hisui"]:
+                        display_name = f"{form.capitalize()}n {base_name.capitalize()}"
+
                 # Send success message
                 embed = discord.Embed(
-                    title=f"{ctx.author.name} caught a {pokemon_data['name'].capitalize()}!",
+                    title=f"{ctx.author.name} caught a {display_name}!",
                     description=f"The Pokémon has been added to your collection.\nYou received ${catch_reward} for catching it!",
                     color=0x00ff00
                 )
                 embed.set_thumbnail(url=pokemon_data["sprite"])
                 await ctx.send(embed=embed)
-            else:
-                await ctx.send("That's not the right Pokémon name! Try again.")
                 
                 # Random chance for a special item when catching rare Pokemon
                 if random.random() < 0.05:  # 5% chance
@@ -2611,32 +2711,34 @@ class PokemonCog(commands.Cog):
                         primary_type = pokemon_data["types"][0].capitalize()
                         if primary_type in Z_CRYSTALS and random.random() < 0.3:
                             special_item = Z_CRYSTALS[primary_type]
-                    
+
                     # Check for Primal Orb
                     if not special_item and (pokemon_id in PRIMAL_ORBS or str(pokemon_id) in PRIMAL_ORBS):
                         orb = PRIMAL_ORBS.get(pokemon_id) or PRIMAL_ORBS.get(str(pokemon_id))
                         if orb:
                             special_item = orb
-                    
+
                     # Award the special item if one was selected
                     if special_item:
-                        user_items = await self.config.user(ctx.author).items()
-                        if special_item in user_items:
-                            user_items[special_item] += 1
-                        else:
-                            user_items[special_item] = 1
-                        await self.config.user(ctx.author).items.set(user_items)
+                        async with self.config.user(ctx.author).items() as items:
+                            items[special_item] = items.get(special_item, 0) + 1
                         
-                        embed.add_field(
-                            name="Special Item Found!",
-                            value=f"You found a {special_item} with the Pokemon!",
-                            inline=False
-                        )
-                
-                await ctx.send(embed=embed)
+                        await ctx.send(f"You found a {special_item} with the Pokemon!")
             else:
-                await ctx.send("That's not the right Pokemon name! Try again.")
-
+                # Helper message for forms
+                help_msg = ""
+                if "-" in pokemon_data["name"]:
+                    base_name, form = pokemon_data["name"].split("-", 1)
+                    if form == "mega":
+                        help_msg = f"\nHint: Try catching Mega {base_name.capitalize()}"
+                    elif form.startswith("mega-"):
+                        form_type = form.split("-")[1].upper()
+                        help_msg = f"\nHint: Try catching Mega {base_name.capitalize()} {form_type}"
+                    elif form == "gmax":
+                        help_msg = f"\nHint: Try catching Gigantamax {base_name.capitalize()}"
+                
+                await ctx.send(f"That's not the right Pokemon name! Try again.{help_msg}")
+                
     @pokemon_commands.command(name="list", aliases=["l"])
     async def list_pokemon(self, ctx: commands.Context, user: discord.Member = None):
         """List all Pokemon in your collection."""
