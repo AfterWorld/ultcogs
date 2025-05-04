@@ -5,4 +5,6 @@ from .pokemon import PokemonCog
 
 async def setup(bot: Red) -> None:
     """Set up the Pokemon cog."""
-    await bot.add_cog(PokemonCog(bot))
+    cog = PokemonCog(bot)
+    await bot.add_cog(cog)
+    
