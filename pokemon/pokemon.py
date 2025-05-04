@@ -510,7 +510,7 @@ class PokemonCog(commands.Cog):
             # Create embed for spawn
             embed = discord.Embed(
                 title="A wild Pokémon appeared!",
-                description=f"Type `{ctx.prefix}pokemon catch <pokemon>` or `{ctx.prefix}p catch <pokemon>` to catch it!",
+                description=f"Type `{self.bot.command_prefix}p catch <pokemon>` to catch it!",
                 color=0x00ff00
             )
             
