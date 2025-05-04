@@ -4832,3 +4832,11 @@ async def setup(bot):
     
     # Start background task to check temporary forms
     bot.loop.create_task(cog.check_temporary_forms())
+    # Start background task to check for Pokemon spawns
+    bot.loop.create_task(cog.check_pokemon_spawns())
+    # Start background task to check for expired spawns
+    bot.loop.create_task(cog.check_expired_spawns())
+    # Start background task to check for expired evolutions
+    bot.loop.create_task(cog.check_expired_evolutions())
+    # Start background task to check for expired trades
+    bot.loop.create_task(cog.check_expired_trades())
