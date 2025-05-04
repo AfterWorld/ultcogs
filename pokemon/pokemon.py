@@ -3260,11 +3260,11 @@ class PokemonCog(commands.Cog):
             color=0xffcc00
         )
         
-        # Money reward
+        # Money reward - FIXED
         money_reward = random.randint(500, 2000)
-        async with self.config.user(user).money() as money:
-            money += money_reward
-            
+        current_money = await self.config.user(user).money()
+        await self.config.user(user).money.set(current_money + money_reward)
+                
         embed.add_field(
             name="Money",
             value=f"You received ${money_reward}!",
@@ -3277,43 +3277,56 @@ class PokemonCog(commands.Cog):
         if active_pokemon_id:
             xp_bonus = random.randint(20, 50)
             
-            async with self.config.user(user).pokemon() as user_pokemon:
-                if active_pokemon_id in user_pokemon:
-                    # Get Pokemon data
-                    active_pokemon = user_pokemon[active_pokemon_id]
-                    active_pokemon["xp"] += xp_bonus
-                    
-                    # Get Pokemon name
-                    form_type = active_pokemon.get("form_type")
-                    pokemon_data = await self.fetch_pokemon(int(active_pokemon_id), form_type)
-                    
-                    if pokemon_data:
-                        pokemon_name = self.format_pokemon_name(pokemon_data["name"], form_type)
-                    else:
-                        pokemon_name = active_pokemon["name"].capitalize()
-                    
-                    # Check for level up
-                    current_level = active_pokemon["level"]
-                    current_xp = active_pokemon["xp"]
-                    xp_required = current_level**3
-                    
-                    if current_xp >= xp_required:
-                        # Level up!
-                        active_pokemon["level"] = current_level + 1
-                        active_pokemon["xp"] = current_xp - xp_required
-                        
-                        embed.add_field(
-                            name="Pokemon Training",
-                            value=f"Your {active_pokemon.get('nickname', pokemon_name)} gained {xp_bonus} XP and leveled up to level {current_level + 1}!",
-                            inline=False
-                        )
-                    else:
-                        embed.add_field(
-                            name="Pokemon Training",
-                            value=f"Your {active_pokemon.get('nickname', pokemon_name)} gained {xp_bonus} XP!",
-                            inline=False
-                        )
-                    
+            # FIXED: Get Pokemon data first
+            user_pokemon = await self.config.user(user).pokemon()
+            if active_pokemon_id in user_pokemon:
+                # Get Pokemon data
+                active_pokemon = user_pokemon[active_pokemon_id]
+                current_xp = active_pokemon["xp"]
+                current_level = active_pokemon["level"]
+                
+                # Calculate new XP and level
+                new_xp = current_xp + xp_bonus
+                xp_required = current_level**3
+                new_level = current_level
+                level_up = False
+                
+                if new_xp >= xp_required:
+                    # Level up!
+                    new_level = current_level + 1
+                    new_xp = new_xp - xp_required
+                    level_up = True
+                
+                # Update the Pokemon data
+                active_pokemon["xp"] = new_xp
+                active_pokemon["level"] = new_level
+                
+                # Save the changes
+                await self.config.user(user).pokemon.set(user_pokemon)
+                
+                # Get Pokemon name for display
+                form_type = active_pokemon.get("form_type")
+                pokemon_data = await self.fetch_pokemon(int(active_pokemon_id), form_type)
+                
+                if pokemon_data:
+                    pokemon_name = self.format_pokemon_name(pokemon_data["name"], form_type)
+                else:
+                    pokemon_name = active_pokemon["name"].capitalize()
+                
+                # Add field to embed
+                if level_up:
+                    embed.add_field(
+                        name="Pokemon Training",
+                        value=f"Your {active_pokemon.get('nickname', pokemon_name)} gained {xp_bonus} XP and leveled up to level {new_level}!",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="Pokemon Training",
+                        value=f"Your {active_pokemon.get('nickname', pokemon_name)} gained {xp_bonus} XP!",
+                        inline=False
+                    )
+        
         # Random item reward
         if random.random() < 0.7:  # 70% chance
             possible_items = [
@@ -3338,7 +3351,11 @@ class PokemonCog(commands.Cog):
             
             # If user has high-level Pokemon, add evolution items
             user_pokemon = await self.config.user(user).pokemon()
-            highest_level = max((p["level"] for p in user_pokemon.values()), default=0)
+            highest_level = 0
+            
+            # FIXED: Check if user_pokemon is not empty
+            if user_pokemon:
+                highest_level = max((p["level"] for p in user_pokemon.values()), default=0)
             
             if highest_level >= 25:
                 evolution_stones = [
@@ -3358,31 +3375,26 @@ class PokemonCog(commands.Cog):
             if highest_level >= 50:
                 # Check for possible Mega Evolution candidates
                 has_mega_candidate = False
+                mega_candidates = []
+                
                 for pokemon_id in user_pokemon:
                     pokemon_data = await self.fetch_pokemon(int(pokemon_id))
                     if pokemon_data and pokemon_data.get("mega_evolution"):
                         has_mega_candidate = True
-                        break
                         
-                if has_mega_candidate and random.random() < MEGA_STONE_CHANCE:
-                    # Choose a random mega stone for a Pokemon they have
-                    mega_candidates = []
-                    for pokemon_id, pokemon_data in user_pokemon.items():
-                        api_data = await self.fetch_pokemon(int(pokemon_id))
-                        if api_data and api_data.get("mega_evolution"):
-                            # Check both direct ID matches and tuple matches for X/Y variants
-                            mega_stone = None
-                            if int(pokemon_id) in MEGA_STONES:
-                                mega_stone = MEGA_STONES[int(pokemon_id)]
-                            elif (int(pokemon_id), "X") in MEGA_STONES:
-                                mega_stone = MEGA_STONES[(int(pokemon_id), "X")]
-                            elif (int(pokemon_id), "Y") in MEGA_STONES:
-                                mega_stone = MEGA_STONES[(int(pokemon_id), "Y")]
-                                
-                            if mega_stone:
-                                mega_candidates.append({"name": mega_stone, "weight": 1})
+                        # Check both direct ID matches and tuple matches for X/Y variants
+                        mega_stone = None
+                        if int(pokemon_id) in MEGA_STONES:
+                            mega_stone = MEGA_STONES[int(pokemon_id)]
+                        elif (int(pokemon_id), "X") in MEGA_STONES:
+                            mega_stone = MEGA_STONES[(int(pokemon_id), "X")]
+                        elif (int(pokemon_id), "Y") in MEGA_STONES:
+                            mega_stone = MEGA_STONES[(int(pokemon_id), "Y")]
+                            
+                        if mega_stone:
+                            mega_candidates.append({"name": mega_stone, "weight": 1})
                 
-                if mega_candidates:
+                if mega_candidates and random.random() < MEGA_STONE_CHANCE:
                     possible_items.extend(mega_candidates)
             
             # Choose an item based on weights
@@ -3398,9 +3410,13 @@ class PokemonCog(commands.Cog):
                     chosen_item = item["name"]
                     break
             
-            # Award the item
-            async with self.config.user(user).items() as items:
-                items[chosen_item] = items.get(chosen_item, 0) + 1
+            # Award the item - FIXED
+            user_items = await self.config.user(user).items()
+            if chosen_item in user_items:
+                user_items[chosen_item] += 1
+            else:
+                user_items[chosen_item] = 1
+            await self.config.user(user).items.set(user_items)
                 
             embed.add_field(
                 name="Item",
