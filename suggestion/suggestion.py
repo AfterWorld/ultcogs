@@ -224,7 +224,7 @@ class Suggestion(commands.Cog):
             await self.config.guild(ctx.guild).suggestion_count.set(suggestion_id)
             
             # Confirm to user
-            await ctx.send(_(
+            confirm_msg = await ctx.send(_(
                 "Your suggestion has been submitted and can be found in {channel}."
             ).format(channel=suggestion_channel.mention))
             
@@ -232,6 +232,8 @@ class Suggestion(commands.Cog):
             if ctx.channel.id == suggestion_channel.id and guild_config["cleanup"]:
                 try:
                     await ctx.message.delete()
+                    # Also remove the confirmation message if in suggestion channel
+                    await confirm_msg.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
                 
@@ -269,7 +271,7 @@ class Suggestion(commands.Cog):
         embed.add_field(
             name="📌 How to Submit a Suggestion",
             value=(
-                f"Use `{prefix}suggest` or `{prefix}ideea` followed by your suggestion.\n\n"
+                f"Use `{prefix}suggest` or `{prefix}idea` followed by your suggestion.\n\n"
                 "**Examples:**\n"
                 f"`{prefix}suggest Add a music channel to the server`\n"
                 f"`{prefix}idea We should have weekly movie nights`\n\n"
