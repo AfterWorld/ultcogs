@@ -507,15 +507,23 @@ class PokemonCog(commands.Cog):
             if not pokemon_data:
                 return False
             
+            # Resolve the bot's prefix to a string
+            prefix = (self.bot.command_prefix(guild)
+                    if callable(self.bot.command_prefix)
+                    else self.bot.command_prefix)
+            
             # Create embed for spawn
             embed = discord.Embed(
                 title="A wild Pokémon appeared!",
-                description=f"Type `{self.bot.command_prefix}p catch <pokemon>` to catch it!",
+                description=f"Type `{prefix}p catch <pokemon>` to catch it!",
                 color=0x00ff00
             )
             
             # Use silhouette for the mystery
             embed.set_image(url=pokemon_data["sprite"])
+            
+            # Center the sprite and make it larger
+            embed.set_thumbnail(url=pokemon_data["sprite"])
             
             # Set expiry time
             expiry = now + CATCH_TIMEOUT
@@ -2534,6 +2542,10 @@ class PokemonCog(commands.Cog):
             
             # Make comparison more flexible for special forms
             is_correct = False
+            
+            # Normalize the input and expected names
+            input_name = pokemon_name.lower().replace(" ", "").replace("-", "")
+            expected_name = pokemon_data["name"].lower().replace(" ", "").replace("-", "")
             
             # For "normal" form Pokemon (no hyphen)
             if "-" not in pokemon_data["name"]:
