@@ -229,11 +229,36 @@ class BountyBattle(commands.Cog):
     
     # --- BattleCommands ---
     
-    @commands.command()
+    @commands.command()  # No name="db" parameter here to make it available as .deathbattle
     @commands.cooldown(1, 30, commands.BucketType.user)
     async def deathbattle(self, ctx, opponent: discord.Member = None):
         """Start a One Piece deathmatch against another user with a bounty."""
-        await self.battle_commands.deathbattle(ctx, opponent)
+        if not ctx:
+            self.logger.error("Context is None in deathbattle command")
+            return
+            
+        # Check if commands are paused or restricted to a specific channel
+        is_paused = await self.config.guild(ctx.guild).is_paused()
+        if is_paused:
+            return await ctx.send("⚠️ **BountyBattle commands are currently paused.**")
+            
+        restricted_channel = await self.config.guild(ctx.guild).restricted_channel()
+        if restricted_channel and ctx.channel.id != restricted_channel:
+            channel = ctx.guild.get_channel(restricted_channel)
+            if channel:
+                return await ctx.send(f"⚠️ **BountyBattle commands can only be used in {channel.mention}**")
+        
+        try:
+            await self.battle_commands.deathbattle(ctx, opponent)
+        except Exception as e:
+            self.logger.error(f"Error in deathbattle command: {str(e)}")
+            await ctx.send(f"❌ An error occurred: {str(e)}")
+    
+    @commands.command(name="db")  # This gives an alias
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def db_command(self, ctx, opponent: discord.Member = None):
+        """Alternative command name for deathbattle."""
+        await self.deathbattle(ctx, opponent)
     
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
