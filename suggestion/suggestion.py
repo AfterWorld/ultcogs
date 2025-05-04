@@ -338,7 +338,10 @@ class Suggestion(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Monitor messages in the suggestion channel."""
-        if message.author.bot or not message.guild:
+        if message.author.bot and message.author.id != self.bot.user.id:
+            return
+        
+        if not message.guild:
             return
         
         guild_config = await self.config.guild(message.guild).all()
@@ -348,15 +351,88 @@ class Suggestion(commands.Cog):
             guild_config["suggestion_channel"] and 
             message.channel.id == guild_config["suggestion_channel"]):
             
+            # If it's the bot's message but not a suggestion embed, delete it
+            if message.author.id == self.bot.user.id:
+                # Keep only messages with embeds that have a title starting with "Suggestion #"
+                should_keep = False
+                for embed in message.embeds:
+                    if embed.title and embed.title.startswith(_("Suggestion #")):
+                        should_keep = True
+                        break
+                
+                if not should_keep:
+                    try:
+                        await asyncio.sleep(5)  # Brief delay before deleting
+                        await message.delete()
+                    except (discord.Forbidden, discord.NotFound):
+                        pass
+                return
+            
             # Check if message is a command
             context = await self.bot.get_context(message)
-            if not context.valid:
+            if context.valid and context.command:
+                # If command is suggest/idea, message will be deleted in the command handler
+                if context.command.name not in ["suggest", "idea"]:
+                    # For other commands, delete both the command and the response
+                    # We'll delete the response in the on_command_completion
+                    return
+            else:
                 # Not a command, delete non-suggestion messages
                 try:
-                    await asyncio.sleep(5)  # Brief delay before deleting
+                    await asyncio.sleep(3)  # Brief delay before deleting
                     await message.delete()
                 except (discord.Forbidden, discord.NotFound):
                     pass
+    
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx: commands.Context):
+        """Handle command completion to clean up command messages."""
+        if not ctx.guild:
+            return
+        
+        guild_config = await self.config.guild(ctx.guild).all()
+        
+        # Check if command was used in suggestion channel and cleanup is enabled
+        if (guild_config["cleanup"] and 
+            guild_config["suggestion_channel"] and 
+            ctx.channel.id == guild_config["suggestion_channel"] and
+            ctx.command.name not in ["suggest", "idea"]):
+            
+            try:
+                # Delete the command message
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
+    
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error):
+        """Handle command errors to clean up error messages in suggestion channel."""
+        if not ctx.guild:
+            return
+        
+        guild_config = await self.config.guild(ctx.guild).all()
+        
+        # Check if error occurred in suggestion channel and cleanup is enabled
+        if (guild_config["cleanup"] and 
+            guild_config["suggestion_channel"] and 
+            ctx.channel.id == guild_config["suggestion_channel"]):
+            
+            # Delete the command message that caused the error
+            try:
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
+            
+            # Send the error message and then delete it after a short delay
+            if isinstance(error, commands.CommandInvokeError):
+                error = error.original
+            
+            error_msg = await ctx.send(f"An error occurred: {str(error)}")
+            await asyncio.sleep(5)
+            try:
+                await error_msg.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
