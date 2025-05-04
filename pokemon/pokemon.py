@@ -508,9 +508,19 @@ class PokemonCog(commands.Cog):
                 return False
             
             # Resolve the bot's prefix to a string
-            prefix = (self.bot.command_prefix(guild)
-                    if callable(self.bot.command_prefix)
-                    else self.bot.command_prefix)
+            # Fix the prefix issue
+            if callable(self.bot.command_prefix):
+                try:
+                    # If command_prefix is callable, get the actual prefix for this guild
+                    prefix_list = await self.bot.command_prefix(self.bot, None, guild=guild)
+                    # Use the first prefix if it's a list
+                    prefix = prefix_list[0] if isinstance(prefix_list, list) else prefix_list
+                except:
+                    # Default fallback prefix if we can't get the actual one
+                    prefix = "!"
+            else:
+                # If it's already a string or list
+                prefix = self.bot.command_prefix[0] if isinstance(self.bot.command_prefix, list) else self.bot.command_prefix
             
             # Format display name properly
             display_name = "Pokémon"
@@ -537,6 +547,10 @@ class PokemonCog(commands.Cog):
                 description=f"Type `{prefix}p catch {pokemon_data['name']}` to catch it!",
                 color=0x00ff00
             )
+            
+            # Center the sprite in the embed and make it larger
+            # Instead of setting thumbnail, we'll use the image property for larger display
+            embed.set_image(url=pokemon_data["sprite"])
             
             # Add alternative formats for special forms to make it easier to catch
             if "-" in pokemon_data["name"]:
@@ -568,9 +582,6 @@ class PokemonCog(commands.Cog):
                             f"`{prefix}p catch {base_name}`",
                         inline=False
                     )
-            
-            # Use the sprite for the image
-            embed.set_image(url=pokemon_data["sprite"])
             
             # Set expiry time
             expiry = now + CATCH_TIMEOUT
@@ -1335,12 +1346,39 @@ class PokemonCog(commands.Cog):
             await ctx.send(f"Failed to fetch data for Pokémon ID {pokemon_id}. Please try again.")
             return
 
+        # Get the proper prefix
+        if callable(self.bot.command_prefix):
+            try:
+                prefix_list = await self.bot.command_prefix(self.bot, None, guild=ctx.guild)
+                prefix = prefix_list[0] if isinstance(prefix_list, list) else prefix_list
+            except:
+                prefix = "!"
+        else:
+            prefix = self.bot.command_prefix[0] if isinstance(self.bot.command_prefix, list) else self.bot.command_prefix
+
+        # Format display name
+        display_name = pokemon_data["name"].capitalize()
+        if "-" in display_name:
+            base_name, form = display_name.split("-", 1)
+            base_name = base_name.capitalize()
+            if form == "mega":
+                display_name = f"Mega {base_name}"
+            elif form.startswith("mega-"):
+                form_type = form.split("-")[1].upper()
+                display_name = f"Mega {base_name} {form_type}"
+            elif form == "gmax":
+                display_name = f"Gigantamax {base_name}"
+            elif form in ["alola", "galar", "hisui"]:
+                display_name = f"{form.capitalize()}n {base_name}"
+
         # Create the embed for the spawned Pokémon
         embed = discord.Embed(
-            title="A wild Pokémon appeared!",
-            description=f"Type `{self.bot.command_prefix}p catch <pokemon>` to catch it!",
+            title=f"A wild {display_name} appeared!",
+            description=f"Type `{prefix}p catch {pokemon_data['name']}` to catch it!",
             color=0x00ff00
         )
+        
+        # Center the sprite in the embed and make it larger
         embed.set_image(url=pokemon_data["sprite"])
 
         # Set the spawn expiry time
@@ -1365,7 +1403,86 @@ class PokemonCog(commands.Cog):
 
         # Set up the expiry task
         self.bot.loop.create_task(self.expire_spawn(ctx.guild.id, channel, expiry))
+        
+    @pokemon_commands.command(name="spawnstatus")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def spawn_status(self, ctx: commands.Context):
+        """Check the current spawn status and settings."""
+        guild_config = await self.config.guild(ctx.guild).all()
+        
+        # Get spawn channel info
+        channel_id = guild_config.get("channel")
+        channel = ctx.guild.get_channel(channel_id) if channel_id else None
+        
+        # Check active Pokemon
+        active_spawn = self.spawns_active.get(ctx.guild.id)
+        
+        # Create embed
+        embed = discord.Embed(
+            title="Pokemon Spawn Status",
+            color=0x3498db
+        )
+        
+        # Spawn channel info
+        embed.add_field(
+            name="Spawn Channel",
+            value=f"{channel.mention if channel else 'Not set'}",
+            inline=False
+        )
+        
+        # Spawn settings
+        embed.add_field(
+            name="Spawn Settings",
+            value=f"Chance: {guild_config.get('spawn_chance', SPAWN_CHANCE)*100:.1f}%\n"
+                f"Cooldown: {guild_config.get('spawn_cooldown', MIN_SPAWN_COOLDOWN)} seconds",
+            inline=True
+        )
+        
+        # Last spawn time
+        last_spawn = guild_config.get("last_spawn", 0)
+        time_since = datetime.now().timestamp() - last_spawn
+        embed.add_field(
+            name="Last Spawn",
+            value=f"{int(time_since)} seconds ago" if last_spawn > 0 else "Never",
+            inline=True
+        )
+        
+        # Active spawn info
+        if active_spawn:
+            pokemon_data = active_spawn.get("pokemon", {})
+            expiry = active_spawn.get("expiry", 0)
+            time_left = max(0, expiry - datetime.now().timestamp())
             
+            embed.add_field(
+                name="Active Spawn",
+                value=f"Pokemon: {pokemon_data.get('name', 'Unknown').capitalize()}\n"
+                    f"Expires in: {int(time_left)} seconds",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="Active Spawn",
+                value="No active Pokemon spawn",
+                inline=False
+            )
+        
+        # Special forms enabled
+        special_forms = []
+        if guild_config.get("include_mega", False):
+            special_forms.append("Mega Evolutions")
+        if guild_config.get("include_gmax", False):
+            special_forms.append("Gigantamax Forms")
+        if guild_config.get("include_forms", False):
+            special_forms.append("Regional Forms")
+        
+        embed.add_field(
+            name="Special Forms",
+            value=", ".join(special_forms) if special_forms else "None enabled",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+    
     @pokemon_team.command(name="view")
     async def team_view(self, ctx: commands.Context, user: discord.Member = None):
         """View your or another user's Pokemon team."""
@@ -4393,6 +4510,194 @@ class PokemonCog(commands.Cog):
         else:
             await ctx.send(f"Primal Reversion failed: {result['reason']}")
 
+    async def spawn_pokemon(self, guild: discord.Guild) -> bool:
+        """Attempt to spawn a Pokemon in the guild."""
+        # Get lock for this guild first
+        if guild.id not in self.pokemon_locks:
+            self.pokemon_locks[guild.id] = asyncio.Lock()
+            
+        async with self.pokemon_locks[guild.id]:
+            # Check if a Pokemon is already active in this guild
+            if guild.id in self.spawns_active:
+                return False
+                
+            guild_config = await self.config.guild(guild).all()
+            channel_id = guild_config["channel"]
+            
+            if not channel_id:
+                return False  # No channel set for this guild
+                    
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                return False  # Channel no longer exists
+            
+            # Get current time
+            now = datetime.now().timestamp()
+            
+            # Check cooldown
+            if (now - guild_config["last_spawn"]) < guild_config["spawn_cooldown"]:
+                return False
+            
+            # Determine which Pokemon to spawn (1-898 for all National Dex Pokemon)
+            # Randomly decide whether to spawn a special form
+            include_mega = guild_config.get("include_mega", False)
+            include_gmax = guild_config.get("include_gmax", False)
+            include_forms = guild_config.get("include_forms", False)
+            
+            special_form = False
+            form_type = None
+            
+            # 10% chance for a special form if enabled
+            if random.random() < 0.1:
+                if include_mega and random.random() < 0.33:
+                    special_form = True
+                    form_type = "mega"
+                    # For Charizard and Mewtwo, pick X or Y
+                    if random.random() < 0.5:
+                        form_type = "mega-x"
+                    else:
+                        form_type = "mega-y"
+                elif include_gmax and random.random() < 0.33:
+                    special_form = True
+                    form_type = "gmax"
+                elif include_forms and random.random() < 0.33:
+                    special_form = True
+                    # Pick a regional form
+                    form_options = ["alola", "galar", "hisui"]
+                    form_type = random.choice(form_options)
+            
+            pokemon_id = random.randint(1, 898)
+            
+            # For mega evolutions, only select Pokemon that can mega evolve
+            if special_form and form_type in ["mega", "mega-x", "mega-y"]:
+                # List of Pokemon that can Mega Evolve
+                mega_capable_pokemon = [3, 6, 9, 65, 94, 115, 127, 130, 142, 150, 181, 212, 214, 229, 248, 257, 282, 303, 306, 308, 310, 354, 359, 380, 381, 445, 448, 460]
+                pokemon_id = random.choice(mega_capable_pokemon)
+            
+            # For Gigantamax, only select Pokemon with Gigantamax forms
+            if special_form and form_type == "gmax":
+                # List of Pokemon with Gigantamax forms
+                gmax_capable_pokemon = [3, 6, 9, 12, 25, 52, 68, 94, 99, 131, 143, 569, 809, 812, 815, 818, 823, 826, 834, 839, 841, 844, 849, 851, 858, 861, 869, 879, 884, 892]
+                pokemon_id = random.choice(gmax_capable_pokemon)
+            
+            # For regional forms, only select Pokemon with those forms
+            if special_form and form_type in ["alola", "galar", "hisui"]:
+                if form_type == "alola":
+                    # List of Pokemon with Alolan forms
+                    alolan_pokemon = [19, 20, 26, 27, 28, 37, 38, 50, 51, 52, 53, 74, 75, 76, 88, 89, 103, 105]
+                    pokemon_id = random.choice(alolan_pokemon)
+                elif form_type == "galar":
+                    # List of Pokemon with Galarian forms
+                    galarian_pokemon = [52, 77, 78, 79, 80, 83, 110, 122, 144, 145, 146, 199, 222, 263, 264, 554, 555, 562, 618]
+                    pokemon_id = random.choice(galarian_pokemon)
+                elif form_type == "hisui":
+                    # List of Pokemon with Hisuian forms
+                    hisuian_pokemon = [58, 59, 100, 101, 157, 211, 215, 503, 549, 570, 571, 628, 705, 706, 713]
+                    pokemon_id = random.choice(hisuian_pokemon)
+            
+            # Fetch Pokemon data with form if needed
+            pokemon_data = await self.fetch_pokemon(pokemon_id, form_type)
+            
+            if not pokemon_data:
+                return False
+            
+            # Resolve the bot's prefix to a string
+            # Fix the prefix issue
+            if callable(self.bot.command_prefix):
+                try:
+                    # If command_prefix is callable, get the actual prefix for this guild
+                    prefix_list = await self.bot.command_prefix(self.bot, None, guild=guild)
+                    # Use the first prefix if it's a list
+                    prefix = prefix_list[0] if isinstance(prefix_list, list) else prefix_list
+                except:
+                    # Default fallback prefix if we can't get the actual one
+                    prefix = "!"
+            else:
+                # If it's already a string or list
+                prefix = self.bot.command_prefix[0] if isinstance(self.bot.command_prefix, list) else self.bot.command_prefix
+            
+            # Format display name properly
+            display_name = "Pokémon"
+            if "-" in pokemon_data["name"]:
+                base_name, form = pokemon_data["name"].split("-", 1)
+                base_name = base_name.capitalize()
+                if form == "mega":
+                    display_name = f"Mega {base_name}"
+                elif form.startswith("mega-"):
+                    form_type = form.split("-")[1].upper()
+                    display_name = f"Mega {base_name} {form_type}"
+                elif form == "gmax":
+                    display_name = f"Gigantamax {base_name}"
+                elif form in ["alola", "galar", "hisui"]:
+                    display_name = f"{form.capitalize()}n {base_name}"
+                else:
+                    display_name = pokemon_data["name"].capitalize()
+            else:
+                display_name = pokemon_data["name"].capitalize()
+            
+            # Create embed for spawn with clearer catching instructions
+            embed = discord.Embed(
+                title=f"A wild {display_name} appeared!",
+                description=f"Type `{prefix}p catch {pokemon_data['name']}` to catch it!",
+                color=0x00ff00
+            )
+            
+            # Center the sprite in the embed and make it larger
+            # Instead of setting thumbnail, we'll use the image property for larger display
+            embed.set_image(url=pokemon_data["sprite"])
+            
+            # Add alternative formats for special forms to make it easier to catch
+            if "-" in pokemon_data["name"]:
+                base_name, form = pokemon_data["name"].split("-", 1)
+                base_name = base_name.capitalize()
+                
+                if form == "mega":
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Mega {base_name}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
+                elif form.startswith("mega-"):
+                    form_type = form.split("-")[1].upper()
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Mega {base_name} {form_type}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
+                elif form == "gmax":
+                    embed.add_field(
+                        name="Catch Commands",
+                        value=f"`{prefix}p catch {pokemon_data['name']}`\n"
+                            f"`{prefix}p catch Gigantamax {base_name}`\n"
+                            f"`{prefix}p catch {base_name}`",
+                        inline=False
+                    )
+            
+            # Set expiry time
+            expiry = now + CATCH_TIMEOUT
+            
+            # Store active spawn
+            self.spawns_active[guild.id] = {
+                "pokemon": pokemon_data,
+                "expiry": expiry
+            }
+            
+            # Update last spawn time
+            await self.config.guild(guild).last_spawn.set(now)
+            
+            # Send spawn message
+            await channel.send(embed=embed)
+            
+            # Set up expiry task
+            self.bot.loop.create_task(self.expire_spawn(guild.id, channel, expiry))
+            
+            return True
+
+    # Fix for the on_message listener to ensure spawns happen
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Handle messages for Pokemon spawning and XP."""
@@ -4427,8 +4732,8 @@ class PokemonCog(commands.Cog):
         
         # Check if this is a Pokemon channel
         guild_config = await self.config.guild(message.guild).all()
-        if not guild_config["channel"] or message.channel.id != guild_config["channel"]:
-            return
+        if not guild_config["channel"]:
+            return  # No spawn channel set
         
         # Get guild lock
         if message.guild.id not in self.pokemon_locks:
@@ -4440,8 +4745,11 @@ class PokemonCog(commands.Cog):
             if message.guild.id in self.spawns_active:
                 return
                 
-            # Random chance to spawn a Pokemon
-            if random.random() < guild_config["spawn_chance"]:
+            # Random chance to spawn a Pokemon - use the guild's spawn chance setting
+            spawn_chance = guild_config.get("spawn_chance", SPAWN_CHANCE)
+            if random.random() < spawn_chance:
+                # DEBUG: Print to console when spawning is triggered
+                print(f"Spawning Pokemon in {message.guild.name}")
                 await self.spawn_pokemon(message.guild)
 
     @commands.Cog.listener()
