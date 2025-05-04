@@ -1259,11 +1259,12 @@ class PokemonCog(commands.Cog):
         if user is None:
             user = ctx.author
 
-        # Get user's team
+        # Get user's team - FIXED: directly get the value, don't use get() method
         team = await self.config.user(user).team()
 
         # If the team is empty, fall back to the user's Pokemon collection
         if not team:
+            # FIXED: directly get the value, don't use get() method
             user_pokemon = await self.config.user(user).pokemon()
             if not user_pokemon:
                 await ctx.send(f"{user.name} doesn't have a team set up yet and hasn't caught any Pokémon!")
@@ -1276,26 +1277,30 @@ class PokemonCog(commands.Cog):
         team_data = []
         for pokemon_id in team:
             # Check if this is a special form
-            pokemon = await self.config.user(user).pokemon().get(pokemon_id, {})
-            form_type = pokemon.get("form_type")
+            # FIXED: Get the entire pokemon dictionary first
+            user_pokemon_data = await self.config.user(user).pokemon()
             
-            pokemon_data = await self.fetch_pokemon(int(pokemon_id), form_type)
-            
-            if pokemon_data:
-                # Get user's Pokemon level and nickname
-                user_pokemon = await self.config.user(user).pokemon()
-                level = user_pokemon.get(pokemon_id, {}).get("level", 1)
-                nickname = user_pokemon.get(pokemon_id, {}).get("nickname", None)
+            # Then access the specific pokemon if it exists
+            if pokemon_id in user_pokemon_data:
+                pokemon = user_pokemon_data[pokemon_id]
+                form_type = pokemon.get("form_type")
+                
+                pokemon_data = await self.fetch_pokemon(int(pokemon_id), form_type)
+                
+                if pokemon_data:
+                    # Get user's Pokemon level and nickname
+                    level = pokemon.get("level", 1)
+                    nickname = pokemon.get("nickname", None)
 
-                team_data.append({
-                    "id": pokemon_id,
-                    "name": pokemon_data["name"],
-                    "sprite": pokemon_data["sprite"],
-                    "types": pokemon_data["types"],
-                    "level": level,
-                    "nickname": nickname,
-                    "form_type": form_type
-                })
+                    team_data.append({
+                        "id": pokemon_id,
+                        "name": pokemon_data["name"],
+                        "sprite": pokemon_data["sprite"],
+                        "types": pokemon_data["types"],
+                        "level": level,
+                        "nickname": nickname,
+                        "form_type": form_type
+                    })
 
         # Create embed
         embed = discord.Embed(
@@ -2452,110 +2457,126 @@ class PokemonCog(commands.Cog):
             await ctx.send("There's no wild Pokemon to catch right now!")
             return
         
-        spawn = self.spawns_active[ctx.guild.id]
-        pokemon_data = spawn["pokemon"]
-        
-        # Format the expected name for special forms
-        expected_name = pokemon_data["name"].lower()
-        display_name = self.format_pokemon_name(pokemon_data["name"])
-        
-        # Make comparison more flexible for special forms
-        is_correct = False
-        
-        # For "normal" form Pokemon (no hyphen)
-        if "-" not in pokemon_data["name"]:
-            is_correct = pokemon_name.lower() == expected_name
-        else:
-            # Handle special forms
-            base_name, form = expected_name.split("-", 1)
+        # Add lock to prevent race conditions
+        if ctx.guild.id not in self.pokemon_locks:
+            self.pokemon_locks[ctx.guild.id] = asyncio.Lock()
             
-            # Check different variations of names
-            if pokemon_name.lower() == expected_name:
-                # Full exact match
-                is_correct = True
-            elif pokemon_name.lower() == base_name:
-                # Base form name only
-                is_correct = True
-            elif form == "mega" and pokemon_name.lower() in [f"mega {base_name}", f"mega-{base_name}"]:
-                # Mega evolution
-                is_correct = True
-            elif form.startswith("mega-") and pokemon_name.lower() in [f"mega {base_name} {form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
-                # Mega X/Y
-                is_correct = True
-            elif form == "gmax" and pokemon_name.lower() in [f"gigantamax {base_name}", f"gmax {base_name}"]:
-                # Gigantamax
-                is_correct = True
-            elif form in ["alola", "galar", "hisui"] and pokemon_name.lower() in [f"{form}n {base_name}", f"{form} {base_name}"]:
-                # Regional form
-                is_correct = True
-            elif form == "primal" and pokemon_name.lower() in [f"primal {base_name}"]:
-                # Primal form
-                is_correct = True
-        
-        if is_correct:
-            # Caught!
-            del self.spawns_active[ctx.guild.id]
-            
-            # Add to user's collection
-            await self.add_pokemon_to_user(ctx.author, pokemon_data)
-            
-            # Award money for catching
-            catch_reward = random.randint(100, 500)
-            async with self.config.user(ctx.author).money() as money:
-                money += catch_reward
-            
-            # Send success message
-            embed = discord.Embed(
-                title=f"{ctx.author.name} caught a {display_name}!",
-                description=f"The Pokemon has been added to your collection.\nYou received ${catch_reward} for catching it!",
-                color=0x00ff00
-            )
-            embed.set_thumbnail(url=pokemon_data["sprite"])
-            
-            # Random chance for a special item when catching rare Pokemon
-            if random.random() < 0.05:  # 5% chance
-                # Determine which item to give based on Pokemon
-                special_item = None
+        async with self.pokemon_locks[ctx.guild.id]:
+            # Check again inside the lock in case it was caught/fled while waiting
+            if ctx.guild.id not in self.spawns_active:
+                await ctx.send("There's no wild Pokemon to catch right now!")
+                return
                 
-                # Check if this Pokemon has a mega stone
-                pokemon_id = pokemon_data["id"]
-                # Check for simple ID match
-                if pokemon_id in MEGA_STONES or str(pokemon_id) in MEGA_STONES:
-                    mega_stone = MEGA_STONES.get(pokemon_id) or MEGA_STONES.get(str(pokemon_id))
-                    if mega_stone and random.random() < 0.3:  # 30% chance if eligible
-                        special_item = mega_stone
-                # Check for tuple match (X/Y forms)
-                elif (pokemon_id, "X") in MEGA_STONES:
-                    special_item = MEGA_STONES[(pokemon_id, "X")]
-                elif (pokemon_id, "Y") in MEGA_STONES:
-                    special_item = MEGA_STONES[(pokemon_id, "Y")]
+            spawn = self.spawns_active[ctx.guild.id]
+            pokemon_data = spawn["pokemon"]
+            
+            # Format the expected name for special forms
+            expected_name = pokemon_data["name"].lower()
+            display_name = self.format_pokemon_name(pokemon_data["name"])
+            
+            # Make comparison more flexible for special forms
+            is_correct = False
+            
+            # For "normal" form Pokemon (no hyphen)
+            if "-" not in pokemon_data["name"]:
+                is_correct = pokemon_name.lower() == expected_name
+            else:
+                # Handle special forms
+                base_name, form = expected_name.split("-", 1)
                 
-                # Check for Z-Crystal based on type
-                if not special_item and "types" in pokemon_data and pokemon_data["types"]:
-                    primary_type = pokemon_data["types"][0].capitalize()
-                    if primary_type in Z_CRYSTALS and random.random() < 0.3:
-                        special_item = Z_CRYSTALS[primary_type]
+                # Check different variations of names
+                if pokemon_name.lower() == expected_name:
+                    # Full exact match
+                    is_correct = True
+                elif pokemon_name.lower() == base_name:
+                    # Base form name only
+                    is_correct = True
+                elif form == "mega" and pokemon_name.lower() in [f"mega {base_name}", f"mega-{base_name}"]:
+                    # Mega evolution
+                    is_correct = True
+                elif form.startswith("mega-") and pokemon_name.lower() in [f"mega {base_name} {form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
+                    # Mega X/Y
+                    is_correct = True
+                elif form == "gmax" and pokemon_name.lower() in [f"gigantamax {base_name}", f"gmax {base_name}"]:
+                    # Gigantamax
+                    is_correct = True
+                elif form in ["alola", "galar", "hisui"] and pokemon_name.lower() in [f"{form}n {base_name}", f"{form} {base_name}"]:
+                    # Regional form
+                    is_correct = True
+                elif form == "primal" and pokemon_name.lower() in [f"primal {base_name}"]:
+                    # Primal form
+                    is_correct = True
+            
+            if is_correct:
+                # Caught!
+                # Store pokemon_data before deleting from spawns_active
+                caught_pokemon = self.spawns_active[ctx.guild.id]["pokemon"]
+                del self.spawns_active[ctx.guild.id]
                 
-                # Check for Primal Orb
-                if not special_item and (pokemon_id in PRIMAL_ORBS or str(pokemon_id) in PRIMAL_ORBS):
-                    orb = PRIMAL_ORBS.get(pokemon_id) or PRIMAL_ORBS.get(str(pokemon_id))
-                    if orb:
-                        special_item = orb
+                # Add to user's collection
+                await self.add_pokemon_to_user(ctx.author, pokemon_data)
                 
-                # Award the special item if one was selected
-                if special_item:
-                    async with self.config.user(ctx.author).items() as items:
-                        items[special_item] = items.get(special_item, 0) + 1
+                # Award money for catching
+                catch_reward = random.randint(100, 500)
+                current_money = await self.config.user(ctx.author).money()
+                await self.config.user(ctx.author).money.set(current_money + catch_reward)
+                
+                # Send success message
+                embed = discord.Embed(
+                    title=f"{ctx.author.name} caught a {display_name}!",
+                    description=f"The Pokemon has been added to your collection.\nYou received ${catch_reward} for catching it!",
+                    color=0x00ff00
+                )
+                embed.set_thumbnail(url=pokemon_data["sprite"])
+                
+                # Random chance for a special item when catching rare Pokemon
+                if random.random() < 0.05:  # 5% chance
+                    # Determine which item to give based on Pokemon
+                    special_item = None
                     
-                    embed.add_field(
-                        name="Special Item Found!",
-                        value=f"You found a {special_item} with the Pokemon!",
-                        inline=False
-                    )
-            
-            await ctx.send(embed=embed)
-        else:
-            await ctx.send("That's not the right Pokemon name! Try again.")
+                    # Check if this Pokemon has a mega stone
+                    pokemon_id = pokemon_data["id"]
+                    # Check for simple ID match
+                    if pokemon_id in MEGA_STONES or str(pokemon_id) in MEGA_STONES:
+                        mega_stone = MEGA_STONES.get(pokemon_id) or MEGA_STONES.get(str(pokemon_id))
+                        if mega_stone and random.random() < 0.3:  # 30% chance if eligible
+                            special_item = mega_stone
+                    # Check for tuple match (X/Y forms)
+                    elif (pokemon_id, "X") in MEGA_STONES:
+                        special_item = MEGA_STONES[(pokemon_id, "X")]
+                    elif (pokemon_id, "Y") in MEGA_STONES:
+                        special_item = MEGA_STONES[(pokemon_id, "Y")]
+                    
+                    # Check for Z-Crystal based on type
+                    if not special_item and "types" in pokemon_data and pokemon_data["types"]:
+                        primary_type = pokemon_data["types"][0].capitalize()
+                        if primary_type in Z_CRYSTALS and random.random() < 0.3:
+                            special_item = Z_CRYSTALS[primary_type]
+                    
+                    # Check for Primal Orb
+                    if not special_item and (pokemon_id in PRIMAL_ORBS or str(pokemon_id) in PRIMAL_ORBS):
+                        orb = PRIMAL_ORBS.get(pokemon_id) or PRIMAL_ORBS.get(str(pokemon_id))
+                        if orb:
+                            special_item = orb
+                    
+                    # Award the special item if one was selected
+                    if special_item:
+                        user_items = await self.config.user(ctx.author).items()
+                        if special_item in user_items:
+                            user_items[special_item] += 1
+                        else:
+                            user_items[special_item] = 1
+                        await self.config.user(ctx.author).items.set(user_items)
+                        
+                        embed.add_field(
+                            name="Special Item Found!",
+                            value=f"You found a {special_item} with the Pokemon!",
+                            inline=False
+                        )
+                
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("That's not the right Pokemon name! Try again.")
 
     @pokemon_commands.command(name="list", aliases=["l"])
     async def list_pokemon(self, ctx: commands.Context, user: discord.Member = None):
