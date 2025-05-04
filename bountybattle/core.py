@@ -91,17 +91,19 @@ class BountyBattle(commands.Cog):
         from .constants.moves import MOVES
         from .constants.environments import ENVIRONMENTS
         
-        self.DEVIL_FRUITS = DEVIL_FRUITS
-        self.TITLES = TITLES
-        self.HIDDEN_TITLES = HIDDEN_TITLES
-        self.ACHIEVEMENTS = ACHIEVEMENTS
-        self.MOVES = MOVES
-        self.ENVIRONMENTS = ENVIRONMENTS
+        self.constants = type('Constants', (), {
+            'DEVIL_FRUITS': DEVIL_FRUITS,
+            'TITLES': TITLES,
+            'HIDDEN_TITLES': HIDDEN_TITLES,
+            'ACHIEVEMENTS': ACHIEVEMENTS,
+            'MOVES': MOVES,
+            'ENVIRONMENTS': ENVIRONMENTS
+        })
         
-        # Initialize all managers
+        # Initialize managers
         self._initialize_managers()
         
-        # Initialize all command handlers
+        # Initialize command handlers
         self._initialize_command_handlers()
         
         # Initialize boss rotation
@@ -130,16 +132,6 @@ class BountyBattle(commands.Cog):
         self.image_utils = ImageUtils(self.logger)
         self.message_utils = MessageUtils()
         self.data_utils = DataUtils(self.config, self.logger)
-        
-        # Set constants for managers and utils
-        self.constants = type('Constants', (), {
-            'DEVIL_FRUITS': self.DEVIL_FRUITS,
-            'TITLES': self.TITLES,
-            'HIDDEN_TITLES': self.HIDDEN_TITLES,
-            'ACHIEVEMENTS': self.ACHIEVEMENTS,
-            'MOVES': self.MOVES,
-            'ENVIRONMENTS': self.ENVIRONMENTS
-        })
     
     def _initialize_command_handlers(self):
         """Initialize all command handlers and attach them to the cog."""
@@ -187,9 +179,27 @@ class BountyBattle(commands.Cog):
             }
         }
     
-    # Add command forwarding methods
+    # --- Data Management Functions ---
     
-    # BountyCommands forwarding
+    def load_bounties(self):
+        """Load bounty data safely from file."""
+        if not os.path.exists(self.bounty_file):
+            return {}  # If file doesn't exist, return empty dict
+        
+        try:
+            with open(self.bounty_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return {}  # If file is corrupted, return empty dict
+    
+    def save_bounties(self, data):
+        """Save bounty data safely to file."""
+        os.makedirs(os.path.dirname(self.bounty_file), exist_ok=True)
+        with open(self.bounty_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+    
+    # --- BountyCommands ---
+    
     @commands.command()
     async def startbounty(self, ctx):
         """Start your bounty journey."""
@@ -217,20 +227,22 @@ class BountyBattle(commands.Cog):
         """Attempt to steal a percentage of another user's bounty with a lock-picking minigame."""
         await self.bounty_commands.bountyhunt(ctx, target)
     
-    # BattleCommands forwarding
-    @commands.command(name="db")
+    # --- BattleCommands ---
+    
+    @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.user)
-    async def deathbattle(self, ctx: commands.Context, opponent: discord.Member = None):
+    async def deathbattle(self, ctx, opponent: discord.Member = None):
         """Start a One Piece deathmatch against another user with a bounty."""
         await self.battle_commands.deathbattle(ctx, opponent)
     
-    @commands.command(name="stopbattle")
+    @commands.command()
     @commands.admin_or_permissions(administrator=True)
-    async def stopbattle(self, ctx: commands.Context):
+    async def stopbattle(self, ctx):
         """Stop an ongoing battle (Admin/Owner only)."""
         await self.battle_commands.stopbattle(ctx)
     
-    # EconomyCommands forwarding
+    # --- EconomyCommands ---
+    
     @commands.command()
     async def bankstats(self, ctx):
         """View statistics about World Government bank fees and taxes."""
@@ -262,17 +274,18 @@ class BountyBattle(commands.Cog):
         """Flip a coin to potentially increase your bounty. Higher bets have lower win chances!"""
         await self.economy_commands.berryflip(ctx, bet)
     
-    # FruitCommands forwarding
+    # --- FruitCommands ---
+    
     @commands.command()
     async def eatfruit(self, ctx):
         """Consume a random Devil Fruit!"""
-        # Add implementation or forward to fruit_commands.eatfruit when available
+        # Placeholder until we add the implementation
         await ctx.send("This command is coming soon!")
     
     @commands.command()
     async def myfruit(self, ctx):
         """Check which Devil Fruit you have eaten."""
-        # Add implementation or forward to fruit_commands.myfruit when available
+        # Placeholder until we add the implementation
         await ctx.send("This command is coming soon!")
     
     @commands.command()
@@ -295,7 +308,8 @@ class BountyBattle(commands.Cog):
         """Display all common Devil Fruit users with detailed information."""
         await self.fruit_commands.fruits_common(ctx)
     
-    # AdminCommands forwarding
+    # --- AdminCommands ---
+    
     @commands.group(name="bbadmin")
     @commands.admin_or_permissions(administrator=True)
     async def bb_admin(self, ctx):
@@ -407,10 +421,6 @@ class BountyBattle(commands.Cog):
                 )
 
             await ctx.send(embed=embed)
-
-            # Check if the new bounty warrants an announcement
-            if amount >= 900_000_000:
-                await self.bounty_commands.announce_rank(ctx.guild, member, new_title)
 
         except Exception as e:
             self.logger.error(f"Error in setbounty command: {str(e)}")
