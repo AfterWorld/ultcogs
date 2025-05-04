@@ -39,6 +39,7 @@ class PokemonCog(commands.Cog):
         default_user = {
             "pokemon": {},  # {pokemon_id: {"level": level, "xp": current_xp, "name": name, "caught_at": timestamp}}
             "active_pokemon": None,  # ID of the currently active Pokemon
+            "team": [],  # List of Pokemon IDs in the user's team
         }
         default_global = {
             "pokemon_cache": {},  # Cache for Pokemon data from API
