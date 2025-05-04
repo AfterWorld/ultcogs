@@ -560,14 +560,20 @@ class PokemonCog(commands.Cog):
         """View your or another user's Pokemon team."""
         if user is None:
             user = ctx.author
-            
+
         # Get user's team
         team = await self.config.user(user).team()
-        
+
+        # If the team is empty, fall back to the user's Pokemon collection
         if not team:
-            await ctx.send(f"{user.name} doesn't have a team set up yet!")
-            return
-            
+            user_pokemon = await self.config.user(user).pokemon()
+            if not user_pokemon:
+                await ctx.send(f"{user.name} doesn't have a team set up yet and hasn't caught any Pokémon!")
+                return
+
+            # Use the Pokémon collection as a fallback
+            team = list(user_pokemon.keys())[:6]  # Limit to 6 Pokémon for display
+
         # Get Pokemon data for each team member
         team_data = []
         for pokemon_id in team:
@@ -577,7 +583,7 @@ class PokemonCog(commands.Cog):
                 user_pokemon = await self.config.user(user).pokemon()
                 level = user_pokemon.get(pokemon_id, {}).get("level", 1)
                 nickname = user_pokemon.get(pokemon_id, {}).get("nickname", None)
-                
+
                 team_data.append({
                     "id": pokemon_id,
                     "name": pokemon_data["name"],
@@ -586,27 +592,27 @@ class PokemonCog(commands.Cog):
                     "level": level,
                     "nickname": nickname
                 })
-                
+
         # Create embed
         embed = discord.Embed(
             title=f"{user.name}'s Pokemon Team",
             color=0xff5500
         )
-        
+
         # Add each Pokemon to the embed
         for pokemon in team_data:
             name = pokemon["nickname"] or pokemon["name"].capitalize()
             if pokemon["nickname"]:
                 name += f" ({pokemon['name'].capitalize()})"
-                
+
             embed.add_field(
                 name=f"#{pokemon['id']}: {name}",
                 value=f"Level: {pokemon['level']}\nType: {', '.join(t.capitalize() for t in pokemon['types'])}",
                 inline=True
             )
-            
+
         await ctx.send(embed=embed)
-        
+            
     @pokemon_commands.command(name="stats")
     async def pokemon_stats(self, ctx: commands.Context, user: discord.Member = None):
         """View Pokemon trainer statistics."""
