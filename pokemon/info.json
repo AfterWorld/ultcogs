@@ -1,0 +1,12 @@
+{
+    "author": ["UltPanda"],
+    "description": "A Pokemon cog for Red Discord Bot that lets users catch and train Pokemon in Discord channels. Features Pokemon spawns, catching, training, evolving and a Pokedex system.",
+    "install_msg": "Thanks for installing the Pokemon cog! Use `[p]help pokemon` to get started. Set a spawn channel with `[p]pokemon channel`.",
+    "short": "Catch and train Pokemon in your Discord server",
+    "tags": ["pokemon", "game", "fun"],
+    "requirements": ["aiohttp"],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
