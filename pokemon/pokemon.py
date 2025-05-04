@@ -4292,6 +4292,7 @@ class PokemonCog(commands.Cog):
             
         # Send welcome message to the system channel if available
         if guild.system_channel:
+            prefix = self.bot.command_prefix  # Dynamically fetch the bot's prefix
             embed = discord.Embed(
                 title="Pokemon Bot has joined the server!",
                 description="Thanks for adding the Pokemon bot to your server! Here's how to get started:",
@@ -4300,25 +4301,25 @@ class PokemonCog(commands.Cog):
             
             embed.add_field(
                 name="Set up a spawn channel",
-                value="Use `!pokemon settings channel #channel-name` to set where Pokemon will spawn.",
+                value=f"Use `{prefix}pokemon settings channel #channel-name` to set where Pokemon will spawn.",
                 inline=False
             )
             
             embed.add_field(
                 name="Catch Pokemon",
-                value="When a Pokemon appears, use `!catch <pokemon-name>` to catch it!",
+                value=f"When a Pokemon appears, use `{prefix}p catch <pokemon-name>` to catch it!",
                 inline=False
             )
             
             embed.add_field(
                 name="Special Forms",
-                value="Enable Mega Evolutions, Gigantamax forms, and regional variants with `!pokemon settings forms`!",
+                value=f"Enable Mega Evolutions, Gigantamax forms, and regional variants with `{prefix}pokemon settings forms`!",
                 inline=False
             )
             
             embed.add_field(
                 name="Help and Commands",
-                value="Use `!help pokemon` to see all available commands.",
+                value=f"Use `{prefix}help pokemon` to see all available commands.",
                 inline=False
             )
             
