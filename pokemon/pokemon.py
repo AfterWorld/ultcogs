@@ -4350,7 +4350,11 @@ class PokemonCog(commands.Cog):
             
         # Send welcome message to the system channel if available
         if guild.system_channel:
-            prefix = self.bot.command_prefix  # Dynamically fetch the bot's prefix
+            # Resolve the bot's prefix to a string
+            prefix = (self.bot.command_prefix(guild) 
+                    if callable(self.bot.command_prefix) 
+                    else self.bot.command_prefix)
+            
             embed = discord.Embed(
                 title="Pokemon Bot has joined the server!",
                 description="Thanks for adding the Pokemon bot to your server! Here's how to get started:",
