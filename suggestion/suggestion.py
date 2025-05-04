@@ -520,6 +520,19 @@ class Suggestion(commands.Cog):
                         suggestions_config[suggestion_id]["staff_message_id"] = staff_msg.id
                 except (discord.Forbidden, discord.HTTPException):
                     pass
+        
+        # Remove reactions that aren't upvote or downvote
+        if str(payload.emoji) not in [UPVOTE_EMOJI, DOWNVOTE_EMOJI]:
+            channel = self.bot.get_channel(payload.channel_id)
+            if not channel:
+                return
+                
+            try:
+                message = await channel.fetch_message(payload.message_id)
+                # Remove the non-standard reaction
+                await message.remove_reaction(payload.emoji, discord.Object(payload.user_id))
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                pass
     
     @commands.command(name="approve")
     @commands.admin_or_permissions(manage_guild=True)
