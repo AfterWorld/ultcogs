@@ -161,7 +161,7 @@ class Suggestion(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @commands.command(name="suggest", aliases=["think"])
+    @commands.command(name="suggest", aliases=["idea"])
     @commands.guild_only()
     async def suggest(self, ctx: commands.Context, *, suggestion: str):
         """Submit a suggestion.
