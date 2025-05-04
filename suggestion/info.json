@@ -1,0 +1,12 @@
+{
+    "author": ["UltPanda"],
+    "description": "A suggestion system for Discord communities. Users can submit suggestions that will be posted to a designated channel. Community members can vote on suggestions with reactions, and staff can approve or deny suggestions.",
+    "install_msg": "Thanks for installing the Suggestion cog! Use `[p]help suggestion` to see all available commands, and make sure to set up the suggestion channel with `[p]suggestionset channel`.",
+    "short": "Community suggestion system with voting and staff approval",
+    "tags": ["suggestions", "community", "voting", "feedback"],
+    "requirements": [],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
