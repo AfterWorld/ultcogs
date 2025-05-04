@@ -418,115 +418,124 @@ class PokemonCog(commands.Cog):
     
     async def spawn_pokemon(self, guild: discord.Guild) -> bool:
         """Attempt to spawn a Pokemon in the guild."""
-        guild_config = await self.config.guild(guild).all()
-        channel_id = guild_config["channel"]
-        
-        if not channel_id:
-            return False  # No channel set for this guild
+        # Get lock for this guild first
+        if guild.id not in self.pokemon_locks:
+            self.pokemon_locks[guild.id] = asyncio.Lock()
             
-        channel = guild.get_channel(channel_id)
-        if not channel:
-            return False  # Channel no longer exists
-        
-        # Get current time
-        now = datetime.now().timestamp()
-        
-        # Check cooldown
-        if (now - guild_config["last_spawn"]) < guild_config["spawn_cooldown"]:
-            return False
-        
-        # Determine which Pokemon to spawn (1-898 for all National Dex Pokemon)
-        # Randomly decide whether to spawn a special form
-        include_mega = guild_config.get("include_mega", False)
-        include_gmax = guild_config.get("include_gmax", False)
-        include_forms = guild_config.get("include_forms", False)
-        
-        special_form = False
-        form_type = None
-        
-        # 10% chance for a special form if enabled
-        if random.random() < 0.1:
-            if include_mega and random.random() < 0.33:
-                special_form = True
-                form_type = "mega"
-                # For Charizard and Mewtwo, pick X or Y
-                if random.random() < 0.5:
-                    form_type = "mega-x"
-                else:
-                    form_type = "mega-y"
-            elif include_gmax and random.random() < 0.33:
-                special_form = True
-                form_type = "gmax"
-            elif include_forms and random.random() < 0.33:
-                special_form = True
-                # Pick a regional form
-                form_options = ["alola", "galar", "hisui"]
-                form_type = random.choice(form_options)
-        
-        pokemon_id = random.randint(1, 898)
-        
-        # For mega evolutions, only select Pokemon that can mega evolve
-        if special_form and form_type in ["mega", "mega-x", "mega-y"]:
-            # List of Pokemon that can Mega Evolve
-            mega_capable_pokemon = [3, 6, 9, 65, 94, 115, 127, 130, 142, 150, 181, 212, 214, 229, 248, 257, 282, 303, 306, 308, 310, 354, 359, 380, 381, 445, 448, 460]
-            pokemon_id = random.choice(mega_capable_pokemon)
-        
-        # For Gigantamax, only select Pokemon with Gigantamax forms
-        if special_form and form_type == "gmax":
-            # List of Pokemon with Gigantamax forms
-            gmax_capable_pokemon = [3, 6, 9, 12, 25, 52, 68, 94, 99, 131, 143, 569, 809, 812, 815, 818, 823, 826, 834, 839, 841, 844, 849, 851, 858, 861, 869, 879, 884, 892]
-            pokemon_id = random.choice(gmax_capable_pokemon)
-        
-        # For regional forms, only select Pokemon with those forms
-        if special_form and form_type in ["alola", "galar", "hisui"]:
-            if form_type == "alola":
-                # List of Pokemon with Alolan forms
-                alolan_pokemon = [19, 20, 26, 27, 28, 37, 38, 50, 51, 52, 53, 74, 75, 76, 88, 89, 103, 105]
-                pokemon_id = random.choice(alolan_pokemon)
-            elif form_type == "galar":
-                # List of Pokemon with Galarian forms
-                galarian_pokemon = [52, 77, 78, 79, 80, 83, 110, 122, 144, 145, 146, 199, 222, 263, 264, 554, 555, 562, 618]
-                pokemon_id = random.choice(galarian_pokemon)
-            elif form_type == "hisui":
-                # List of Pokemon with Hisuian forms
-                hisuian_pokemon = [58, 59, 100, 101, 157, 211, 215, 503, 549, 570, 571, 628, 705, 706, 713]
-                pokemon_id = random.choice(hisuian_pokemon)
-        
-        # Fetch Pokemon data with form if needed
-        pokemon_data = await self.fetch_pokemon(pokemon_id, form_type)
-        
-        if not pokemon_data:
-            return False
-        
-        # Create embed for spawn
-        embed = discord.Embed(
-            title="A wild Pokémon appeared!",
-            description=f"Type `!catch <pokemon>` to catch it!",
-            color=0x00ff00
-        )
-        
-        # Use silhouette for the mystery
-        embed.set_image(url=pokemon_data["sprite"])
-        
-        # Set expiry time
-        expiry = now + CATCH_TIMEOUT
-        
-        # Store active spawn
-        self.spawns_active[guild.id] = {
-            "pokemon": pokemon_data,
-            "expiry": expiry
-        }
-        
-        # Update last spawn time
-        await self.config.guild(guild).last_spawn.set(now)
-        
-        # Send spawn message
-        await channel.send(embed=embed)
-        
-        # Set up expiry task
-        self.bot.loop.create_task(self.expire_spawn(guild.id, channel, expiry))
-        
-        return True
+        async with self.pokemon_locks[guild.id]:
+            # Check if a Pokemon is already active in this guild
+            if guild.id in self.spawns_active:
+                return False
+                
+            guild_config = await self.config.guild(guild).all()
+            channel_id = guild_config["channel"]
+            
+            if not channel_id:
+                return False  # No channel set for this guild
+                    
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                return False  # Channel no longer exists
+            
+            # Get current time
+            now = datetime.now().timestamp()
+            
+            # Check cooldown
+            if (now - guild_config["last_spawn"]) < guild_config["spawn_cooldown"]:
+                return False
+            
+            # Determine which Pokemon to spawn (1-898 for all National Dex Pokemon)
+            # Randomly decide whether to spawn a special form
+            include_mega = guild_config.get("include_mega", False)
+            include_gmax = guild_config.get("include_gmax", False)
+            include_forms = guild_config.get("include_forms", False)
+            
+            special_form = False
+            form_type = None
+            
+            # 10% chance for a special form if enabled
+            if random.random() < 0.1:
+                if include_mega and random.random() < 0.33:
+                    special_form = True
+                    form_type = "mega"
+                    # For Charizard and Mewtwo, pick X or Y
+                    if random.random() < 0.5:
+                        form_type = "mega-x"
+                    else:
+                        form_type = "mega-y"
+                elif include_gmax and random.random() < 0.33:
+                    special_form = True
+                    form_type = "gmax"
+                elif include_forms and random.random() < 0.33:
+                    special_form = True
+                    # Pick a regional form
+                    form_options = ["alola", "galar", "hisui"]
+                    form_type = random.choice(form_options)
+            
+            pokemon_id = random.randint(1, 898)
+            
+            # For mega evolutions, only select Pokemon that can mega evolve
+            if special_form and form_type in ["mega", "mega-x", "mega-y"]:
+                # List of Pokemon that can Mega Evolve
+                mega_capable_pokemon = [3, 6, 9, 65, 94, 115, 127, 130, 142, 150, 181, 212, 214, 229, 248, 257, 282, 303, 306, 308, 310, 354, 359, 380, 381, 445, 448, 460]
+                pokemon_id = random.choice(mega_capable_pokemon)
+            
+            # For Gigantamax, only select Pokemon with Gigantamax forms
+            if special_form and form_type == "gmax":
+                # List of Pokemon with Gigantamax forms
+                gmax_capable_pokemon = [3, 6, 9, 12, 25, 52, 68, 94, 99, 131, 143, 569, 809, 812, 815, 818, 823, 826, 834, 839, 841, 844, 849, 851, 858, 861, 869, 879, 884, 892]
+                pokemon_id = random.choice(gmax_capable_pokemon)
+            
+            # For regional forms, only select Pokemon with those forms
+            if special_form and form_type in ["alola", "galar", "hisui"]:
+                if form_type == "alola":
+                    # List of Pokemon with Alolan forms
+                    alolan_pokemon = [19, 20, 26, 27, 28, 37, 38, 50, 51, 52, 53, 74, 75, 76, 88, 89, 103, 105]
+                    pokemon_id = random.choice(alolan_pokemon)
+                elif form_type == "galar":
+                    # List of Pokemon with Galarian forms
+                    galarian_pokemon = [52, 77, 78, 79, 80, 83, 110, 122, 144, 145, 146, 199, 222, 263, 264, 554, 555, 562, 618]
+                    pokemon_id = random.choice(galarian_pokemon)
+                elif form_type == "hisui":
+                    # List of Pokemon with Hisuian forms
+                    hisuian_pokemon = [58, 59, 100, 101, 157, 211, 215, 503, 549, 570, 571, 628, 705, 706, 713]
+                    pokemon_id = random.choice(hisuian_pokemon)
+            
+            # Fetch Pokemon data with form if needed
+            pokemon_data = await self.fetch_pokemon(pokemon_id, form_type)
+            
+            if not pokemon_data:
+                return False
+            
+            # Create embed for spawn
+            embed = discord.Embed(
+                title="A wild Pokémon appeared!",
+                description=f"Type `{ctx.prefix}pokemon catch <pokemon>` or `{ctx.prefix}p catch <pokemon>` to catch it!",
+                color=0x00ff00
+            )
+            
+            # Use silhouette for the mystery
+            embed.set_image(url=pokemon_data["sprite"])
+            
+            # Set expiry time
+            expiry = now + CATCH_TIMEOUT
+            
+            # Store active spawn
+            self.spawns_active[guild.id] = {
+                "pokemon": pokemon_data,
+                "expiry": expiry
+            }
+            
+            # Update last spawn time
+            await self.config.guild(guild).last_spawn.set(now)
+            
+            # Send spawn message
+            await channel.send(embed=embed)
+            
+            # Set up expiry task
+            self.bot.loop.create_task(self.expire_spawn(guild.id, channel, expiry))
+            
+            return True
     
     async def expire_spawn(self, guild_id: int, channel: discord.TextChannel, expiry: float):
         """Expire a spawn after the timeout period."""
@@ -536,29 +545,34 @@ class PokemonCog(commands.Cog):
         if wait_time > 0:
             await asyncio.sleep(wait_time)
         
-        # Check if the spawn is still active (it might have been caught)
-        if guild_id in self.spawns_active and self.spawns_active[guild_id]["expiry"] == expiry:
-            pokemon_name = self.spawns_active[guild_id]["pokemon"]["name"].capitalize()
+        # Get lock for this guild
+        if guild_id not in self.pokemon_locks:
+            self.pokemon_locks[guild_id] = asyncio.Lock()
             
-            # Format name for display (handle forms)
-            display_name = pokemon_name
-            if "-" in pokemon_name:
-                base_name, form = pokemon_name.split("-", 1)
-                if form == "mega":
-                    display_name = f"Mega {base_name.capitalize()}"
-                elif form in ["mega-x", "mega-y"]:
-                    mega_type = form.split("-")[1].upper()
-                    display_name = f"Mega {base_name.capitalize()} {mega_type}"
-                elif form == "gmax":
-                    display_name = f"Gigantamax {base_name.capitalize()}"
-                elif form in ["alola", "galar", "hisui"]:
-                    display_name = f"{form.capitalize()}n {base_name.capitalize()}"
-            
-            # Remove the spawn
-            del self.spawns_active[guild_id]
-            
-            # Send expiry message
-            await channel.send(f"The wild {display_name} fled!")
+        async with self.pokemon_locks[guild_id]:
+            # Check if the spawn is still active (it might have been caught)
+            if guild_id in self.spawns_active and self.spawns_active[guild_id]["expiry"] == expiry:
+                pokemon_name = self.spawns_active[guild_id]["pokemon"]["name"].capitalize()
+                
+                # Format name for display (handle forms)
+                display_name = pokemon_name
+                if "-" in pokemon_name:
+                    base_name, form = pokemon_name.split("-", 1)
+                    if form == "mega":
+                        display_name = f"Mega {base_name.capitalize()}"
+                    elif form in ["mega-x", "mega-y"]:
+                        mega_type = form.split("-")[1].upper()
+                        display_name = f"Mega {base_name.capitalize()} {mega_type}"
+                    elif form == "gmax":
+                        display_name = f"Gigantamax {base_name.capitalize()}"
+                    elif form in ["alola", "galar", "hisui"]:
+                        display_name = f"{form.capitalize()}n {base_name.capitalize()}"
+                
+                # Remove the spawn
+                del self.spawns_active[guild_id]
+                
+                # Send expiry message
+                await channel.send(f"The wild {display_name} fled!")
     
     async def add_pokemon_to_user(self, user: discord.Member, pokemon_data: dict):
         """Add a caught Pokemon to a user's collection."""
