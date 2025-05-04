@@ -161,7 +161,7 @@ class Suggestion(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @commands.command(name="suggest", aliases=["idea"])
+    @commands.command(name="suggest", aliases=["think"])
     @commands.guild_only()
     async def suggest(self, ctx: commands.Context, *, suggestion: str):
         """Submit a suggestion.
@@ -239,6 +239,99 @@ class Suggestion(commands.Cog):
             await ctx.send(_("I don't have permission to post in the suggestion channel."))
         except discord.HTTPException as e:
             await ctx.send(_("An error occurred while posting your suggestion: {error}").format(error=str(e)))
+    
+    @commands.command(name="suggesthelp")
+    @commands.guild_only()
+    async def suggest_help(self, ctx: commands.Context):
+        """Shows a helpful guide on how to use the suggestion system."""
+        guild_config = await self.config.guild(ctx.guild).all()
+        
+        # Get channels
+        suggestion_channel = (
+            self.bot.get_channel(guild_config["suggestion_channel"]).mention
+            if guild_config["suggestion_channel"]
+            else _("*Not set*")
+        )
+        
+        # Custom prefix
+        prefix = ctx.clean_prefix
+        
+        # Create a Discord-formatted embed with markdown
+        embed = discord.Embed(
+            title="📝 Suggestion System Guide",
+            color=discord.Color.blue(),
+            description=(
+                "Our server uses a community-driven suggestion system! Here's how to use it:"
+            )
+        )
+        
+        # How to make suggestions
+        embed.add_field(
+            name="📌 How to Submit a Suggestion",
+            value=(
+                f"Use `{prefix}suggest` or `{prefix}think` followed by your suggestion.\n\n"
+                "**Examples:**\n"
+                f"`{prefix}suggest Add a music channel to the server`\n"
+                f"`{prefix}think We should have weekly movie nights`\n\n"
+                f"Your suggestion will appear in {suggestion_channel} for everyone to vote on."
+            ),
+            inline=False
+        )
+        
+        # Voting section
+        embed.add_field(
+            name="🗳️ Voting on Suggestions",
+            value=(
+                "Each suggestion can be voted on with reactions:\n"
+                f"{UPVOTE_EMOJI} - Support this suggestion\n"
+                f"{DOWNVOTE_EMOJI} - Don't support this suggestion\n\n"
+                f"When a suggestion receives **{guild_config['upvote_threshold']}** upvotes, "
+                "it will be sent to the staff for review."
+            ),
+            inline=False
+        )
+        
+        # Staff review section
+        embed.add_field(
+            name="👨‍⚖️ Staff Review Process",
+            value=(
+                "Staff members review popular suggestions and may:\n"
+                "✅ **Approve** - The suggestion will be implemented\n"
+                "❌ **Deny** - The suggestion won't be implemented\n\n"
+                "The original suggestion will be updated with the staff's decision and reason."
+            ),
+            inline=False
+        )
+        
+        # Viewing suggestions
+        embed.add_field(
+            name="🔍 Viewing Suggestions",
+            value=(
+                f"• View a specific suggestion with `{prefix}showsuggestion <ID>`\n"
+                f"• List all suggestions with `{prefix}listsuggestions`\n"
+                f"• Filter by status with `{prefix}listsuggestions pending`\n"
+                f"• Also try: `{prefix}listsuggestions approved` or `{prefix}listsuggestions denied`"
+            ),
+            inline=False
+        )
+        
+        # Tips section
+        embed.add_field(
+            name="💡 Tips for Good Suggestions",
+            value=(
+                "• Be clear and specific about what you want\n"
+                "• Explain why it would benefit the server\n"
+                "• Keep suggestions reasonable and achievable\n"
+                "• One suggestion per message for better voting\n"
+                "• Be patient - staff reviews take time!"
+            ),
+            inline=False
+        )
+        
+        # Footer
+        embed.set_footer(text=f"Use {prefix}help Suggestion for detailed command information")
+        
+        await ctx.send(embed=embed)
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
