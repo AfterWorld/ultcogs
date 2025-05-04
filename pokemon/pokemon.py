@@ -2522,82 +2522,71 @@ class PokemonCog(commands.Cog):
         if ctx.guild.id not in self.spawns_active:
             await ctx.send("There's no wild Pokemon to catch right now!")
             return
-        
+
         # Add lock to prevent race conditions
         if ctx.guild.id not in self.pokemon_locks:
             self.pokemon_locks[ctx.guild.id] = asyncio.Lock()
-            
+
         async with self.pokemon_locks[ctx.guild.id]:
             # Check again inside the lock in case it was caught/fled while waiting
             if ctx.guild.id not in self.spawns_active:
                 await ctx.send("There's no wild Pokemon to catch right now!")
                 return
-                
+
             spawn = self.spawns_active[ctx.guild.id]
             pokemon_data = spawn["pokemon"]
-            
-            # Format the expected name for special forms
-            expected_name = pokemon_data["name"].lower()
-            display_name = self.format_pokemon_name(pokemon_data["name"])
-            
-            # Make comparison more flexible for special forms
-            is_correct = False
-            
+
             # Normalize the input and expected names
             input_name = pokemon_name.lower().replace(" ", "").replace("-", "")
             expected_name = pokemon_data["name"].lower().replace(" ", "").replace("-", "")
-            
-            # For "normal" form Pokemon (no hyphen)
+
+            # Handle special forms
+            is_correct = False
             if "-" in expected_name:
                 base_name, form = expected_name.split("-", 1)
-                
+
                 # Check different variations of names
                 if input_name == expected_name:
-                    # Full exact match
                     is_correct = True
                 elif input_name == base_name:
-                    # Base form name only
                     is_correct = True
-                elif form == "mega" and input_name in [f"mega{base_name}", f"mega-{base_name}"]:
-                    # Mega evolution
+                elif form == "mega" and input_name in [f"mega{base_name}", f"megax{base_name}", f"megay{base_name}"]:
                     is_correct = True
                 elif form.startswith("mega-") and input_name in [f"mega{base_name}{form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
-                    # Mega X/Y
                     is_correct = True
                 elif form == "gmax" and input_name in [f"gigantamax{base_name}", f"gmax{base_name}"]:
-                    # Gigantamax
                     is_correct = True
                 elif form in ["alola", "galar", "hisui"] and input_name in [f"{form}{base_name}", f"{form}-{base_name}"]:
-                    # Regional form
                     is_correct = True
                 elif form == "primal" and input_name == f"primal{base_name}":
-                    # Primal form
                     is_correct = True
             else:
                 # Handle cases where there is no hyphen
                 is_correct = input_name == expected_name
-            
+
             if is_correct:
                 # Caught!
-                # Store pokemon_data before deleting from spawns_active
                 caught_pokemon = self.spawns_active[ctx.guild.id]["pokemon"]
                 del self.spawns_active[ctx.guild.id]
-                
+
                 # Add to user's collection
                 await self.add_pokemon_to_user(ctx.author, pokemon_data)
-                
+
                 # Award money for catching
                 catch_reward = random.randint(100, 500)
                 current_money = await self.config.user(ctx.author).money()
                 await self.config.user(ctx.author).money.set(current_money + catch_reward)
-                
+
                 # Send success message
                 embed = discord.Embed(
-                    title=f"{ctx.author.name} caught a {display_name}!",
-                    description=f"The Pokemon has been added to your collection.\nYou received ${catch_reward} for catching it!",
+                    title=f"{ctx.author.name} caught a {pokemon_data['name'].capitalize()}!",
+                    description=f"The Pokémon has been added to your collection.\nYou received ${catch_reward} for catching it!",
                     color=0x00ff00
                 )
                 embed.set_thumbnail(url=pokemon_data["sprite"])
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("That's not the right Pokémon name! Try again.")
                 
                 # Random chance for a special item when catching rare Pokemon
                 if random.random() < 0.05:  # 5% chance
