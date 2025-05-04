@@ -1286,38 +1286,38 @@ class PokemonCog(commands.Cog):
     async def leaderboard(self, ctx: commands.Context):
         """Show the Pokemon trainer leaderboard."""
         guild = ctx.guild
-        
+
         # Get all users in the guild
+        all_users_data = await self.config.all_users()  # Await the coroutine to get the data
         all_users = {}
-        async for user_id, user_data in self.config.all_users():
+
+        for user_id, user_data in all_users_data.items():
             member = guild.get_member(user_id)
             if member and "pokemon" in user_data:
                 # Count total Pokemon and calculate trainer score
                 pokemon_count = len(user_data["pokemon"])
-                
+
                 # Calculate total levels
-                total_levels = 0
-                for pokemon_data in user_data["pokemon"].values():
-                    total_levels += pokemon_data["level"]
-                    
+                total_levels = sum(pokemon["level"] for pokemon in user_data["pokemon"].values())
+
                 # Calculate trainer score (Pokemon count + total levels)
                 trainer_score = pokemon_count + total_levels
-                
+
                 all_users[member] = {
                     "pokemon_count": pokemon_count,
                     "total_levels": total_levels,
-                    "trainer_score": trainer_score
+                    "trainer_score": trainer_score,
                 }
-                
+
         # Sort by trainer score
         sorted_users = sorted(all_users.items(), key=lambda x: x[1]["trainer_score"], reverse=True)
-        
+
         # Create embed
         embed = discord.Embed(
             title=f"Pokemon Trainer Leaderboard - {guild.name}",
             color=0xffcc00
         )
-        
+
         # Add fields for top 10 users
         for i, (user, data) in enumerate(sorted_users[:10], 1):
             embed.add_field(
@@ -1327,7 +1327,7 @@ class PokemonCog(commands.Cog):
                       f"Trainer Score: {data['trainer_score']}",
                 inline=(i % 2 != 0)  # Alternate inline
             )
-            
+
         await ctx.send(embed=embed)
         
     @pokemon_commands.command(name="release")
