@@ -19,13 +19,15 @@ class BattleCommands:
         self.devil_fruit_manager = cog.devil_fruit_manager
         self.image_utils = cog.image_utils
         
-    @commands.command(name="db")
-    @commands.cooldown(1, 30, commands.BucketType.user)
     async def deathbattle(self, ctx: commands.Context, opponent: discord.Member = None):
         """
         Start a One Piece deathmatch against another user with a bounty.
         """
         try:
+            # Safety check for ctx
+            if ctx is None or not hasattr(ctx, 'channel'):
+                return await self.bot.send_to_owners("Error: Context was None in deathbattle command")
+            
             # Quick check if battle is already in progress
             if ctx.channel.id in self.cog.active_channels:
                 return await ctx.send("❌ A battle is already in progress in this channel. Please wait for it to finish.")
@@ -97,34 +99,50 @@ class BattleCommands:
                 await loading_msg.delete()
                 
                 # Generate fight card
-                fight_card = await self.bot.loop.run_in_executor(
-                    None, self.image_utils.generate_fight_card, ctx.author, opponent
-                )
+                try:
+                    fight_card = await self.bot.loop.run_in_executor(
+                        None, self.image_utils.generate_fight_card, ctx.author, opponent
+                    )
+                    
+                    # Send the fight card and start the battle
+                    await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
+                except Exception as img_error:
+                    self.logger.error(f"Error generating fight card: {str(img_error)}")
+                    await ctx.send("⚔️ **Battle starting between {} and {}!**".format(
+                        ctx.author.display_name, opponent.display_name
+                    ))
                 
-                # Send the fight card and start the battle
-                await ctx.send(file=discord.File(fp=fight_card, filename="fight_card.png"))
                 await self.fight(ctx, ctx.author, opponent)
                 
             except Exception as e:
-                await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
+                # Make sure we have valid context before trying to send
+                if ctx and hasattr(ctx, 'send'):
+                    await ctx.send(f"❌ An error occurred during the battle: {str(e)}")
                 self.logger.error(f"Battle error: {str(e)}")
             finally:
                 # Always clean up
-                if ctx.channel.id in self.cog.active_channels:
+                if ctx and hasattr(ctx, 'channel') and ctx.channel.id in self.cog.active_channels:
                     self.cog.active_channels.remove(ctx.channel.id)
 
         except Exception as e:
             # Catch any unexpected errors
-            await ctx.send(f"❌ An unexpected error occurred: {str(e)}")
             self.logger.error(f"Deathbattle command error: {str(e)}")
             
+            # Be extra cautious about ctx
+            if ctx and hasattr(ctx, 'send'):
+                await ctx.send(f"❌ An unexpected error occurred: {str(e)}")
+            
             # Ensure channel is removed from active channels if an error occurs
-            if ctx.channel.id in self.cog.active_channels:
+            if ctx and hasattr(ctx, 'channel') and ctx.channel.id in self.cog.active_channels:
                 self.cog.active_channels.remove(ctx.channel.id)
     
     async def fight(self, ctx, challenger, opponent):
         """Enhanced fight system with all manager integrations."""
         try:
+            # Safety check for ctx
+            if ctx is None or not hasattr(ctx, 'channel'):
+                return await self.bot.send_to_owners("Error: Context was None in fight method")
+                
             channel_id = ctx.channel.id
                 
             # Check if channel is already in battle
@@ -143,9 +161,9 @@ class BattleCommands:
             )
 
             # Initialize environment
-            environment = self.cog.environment_manager.choose_environment()
+            environment = self.environment_manager.choose_environment()
             battle_state["environment"] = environment
-            environment_data = self.cog.environment_manager.get_environment_data(environment)
+            environment_data = self.environment_manager.get_environment_data(environment)
 
             # Clear any lingering effects from all managers
             self.status_manager.clear_all_effects(challenger_data)
@@ -220,7 +238,7 @@ class BattleCommands:
                 else:
                     # Update cooldowns and get available moves
                     self.cog.data_utils.update_cooldowns(attacker)
-                    available_moves = [move for move in self.cog.constants.MOVES if move["name"] not in attacker["moves_on_cooldown"]]
+                    available_moves = [move for move in self.cog.constants.MOVES if move["name"] not in attacker.get("moves_on_cooldown", {})]
                     if not available_moves:
                         available_moves = [move for move in self.cog.constants.MOVES if move["type"] == "regular"]
 
@@ -318,12 +336,14 @@ class BattleCommands:
 
         except Exception as e:
             self.logger.error(f"Error in fight: {str(e)}")
-            await ctx.send(f"An error occurred during the battle: {str(e)}")
+            if ctx and hasattr(ctx, 'send'):
+                await ctx.send(f"An error occurred during the battle: {str(e)}")
         finally:
             # Clean up all managers
-            await self.battle_manager.end_battle(channel_id)
-            if ctx.channel.id in self.cog.active_channels:
-                self.cog.active_channels.remove(ctx.channel.id)
+            if ctx and hasattr(ctx, 'channel'):
+                await self.battle_manager.end_battle(channel_id)
+                if ctx.channel.id in self.cog.active_channels:
+                    self.cog.active_channels.remove(ctx.channel.id)
     
     async def _initialize_player_data(self, member):
         """Initialize player data with proper memory management."""
@@ -411,18 +431,21 @@ class BattleCommands:
             await ctx.send(embed=reward_embed)
 
             # Update last active time
-            current_time = datetime.utcnow().isoformat()
+            current_time = datetime.datetime.utcnow().isoformat()
             await self.config.member(winner_member).last_active.set(current_time)
             await self.config.member(loser_member).last_active.set(current_time)
 
         except Exception as e:
             self.logger.error(f"Error processing victory rewards: {str(e)}")
-            await ctx.send("An error occurred while processing rewards.")
+            if ctx and hasattr(ctx, 'send'):
+                await ctx.send("An error occurred while processing rewards.")
             
-    @commands.command(name="stopbattle")
-    @commands.admin_or_permissions(administrator=True)
     async def stopbattle(self, ctx: commands.Context):
         """Stop an ongoing battle (Admin/Owner only)."""
+        # Safety check for ctx
+        if ctx is None or not hasattr(ctx, 'channel'):
+            return await self.bot.send_to_owners("Error: Context was None in stopbattle command")
+            
         if ctx.channel.id not in self.cog.active_channels:
             return await ctx.send("❌ There is no ongoing battle in this channel.")
     
