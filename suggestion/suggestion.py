@@ -161,7 +161,7 @@ class Suggestion(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @commands.command(name="suggest", aliases=["think"])
+    @commands.command(name="suggest", aliases=["idea"])
     @commands.guild_only()
     async def suggest(self, ctx: commands.Context, *, suggestion: str):
         """Submit a suggestion.
@@ -269,10 +269,10 @@ class Suggestion(commands.Cog):
         embed.add_field(
             name="📌 How to Submit a Suggestion",
             value=(
-                f"Use `{prefix}suggest` or `{prefix}think` followed by your suggestion.\n\n"
+                f"Use `{prefix}suggest` or `{prefix}ideea` followed by your suggestion.\n\n"
                 "**Examples:**\n"
                 f"`{prefix}suggest Add a music channel to the server`\n"
-                f"`{prefix}think We should have weekly movie nights`\n\n"
+                f"`{prefix}idea We should have weekly movie nights`\n\n"
                 f"Your suggestion will appear in {suggestion_channel} for everyone to vote on."
             ),
             inline=False
