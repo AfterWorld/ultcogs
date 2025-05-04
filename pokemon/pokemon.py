@@ -1253,6 +1253,64 @@ class PokemonCog(commands.Cog):
             
             await ctx.send(f"{pokemon_name} has been removed from your team!")
             
+    @pokemon_commands.command(name="forcespawn")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def force_spawn(self, ctx: commands.Context, pokemon_id: int = None, *, form: str = None):
+        """Forcefully spawn a Pokémon in the configured spawn channel."""
+        # Get the spawn channel from the guild configuration
+        guild_config = await self.config.guild(ctx.guild).all()
+        channel_id = guild_config["channel"]
+
+        if not channel_id:
+            await ctx.send("No spawn channel is set! Use `!pokemon settings channel` to configure one.")
+            return
+
+        channel = ctx.guild.get_channel(channel_id)
+        if not channel:
+            await ctx.send("The configured spawn channel no longer exists! Please set a new one.")
+            return
+
+        # If no Pokémon ID is provided, randomly select one
+        if not pokemon_id:
+            pokemon_id = random.randint(1, 898)  # National Dex range
+
+        # Fetch Pokémon data
+        pokemon_data = await self.fetch_pokemon(pokemon_id, form)
+        if not pokemon_data:
+            await ctx.send(f"Failed to fetch data for Pokémon ID {pokemon_id}. Please try again.")
+            return
+
+        # Create the embed for the spawned Pokémon
+        embed = discord.Embed(
+            title="A wild Pokémon appeared!",
+            description=f"Type `{self.bot.command_prefix}p catch <pokemon>` to catch it!",
+            color=0x00ff00
+        )
+        embed.set_image(url=pokemon_data["sprite"])
+
+        # Set the spawn expiry time
+        now = datetime.now().timestamp()
+        expiry = now + CATCH_TIMEOUT
+
+        # Store the active spawn
+        self.spawns_active[ctx.guild.id] = {
+            "pokemon": pokemon_data,
+            "expiry": expiry
+        }
+
+        # Update the last spawn time
+        await self.config.guild(ctx.guild).last_spawn.set(now)
+
+        # Send the spawn message to the configured channel
+        await channel.send(embed=embed)
+
+        # Notify the admin in the command channel
+        if channel.id != ctx.channel.id:
+            await ctx.send(f"A Pokémon has been forcefully spawned in {channel.mention}!")
+
+        # Set up the expiry task
+        self.bot.loop.create_task(self.expire_spawn(ctx.guild.id, channel, expiry))
+            
     @pokemon_team.command(name="view")
     async def team_view(self, ctx: commands.Context, user: discord.Member = None):
         """View your or another user's Pokemon team."""
