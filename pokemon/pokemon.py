@@ -2548,34 +2548,34 @@ class PokemonCog(commands.Cog):
             expected_name = pokemon_data["name"].lower().replace(" ", "").replace("-", "")
             
             # For "normal" form Pokemon (no hyphen)
-            if "-" not in pokemon_data["name"]:
-                is_correct = pokemon_name.lower() == expected_name
-            else:
-                # Handle special forms
+            if "-" in expected_name:
                 base_name, form = expected_name.split("-", 1)
                 
                 # Check different variations of names
-                if pokemon_name.lower() == expected_name:
+                if input_name == expected_name:
                     # Full exact match
                     is_correct = True
-                elif pokemon_name.lower() == base_name:
+                elif input_name == base_name:
                     # Base form name only
                     is_correct = True
-                elif form == "mega" and pokemon_name.lower() in [f"mega {base_name}", f"mega-{base_name}"]:
+                elif form == "mega" and input_name in [f"mega{base_name}", f"mega-{base_name}"]:
                     # Mega evolution
                     is_correct = True
-                elif form.startswith("mega-") and pokemon_name.lower() in [f"mega {base_name} {form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
+                elif form.startswith("mega-") and input_name in [f"mega{base_name}{form[-1].upper()}", f"mega-{base_name}-{form[-1]}"]:
                     # Mega X/Y
                     is_correct = True
-                elif form == "gmax" and pokemon_name.lower() in [f"gigantamax {base_name}", f"gmax {base_name}"]:
+                elif form == "gmax" and input_name in [f"gigantamax{base_name}", f"gmax{base_name}"]:
                     # Gigantamax
                     is_correct = True
-                elif form in ["alola", "galar", "hisui"] and pokemon_name.lower() in [f"{form}n {base_name}", f"{form} {base_name}"]:
+                elif form in ["alola", "galar", "hisui"] and input_name in [f"{form}{base_name}", f"{form}-{base_name}"]:
                     # Regional form
                     is_correct = True
-                elif form == "primal" and pokemon_name.lower() in [f"primal {base_name}"]:
+                elif form == "primal" and input_name == f"primal{base_name}":
                     # Primal form
                     is_correct = True
+            else:
+                # Handle cases where there is no hyphen
+                is_correct = input_name == expected_name
             
             if is_correct:
                 # Caught!
