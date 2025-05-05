@@ -422,31 +422,36 @@ class OnePieceProfile(commands.Cog):
     
     async def create_wanted_poster(self, member: discord.Member, bounty: str) -> BytesIO:
         """Create a One Piece wanted poster image"""
-        # Base canvas size for wanted poster
-        width, height = 600, 800
+        # Base canvas size for wanted poster - use 4:3 ratio for better proportions
+        width, height = 800, 1000
         
         # Create a new image with a parchment background
         image = Image.new("RGB", (width, height), (222, 184, 135))
         draw = ImageDraw.Draw(image)
         
-        # Load fonts
-        title_font = await self._get_font(60, bold=True)
-        name_font = await self._get_font(40, bold=True)
-        bounty_font = await self._get_font(32)
+        # Load fonts with larger sizes
+        title_font = await self._get_font(80, bold=True)
+        name_font = await self._get_font(60, bold=True)
+        bounty_font = await self._get_font(50, bold=True)
+        info_font = await self._get_font(40)
         
         # Create wanted poster effect
         # Top banner with "WANTED" text
-        draw.rectangle((0, 0, width, 100), fill=(139, 69, 19))
+        draw.rectangle((0, 0, width, 140), fill=(139, 69, 19))
+        
+        # Center the "WANTED" text
+        wanted_text = "WANTED"
+        wanted_text_width = title_font.getsize(wanted_text)[0] if hasattr(title_font, "getsize") else width // 2
         draw.text(
-            (width // 2, 50),
-            "WANTED",
+            (width // 2, 70),
+            wanted_text,
             fill=(255, 223, 0),
             font=title_font,
-            anchor="mm"
+            anchor="mm" if hasattr(title_font, "getsize") else None
         )
         
         # Draw border
-        border_width = 10
+        border_width = 15
         draw.rectangle(
             (border_width, border_width, width - border_width, height - border_width),
             outline=(139, 69, 19),
@@ -454,110 +459,145 @@ class OnePieceProfile(commands.Cog):
         )
         
         # Draw "DEAD OR ALIVE" text
+        dead_or_alive = "DEAD OR ALIVE"
+        dead_or_alive_width = info_font.getsize(dead_or_alive)[0] if hasattr(info_font, "getsize") else width // 2
         draw.text(
-            (width // 2, 130),
-            "DEAD OR ALIVE",
+            (width // 2, 190),
+            dead_or_alive,
             fill=(139, 69, 19),
-            font=bounty_font,
-            anchor="mm"
+            font=info_font,
+            anchor="mm" if hasattr(info_font, "getsize") else None
         )
         
         # Get user avatar
         avatar_bytes = await self._get_avatar(member)
         
+        # Avatar section with larger size
+        avatar_size = 400
+        avatar_x = (width - avatar_size) // 2
+        avatar_y = 250
+        
         try:
             # Process avatar
             if avatar_bytes:
                 avatar_img = Image.open(avatar_bytes)
-                avatar_size = 300
                 avatar_img = avatar_img.resize((avatar_size, avatar_size))
                 
                 # Paste avatar onto main image
-                image.paste(avatar_img, ((width - avatar_size) // 2, 180))
+                image.paste(avatar_img, (avatar_x, avatar_y))
+                
+                # Add a border around the avatar
+                draw.rectangle(
+                    (avatar_x - 2, avatar_y - 2, avatar_x + avatar_size + 2, avatar_y + avatar_size + 2),
+                    outline=(139, 69, 19),
+                    width=4
+                )
             else:
                 # If avatar can't be loaded, draw a placeholder rectangle
-                avatar_size = 300
                 draw.rectangle(
-                    ((width - avatar_size) // 2, 180, 
-                     (width - avatar_size) // 2 + avatar_size, 180 + avatar_size),
-                    fill=(200, 200, 200)
+                    (avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size),
+                    fill=(200, 200, 200),
+                    outline=(139, 69, 19),
+                    width=4
                 )
         except:
             # If any error occurs, draw a placeholder rectangle
-            avatar_size = 300
             draw.rectangle(
-                ((width - avatar_size) // 2, 180, 
-                 (width - avatar_size) // 2 + avatar_size, 180 + avatar_size),
-                fill=(200, 200, 200)
+                (avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size),
+                fill=(200, 200, 200),
+                outline=(139, 69, 19),
+                width=4
             )
             
-        # Draw username
+        # Draw username with larger font
+        username = member.display_name
+        username_width = name_font.getsize(username)[0] if hasattr(name_font, "getsize") else width // 2
         draw.text(
-            (width // 2, 520),
-            member.display_name,
+            (width // 2, avatar_y + avatar_size + 80),
+            username,
             fill=(0, 0, 0),
             font=name_font,
-            anchor="mm"
+            anchor="mm" if hasattr(name_font, "getsize") else None
         )
         
-        # Draw bounty text
+        # Draw bounty text with much more emphasis
+        # Create a background box for the bounty
+        bounty_y = avatar_y + avatar_size + 160
+        bounty_height = 80
+        bounty_box_padding = 20
+        
+        # Draw a gold background for the bounty
+        draw.rectangle(
+            (100, bounty_y - bounty_box_padding, 
+            width - 100, bounty_y + bounty_height + bounty_box_padding),
+            fill=(139, 101, 8),
+            outline=(101, 67, 33),
+            width=5
+        )
+        
+        # Draw the bounty text with improved formatting
         draw.text(
-            (width // 2, 600),
-            f"Bounty: {bounty}",
-            fill=(0, 0, 0),
+            (width // 2, bounty_y + bounty_height // 2),
+            f"BOUNTY: {bounty}",
+            fill=(255, 223, 0),  # Gold color
             font=bounty_font,
-            anchor="mm"
+            anchor="mm" if hasattr(bounty_font, "getsize") else None
         )
         
         # Add "Issued by the World Government" text
+        world_gov_text = "Issued by the World Government"
+        world_gov_width = info_font.getsize(world_gov_text)[0] if hasattr(info_font, "getsize") else width // 2
         draw.text(
-            (width // 2, 700),
-            "Issued by the World Government",
+            (width // 2, height - 180),
+            world_gov_text,
             fill=(0, 0, 0),
-            font=bounty_font,
-            anchor="mm"
+            font=info_font,
+            anchor="mm" if hasattr(info_font, "getsize") else None
         )
         
-        # Draw marine logo watermark
-        # This is simplified - just a circle with cross
-        watermark_size = 100
+        # Draw marine logo watermark - improved visibility
+        watermark_size = 120
         center_x = width // 2
-        center_y = height - 150
+        center_y = height - 100
         
         # Semi-transparent white background
         draw.ellipse(
             (center_x - watermark_size//2, center_y - watermark_size//2,
-             center_x + watermark_size//2, center_y + watermark_size//2),
-            fill=(255, 255, 255, 128),
+            center_x + watermark_size//2, center_y + watermark_size//2),
+            fill=(255, 255, 255, 200),
             outline=(0, 0, 0, 200)
         )
         
-        # Cross
-        line_width = 5
+        # Cross - thicker lines
+        line_width = 8
         draw.line(
-            [(center_x, center_y - watermark_size//2 + 10),
-             (center_x, center_y + watermark_size//2 - 10)],
-            fill=(0, 0, 0, 200),
+            [(center_x, center_y - watermark_size//2 + 15),
+            (center_x, center_y + watermark_size//2 - 15)],
+            fill=(0, 0, 0),
             width=line_width
         )
         draw.line(
-            [(center_x - watermark_size//2 + 10, center_y),
-             (center_x + watermark_size//2 - 10, center_y)],
-            fill=(0, 0, 0, 200),
+            [(center_x - watermark_size//2 + 15, center_y),
+            (center_x + watermark_size//2 - 15, center_y)],
+            fill=(0, 0, 0),
             width=line_width
         )
         
-        # Add some weathered texture effect
-        for _ in range(100):
-            x = random.randint(0, width-1)
-            y = random.randint(0, height-1)
-            size = random.randint(1, 5)
+        # Add some weathered texture effect - more noticeable
+        for _ in range(200):
+            x = random.randint(border_width*2, width-border_width*2)
+            y = random.randint(border_width*2, height-border_width*2)
+            size = random.randint(1, 6)  # Slightly larger spots
+            
+            # Vary the color more for a more weathered look
+            color_variation = random.randint(-30, 30)
+            base_r, base_g, base_b = 222, 184, 135  # Base parchment color
             color = (
-                random.randint(180, 220),
-                random.randint(150, 180),
-                random.randint(100, 135),
-                random.randint(50, 150)
+                min(255, max(0, base_r + color_variation)),
+                min(255, max(0, base_g + color_variation)),
+                min(255, max(0, base_b + color_variation)),
             )
+            
             draw.ellipse(
                 (x, y, x+size, y+size),
                 fill=color
@@ -584,8 +624,8 @@ class OnePieceProfile(commands.Cog):
         bounty: str
     ) -> BytesIO:
         """Create a One Piece themed profile image"""
-        # Base canvas size
-        width, height = 800, 400
+        # Base canvas size - increased height for better spacing
+        width, height = 800, 500
         
         # Try to parse sea_color
         try:
@@ -599,10 +639,10 @@ class OnePieceProfile(commands.Cog):
         image = Image.new("RGBA", (width, height), (45, 55, 72, 255))
         draw = ImageDraw.Draw(image)
         
-        # Load fonts
-        title_font = await self._get_font(40, bold=True)
-        regular_font = await self._get_font(24)
-        small_font = await self._get_font(18)
+        # Load fonts with larger sizes
+        title_font = await self._get_font(48, bold=True)
+        regular_font = await self._get_font(28)
+        small_font = await self._get_font(22)
             
         # Draw banner gradient with sea color influence
         for x in range(width):
@@ -610,49 +650,49 @@ class OnePieceProfile(commands.Cog):
             r = max(0, min(255, int(sea_color_rgb[0] - (sea_color_rgb[0] * 0.5) * (x / width))))
             g = max(0, min(255, int(sea_color_rgb[1] - (sea_color_rgb[1] * 0.5) * (x / width))))
             b = max(0, min(255, int(sea_color_rgb[2] - (sea_color_rgb[2] * 0.5) * (x / width))))
-            draw.line([(x, 0), (x, 120)], fill=(r, g, b, 255))
+            draw.line([(x, 0), (x, 140)], fill=(r, g, b, 255))
             
         # Get user avatar
         avatar_bytes = await self._get_avatar(member)
         
         try:
-            # Process avatar
+            # Process avatar - increased size
             if avatar_bytes:
                 avatar_img = Image.open(avatar_bytes)
-                avatar_img = avatar_img.resize((120, 120))
+                avatar_img = avatar_img.resize((140, 140))
                 
                 # Create circular mask for avatar
-                mask = Image.new("L", (120, 120), 0)
+                mask = Image.new("L", (140, 140), 0)
                 mask_draw = ImageDraw.Draw(mask)
-                mask_draw.ellipse((0, 0, 120, 120), fill=255)
+                mask_draw.ellipse((0, 0, 140, 140), fill=255)
                 
                 # Apply circular mask to avatar
-                avatar_circle = Image.new("RGBA", (120, 120), (0, 0, 0, 0))
+                avatar_circle = Image.new("RGBA", (140, 140), (0, 0, 0, 0))
                 avatar_circle.paste(avatar_img, (0, 0), mask)
                 
                 # Paste avatar onto main image
-                image.paste(avatar_circle, (40, 60), avatar_circle)
+                image.paste(avatar_circle, (50, 70), avatar_circle)
             else:
                 # If avatar can't be loaded, draw a placeholder circle
-                draw.ellipse((40, 60, 160, 180), fill=(200, 200, 200, 255))
+                draw.ellipse((50, 70, 190, 210), fill=(200, 200, 200, 255))
         except:
             # If any error occurs, draw a placeholder circle
-            draw.ellipse((40, 60, 160, 180), fill=(200, 200, 200, 255))
+            draw.ellipse((50, 70, 190, 210), fill=(200, 200, 200, 255))
             
-        # Draw username
-        draw.text((180, 140), member.display_name, fill=(255, 255, 255, 255), font=title_font)
+        # Draw username - moved to better position
+        draw.text((220, 140), member.display_name, fill=(255, 255, 255, 255), font=title_font)
         
         # Draw sea role indicator
         draw.text(
-            (180, 190),
+            (220, 200),
             f"Sea: {sea_role}",
             fill=sea_color_rgb,
             font=regular_font
         )
         
         # Draw level badge
-        level_badge_x, level_badge_y = 680, 60
-        level_badge_size = 80
+        level_badge_x, level_badge_y = 680, 70
+        level_badge_size = 100
         draw.ellipse(
             (level_badge_x, level_badge_y, 
              level_badge_x + level_badge_size, level_badge_y + level_badge_size), 
@@ -664,17 +704,20 @@ class OnePieceProfile(commands.Cog):
             outline=(246, 224, 94, 255), width=4
         )
         
-        # Draw level text
+        # Draw level text with better positioning
         level_text = f"LVL {level}"
         text_w = title_font.getsize(level_text)[0] if hasattr(title_font, "getsize") else 0
         draw.text(
-            (level_badge_x + (level_badge_size - text_w) // 2, level_badge_y + 30),
-            level_text, fill=(255, 255, 255, 255), font=regular_font
+            (level_badge_x + level_badge_size//2, level_badge_y + level_badge_size//2),
+            level_text, 
+            fill=(255, 255, 255, 255), 
+            font=regular_font,
+            anchor="mm" if hasattr(regular_font, "getsize") else None
         )
         
-        # Draw XP bar
-        xp_bar_x, xp_bar_y = 180, 230
-        xp_bar_width, xp_bar_height = 560, 30
+        # Draw XP bar - moved down
+        xp_bar_x, xp_bar_y = 220, 260
+        xp_bar_width, xp_bar_height = 520, 30
         
         # Background bar
         draw.rectangle(
@@ -701,66 +744,85 @@ class OnePieceProfile(commands.Cog):
         # XP text
         xp_text = f"XP: {xp}/{xp_needed}"
         draw.text(
-            (xp_bar_x, xp_bar_y - 25),
+            (xp_bar_x, xp_bar_y - 30),
             xp_text, fill=(200, 200, 200, 255), font=small_font
         )
         
-        # Rank text
+        # Rank text - aligned right
         rank_text = f"Rank #{rank}" if rank > 0 else "Unranked"
         rank_text_width = small_font.getsize(rank_text)[0] if hasattr(small_font, "getsize") else 0
         draw.text(
-            (xp_bar_x + xp_bar_width - rank_text_width, xp_bar_y - 25),
+            (xp_bar_x + xp_bar_width - rank_text_width, xp_bar_y - 30),
             rank_text, fill=(200, 200, 200, 255), font=small_font
         )
         
         # Staff role badge (if any)
         if staff_role:
-            staff_badge_x, staff_badge_y = 180, 280
+            staff_badge_x, staff_badge_y = 220, 310
             staff_text = staff_role.upper()
             staff_text_width = small_font.getsize(staff_text)[0] if hasattr(small_font, "getsize") else 0
             
             # Draw badge background
             draw.rectangle(
                 (staff_badge_x, staff_badge_y,
-                 staff_badge_x + staff_text_width + 20, staff_badge_y + 25),
+                 staff_badge_x + staff_text_width + 20, staff_badge_y + 30),
                 fill=(229, 62, 62, 255)
             )
             
             # Draw badge text
             draw.text(
-                (staff_badge_x + 10, staff_badge_y + 3),
+                (staff_badge_x + 10, staff_badge_y + 5),
                 staff_text, fill=(255, 255, 255, 255), font=small_font
             )
+        
+        # For pirate rank - handle emojis by not displaying them (Discord handles emojis separately)
+        # Remove emoji part if present
+        cleaned_pirate_rank = pirate_rank
+        if ":moneybag:" in pirate_rank:
+            cleaned_pirate_rank = pirate_rank.replace(":moneybag:", "").strip()
             
-        # Pirate rank
+        # Pirate rank - moved down to prevent overlapping
+        pirate_rank_y = staff_role and 350 or 310
         draw.text(
-            (xp_bar_x, xp_bar_y + 50),
-            f"Pirate Rank: {pirate_rank}", fill=(255, 255, 255, 255), font=regular_font
+            (xp_bar_x, pirate_rank_y),
+            f"Pirate Rank: {cleaned_pirate_rank}", 
+            fill=(255, 255, 255, 255), 
+            font=regular_font
         )
         
-        # Bounty
-        bounty_y = xp_bar_y + 90
+        # Bounty - moved down to prevent overlapping
+        bounty_y = pirate_rank_y + 50
+        # Draw a more prominent background for bounty
         draw.rectangle(
-            (xp_bar_x, bounty_y, xp_bar_x + xp_bar_width, bounty_y + 40),
-            fill=(102, 51, 0, 80), outline=(246, 224, 94, 255), width=2
+            (xp_bar_x, bounty_y, xp_bar_x + xp_bar_width, bounty_y + 50),
+            fill=(102, 51, 0, 100),
+            outline=(246, 224, 94, 255),
+            width=3
         )
         
+        # Make bounty text larger and more prominent
+        bounty_font = await self._get_font(32, bold=True)
         draw.text(
-            (xp_bar_x + 10, bounty_y + 8),
-            f"BOUNTY: {bounty}", fill=(246, 224, 94, 255), font=regular_font
+            (xp_bar_x + xp_bar_width // 2, bounty_y + 25),
+            f"BOUNTY: {bounty}",
+            fill=(246, 224, 94, 255),
+            font=bounty_font,
+            anchor="mm" if hasattr(bounty_font, "getsize") else None
         )
         
-        # Join date
+        # Join date - moved to bottom
         join_date = member.joined_at.strftime("%B %d, %Y") if member.joined_at else "Unknown"
         draw.text(
-            (xp_bar_x, xp_bar_y + 140),
-            f"Joined the crew: {join_date}", fill=(180, 180, 180, 255), font=small_font
+            (xp_bar_x, height - 40),
+            f"Joined the crew: {join_date}", 
+            fill=(180, 180, 180, 255), 
+            font=small_font
         )
         
         # Draw Straw Hat Jolly Roger in the top right
-        jolly_roger_size = 60
-        jolly_roger_x = width - jolly_roger_size - 20
-        jolly_roger_y = 20
+        jolly_roger_size = 80
+        jolly_roger_x = width - jolly_roger_size - 30
+        jolly_roger_y = 30
         
         # Draw the skull circle
         draw.ellipse(
@@ -771,21 +833,21 @@ class OnePieceProfile(commands.Cog):
         
         # Draw the crossbones
         draw.line(
-            [(jolly_roger_x + 15, jolly_roger_y + jolly_roger_size//2),
-             (jolly_roger_x + jolly_roger_size - 15, jolly_roger_y + jolly_roger_size//2)],
-            fill=(255, 255, 255, 255), width=5
+            [(jolly_roger_x + 20, jolly_roger_y + jolly_roger_size//2),
+             (jolly_roger_x + jolly_roger_size - 20, jolly_roger_y + jolly_roger_size//2)],
+            fill=(255, 255, 255, 255), width=6
         )
         draw.line(
-            [(jolly_roger_x + jolly_roger_size//2, jolly_roger_y + 15),
-             (jolly_roger_x + jolly_roger_size//2, jolly_roger_y + jolly_roger_size - 15)],
-            fill=(255, 255, 255, 255), width=5
+            [(jolly_roger_x + jolly_roger_size//2, jolly_roger_y + 20),
+             (jolly_roger_x + jolly_roger_size//2, jolly_roger_y + jolly_roger_size - 20)],
+            fill=(255, 255, 255, 255), width=6
         )
         
         # Add some One Piece themed decorative elements
         # Devil Fruit swirl pattern in bottom left
-        swirl_size = 100
-        swirl_x = 30
-        swirl_y = height - 120
+        swirl_size = 120
+        swirl_x = 40
+        swirl_y = height - 140
         
         # Draw simplified devil fruit swirl
         for i in range(0, 361, 30):
@@ -795,7 +857,7 @@ class OnePieceProfile(commands.Cog):
             y1 = swirl_y + swirl_size/2 + radius * math.sin(angle)
             x2 = swirl_x + swirl_size/2 + radius * math.cos(angle + math.radians(20))
             y2 = swirl_y + swirl_size/2 + radius * math.sin(angle + math.radians(20))
-            draw.line([(x1, y1), (x2, y2)], fill=(100, 50, 50, 80), width=3)
+            draw.line([(x1, y1), (x2, y2)], fill=(100, 50, 50, 80), width=4)
         
         # Convert image to bytes
         buffer = BytesIO()
