@@ -11,8 +11,9 @@ from redbot.core import Config
 from redbot.core.bot import Red
 
 from ...constants import CATCH_TIMEOUT, MEGA_STONES, Z_CRYSTALS, PRIMAL_ORBS
-from .api import fetch_pokemon, get_random_pokemon_id
-from .formatters import format_pokemon_name, create_spawn_embed
+# Fix the import path to look for api in the parent directory
+from ..api import fetch_pokemon, get_random_pokemon_id
+from ..formatters import format_pokemon_name, create_spawn_embed
 
 log = logging.getLogger("red.pokemon")
 
