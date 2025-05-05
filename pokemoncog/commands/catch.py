@@ -6,6 +6,7 @@ from redbot.core import commands
 from redbot.core.bot import Red
 from redbot.core.config import Config
 
+# Fix the import paths
 from ..utils.spawn import is_correct_catch, add_pokemon_to_user
 from ..utils.formatters import format_pokemon_name
 
