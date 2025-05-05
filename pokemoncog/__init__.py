@@ -13,5 +13,7 @@ __red_end_user_data_statement__ = (
 
 async def setup(bot: Red) -> None:
     """Load the PokemonCog."""
+    # Create an instance of the cog
     cog = PokemonCog(bot)
+    # Add the cog to the bot
     await bot.add_cog(cog)
