@@ -15,7 +15,7 @@ async def setup(bot: Red):
 class SettingsCommands:
     """Class to handle Pokemon settings commands."""
 
-    @commands.group(name="settings", aliases=["set"])
+    @commands.group(name="settings", aliases=["pokemonsettings"])
     @commands.admin_or_permissions(manage_channels=True)
     async def pokemon_settings(self, ctx: commands.Context):
         """Configure Pokemon cog settings."""
