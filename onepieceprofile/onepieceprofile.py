@@ -27,12 +27,12 @@ class OnePieceProfile(commands.Cog):
         default_guild = {
             "staff_roles": ["Admin", "Moderator", "Helper"],
             "sea_roles": {
-                "East Blue": {"color": "#3498db", "min_level": 0},
-                "West Blue": {"color": "#2ecc71", "min_level": 10},
-                "North Blue": {"color": "#9b59b6", "min_level": 20},
-                "South Blue": {"color": "#e74c3c", "min_level": 30},
-                "Grand Line": {"color": "#f1c40f", "min_level": 40},
-                "New World": {"color": "#e67e22", "min_level": 50}
+                "East Blue": {"color": "#3498db"},
+                "West Blue": {"color": "#2ecc71"},
+                "North Blue": {"color": "#9b59b6"},
+                "South Blue": {"color": "#e74c3c"},
+                "Grand Line": {"color": "#f1c40f"},
+                "New World": {"color": "#e67e22"}
             },
             "pirate_ranks": {
                 "0": "Cabin Boy",
@@ -113,31 +113,21 @@ class OnePieceProfile(commands.Cog):
                 return role.name
         return None
     
-    async def get_sea_role(self, member: discord.Member, level: int) -> Tuple[str, str]:
-        """Get member's sea role based on level"""
+    async def get_sea_role(self, member: discord.Member) -> Tuple[str, str]:
+        """Get member's sea role based on their assigned roles"""
         sea_roles = await self.config.guild(member.guild).sea_roles()
         
+        # Default sea role if none is found
+        default_sea = "East Blue"
+        default_color = sea_roles[default_sea]["color"]
+        
         # Check if member has a role that matches a sea role name
-        member_sea_role = None
         for role in member.roles:
             if role.name in sea_roles:
-                member_sea_role = role.name
-                break
+                return role.name, sea_roles[role.name]["color"]
         
-        # If member has a sea role, return it
-        if member_sea_role:
-            return member_sea_role, sea_roles[member_sea_role]["color"]
-        
-        # Otherwise, determine sea role based on level
-        current_sea = "East Blue"
-        current_min_level = 0
-        
-        for sea_name, sea_data in sea_roles.items():
-            if level >= sea_data["min_level"] and sea_data["min_level"] >= current_min_level:
-                current_sea = sea_name
-                current_min_level = sea_data["min_level"]
-                
-        return current_sea, sea_roles[current_sea]["color"]
+        # Return default if no sea role is found
+        return default_sea, default_color
     
     async def get_pirate_rank(self, level: int, guild: discord.Guild) -> str:
         """Get pirate rank based on level"""
@@ -343,8 +333,8 @@ class OnePieceProfile(commands.Cog):
             await ctx.send(f"Removed `{role_name}` from the staff roles list.")
     
     @profile_settings.command(name="searole")
-    async def set_sea_role(self, ctx: commands.Context, name: str, color: str, min_level: int):
-        """Set a sea role with a minimum level requirement and color"""
+    async def set_sea_role(self, ctx: commands.Context, name: str, color: str):
+        """Set a sea role with a custom color"""
         if not color.startswith("#"):
             color = f"#{color}"
         
@@ -357,10 +347,9 @@ class OnePieceProfile(commands.Cog):
             
         async with self.config.guild(ctx.guild).sea_roles() as sea_roles:
             sea_roles[name] = {
-                "color": color,
-                "min_level": min_level
+                "color": color
             }
-            await ctx.send(f"Set `{name}` as a sea role for level {min_level}+ with color {color}")
+            await ctx.send(f"Set `{name}` as a sea role with color {color}")
     
     @profile_settings.command(name="removesearole")
     async def remove_sea_role(self, ctx: commands.Context, *, name: str):
@@ -797,5 +786,5 @@ class OnePieceProfile(commands.Cog):
         return buffer
 
 
-def setup(bot):
-    bot.add_cog(OnePieceProfile(bot))
+async def setup(bot):
+    await bot.add_cog(OnePieceProfile(bot))
