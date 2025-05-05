@@ -371,7 +371,7 @@ class PokemonCog(
             # Check every 10 seconds
             await asyncio.sleep(10)
     
-    @commands.group(name="pokemon", aliases=["poke", "p"])
+    @commands.group(name="pokemon", aliases=["pkmn", "pokecog"])
     async def pokemon_commands(self, ctx: commands.Context):
         """Pokemon commands for catching and training Pokemon."""
         if ctx.invoked_subcommand is None:
