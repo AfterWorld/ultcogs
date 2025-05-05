@@ -50,7 +50,7 @@ class InfoCommands:
         embed = create_pokemon_info_embed(pokemon_data, user_pokemon_data)
         await ctx.send(embed=embed)
     
-    @commands.command(name="active", aliases=["a"])
+    @commands.command(name="active", aliases=["setactive"])
     async def set_active(self, ctx: commands.Context, pokemon_id: int):
         """Set a Pokemon as your active Pokemon."""
         user = ctx.author
