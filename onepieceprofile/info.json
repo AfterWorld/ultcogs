@@ -1,0 +1,24 @@
+{
+    "author": [
+        "UltPanda"
+    ],
+    "install_msg": "Thank you for installing the One Piece Profile cog! Use `[p]help wanted` to see available commands. This cog integrates with Vert's LevelUp cog to create One Piece themed profiles and wanted posters.",
+    "name": "OnePieceProfile",
+    "short": "Generate One Piece themed profiles and wanted posters",
+    "description": "Create One Piece themed profile cards with integration for LevelUp, display user level, custom staff ranks, sea role, pirate rank, and generate wanted posters.",
+    "tags": [
+        "onepiece",
+        "anime",
+        "profile",
+        "wantedposter",
+        "level"
+    ],
+    "requirements": [
+        "pillow"
+    ],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog does not persistently store data or metadata about users.",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
