@@ -623,9 +623,9 @@ class OnePieceProfile(commands.Cog):
         sea_color: str,
         bounty: str
     ) -> BytesIO:
-        """Create a One Piece themed profile image"""
-        # Base canvas size - increased height for better spacing
-        width, height = 800, 500
+        """Create a One Piece themed profile image with improved layout"""
+        # Base canvas size - increased for better layout
+        width, height = 800, 600
         
         # Try to parse sea_color
         try:
@@ -639,59 +639,72 @@ class OnePieceProfile(commands.Cog):
         image = Image.new("RGBA", (width, height), (45, 55, 72, 255))
         draw = ImageDraw.Draw(image)
         
-        # Load fonts with larger sizes
-        title_font = await self._get_font(48, bold=True)
-        regular_font = await self._get_font(28)
-        small_font = await self._get_font(22)
+        # Load fonts - larger sizes for better readability
+        title_font = await self._get_font(50, bold=True)
+        regular_font = await self._get_font(32)
+        small_font = await self._get_font(24)
+        bounty_font = await self._get_font(36, bold=True)
             
-        # Draw banner gradient with sea color influence
+        # Draw top banner - increased height
+        banner_height = 180
+        # Create gradient with sea color
         for x in range(width):
             # Create a gradient from sea color to darker version
             r = max(0, min(255, int(sea_color_rgb[0] - (sea_color_rgb[0] * 0.5) * (x / width))))
             g = max(0, min(255, int(sea_color_rgb[1] - (sea_color_rgb[1] * 0.5) * (x / width))))
             b = max(0, min(255, int(sea_color_rgb[2] - (sea_color_rgb[2] * 0.5) * (x / width))))
-            draw.line([(x, 0), (x, 140)], fill=(r, g, b, 255))
+            draw.line([(x, 0), (x, banner_height)], fill=(r, g, b, 255))
             
         # Get user avatar
         avatar_bytes = await self._get_avatar(member)
+        avatar_size = 150
+        avatar_x = 50
+        avatar_y = (banner_height - avatar_size) // 2 + 20
         
         try:
-            # Process avatar - increased size
+            # Process avatar with larger size
             if avatar_bytes:
                 avatar_img = Image.open(avatar_bytes)
-                avatar_img = avatar_img.resize((140, 140))
+                avatar_img = avatar_img.resize((avatar_size, avatar_size))
                 
                 # Create circular mask for avatar
-                mask = Image.new("L", (140, 140), 0)
+                mask = Image.new("L", (avatar_size, avatar_size), 0)
                 mask_draw = ImageDraw.Draw(mask)
-                mask_draw.ellipse((0, 0, 140, 140), fill=255)
+                mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
                 
                 # Apply circular mask to avatar
-                avatar_circle = Image.new("RGBA", (140, 140), (0, 0, 0, 0))
+                avatar_circle = Image.new("RGBA", (avatar_size, avatar_size), (0, 0, 0, 0))
                 avatar_circle.paste(avatar_img, (0, 0), mask)
                 
                 # Paste avatar onto main image
-                image.paste(avatar_circle, (50, 70), avatar_circle)
+                image.paste(avatar_circle, (avatar_x, avatar_y), avatar_circle)
             else:
                 # If avatar can't be loaded, draw a placeholder circle
-                draw.ellipse((50, 70, 190, 210), fill=(200, 200, 200, 255))
+                draw.ellipse((avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size), 
+                            fill=(200, 200, 200, 255))
         except:
             # If any error occurs, draw a placeholder circle
-            draw.ellipse((50, 70, 190, 210), fill=(200, 200, 200, 255))
+            draw.ellipse((avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size), 
+                        fill=(200, 200, 200, 255))
             
-        # Draw username - moved to better position
-        draw.text((220, 140), member.display_name, fill=(255, 255, 255, 255), font=title_font)
+        # Draw username 
+        name_x = avatar_x + avatar_size + 40
+        name_y = avatar_y + 20
+        draw.text((name_x, name_y), member.display_name, fill=(255, 255, 255, 255), font=title_font)
         
-        # Draw sea role indicator
+        # Draw sea role with proper positioning
+        sea_x = name_x
+        sea_y = name_y + title_font.getsize("A")[1] + 20 if hasattr(title_font, "getsize") else name_y + 60
         draw.text(
-            (220, 200),
+            (sea_x, sea_y),
             f"Sea: {sea_role}",
             fill=sea_color_rgb,
             font=regular_font
         )
         
         # Draw level badge
-        level_badge_x, level_badge_y = 680, 70
+        level_badge_x = width - 120
+        level_badge_y = 50
         level_badge_size = 100
         draw.ellipse(
             (level_badge_x, level_badge_y, 
@@ -706,7 +719,6 @@ class OnePieceProfile(commands.Cog):
         
         # Draw level text with better positioning
         level_text = f"LVL {level}"
-        text_w = title_font.getsize(level_text)[0] if hasattr(title_font, "getsize") else 0
         draw.text(
             (level_badge_x + level_badge_size//2, level_badge_y + level_badge_size//2),
             level_text, 
@@ -715,9 +727,60 @@ class OnePieceProfile(commands.Cog):
             anchor="mm" if hasattr(regular_font, "getsize") else None
         )
         
-        # Draw XP bar - moved down
-        xp_bar_x, xp_bar_y = 220, 260
-        xp_bar_width, xp_bar_height = 520, 30
+        # Start drawing elements below the banner
+        content_start_y = banner_height + 20
+        content_padding = 40
+        
+        # Draw pirate rank - now with better position and emphasis
+        # For pirate rank - handle emojis by removing them for display
+        # Discord will render them separately
+        cleaned_pirate_rank = pirate_rank
+        if ":moneybag:" in pirate_rank:
+            cleaned_pirate_rank = pirate_rank.replace(":moneybag:", "").strip()
+        
+        # Create a background box for pirate rank
+        rank_x = content_padding
+        rank_y = content_start_y
+        rank_text = f"Rank: {cleaned_pirate_rank}"
+        rank_text_width = regular_font.getsize(rank_text)[0] if hasattr(regular_font, "getsize") else 500
+        rank_height = regular_font.getsize(rank_text)[1] if hasattr(regular_font, "getsize") else 40
+        
+        # Draw pirate rank with improved visibility
+        draw.rectangle(
+            (rank_x - 10, rank_y - 5,
+             rank_x + rank_text_width + 20, rank_y + rank_height + 5),
+            fill=(60, 60, 80, 180),
+            outline=(100, 100, 120, 255),
+            width=2
+        )
+        
+        draw.text(
+            (rank_x, rank_y),
+            rank_text,
+            fill=(255, 255, 255, 255),
+            font=regular_font
+        )
+        
+        # Draw XP bar
+        xp_bar_x = content_padding
+        xp_bar_y = rank_y + rank_height + 40
+        xp_bar_width = width - (content_padding * 2)
+        xp_bar_height = 30
+        
+        # XP text above progress bar
+        xp_text = f"XP: {xp}/{xp_needed}"
+        draw.text(
+            (xp_bar_x, xp_bar_y - 35),
+            xp_text, fill=(200, 200, 200, 255), font=small_font
+        )
+        
+        # Rank position on right side
+        rank_text = f"Rank #{rank}" if rank > 0 else "Unranked"
+        rank_text_width = small_font.getsize(rank_text)[0] if hasattr(small_font, "getsize") else 100
+        draw.text(
+            (xp_bar_x + xp_bar_width - rank_text_width, xp_bar_y - 35),
+            rank_text, fill=(200, 200, 200, 255), font=small_font
+        )
         
         # Background bar
         draw.rectangle(
@@ -740,81 +803,57 @@ class OnePieceProfile(commands.Cog):
                 [(xp_bar_x + px, xp_bar_y), (xp_bar_x + px, xp_bar_y + xp_bar_height)],
                 fill=(r, g, b, 255)
             )
-            
-        # XP text
-        xp_text = f"XP: {xp}/{xp_needed}"
-        draw.text(
-            (xp_bar_x, xp_bar_y - 30),
-            xp_text, fill=(200, 200, 200, 255), font=small_font
-        )
-        
-        # Rank text - aligned right
-        rank_text = f"Rank #{rank}" if rank > 0 else "Unranked"
-        rank_text_width = small_font.getsize(rank_text)[0] if hasattr(small_font, "getsize") else 0
-        draw.text(
-            (xp_bar_x + xp_bar_width - rank_text_width, xp_bar_y - 30),
-            rank_text, fill=(200, 200, 200, 255), font=small_font
-        )
         
         # Staff role badge (if any)
+        staff_y = xp_bar_y + xp_bar_height + 40
         if staff_role:
-            staff_badge_x, staff_badge_y = 220, 310
+            staff_badge_x = content_padding
             staff_text = staff_role.upper()
-            staff_text_width = small_font.getsize(staff_text)[0] if hasattr(small_font, "getsize") else 0
+            staff_text_width = small_font.getsize(staff_text)[0] if hasattr(small_font, "getsize") else 100
             
             # Draw badge background
             draw.rectangle(
-                (staff_badge_x, staff_badge_y,
-                 staff_badge_x + staff_text_width + 20, staff_badge_y + 30),
+                (staff_badge_x, staff_y,
+                 staff_badge_x + staff_text_width + 20, staff_y + 30),
                 fill=(229, 62, 62, 255)
             )
             
             # Draw badge text
             draw.text(
-                (staff_badge_x + 10, staff_badge_y + 5),
+                (staff_badge_x + 10, staff_y + 5),
                 staff_text, fill=(255, 255, 255, 255), font=small_font
             )
         
-        # For pirate rank - handle emojis by not displaying them (Discord handles emojis separately)
-        # Remove emoji part if present
-        cleaned_pirate_rank = pirate_rank
-        if ":moneybag:" in pirate_rank:
-            cleaned_pirate_rank = pirate_rank.replace(":moneybag:", "").strip()
-            
-        # Pirate rank - moved down to prevent overlapping
-        pirate_rank_y = staff_role and 350 or 310
-        draw.text(
-            (xp_bar_x, pirate_rank_y),
-            f"Pirate Rank: {cleaned_pirate_rank}", 
-            fill=(255, 255, 255, 255), 
-            font=regular_font
-        )
+        # Bounty display - Golden box with prominent display
+        bounty_y = staff_y + (40 if staff_role else 0) + 40
+        bounty_height = 60
         
-        # Bounty - moved down to prevent overlapping
-        bounty_y = pirate_rank_y + 50
-        # Draw a more prominent background for bounty
+        # Draw a prominent golden background for bounty
         draw.rectangle(
-            (xp_bar_x, bounty_y, xp_bar_x + xp_bar_width, bounty_y + 50),
-            fill=(102, 51, 0, 100),
-            outline=(246, 224, 94, 255),
+            (content_padding, bounty_y,
+             width - content_padding, bounty_y + bounty_height),
+            fill=(101, 67, 33, 220),  # Dark gold/brown
+            outline=(255, 215, 0, 255),  # Gold outline
             width=3
         )
         
-        # Make bounty text larger and more prominent
-        bounty_font = await self._get_font(32, bold=True)
+        # Create centered bounty text
+        bounty_text = f"BOUNTY: {bounty}"
         draw.text(
-            (xp_bar_x + xp_bar_width // 2, bounty_y + 25),
-            f"BOUNTY: {bounty}",
-            fill=(246, 224, 94, 255),
+            (width // 2, bounty_y + bounty_height // 2),
+            bounty_text,
+            fill=(255, 223, 0, 255),  # Bright gold text
             font=bounty_font,
             anchor="mm" if hasattr(bounty_font, "getsize") else None
         )
         
-        # Join date - moved to bottom
+        # Join date at bottom
         join_date = member.joined_at.strftime("%B %d, %Y") if member.joined_at else "Unknown"
+        join_text = f"Joined the crew: {join_date}"
+        
         draw.text(
-            (xp_bar_x, height - 40),
-            f"Joined the crew: {join_date}", 
+            (content_padding, height - 60),
+            join_text, 
             fill=(180, 180, 180, 255), 
             font=small_font
         )
@@ -822,7 +861,7 @@ class OnePieceProfile(commands.Cog):
         # Draw Straw Hat Jolly Roger in the top right
         jolly_roger_size = 80
         jolly_roger_x = width - jolly_roger_size - 30
-        jolly_roger_y = 30
+        jolly_roger_y = level_badge_y + level_badge_size + 20
         
         # Draw the skull circle
         draw.ellipse(
@@ -843,8 +882,7 @@ class OnePieceProfile(commands.Cog):
             fill=(255, 255, 255, 255), width=6
         )
         
-        # Add some One Piece themed decorative elements
-        # Devil Fruit swirl pattern in bottom left
+        # Add a Devil Fruit swirl pattern in bottom left
         swirl_size = 120
         swirl_x = 40
         swirl_y = height - 140
