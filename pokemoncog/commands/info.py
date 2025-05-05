@@ -193,7 +193,7 @@ class InfoCommands:
         embed = create_pokedex_embed(pokemon_data, has_caught)
         await ctx.send(embed=embed)
         
-    @commands.command(name="rename")
+    @commands.command(name="renick")
     async def rename_pokemon(self, ctx: commands.Context, pokemon_id: int, *, nickname: str):
         """Give a nickname to your Pokemon."""
         user = ctx.author
