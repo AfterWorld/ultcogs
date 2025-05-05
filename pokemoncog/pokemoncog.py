@@ -24,7 +24,7 @@ from .commands.team import TeamCommands
 from .commands.info import InfoCommands
 
 # Import utility functions
-from .utils.spawn import spawn_pokemon, expire_spawn, add_pokemon_to_user, spawn_legendary, is_correct_catch
+from .utils.formatting.spawn import spawn_pokemon, expire_spawn, add_pokemon_to_user, spawn_legendary, is_correct_catch
 from .utils.api import fetch_pokemon, fetch_all_forms, get_random_pokemon_id
 from .utils.formatters import format_pokemon_name
 
