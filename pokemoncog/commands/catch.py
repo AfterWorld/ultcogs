@@ -6,8 +6,8 @@ from redbot.core import commands
 from redbot.core.bot import Red
 from redbot.core.config import Config
 
-# Fix the import paths
-from ..utils.formatting.spawn import is_correct_catch, add_pokemon_to_user
+# Fix the import paths to use the correct path
+from ..utils import is_correct_catch, add_pokemon_to_user
 from ..utils.formatters import format_pokemon_name
 
 async def setup(bot: Red):
