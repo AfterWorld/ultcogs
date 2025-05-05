@@ -459,10 +459,14 @@ class Suggestion(commands.Cog):
         if not suggestion_id:
             return
         
+        # Get the suggestion data
+        suggestion_data = suggestions[suggestion_id]
+        
         # Check if this is an upvote and we need to forward to staff
         if (str(payload.emoji) == UPVOTE_EMOJI and 
             guild_config["staff_channel"] and 
-            suggestions[suggestion_id]["status"] == "pending"):
+            suggestion_data["status"] == "pending" and
+            suggestion_data.get("staff_message_id") is None):  # Only if no staff message yet
             
             channel = self.bot.get_channel(payload.channel_id)
             if not channel:
@@ -488,7 +492,6 @@ class Suggestion(commands.Cog):
                 if not staff_channel:
                     return
                 
-                suggestion_data = suggestions[suggestion_id]
                 author = guild.get_member(suggestion_data["author_id"])
                 author_name = author.display_name if author else "Unknown User"
                 
