@@ -49,7 +49,7 @@ class OnePieceProfile(commands.Cog):
         }
         
         self.config.register_guild(**default_guild)
-        self.session = aiohttp.ClientSession()
+        self.session = None  # Will be initialized in initialize()
         
         # Set up paths
         self.data_path = cog_data_path(self)
@@ -60,13 +60,19 @@ class OnePieceProfile(commands.Cog):
         for path in [self.font_path, self.image_path]:
             if not os.path.exists(path):
                 os.makedirs(path)
+    
+    async def initialize(self):
+        """Initialize the cog - sets up the ClientSession"""
+        self.session = aiohttp.ClientSession()
         
-        # Bundle path for default assets
-        self.bundle_path = bundled_data_path(self)
+    async def cog_load(self):
+        """Called when the cog is loaded"""
+        await self.initialize()
     
     def cog_unload(self):
-        # Close aiohttp session when cog is unloaded
-        asyncio.create_task(self.session.close())
+        """Called when the cog is unloaded - closes the ClientSession"""
+        if self.session:
+            asyncio.create_task(self.session.close())
     
     async def get_levelup_data(self, member: discord.Member) -> Optional[Dict[str, Any]]:
         """Get level data from Vert's LevelUp cog"""
@@ -183,6 +189,9 @@ class OnePieceProfile(commands.Cog):
     
     async def _get_avatar(self, member: discord.Member) -> Optional[BytesIO]:
         """Download and process member's avatar"""
+        if self.session is None:
+            await self.initialize()
+            
         avatar_url = str(member.display_avatar.url)
         if not avatar_url:
             # Create empty avatar if none exists
@@ -273,7 +282,7 @@ class OnePieceProfile(commands.Cog):
             staff_role = await self.get_staff_role(member)
             
             # Get sea role and color
-            sea_role, sea_color = await self.get_sea_role(member, level_data["level"])
+            sea_role, sea_color = await self.get_sea_role(member)
             
             # Get pirate rank
             pirate_rank = await self.get_pirate_rank(level_data["level"], member.guild)
@@ -385,8 +394,8 @@ class OnePieceProfile(commands.Cog):
         
         # Format sea roles
         sea_roles_formatted = "\n".join(
-            [f"{sea}: Level {data['min_level']}+ ({data['color']})" for sea, data in sorted(
-                settings["sea_roles"].items(), key=lambda x: x[1]["min_level"]
+            [f"{sea}: {data['color']}" for sea, data in sorted(
+                settings["sea_roles"].items(), key=lambda x: x[0]
             )]
         )
         
@@ -784,7 +793,3 @@ class OnePieceProfile(commands.Cog):
         buffer.seek(0)
         
         return buffer
-
-
-async def setup(bot):
-    await bot.add_cog(OnePieceProfile(bot))
