@@ -1,0 +1,12 @@
+{
+    "author": ["UltPanda"],
+    "description": "A comprehensive Pokemon cog for catching and training Pokemon in your Discord server. Features include wild Pokemon spawns, evolutions, special forms, team management, items, and more!",
+    "install_msg": "Thanks for installing the Pokemon cog! Use `[p]help pokemon` to see all available commands. Start by setting a spawn channel with `[p]pokemon settings channel #channel-name`.",
+    "short": "Catch and train Pokemon in your Discord server!",
+    "tags": ["pokemon", "games", "fun", "rpg"],
+    "requirements": ["aiohttp"],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
