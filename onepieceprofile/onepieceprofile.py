@@ -35,14 +35,21 @@ class OnePieceProfile(commands.Cog):
                 "New World": {"color": "#e67e22"}
             },
             "pirate_ranks": {
-                "0": "Cabin Boy",
-                "5": "Apprentice",
-                "10": "Pirate",
-                "20": "First Mate",
-                "30": "Captain",
-                "40": "Shichibukai",
-                "50": "Yonko",
-                "60": "Pirate King"
+                "1": ":moneybag: Chore Boy [LVL 1]",
+                "5": ":moneybag: Petty Officer [LVL 5]",
+                "10": ":moneybag: Chief Petty Officer [LVL 10]",
+                "15": ":moneybag: Warrant Officer [LVL 15]",
+                "20": ":moneybag: Lieutenant [LVL 20]",
+                "25": ":moneybag: Captain [LVL 25]",
+                "30": ":moneybag: Commodore [LVL 30]",
+                "35": ":moneybag: Rear Admiral [LVL 35]"
+                "40": ":moneybag: Vice Admiral [LVL 40]",
+                "45": ":moneybag: Buggy's Right-hand [LVL 45]",
+                "50": ":moneybag: Kidd's Right-Hand [LVL 50]",
+                "55": ":moneybag: Law's Right-Hand [LVL 55]",
+                "65": ":moneybag: Shanks's Right-Hand [LVL 65]",
+                "70": ":moneybag: Luffy's Right-Hand [LVL 70]",
+                "100": ":moneybag: WORLDS WORST CRIMINAL [LVL 100]",
             },
             "use_default_images": True,
             "custom_background": None
