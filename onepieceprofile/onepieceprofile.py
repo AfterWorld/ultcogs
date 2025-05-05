@@ -210,7 +210,7 @@ class OnePieceProfile(commands.Cog):
         except:
             return None
     
-    @commands.group(name="wanted")
+    @commands.group(name="opwanted")
     @commands.guild_only()
     async def _wanted(self, ctx: commands.Context):
         """One Piece wanted poster commands"""
