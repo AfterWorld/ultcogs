@@ -15,7 +15,7 @@ async def setup(bot: Red):
 class InfoCommands:
     """Class to handle Pokemon information commands."""
     
-    @commands.command(name="info", aliases=["i"])
+    @commands.command(name="pinfo", aliases=["i"])
     async def pokemon_info(self, ctx: commands.Context, pokemon_id: int = None):
         """Get detailed information about a Pokemon."""
         user = ctx.author
