@@ -146,7 +146,10 @@ class OnePieceProfile(commands.Cog):
         """Get pirate rank based on level"""
         pirate_ranks = await self.config.guild(guild).pirate_ranks()
         
-        rank_name = pirate_ranks["0"]  # Default rank
+        # Set default rank as the lowest available rank
+        default_level = min(pirate_ranks.keys(), key=lambda x: int(x))
+        rank_name = pirate_ranks[default_level]  # Default rank
+        
         for req_level, name in sorted(pirate_ranks.items(), key=lambda x: int(x[0])):
             if level >= int(req_level):
                 rank_name = name
