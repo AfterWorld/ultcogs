@@ -42,7 +42,7 @@ class OnePieceProfile(commands.Cog):
                 "20": ":moneybag: Lieutenant [LVL 20]",
                 "25": ":moneybag: Captain [LVL 25]",
                 "30": ":moneybag: Commodore [LVL 30]",
-                "35": ":moneybag: Rear Admiral [LVL 35]"
+                "35": ":moneybag: Rear Admiral [LVL 35]",
                 "40": ":moneybag: Vice Admiral [LVL 40]",
                 "45": ":moneybag: Buggy's Right-hand [LVL 45]",
                 "50": ":moneybag: Kidd's Right-Hand [LVL 50]",
