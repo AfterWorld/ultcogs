@@ -1159,7 +1159,7 @@ class OnePieceMods(commands.Cog):
     
     # Utility Commands
     
-    @commands.command(name="bountycheck", aliases=["checkbounty", "bounty"])
+    @commands.command(name="bountycheck", aliases=["checkbounty", "bountyc"])
     @commands.guild_only()
     async def bountycheck(self, ctx, member: discord.Member = None):
         """Check a member's current bounty/warning level
