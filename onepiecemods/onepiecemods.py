@@ -1242,7 +1242,7 @@ class OnePieceMods(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @commands.command(name="crewhistory", aliases=["history", "modlogs"])
+    @commands.command(name="crewhistory", aliases=["history", "mlogs"])
     @commands.guild_only()
     @commands.mod_or_permissions(manage_messages=True)
     async def crewhistory(self, ctx, member: discord.Member):
