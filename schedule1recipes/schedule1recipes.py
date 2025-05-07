@@ -659,7 +659,7 @@ class Schedule1Recipes(commands.Cog):
             # Use Red's menu system for pagination
             await menu(ctx, pages, DEFAULT_CONTROLS)
     
-    @s1.command(name="details", aliases=["recipe", "info"])
+    @s1.command(name="details", aliases=["recipe", "i"])
     async def recipe_details(self, ctx, *, recipe_name: str):
         """
         Show detailed information about a specific recipe
@@ -1385,7 +1385,7 @@ class Schedule1Recipes(commands.Cog):
         
         Examples:
             [p]s1 about
-            [p]s1 info
+            [p]s1 i
             [p]s1 help
         """
         embed = discord.Embed(
