@@ -703,7 +703,7 @@ class OnePieceMods(commands.Cog):
             
             # Apply timeout if available (Discord feature)
             if ctx.guild.me.guild_permissions.moderate_members:
-                until = datetime.now() + timedelta(seconds=duration)
+                until = datetime.now(timezone.utc) + timedelta(seconds=duration)
                 await member.timeout(until, reason=f"Muted by {ctx.author}: {reason}")
             
             # Create the case
@@ -986,8 +986,8 @@ class OnePieceMods(commands.Cog):
         
         try:
             # Apply timeout for Discord's built-in timeout feature
-            timeout_duration = timedelta(minutes=min(duration, 10080))  # Cap at Discord's max
-            await member.timeout(timeout_duration, reason=f"Impel Down Level {level}: {reason}")
+            timeout_until = datetime.now(timezone.utc) + timedelta(minutes=min(duration, 10080))
+            await member.timeout(timeout_until, reason=f"Impel Down Level {level}: {reason}")
             
             # Get mute role ID
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
@@ -1242,7 +1242,7 @@ class OnePieceMods(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @commands.command(name="crewhistory", aliases=["history", "mlogs"])
+    @commands.command(name="crewhistory", aliases=["history", "modlogs"])
     @commands.guild_only()
     @commands.mod_or_permissions(manage_messages=True)
     async def crewhistory(self, ctx, member: discord.Member):
