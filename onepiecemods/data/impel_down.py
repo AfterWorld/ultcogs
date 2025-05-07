@@ -90,4 +90,18 @@ IMPEL_DOWN_GIFS = {
         "https://media.giphy.com/media/QaCaZIZ9ekMpk7jOOV/giphy.gif"   # Prison
     ],
     4: [
-        "
+        "https://media.giphy.com/media/hpFzR77MbQnwz3e40B/giphy.gif",  # Fire
+        "https://media.giphy.com/media/jnGQ4VFR1mCY0/giphy.gif",  # Burning
+        "https://media.giphy.com/media/SJX3gbZ2dbazhBYdUw/giphy.gif"   # Hot
+    ],
+    5: [
+        "https://media.giphy.com/media/l2YWxPbinlJYX5zMc/giphy.gif",  # Ice
+        "https://media.giphy.com/media/l0NwvDZqNwGSgR9jG/giphy.gif",  # Cold
+        "https://media.giphy.com/media/26BRvcWYLO5gRdAYw/giphy.gif"   # Freezing
+    ],
+    6: [
+        "https://media.giphy.com/media/12Pb87uq0Vwq2c/giphy.gif",  # Darkness
+        "https://media.giphy.com/media/FnatDQwEsJ4JHRBnH9/giphy.gif",  # Prison
+        "https://media.giphy.com/media/2kZsmWSFwFTfKQu1QH/giphy.gif"   # Chains
+    ]
+}
