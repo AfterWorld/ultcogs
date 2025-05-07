@@ -1,0 +1,10 @@
+{
+    "author": ["UltPanda"],
+    "description": "Get top drug recipes from Schedule 1 game.",
+    "install_msg": "Thanks for installing the Schedule1Recipes cog. Use `[p]help Schedule1Recipes` to see available commands.",
+    "short": "Fetch and display Schedule 1 game recipes",
+    "tags": ["game", "schedule1", "recipes"],
+    "requirements": ["beautifulsoup4"],
+    "type": "COG",
+    "end_user_data_statement": "This cog does not store any user data."
+}
