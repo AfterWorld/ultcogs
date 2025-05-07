@@ -30,7 +30,7 @@ WARN_GIFS = [
 WARN_ALIASES = [
     "bountyraise",
     "marinealert",
-    "wantedposter",
+    "poster",
     "increasebounty",
     "reportpirate"
 ]
