@@ -57,8 +57,8 @@ class OPTCG(commands.Cog):
         # Path to store cached card data
         self.data_path = cog_data_path(self) / "card_cache.json"
         
-        # API endpoint
-        self.api_url = "https://api.optcgapi.com/cards"
+        # API endpoint - UPDATED
+        self.api_url = "https://optcgapi.com/api"
         
         # Default settings
         default_global = {
@@ -132,15 +132,14 @@ class OPTCG(commands.Cog):
         """Load card data from cache file or API"""
         try:
             if os.path.exists(self.data_path):
-                async with self.config.card_cache_timestamp() as timestamp:
-                    # If cache is older than 24 hours, refresh it
-                    if time.time() - timestamp > 86400:  # 24 hours
-                        await self._fetch_and_cache_cards()
-                    else:
-                        # Load from cache file
-                        with open(self.data_path, "r", encoding="utf-8") as f:
-                            self.cards_cache = json.load(f)
-                        log.info(f"Loaded {len(self.cards_cache)} cards from cache")
+                timestamp = await self.config.card_cache_timestamp()
+                # If cache is older than 24 hours, refresh it
+                if time.time() - timestamp > 86400:  # 24 hours
+                    await self._fetch_and_cache_cards()
+                # Load from cache file regardless
+                with open(self.data_path, "r", encoding="utf-8") as f:
+                    self.cards_cache = json.load(f)
+                log.info(f"Loaded {len(self.cards_cache)} cards from cache")
             else:
                 # No cache exists, fetch from API
                 await self._fetch_and_cache_cards()
@@ -158,13 +157,42 @@ class OPTCG(commands.Cog):
             
             try:
                 log.info("Fetching cards from OPTCG API...")
-                # First check if we can get all cards
-                async with self.session.get(self.api_url) as resp:
+                
+                # Try to get available sets first
+                all_cards = {}
+                
+                # Using the correct API endpoints now
+                api_base = "https://optcgapi.com/api"
+                
+                # Try to get all sets first
+                async with self.session.get(f"{api_base}/allSets/") as resp:
                     if resp.status == 200:
-                        data = await resp.json()
+                        sets_data = await resp.json()
+                        log.info(f"Retrieved {len(sets_data)} sets from API")
                         
-                        # Process and cache the cards
-                        self.cards_cache = {str(card["card_id"]): card for card in data}
+                        # For each set, try to get all cards
+                        for set_info in sets_data:
+                            set_id = set_info.get("id")
+                            if not set_id:
+                                continue
+                                
+                            # Get all cards in this set
+                            async with self.session.get(f"{api_base}/sets/{set_id}/") as set_resp:
+                                if set_resp.status == 200:
+                                    set_cards = await set_resp.json()
+                                    log.info(f"Retrieved {len(set_cards)} cards from set {set_id}")
+                                    
+                                    # Process each card
+                                    for card in set_cards:
+                                        card_id = card.get("card_set_id")
+                                        if card_id:
+                                            # Convert to our standard format
+                                            processed_card = self._process_api_card(card)
+                                            all_cards[card_id] = processed_card
+                    
+                    # If we got any cards, update the cache
+                    if all_cards:
+                        self.cards_cache = all_cards
                         
                         # Save to file
                         with open(self.data_path, "w", encoding="utf-8") as f:
@@ -176,43 +204,89 @@ class OPTCG(commands.Cog):
                         
                         log.info(f"Fetched and cached {len(self.cards_cache)} cards from API")
                     else:
-                        # If we can't get all cards, try with a more specific endpoint
-                        log.warning(f"API returned status code {resp.status}, trying alternative endpoints")
+                        # If we couldn't get any cards from sets, try individual card lookup
+                        log.warning("Failed to get cards from sets, trying individual card lookup")
                         
-                        # Try alternative API endpoints that might help if the main one fails
-                        alt_endpoints = [
-                            "https://api.optcgapi.com/v1/cards",
-                            "https://api.optcgapi.com/cards/search"
-                        ]
+                        # Get a few sample card IDs to try
+                        sample_ids = ["OP01-001", "OP01-002", "OP01-003", "OP01-011", "OP01-021"]
                         
-                        for endpoint in alt_endpoints:
-                            log.info(f"Trying alternative endpoint: {endpoint}")
-                            async with self.session.get(endpoint) as alt_resp:
-                                if alt_resp.status == 200:
-                                    data = await alt_resp.json()
-                                    
-                                    # Process and cache the cards
-                                    self.cards_cache = {str(card["card_id"]): card for card in data}
-                                    
-                                    # Save to file
-                                    with open(self.data_path, "w", encoding="utf-8") as f:
-                                        json.dump(self.cards_cache, f, indent=4)
-                                    
-                                    # Update timestamps
-                                    await self.config.last_api_call.set(time.time())
-                                    await self.config.card_cache_timestamp.set(time.time())
-                                    
-                                    log.info(f"Fetched and cached {len(self.cards_cache)} cards from API")
-                                    break
-                        else:
-                            log.error("All API endpoints failed, using sample data as fallback")
-                            # Use a sample set of cards as fallback
+                        for card_id in sample_ids:
+                            async with self.session.get(f"{api_base}/sets/card/{card_id}/") as card_resp:
+                                if card_resp.status == 200:
+                                    card_data = await card_resp.json()
+                                    if card_data and isinstance(card_data, list):
+                                        # Take the first card (non-parallel version usually)
+                                        card = card_data[0]
+                                        processed_card = self._process_api_card(card)
+                                        all_cards[card_id] = processed_card
+                        
+                        # If we still didn't get any cards, fall back to sample cards
+                        if not all_cards:
+                            log.error("Failed to get any cards from API, falling back to sample cards")
                             self._load_sample_cards()
+                        else:
+                            # Save the cards we did manage to get
+                            self.cards_cache = all_cards
+
+                            # Save to file
+                            with open(self.data_path, "w", encoding="utf-8") as f:
+                                json.dump(self.cards_cache, f, indent=4)
+
+                            # Update timestamps
+                            await self.config.last_api_call.set(time.time())
+                            await self.config.card_cache_timestamp.set(time.time())
+
+                            log.info(f"Fetched and cached {len(self.cards_cache)} individual cards from API")
+                            
             except Exception as e:
                 log.error(f"Error fetching cards from API: {e}")
                 # Use a sample set of cards as fallback
                 self._load_sample_cards()
-                
+    
+    def _process_api_card(self, card_data):
+        """Convert API card data to our standard format"""
+        # Map rarity codes to full names
+        rarity_map = {
+            "L": "Leader",
+            "SR": "Super Rare",
+            "R": "Rare",
+            "U": "Uncommon",
+            "C": "Common",
+            "SEC": "Secret Rare"
+        }
+        
+        # Extract card data
+        card_id = card_data.get("card_set_id", "")
+        name = card_data.get("card_name", "").split(" (")[0]  # Remove the ID part from name
+        rarity_code = card_data.get("rarity", "C")
+        rarity = rarity_map.get(rarity_code, "Common")
+        card_type = card_data.get("card_type", "")
+        power = card_data.get("card_power", "N/A")
+        effect = card_data.get("card_text", "")
+        
+        # Construct an image URL
+        # Note: The API documentation doesn't mention image URLs
+        # We'll construct one based on a common pattern, or use a placeholder
+        image = f"https://en.onepiece-cardgame.com/images/card/{card_id}.png"
+        
+        # Return the processed card
+        return {
+            "card_id": card_id,
+            "name": name,
+            "rarity": rarity,
+            "card_type": card_type,
+            "power": power,
+            "effect": effect,
+            "image": image,
+            # Additional fields from API
+            "color": card_data.get("card_color", ""),
+            "cost": card_data.get("card_cost", ""),
+            "life": card_data.get("life", ""),
+            "sub_types": card_data.get("sub_types", ""),
+            "attribute": card_data.get("attribute", ""),
+            "set_name": card_data.get("set_name", "")
+        }
+    
     def _load_sample_cards(self):
         """Load a sample set of cards as fallback"""
         log.warning("Loading sample card data as fallback")
@@ -548,14 +622,40 @@ class OPTCG(commands.Cog):
         # Add card details
         card_type = card.get("card_type", "Unknown")
         power = card.get("power", "N/A")
+        color = card.get("color", "Unknown")
         
         embed.add_field(name="Type", value=card_type, inline=True)
+        embed.add_field(name="Color", value=color, inline=True)
         
         if card_type != "Event" and power != "N/A":
             embed.add_field(name="Power", value=power, inline=True)
         
-        if "effect" in card and card["effect"]:
-            embed.add_field(name="Effect", value=card["effect"], inline=False)
+        cost = card.get("cost", "")
+        if cost and cost != "NULL":
+            embed.add_field(name="Cost", value=cost, inline=True)
+            
+        life = card.get("life", "")
+        if life and life != "NULL":
+            embed.add_field(name="Life", value=life, inline=True)
+        
+        sub_types = card.get("sub_types", "")
+        if sub_types:
+            embed.add_field(name="Types", value=sub_types, inline=True)
+            
+        attribute = card.get("attribute", "")
+        if attribute:
+            embed.add_field(name="Attribute", value=attribute, inline=True)
+        
+        effect = card.get("effect", "")
+        if effect:
+            # Format effect text with proper line breaks
+            if len(effect) > 1024:
+                effect = effect[:1021] + "..."
+            embed.add_field(name="Effect", value=effect, inline=False)
+        
+        set_name = card.get("set_name", "")
+        if set_name:
+            embed.set_footer(text=f"Set: {set_name}")
         
         # Add claimer information if provided
         if claimer:
@@ -893,14 +993,31 @@ class OPTCG(commands.Cog):
         if rarity:
             title += f" - {rarity} Cards"
         
-        await menu(
-            ctx, 
-            embeds, 
-            DEFAULT_CONTROLS,
-            page_start=0,
-            timeout=60.0,
-            message=await ctx.send(f"**{title}** (Page 1/{len(embeds)})")
-        )
+        # Try different menu parameter sets to handle different versions of Red
+        try:
+            await menu(
+                ctx, 
+                embeds, 
+                DEFAULT_CONTROLS,
+                page_start=0,
+                timeout=60.0,
+                message=await ctx.send(f"**{title}** (Page 1/{len(embeds)})")
+            )
+        except TypeError:
+            try:
+                await menu(
+                    ctx, 
+                    embeds, 
+                    DEFAULT_CONTROLS,
+                    timeout=60.0,
+                    message=await ctx.send(f"**{title}** (Page 1/{len(embeds)})")
+                )
+            except TypeError:
+                await menu(
+                    ctx, 
+                    pages=embeds,
+                    controls=DEFAULT_CONTROLS
+                )
     
     @optcg.command(name="stats")
     @commands.guild_only()
@@ -976,92 +1093,6 @@ class OPTCG(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error refreshing card cache: {e}")
     
-    @optcg.command(name="leaderboard", aliases=["top"])
-    @commands.guild_only()
-    async def optcg_leaderboard(self, ctx: commands.Context, rarity: str = None):
-        """View the top card collectors in the server
-        
-        You can specify a rarity to see the top collectors for that rarity.
-        
-        Example:
-        - `[p]optcg leaderboard` - View overall leaderboard
-        - `[p]optcg leaderboard "Secret Rare"` - View leaderboard for Secret Rare cards
-        """
-        all_members = await self.config.all_members(ctx.guild)
-        
-        if not all_members:
-            return await ctx.send("No one has collected any cards yet.")
-        
-        # Build leaderboard data
-        leaderboard_data = []
-        
-        if rarity:
-            valid_rarities = list(RARITY_WEIGHTS.keys())
-            if rarity not in valid_rarities:
-                return await ctx.send(
-                    f"Invalid rarity. Valid options are: {humanize_list(valid_rarities)}"
-                )
-                
-            # Rarity-specific leaderboard
-            for member_id, member_data in all_members.items():
-                member = ctx.guild.get_member(member_id)
-                if member:
-                    count = member_data["stats"].get(rarity, 0)
-                    if count > 0:
-                        leaderboard_data.append((member, count))
-            
-            # Sort by count (descending)
-            leaderboard_data.sort(key=lambda x: x[1], reverse=True)
-            
-            # Create embed
-            embed = discord.Embed(
-                title=f"Top {rarity} Card Collectors",
-                description=f"Leaderboard for {RARITY_EMOJIS.get(rarity, '⚪')} {rarity} cards",
-                color=discord.Color.gold()
-            )
-        else:
-            # Overall leaderboard
-            for member_id, member_data in all_members.items():
-                member = ctx.guild.get_member(member_id)
-                if member:
-                    total_cards = len(member_data["cards"])
-                    if total_cards > 0:
-                        leaderboard_data.append((member, total_cards))
-            
-            # Sort by count (descending)
-            leaderboard_data.sort(key=lambda x: x[1], reverse=True)
-            
-            # Create embed
-            embed = discord.Embed(
-                title="Top Card Collectors",
-                description="Overall card collection leaderboard",
-                color=discord.Color.gold()
-            )
-        
-        # Limit to top 10
-        leaderboard_data = leaderboard_data[:10]
-        
-        if not leaderboard_data:
-            return await ctx.send(f"No one has collected any{' ' + rarity if rarity else ''} cards yet.")
-        
-        # Add leaderboard entries to embed
-        for i, (member, count) in enumerate(leaderboard_data, 1):
-            medal = ""
-            if i == 1:
-                medal = "🥇 "
-            elif i == 2:
-                medal = "🥈 "
-            elif i == 3:
-                medal = "🥉 "
-                
-            embed.add_field(
-                name=f"{medal}#{i} - {member.display_name}",
-                value=f"{count} cards",
-                inline=False
-            )
-        
-        await ctx.send(embed=embed)
-        
     @optcg.command(name="search")
     @commands.guild_only()
     async def optcg_search(self, ctx: commands.Context, *, search_term: str):
@@ -1121,10 +1152,8 @@ class OPTCG(commands.Cog):
             embed = await self._create_card_embed(card)
             embeds.append(embed)
         
-        # Show the matching cards using menu
-        # Different versions of Red have different menu parameters
+        # Show the matching cards - handle different versions of Red
         try:
-            # Try the newer version with page_start
             await menu(
                 ctx, 
                 embeds, 
@@ -1135,7 +1164,6 @@ class OPTCG(commands.Cog):
             )
         except TypeError:
             try:
-                # Try without page_start (older Red versions)
                 await menu(
                     ctx, 
                     embeds, 
@@ -1144,13 +1172,12 @@ class OPTCG(commands.Cog):
                     message=await ctx.send(f"**Search Results for '{search_term}'** (Page 1/{len(embeds)})")
                 )
             except TypeError:
-                # Fall back to the most basic form if needed
                 await menu(
                     ctx, 
                     pages=embeds,
                     controls=DEFAULT_CONTROLS
                 )
-        
+    
     @optcg.command(name="view")
     @commands.guild_only()
     async def optcg_view(self, ctx: commands.Context, card_id: str):
@@ -1167,210 +1194,6 @@ class OPTCG(commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @optcg.command(name="wipe")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def optcg_wipe(self, ctx: commands.Context, member: discord.Member = None):
-        """Wipe a user's card collection (Admin only)
-        
-        Example:
-        - `[p]optcg wipe @User` - Wipe the card collection of the specified user
-        """
-        if not member:
-            return await ctx.send("You must specify a user to wipe their collection.")
-        
-        # Ask for confirmation
-        confirm_msg = await ctx.send(
-            f"⚠️ Are you sure you want to wipe {member.mention}'s entire card collection? "
-            f"This action cannot be undone.\n\nReact with ✅ to confirm or ❌ to cancel."
-        )
-        
-        await confirm_msg.add_reaction("✅")
-        await confirm_msg.add_reaction("❌")
-        
-        def check(reaction, user):
-            return (
-                user == ctx.author
-                and reaction.message.id == confirm_msg.id
-                and str(reaction.emoji) in ["✅", "❌"]
-            )
-        
-        try:
-            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
-        except asyncio.TimeoutError:
-            await confirm_msg.delete()
-            return await ctx.send("Wipe canceled - you didn't respond in time.")
-        
-        if str(reaction.emoji) == "❌":
-            await confirm_msg.delete()
-            return await ctx.send("Wipe canceled.")
-        
-        # Wipe the collection
-        await self.config.member(member).clear()
-        
-        # Reinitialize the stats structure
-        default_stats = {
-            "Leader": 0,
-            "Secret Rare": 0,
-            "Super Rare": 0,
-            "Rare": 0,
-            "Uncommon": 0,
-            "Common": 0
-        }
-        await self.config.member(member).stats.set(default_stats)
-        
-        await confirm_msg.delete()
-        await ctx.send(f"✅ {member.mention}'s card collection has been wiped.")
-    
-    @optcg.command(name="trade")
-    @commands.guild_only()
-    async def optcg_trade(self, ctx: commands.Context, target: discord.Member, your_card_id: str, their_card_id: str):
-        """Propose a card trade with another user
-        
-        Example:
-        - `[p]optcg trade @User OP01-001 OP01-002` - Propose trading your OP01-001 for their OP01-002
-        """
-        if target.bot:
-            return await ctx.send("You can't trade with bots.")
-        
-        if target == ctx.author:
-            return await ctx.send("You can't trade with yourself.")
-        
-        # Check if both cards exist
-        if your_card_id not in self.cards_cache:
-            return await ctx.send(f"No card found with ID '{your_card_id}'")
-        
-        if their_card_id not in self.cards_cache:
-            return await ctx.send(f"No card found with ID '{their_card_id}'")
-        
-        # Check if you have the card
-        async with self.config.member(ctx.author).cards() as cards:
-            your_cards = [card["card_id"] for card in cards]
-            if your_card_id not in your_cards:
-                return await ctx.send(f"You don't have the card with ID '{your_card_id}'")
-        
-        # Check if the target has the card
-        async with self.config.member(target).cards() as cards:
-            their_cards = [card["card_id"] for card in cards]
-            if their_card_id not in their_cards:
-                return await ctx.send(f"{target.display_name} doesn't have the card with ID '{their_card_id}'")
-        
-        # Get the card information
-        your_card = self.cards_cache[your_card_id]
-        their_card = self.cards_cache[their_card_id]
-        
-        # Create the trade proposal embed
-        embed = discord.Embed(
-            title="Card Trade Proposal",
-            description=f"{ctx.author.mention} wants to trade with {target.mention}",
-            color=discord.Color.blue()
-        )
-        
-        # Add your card
-        your_rarity = your_card.get("rarity", "Common")
-        your_emoji = RARITY_EMOJIS.get(your_rarity, "⚪")
-        embed.add_field(
-            name=f"{ctx.author.display_name} offers:",
-            value=f"{your_emoji} **{your_card.get('name')}** ({your_card_id})",
-            inline=False
-        )
-        
-        # Add their card
-        their_rarity = their_card.get("rarity", "Common")
-        their_emoji = RARITY_EMOJIS.get(their_rarity, "⚪")
-        embed.add_field(
-            name=f"{target.display_name} offers:",
-            value=f"{their_emoji} **{their_card.get('name')}** ({their_card_id})",
-            inline=False
-        )
-        
-        embed.set_footer(text=f"{target.display_name}, react with ✅ to accept or ❌ to decline.")
-        
-        # Send the trade proposal
-        trade_msg = await ctx.send(embed=embed)
-        
-        await trade_msg.add_reaction("✅")
-        await trade_msg.add_reaction("❌")
-        
-        def check(reaction, user):
-            return (
-                user == target
-                and reaction.message.id == trade_msg.id
-                and str(reaction.emoji) in ["✅", "❌"]
-            )
-        
-        try:
-            reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
-        except asyncio.TimeoutError:
-            await trade_msg.edit(content="⏱️ Trade offer has expired.", embed=embed)
-            return
-        
-        if str(reaction.emoji) == "❌":
-            await trade_msg.edit(content="❌ Trade declined.", embed=embed)
-            return
-        
-        # Trade accepted - perform the trade
-        try:
-            # Remove your card
-            async with self.config.member(ctx.author).cards() as your_card_list:
-                for i, card in enumerate(your_card_list):
-                    if card["card_id"] == your_card_id:
-                        your_card_obj = your_card_list.pop(i)
-                        break
-            
-            # Remove their card
-            async with self.config.member(target).cards() as their_card_list:
-                for i, card in enumerate(their_card_list):
-                    if card["card_id"] == their_card_id:
-                        their_card_obj = their_card_list.pop(i)
-                        break
-            
-            # Add their card to your collection
-            async with self.config.member(ctx.author).cards() as your_card_list:
-                your_card_list.append({
-                    "card_id": their_card_id,
-                    "claimed_at": datetime.now().isoformat(),
-                    "obtained_via": "trade"
-                })
-            
-            # Add your card to their collection
-            async with self.config.member(target).cards() as their_card_list:
-                their_card_list.append({
-                    "card_id": your_card_id,
-                    "claimed_at": datetime.now().isoformat(),
-                    "obtained_via": "trade"
-                })
-            
-            # Update stats
-            # Remove from your stats
-            async with self.config.member(ctx.author).stats() as stats:
-                if your_rarity in stats:
-                    stats[your_rarity] = max(0, stats[your_rarity] - 1)
-            
-            # Remove from their stats
-            async with self.config.member(target).stats() as stats:
-                if their_rarity in stats:
-                    stats[their_rarity] = max(0, stats[their_rarity] - 1)
-            
-            # Add to your stats
-            async with self.config.member(ctx.author).stats() as stats:
-                if their_rarity in stats:
-                    stats[their_rarity] += 1
-                else:
-                    stats[their_rarity] = 1
-            
-            # Add to their stats
-            async with self.config.member(target).stats() as stats:
-                if your_rarity in stats:
-                    stats[your_rarity] += 1
-                else:
-                    stats[your_rarity] = 1
-            
-            await trade_msg.edit(content="✅ Trade completed successfully!", embed=embed)
-        except Exception as e:
-            log.error(f"Error during trade: {e}")
-            await trade_msg.edit(content="❌ Error occurred during the trade. No cards were exchanged.", embed=embed)
-            
     @optcg.command(name="debug")
     @commands.is_owner()
     async def optcg_debug(self, ctx: commands.Context):
@@ -1379,9 +1202,21 @@ class OPTCG(commands.Cog):
         debug_info = [
             f"Card cache size: {len(self.cards_cache)} cards",
             f"Card cache file exists: {os.path.exists(self.data_path)}",
-            f"Sample card names: {', '.join([card.get('name', 'Unknown') for card_id, card in list(self.cards_cache.items())[:5]])}",
-            f"Has 'Luffy' cards: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}"
         ]
+        
+        # Add sample card names if there are any cards
+        if self.cards_cache:
+            sample_cards = list(self.cards_cache.items())[:5]
+            debug_info.append(f"Sample card names: {', '.join([card.get('name', 'Unknown') for _, card in sample_cards])}")
+            debug_info.append(f"Has 'Luffy' cards: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}")
+            debug_info.append(f"Has 'Zoro' cards: {any('zoro' in card.get('name', '').lower() for card in self.cards_cache.values())}")
+            
+            # Add the first card's full data for debugging
+            first_card_id = next(iter(self.cards_cache))
+            first_card = self.cards_cache[first_card_id]
+            debug_info.append("\nSample card data:")
+            for key, value in first_card.items():
+                debug_info.append(f"  {key}: {value}")
         
         await ctx.send("```\n" + "\n".join(debug_info) + "\n```")
         
@@ -1391,151 +1226,18 @@ class OPTCG(commands.Cog):
         
         debug_info = [
             f"Card cache size after refresh: {len(self.cards_cache)} cards",
-            f"Sample card names after refresh: {', '.join([card.get('name', 'Unknown') for card_id, card in list(self.cards_cache.items())[:5]])}",
-            f"Has 'Luffy' cards after refresh: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}"
         ]
         
+        # Add sample card names if there are any cards
+        if self.cards_cache:
+            sample_cards = list(self.cards_cache.items())[:5]
+            debug_info.append(f"Sample card names after refresh: {', '.join([card.get('name', 'Unknown') for _, card in sample_cards])}")
+            debug_info.append(f"Has 'Luffy' cards after refresh: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}")
+            debug_info.append(f"Has 'Zoro' cards after refresh: {any('zoro' in card.get('name', '').lower() for card in self.cards_cache.values())}")
+        
         await ctx.send("```\n" + "\n".join(debug_info) + "\n```")
-    
-    @optcg.command(name="gift")
-    @commands.guild_only()
-    async def optcg_gift(self, ctx: commands.Context, target: discord.Member, card_id: str):
-        """Gift a card to another user
-        
-        Example:
-        - `[p]optcg gift @User OP01-001` - Gift your OP01-001 card to the specified user
-        """
-        if target.bot:
-            return await ctx.send("You can't gift cards to bots.")
-        
-        if target == ctx.author:
-            return await ctx.send("You can't gift cards to yourself.")
-        
-        # Check if the card exists
-        if card_id not in self.cards_cache:
-            return await ctx.send(f"No card found with ID '{card_id}'")
-        
-        # Check if you have the card
-        async with self.config.member(ctx.author).cards() as cards:
-            your_cards = [card["card_id"] for card in cards]
-            if card_id not in your_cards:
-                return await ctx.send(f"You don't have the card with ID '{card_id}'")
-        
-        # Get the card information
-        card = self.cards_cache[card_id]
-        rarity = card.get("rarity", "Common")
-        emoji = RARITY_EMOJIS.get(rarity, "⚪")
-        
-        # Ask for confirmation
-        confirm_msg = await ctx.send(
-            f"Are you sure you want to gift your {emoji} **{card.get('name')}** ({card_id}) to {target.mention}?\n"
-            f"React with ✅ to confirm or ❌ to cancel."
-        )
-        
-        await confirm_msg.add_reaction("✅")
-        await confirm_msg.add_reaction("❌")
-        
-        def check(reaction, user):
-            return (
-                user == ctx.author
-                and reaction.message.id == confirm_msg.id
-                and str(reaction.emoji) in ["✅", "❌"]
-            )
-        
-        try:
-            reaction, user = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
-        except asyncio.TimeoutError:
-            await confirm_msg.delete()
-            return await ctx.send("Gift canceled - you didn't respond in time.")
-        
-        if str(reaction.emoji) == "❌":
-            await confirm_msg.delete()
-            return await ctx.send("Gift canceled.")
-        
-        # Gift the card
-        try:
-            # Remove the card from your collection
-            async with self.config.member(ctx.author).cards() as your_card_list:
-                for i, card_obj in enumerate(your_card_list):
-                    if card_obj["card_id"] == card_id:
-                        your_card_obj = your_card_list.pop(i)
-                        break
-            
-            # Add the card to their collection
-            async with self.config.member(target).cards() as their_card_list:
-                their_card_list.append({
-                    "card_id": card_id,
-                    "claimed_at": datetime.now().isoformat(),
-                    "obtained_via": "gift"
-                })
-            
-            # Update stats
-            # Remove from your stats
-            async with self.config.member(ctx.author).stats() as stats:
-                if rarity in stats:
-                    stats[rarity] = max(0, stats[rarity] - 1)
-            
-            # Add to their stats
-            async with self.config.member(target).stats() as stats:
-                if rarity in stats:
-                    stats[rarity] += 1
-                else:
-                    stats[rarity] = 1
-            
-            await confirm_msg.delete()
-            await ctx.send(
-                f"✅ You have gifted your {emoji} **{card.get('name')}** to {target.mention}!"
-            )
-        except Exception as e:
-            log.error(f"Error during gift: {e}")
-            await confirm_msg.delete()
-            await ctx.send("❌ An error occurred while gifting the card. Please try again later.")
-    
-    @optcg.command(name="nextspawn")
-    @commands.guild_only()
-    @commands.mod_or_permissions(manage_messages=True)
-    async def optcg_nextspawn(self, ctx: commands.Context):
-        """Check when the next card will spawn (Mod only)"""
-        guild_data = await self.config.guild(ctx.guild).all()
-        
-        if not guild_data["enabled"]:
-            return await ctx.send("OPTCG card system is currently disabled in this server.")
-        
-        # Check if there's an active card
-        active_card = guild_data["active_card"]
-        if active_card:
-            channel_id = guild_data["spawn_channel"]
-            channel = ctx.guild.get_channel(channel_id)
-            if channel:
-                return await ctx.send(
-                    f"There is currently an active card waiting to be claimed in {channel.mention}."
-                )
-        
-        # Calculate time until next spawn
-        next_spawn = guild_data["next_spawn_time"]
-        if next_spawn:
-            now = time.time()
-            if now >= next_spawn:
-                time_str = "very soon"
-            else:
-                time_until = datetime.fromtimestamp(next_spawn) - datetime.now()
-                hours, remainder = divmod(time_until.seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                
-                time_str = ""
-                if hours > 0:
-                    time_str += f"{hours} hours, "
-                time_str += f"{minutes} minutes, and {seconds} seconds"
-                
-                # Also include actual timestamp
-                spawn_time = datetime.fromtimestamp(next_spawn)
-                time_str += f" (at {spawn_time.strftime('%I:%M %p')})"
-        else:
-            time_str = "unknown time"
-        
-        await ctx.send(f"The next card will spawn in {time_str}.")
 
-# This class needs to be imported at the top of the file
+
 class CardClaimView(discord.ui.View):
     """View with a button to claim a card"""
     
@@ -1615,15 +1317,23 @@ class CardClaimView(discord.ui.View):
                 # Clear the active card
                 await self.cog.config.guild(guild).active_card.clear()
                 
-                # Try to find the message
-                guild_data = await self.cog.config.guild(guild).all()
-                if guild_data["active_card"]:
-                    channel_id = guild_data["spawn_channel"]
-                    channel = guild.get_channel(channel_id)
-                    if channel:
-                        try:
-                            message_id = guild_data["active_card"]["message_id"]
-                            message = await channel.fetch_message(message_id)
-                            await message.edit(view=self)
-                        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                            pass
+                # Try to find the message and update it
+                try:
+                    # Get the most recent guild data
+                    guild_data = await self.cog.config.guild(guild).all()
+                    active_card = guild_data.get("active_card")
+                    
+                    if active_card and isinstance(active_card, dict):
+                        channel_id = guild_data.get("spawn_channel")
+                        if channel_id:
+                            channel = guild.get_channel(channel_id)
+                            if channel:
+                                message_id = active_card.get("message_id")
+                                if message_id:
+                                    try:
+                                        message = await channel.fetch_message(message_id)
+                                        await message.edit(view=self)
+                                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+                                        log.error(f"Failed to edit timeout message: {e}")
+                except Exception as e:
+                    log.error(f"Error in on_timeout: {e}")
