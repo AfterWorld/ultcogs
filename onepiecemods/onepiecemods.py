@@ -4,7 +4,7 @@ from discord.ext import commands
 import asyncio
 import random
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional, Union, Tuple
 import logging
 
@@ -87,6 +87,80 @@ class OnePieceMods(commands.Cog):
         
         # Register the casetypes
         self.init_casetypes_task = asyncio.create_task(self.register_casetypes())
+        
+    def create_modlog_embed(self, case_num, action_type, user, moderator, reason, timestamp, **kwargs):
+        """Create a moderation log embed that mimics Red's style but with One Piece flair"""
+        embed = discord.Embed(color=self.get_action_color(action_type))
+        
+        # Main case information
+        embed.title = f"Case #{case_num}"
+        
+        # Action with color-coded field
+        embed.add_field(name="Action:", value=action_type, inline=False)
+        
+        # User field with mention and ID
+        user_text = f"{user.mention} ({user.id})"
+        embed.add_field(name="User:", value=user_text, inline=False)
+        
+        # Moderator field
+        embed.add_field(name="Moderator:", value=f"{moderator.mention} ({moderator.id})", inline=False)
+        
+        # Reason field
+        embed.add_field(name="Reason:", value=reason or "No reason provided", inline=False)
+        
+        # Date field with relative time
+        relative_time = f"({self.get_relative_time(timestamp)})"
+        date_value = f"{timestamp.strftime('%B %d, %Y %I:%M %p')} {relative_time}"
+        embed.add_field(name="Date:", value=date_value, inline=False)
+        
+        # Add any extra fields from kwargs
+        for name, value in kwargs.items():
+            if name.lower() not in ["case_num", "action_type", "user", "moderator", "reason", "timestamp"]:
+                embed.add_field(name=f"{name}:", value=value, inline=False)
+        
+        # Set the author with moderator details
+        embed.set_author(name=moderator.display_name, icon_url=moderator.display_avatar.url)
+        
+        # Set footer with One Piece theme
+        embed.set_footer(text="One Piece Moderation System", 
+                        icon_url="https://i.imgur.com/Wr8xdJA.png")  # One Piece logo
+        
+        return embed
+
+    def get_action_color(self, action_type):
+        """Return color based on action type with One Piece theme colors"""
+        colors = {
+            "ban": discord.Color.from_rgb(204, 0, 0),         # Shanks red
+            "kick": discord.Color.from_rgb(255, 128, 0),      # Luffy orange
+            "mute": discord.Color.from_rgb(0, 102, 204),      # Law blue
+            "warn": discord.Color.from_rgb(255, 215, 0),      # Bounty gold
+            "timeout": discord.Color.from_rgb(102, 0, 153),   # Purple
+            "impeldown": discord.Color.from_rgb(51, 51, 51),  # Dark gray
+            "unmute": discord.Color.from_rgb(0, 204, 102),    # Green
+            "unban": discord.Color.from_rgb(46, 204, 113),    # Green
+            "release": discord.Color.from_rgb(46, 204, 113),  # Green
+            "impelrelease": discord.Color.from_rgb(46, 204, 113),  # Green
+            "bounty": discord.Color.from_rgb(255, 215, 0),    # Gold
+        }
+        action_type = action_type.lower()
+        return colors.get(action_type, discord.Color.light_grey())
+
+    def get_relative_time(self, timestamp):
+        """Calculate relative time from timestamp to now"""
+        now = datetime.now(timezone.utc)
+        delta = now - timestamp
+        
+        if delta.days == 0:
+            hours = delta.seconds // 3600
+            if hours == 0:
+                minutes = delta.seconds // 60
+                return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            else:
+                return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif delta.days == 1:
+            return "yesterday"
+        else:
+            return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
         
     async def cog_unload(self):
         """Cleanup when cog is unloaded"""
@@ -339,6 +413,8 @@ class OnePieceMods(commands.Cog):
         """Apply escalation after a short delay"""
         await asyncio.sleep(delay)  # Short delay to ensure warning shows first
         await self.impel_down(ctx, member, level, duration, reason)
+        
+    
     
     # Setup Commands
     
@@ -537,8 +613,12 @@ class OnePieceMods(commands.Cog):
             # Kick the member using Red's behavior
             await member.kick(reason=f"{ctx.author}: {reason}")
             
-            # Create the case
-            await modlog.create_case(
+            # Get the log channel
+            log_channel_id = await self.config.guild(ctx.guild).log_channel()
+            log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+            
+            # Create the case in modlog
+            case = await modlog.create_case(
                 bot=self.bot,
                 guild=ctx.guild,
                 created_at=ctx.message.created_at,
@@ -547,6 +627,18 @@ class OnePieceMods(commands.Cog):
                 moderator=ctx.author,
                 reason=reason
             )
+            
+            # If we have a log channel, send our custom embed
+            if log_channel:
+                embed = self.create_modlog_embed(
+                    case_num=case.case_number,
+                    action_type="Kick",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=reason,
+                    timestamp=ctx.message.created_at
+                )
+                await log_channel.send(embed=embed)
             
             # Add to mod history
             await self.add_mod_action(
@@ -604,10 +696,14 @@ class OnePieceMods(commands.Cog):
         
         try:
             # Ban the member using Red's behavior
-            await member.ban(reason=f"{ctx.author}: {reason}", delete_message_days=0)
+            await member.ban(reason=f"{ctx.author}: {reason}")
             
-            # Create the case
-            await modlog.create_case(
+            # Get the log channel
+            log_channel_id = await self.config.guild(ctx.guild).log_channel()
+            log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+            
+            # Create the case in modlog
+            case = await modlog.create_case(
                 bot=self.bot,
                 guild=ctx.guild,
                 created_at=ctx.message.created_at,
@@ -616,6 +712,18 @@ class OnePieceMods(commands.Cog):
                 moderator=ctx.author,
                 reason=reason
             )
+            
+            # If we have a log channel, send our custom embed
+            if log_channel:
+                embed = self.create_modlog_embed(
+                    case_num=case.case_number,
+                    action_type="Ban",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=reason,
+                    timestamp=ctx.message.created_at
+                )
+                await log_channel.send(embed=embed)
             
             # Add to mod history
             await self.add_mod_action(
@@ -706,8 +814,12 @@ class OnePieceMods(commands.Cog):
                 until = datetime.now(timezone.utc) + timedelta(seconds=duration)
                 await member.timeout(until, reason=f"Muted by {ctx.author}: {reason}")
             
-            # Create the case
-            await modlog.create_case(
+            # Get the log channel
+            log_channel_id = await self.config.guild(ctx.guild).log_channel()
+            log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+            
+            # Create the case in modlog
+            case = await modlog.create_case(
                 bot=self.bot,
                 guild=ctx.guild,
                 created_at=ctx.message.created_at,
@@ -716,6 +828,20 @@ class OnePieceMods(commands.Cog):
                 moderator=ctx.author,
                 reason=reason
             )
+            
+            # If we have a log channel, send our custom embed
+            if log_channel:
+                # Add duration info for mutes
+                embed = self.create_modlog_embed(
+                    case_num=case.case_number,
+                    action_type="Mute",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=reason,
+                    timestamp=ctx.message.created_at,
+                    Duration=format_time_duration(duration//60)  # Add duration as extra field
+                )
+                await log_channel.send(embed=embed)
             
             # Add to mod history
             await self.add_mod_action(
@@ -836,8 +962,12 @@ class OnePieceMods(commands.Cog):
         if escalation_message:
             embed.add_field(name="Escalation", value=escalation_message, inline=False)
         
+        # Get the log channel
+        log_channel_id = await self.config.guild(ctx.guild).log_channel()
+        log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+        
         # Create modlog case
-        await modlog.create_case(
+        case = await modlog.create_case(
             bot=self.bot,
             guild=ctx.guild,
             created_at=ctx.message.created_at,
@@ -846,6 +976,19 @@ class OnePieceMods(commands.Cog):
             moderator=ctx.author,
             reason=f"Bounty Level {warning_count}: {reason}"
         )
+        
+        # If we have a log channel, send our custom embed
+        if log_channel:
+            log_embed = self.create_modlog_embed(
+                case_num=case.case_number,
+                action_type="Bounty",
+                user=member,
+                moderator=ctx.author,
+                reason=reason,
+                timestamp=ctx.message.created_at,
+                **{"Bounty Level": f"Level {warning_count}", "Bounty Amount": bounty_level}
+            )
+            await log_channel.send(embed=log_embed)
         
         # Add to mod history
         await self.add_mod_action(
@@ -985,7 +1128,7 @@ class OnePieceMods(commands.Cog):
         )
         
         try:
-            # Apply timeout for Discord's built-in timeout feature
+            # Apply timeout if available (Discord feature)
             timeout_until = datetime.now(timezone.utc) + timedelta(minutes=min(duration, 10080))
             await member.timeout(timeout_until, reason=f"Impel Down Level {level}: {reason}")
             
@@ -1004,8 +1147,12 @@ class OnePieceMods(commands.Cog):
             if not success:
                 await ctx.send("⚠️ Warning: Could not apply all restrictions. The punishment may not be fully effective.")
             
+            # Get the log channel
+            log_channel_id = await self.config.guild(ctx.guild).log_channel()
+            log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+            
             # Create modlog case
-            await modlog.create_case(
+            case = await modlog.create_case(
                 bot=self.bot,
                 guild=ctx.guild,
                 created_at=ctx.message.created_at,
@@ -1014,6 +1161,20 @@ class OnePieceMods(commands.Cog):
                 moderator=ctx.author,
                 reason=f"Impel Down Level {level}: {reason}"
             )
+            
+            # If we have a log channel, send our custom embed
+            if log_channel:
+                embed = self.create_modlog_embed(
+                    case_num=case.case_number,
+                    action_type="ImpelDown",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=f"Level {level}: {reason}",
+                    timestamp=ctx.message.created_at,
+                    Duration=f"{duration} minutes",
+                    Level=f"Level {level}"
+                )
+                await log_channel.send(embed=embed)
             
             # Send the embed
             await ctx.send(embed=embed)
@@ -1060,14 +1221,21 @@ class OnePieceMods(commands.Cog):
                 color=discord.Color.gold()
             )
             
+            # Get the active punishment to know which level they were at
+            punishment = await self.get_active_punishment(ctx.guild, member)
+            
             embed.add_field(name="Prison Level", value=f"Level {punishment.get('level', 'Unknown')}", inline=True)
             embed.add_field(name="Reason", value=reason or "No reason provided", inline=True)
             embed.add_field(name="Roles", value="Previous roles have been restored.", inline=False)
             embed.set_image(url="https://media.giphy.com/media/PBAl9H8B5Hali/giphy.gif")  # Prison break gif
             embed.set_footer(text="One Piece Moderation - Early Release")
             
+            # Get the log channel
+            log_channel_id = await self.config.guild(ctx.guild).log_channel()
+            log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
+            
             # Create modlog case
-            await modlog.create_case(
+            case = await modlog.create_case(
                 bot=self.bot,
                 guild=ctx.guild,
                 created_at=ctx.message.created_at,
@@ -1076,6 +1244,19 @@ class OnePieceMods(commands.Cog):
                 moderator=ctx.author,
                 reason=reason
             )
+            
+            # If we have a log channel, send our custom embed
+            if log_channel:
+                embed = self.create_modlog_embed(
+                    case_num=case.case_number,
+                    action_type="ImpelRelease",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=reason,
+                    timestamp=ctx.message.created_at,
+                    Previous_Level=f"Level {punishment.get('level', 'Unknown')}"
+                )
+                await log_channel.send(embed=embed)
             
             # Add to mod history
             await self.add_mod_action(
