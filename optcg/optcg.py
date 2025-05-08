@@ -1121,15 +1121,35 @@ class OPTCG(commands.Cog):
             embed = await self._create_card_embed(card)
             embeds.append(embed)
         
-        # Show the matching cards
-        await menu(
-            ctx, 
-            embeds, 
-            DEFAULT_CONTROLS,
-            page_start=0,
-            timeout=60.0,
-            message=await ctx.send(f"**Search Results for '{search_term}'** (Page 1/{len(embeds)})")
-        )
+        # Show the matching cards using menu
+        # Different versions of Red have different menu parameters
+        try:
+            # Try the newer version with page_start
+            await menu(
+                ctx, 
+                embeds, 
+                DEFAULT_CONTROLS,
+                page_start=0,
+                timeout=60.0,
+                message=await ctx.send(f"**Search Results for '{search_term}'** (Page 1/{len(embeds)})")
+            )
+        except TypeError:
+            try:
+                # Try without page_start (older Red versions)
+                await menu(
+                    ctx, 
+                    embeds, 
+                    DEFAULT_CONTROLS,
+                    timeout=60.0,
+                    message=await ctx.send(f"**Search Results for '{search_term}'** (Page 1/{len(embeds)})")
+                )
+            except TypeError:
+                # Fall back to the most basic form if needed
+                await menu(
+                    ctx, 
+                    pages=embeds,
+                    controls=DEFAULT_CONTROLS
+                )
         
     @optcg.command(name="view")
     @commands.guild_only()
