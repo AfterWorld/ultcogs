@@ -1,20 +1,14 @@
 """
-One Piece API Discord Bot Features
-Implemented using Red Discord Bot's Cog system
+One Piece Discord Bot Cog for Red Discord Bot
+Compatible with discord.py 2.0+
 
-This code provides implementations for:
+This file contains the main OnePiece cog implementation with all features:
 1. "Who Am I?" character guessing game
-2. Episode Quote Challenge 
+2. Episode Quote Challenge
 3. Weekly Watch/Read Along scheduler
 4. One Piece API Dashboard
 5. Character Birthday Celebrations
 6. Devil Fruit Encyclopedia
-
-Requirements:
-- Red Discord Bot installed and running
-- aiohttp library for API requests
-- asyncio for asynchronous operations
-- discord.py for bot functionality
 """
 
 import discord
@@ -22,15 +16,230 @@ import asyncio
 import aiohttp
 import json
 import random
+import os
 import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Literal
 from redbot.core import commands, Config, checks
+from redbot.core.data_manager import cog_data_path
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-from redbot.core.utils.predicates import MessagePredicate
 from redbot.core.utils.chat_formatting import box, pagify, humanize_list
 
 # Base URL for the One Piece API
 BASE_URL = "https://api.api-onepiece.com/v2"
+
+class OnePieceQuotes:
+    """Quote handler for One Piece cog"""
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.quotes_file = cog_data_path(self) / "quotes.json"
+        self.quotes_data = self.load_quotes()
+        
+    def load_quotes(self) -> dict:
+        """Load quotes from JSON file, creating default if not exists"""
+        if not os.path.exists(self.quotes_file):
+            # Create default quotes file with sample quotes
+            default_quotes = {
+                "episodes": {
+                    "1": {
+                        "title": "I'm Luffy! The Man Who Will Become the Pirate King!",
+                        "quotes": [
+                            {"character": "Monkey D. Luffy", "text": "I'm going to be King of the Pirates!"},
+                            {"character": "Monkey D. Luffy", "text": "I ate the Gum-Gum Fruit and became a rubber person!"},
+                            {"character": "Koby", "text": "That's impossible! Impossible, impossible! Absolutely impossible!"}
+                        ]
+                    },
+                    "2": {
+                        "title": "Enter the Great Swordsman! Pirate Hunter Roronoa Zoro!",
+                        "quotes": [
+                            {"character": "Roronoa Zoro", "text": "I'm going to be the world's greatest swordsman! All I have left is my destiny! My name may be infamous, but it's gonna shake the world!"},
+                            {"character": "Monkey D. Luffy", "text": "If you fight with me now, either way, you'd be going against your code! So how about it? Son of the devil."}
+                        ]
+                    },
+                    "3": {
+                        "title": "Morgan versus Luffy! Who's the Mysterious Pretty Girl?",
+                        "quotes": [
+                            {"character": "Nami", "text": "I love money and tangerines!"},
+                            {"character": "Monkey D. Luffy", "text": "I've decided that you're going to join my crew!"}
+                        ]
+                    },
+                    "19": {
+                        "title": "Past the Limits! Luffy's Rapid-Fire Fists Explode!",
+                        "quotes": [
+                            {"character": "Monkey D. Luffy", "text": "I don't care if you're a good person! I don't care if you're a gangster! It has nothing to do with me! But a friend who feeds someone who's hungry is a friend of mine!"},
+                            {"character": "Sanji", "text": "Food should never be wasted. No matter what happens."}
+                        ]
+                    },
+                    "24": {
+                        "title": "Hawk-Eye Mihawk! Swordsman Zoro Falls into the Sea!",
+                        "quotes": [
+                            {"character": "Dracule Mihawk", "text": "It's been a while since I've seen such strong will. As a swordsman courtesy demands I send you to your death with my black blade, the finest in the world."},
+                            {"character": "Roronoa Zoro", "text": "I promise I will never lose again! Until I defeat him and become the greatest swordsman, I'll never be defeated again! Got a problem with that, King of the Pirates?"},
+                            {"character": "Monkey D. Luffy", "text": "Nope!"}
+                        ]
+                    },
+                    "37": {
+                        "title": "Luffy Stands Up! End of the Fishman Empire!",
+                        "quotes": [
+                            {"character": "Monkey D. Luffy", "text": "Of course I don't know how to use a sword, you idiot! I don't know how to navigate either! I can't cook! I can't even lie! I know I need friends to help me if I want to keep sailing!"}
+                        ]
+                    },
+                    "45": {
+                        "title": "Bounty! Wanted Luffy and the Straw Hat Pirates!",
+                        "quotes": [
+                            {"character": "Monkey D. Luffy", "text": "Thirty million berries? That's great!"},
+                            {"character": "Sanji", "text": "Why am I not on a wanted poster? Why just these three?!"}
+                        ]
+                    },
+                    "483": {
+                        "title": "Looking for the Answer! Fire Fist Ace Dies on the Battlefield!",
+                        "quotes": [
+                            {"character": "Portgas D. Ace", "text": "Thank you... for loving me!"}
+                        ]
+                    },
+                    "517": {
+                        "title": "Gathering of the Straw Hat Crew! Luffy's Earnest Wish!",
+                        "quotes": [
+                            {"character": "Monkey D. Luffy", "text": "I still want to see them! I've gotten stronger these past two years... and they have too! I'm sure of it!"}
+                        ]
+                    },
+                    "877": {
+                        "title": "A Hard Battle Starts! Luffy vs. Katakuri!",
+                        "quotes": [
+                            {"character": "Charlotte Katakuri", "text": "If you've come this far just to be overwhelmed, then your journey is over."},
+                            {"character": "Monkey D. Luffy", "text": "I get stronger as I fight!"}
+                        ]
+                    }
+                },
+                "characters": [
+                    "Monkey D. Luffy",
+                    "Roronoa Zoro",
+                    "Nami",
+                    "Usopp",
+                    "Sanji",
+                    "Tony Tony Chopper",
+                    "Nico Robin",
+                    "Franky",
+                    "Brook",
+                    "Jinbe",
+                    "Portgas D. Ace",
+                    "Dracule Mihawk",
+                    "Charlotte Katakuri",
+                    "Koby"
+                ]
+            }
+            
+            # Save default quotes
+            with open(self.quotes_file, 'w', encoding='utf-8') as f:
+                json.dump(default_quotes, f, indent=4)
+            
+            return default_quotes
+        else:
+            # Load existing quotes
+            try:
+                with open(self.quotes_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                # If file is corrupted, create a new one
+                os.remove(self.quotes_file)
+                return self.load_quotes()
+
+    def save_quotes(self):
+        """Save quotes to JSON file"""
+        with open(self.quotes_file, 'w', encoding='utf-8') as f:
+            json.dump(self.quotes_data, f, indent=4)
+
+    async def get_random_quote(self) -> dict:
+        """Get a random quote from the quotes database"""
+        # Get a list of episodes that have quotes
+        episodes = list(self.quotes_data["episodes"].keys())
+        
+        if not episodes:
+            return {"error": "No quotes available"}
+        
+        # Select a random episode
+        random_episode_id = random.choice(episodes)
+        episode_data = self.quotes_data["episodes"][random_episode_id]
+        
+        # Check if the episode has quotes
+        if not episode_data.get("quotes", []):
+            return {"error": f"No quotes found for episode {random_episode_id}"}
+        
+        # Select a random quote
+        random_quote = random.choice(episode_data["quotes"])
+        
+        return {
+            "quote": random_quote["text"],
+            "character": random_quote["character"],
+            "episode": random_episode_id,
+            "title": episode_data.get("title", f"Episode {random_episode_id}")
+        }
+        
+    async def add_quote(self, episode_id: str, character: str, quote_text: str, episode_title: str = None) -> bool:
+        """Add a new quote to the database"""
+        # Ensure character exists
+        if character not in self.quotes_data["characters"]:
+            self.quotes_data["characters"].append(character)
+        
+        # Ensure episode exists
+        if episode_id not in self.quotes_data["episodes"]:
+            self.quotes_data["episodes"][episode_id] = {
+                "title": episode_title or f"Episode {episode_id}",
+                "quotes": []
+            }
+        
+        # Add the quote
+        self.quotes_data["episodes"][episode_id]["quotes"].append({
+            "character": character,
+            "text": quote_text
+        })
+        
+        # Save changes
+        self.save_quotes()
+        
+        return True
+        
+    async def get_quote_by_character(self, character: str) -> dict:
+        """Get a random quote from a specific character"""
+        # Find all quotes by this character
+        character_quotes = []
+        
+        for episode_id, episode_data in self.quotes_data["episodes"].items():
+            for quote in episode_data.get("quotes", []):
+                if quote["character"].lower() == character.lower():
+                    character_quotes.append({
+                        "quote": quote["text"],
+                        "character": quote["character"],
+                        "episode": episode_id,
+                        "title": episode_data.get("title", f"Episode {episode_id}")
+                    })
+        
+        if not character_quotes:
+            return {"error": f"No quotes found for character {character}"}
+        
+        # Select a random quote
+        return random.choice(character_quotes)
+        
+    async def get_quote_by_episode(self, episode_id: str) -> dict:
+        """Get a random quote from a specific episode"""
+        # Check if episode exists
+        if episode_id not in self.quotes_data["episodes"]:
+            return {"error": f"Episode {episode_id} not found"}
+        
+        # Check if episode has quotes
+        episode_data = self.quotes_data["episodes"][episode_id]
+        if not episode_data.get("quotes", []):
+            return {"error": f"No quotes found for episode {episode_id}"}
+        
+        # Select a random quote
+        random_quote = random.choice(episode_data["quotes"])
+        
+        return {
+            "quote": random_quote["text"],
+            "character": random_quote["character"],
+            "episode": episode_id,
+            "title": episode_data.get("title", f"Episode {episode_id}")
+        }
 
 class OnePiece(commands.Cog):
     """One Piece themed features using the One Piece API"""
@@ -61,6 +270,9 @@ class OnePiece(commands.Cog):
         # Cache for active games
         self.active_whoami = {}  # guild_id: {"character": data, "clues": [], "current_clue": 0}
         self.active_quotes = {}  # guild_id: {"quote": text, "character": name, "episode": num}
+        
+        # Set up quotes handler
+        self.quotes_handler = OnePieceQuotes(bot)
         
         # Start background tasks when cog is loaded
         self.bg_tasks = []
@@ -141,33 +353,6 @@ class OnePiece(commands.Cog):
         
         return clues
 
-    async def get_random_quote(self) -> dict:
-        """Get a random quote from the API"""
-        episodes = await self.api_request("episodes")
-        if "error" in episodes:
-            return {"error": "Failed to get episodes"}
-        
-        random_episode = random.choice(episodes)
-        episode_id = random_episode.get("_id", "")
-        
-        # Get detailed episode info
-        episode_details = await self.api_request(f"episodes/{episode_id}")
-        
-        # For this example, we'll simulate quotes since they might not be in the API
-        # In a real implementation, you'd pull actual quotes from the API
-        if "characters" in episode_details and episode_details["characters"]:
-            character = random.choice(episode_details["characters"])
-            quote = f"I'm going to simulate a quote that {character} might say in episode {episode_id}."
-            
-            return {
-                "quote": quote,
-                "character": character,
-                "episode": episode_id,
-                "title": episode_details.get("title", "Unknown Episode")
-            }
-        else:
-            return {"error": "No characters found for this episode"}
-
     #################################################
     # 1. "WHO AM I?" GAME IMPLEMENTATION
     #################################################
@@ -177,10 +362,10 @@ class OnePiece(commands.Cog):
     async def _whoami(self, ctx):
         """Commands for the One Piece 'Who Am I?' game"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("whoami")
+            await ctx.send_help(ctx.command)
     
     @_whoami.command(name="setup")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def whoami_setup(self, ctx, channel: discord.TextChannel = None):
         """Set up the Who Am I game channel"""
         channel = channel or ctx.channel
@@ -189,7 +374,7 @@ class OnePiece(commands.Cog):
         await ctx.send(f"Who Am I game has been set up in {channel.mention}!")
     
     @_whoami.command(name="start")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def whoami_start(self, ctx):
         """Start the Who Am I game"""
         channel_id = await self.config.guild(ctx.guild).whoami_channel()
@@ -203,7 +388,7 @@ class OnePiece(commands.Cog):
         await self.new_whoami_round(ctx.guild.id)
     
     @_whoami.command(name="stop")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def whoami_stop(self, ctx):
         """Stop the Who Am I game"""
         await self.config.guild(ctx.guild).whoami_active.set(False)
@@ -290,10 +475,11 @@ class OnePiece(commands.Cog):
         }
         
         # Send the first message
-        await channel.send("**New 'Who Am I?' round!**\n\nI'm thinking of a One Piece character. Use `.whoami clue` to get clues and make your guesses in this channel!")
+        await channel.send("**New 'Who Am I?' round!**\n\nI'm thinking of a One Piece character. Use `!whoami clue` to get clues and make your guesses in this channel!")
         
         # Send the first clue
-        await self.whoami_clue(commands.Context(bot=self.bot, guild=guild, channel=channel))
+        ctx = commands.Context(bot=self.bot, guild=guild, channel=channel)
+        await self.whoami_clue(ctx)
     
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -306,61 +492,138 @@ class OnePiece(commands.Cog):
             return
             
         # Check if there's an active game
-        if message.guild.id not in self.active_whoami:
+        if message.guild.id not in self.active_whoami and message.guild.id not in self.active_quotes:
             return
             
-        # Check if it's in the right channel
-        channel_id = await self.config.guild(message.guild).whoami_channel()
-        if message.channel.id != channel_id:
-            return
-            
-        # Get the game data
-        game_data = self.active_whoami[message.guild.id]
-        character_name = game_data["character"].get("name", "").lower()
-        romanized_name = game_data["character"].get("romanized_name", "").lower()
-        
-        # Check if the message is a guess
-        content = message.content.lower()
-        
-        # Skip commands
-        if content.startswith(tuple(await self.bot.get_prefix(message))):
-            return
-            
-        # Check if the guess is correct
-        if content == character_name or content == romanized_name:
-            # Update scores
-            async with self.config.guild(message.guild).whoami_scores() as scores:
-                user_id = str(message.author.id)
-                scores[user_id] = scores.get(user_id, 0) + 1
-            
-            # Announce winner
-            await message.channel.send(f"🎉 **{message.author.display_name}** got it right! The character is **{game_data['character']['name']}**!")
-            
-            # Show character info
-            embed = discord.Embed(title=game_data["character"]["name"], color=discord.Color.blue())
-            
-            if "romanized_name" in game_data["character"]:
-                embed.add_field(name="Romanized Name", value=game_data["character"]["romanized_name"], inline=True)
+        # Process Who Am I guesses
+        if message.guild.id in self.active_whoami:
+            # Check if it's in the right channel
+            channel_id = await self.config.guild(message.guild).whoami_channel()
+            if message.channel.id == channel_id:
+                # Get the game data
+                game_data = self.active_whoami[message.guild.id]
+                character_name = game_data["character"].get("name", "").lower()
+                romanized_name = game_data["character"].get("romanized_name", "").lower()
                 
-            if "epithet" in game_data["character"]:
-                embed.add_field(name="Epithet", value=game_data["character"]["epithet"], inline=True)
+                # Check if the message is a guess
+                content = message.content.lower()
                 
-            if "occupations" in game_data["character"]:
-                embed.add_field(name="Occupations", value=", ".join(game_data["character"]["occupations"]), inline=True)
+                # Skip commands
+                prefixes = await self.bot.get_prefix(message)
+                if isinstance(prefixes, str):
+                    prefixes = [prefixes]
                 
-            if "crew" in game_data["character"]:
-                embed.add_field(name="Crew", value=game_data["character"]["crew"], inline=True)
+                if any(content.startswith(prefix) for prefix in prefixes):
+                    return
+                    
+                # Check if the guess is correct
+                if content == character_name or content == romanized_name:
+                    # Update scores
+                    async with self.config.guild(message.guild).whoami_scores() as scores:
+                        user_id = str(message.author.id)
+                        scores[user_id] = scores.get(user_id, 0) + 1
+                    
+                    # Announce winner
+                    await message.channel.send(f"🎉 **{message.author.display_name}** got it right! The character is **{game_data['character']['name']}**!")
+                    
+                    # Show character info
+                    embed = discord.Embed(title=game_data["character"]["name"], color=discord.Color.blue())
+                    
+                    if "romanized_name" in game_data["character"]:
+                        embed.add_field(name="Romanized Name", value=game_data["character"]["romanized_name"], inline=True)
+                        
+                    if "epithet" in game_data["character"]:
+                        embed.add_field(name="Epithet", value=game_data["character"]["epithet"], inline=True)
+                        
+                    if "occupations" in game_data["character"]:
+                        embed.add_field(name="Occupations", value=", ".join(game_data["character"]["occupations"]), inline=True)
+                        
+                    if "crew" in game_data["character"]:
+                        embed.add_field(name="Crew", value=game_data["character"]["crew"], inline=True)
+                        
+                    await message.channel.send(embed=embed)
+                    
+                    # Clean up
+                    del self.active_whoami[message.guild.id]
+                    
+                    # Wait before starting a new round
+                    await asyncio.sleep(60)
+                    
+                    # Start a new round
+                    await self.new_whoami_round(message.guild.id)
+                    
+        # Process Quote Challenge guesses
+        if message.guild.id in self.active_quotes:
+            # Check if it's in the right channel
+            channel_id = await self.config.guild(message.guild).quote_channel()
+            if message.channel.id == channel_id:
+                # Get the game data
+                quote_data = self.active_quotes[message.guild.id]
+                correct_character = quote_data["character"].lower()
+                correct_episode = str(quote_data["episode"])
                 
-            await message.channel.send(embed=embed)
-            
-            # Clean up
-            del self.active_whoami[message.guild.id]
-            
-            # Wait before starting a new round
-            await asyncio.sleep(60)
-            
-            # Start a new round
-            await self.new_whoami_round(message.guild.id)
+                # Check if the message is a guess
+                content = message.content.lower()
+                
+                # Skip commands
+                prefixes = await self.bot.get_prefix(message)
+                if isinstance(prefixes, str):
+                    prefixes = [prefixes]
+                
+                if any(content.startswith(prefix) for prefix in prefixes):
+                    return
+                    
+                # Parse the guess (format: "Character, Episode")
+                parts = content.split(",")
+                
+                if len(parts) >= 2:
+                    character_guess = parts[0].strip()
+                    episode_guess = parts[1].strip()
+                    
+                    # Check if the guess is correct
+                    if character_guess == correct_character and episode_guess == correct_episode:
+                        # Full correct
+                        points = 2
+                        result = "Both character and episode correct!"
+                    elif character_guess == correct_character:
+                        # Only character correct
+                        points = 1
+                        result = f"Character correct, but the episode was {correct_episode}!"
+                    elif episode_guess == correct_episode:
+                        # Only episode correct
+                        points = 1
+                        result = f"Episode correct, but the character was {quote_data['character']}!"
+                    else:
+                        # Both wrong
+                        return
+                        
+                    # Update scores
+                    async with self.config.guild(message.guild).quote_scores() as scores:
+                        user_id = str(message.author.id)
+                        scores[user_id] = scores.get(user_id, 0) + points
+                    
+                    # Announce winner
+                    await message.channel.send(f"🎉 **{message.author.display_name}** gets {points} point(s)! {result}")
+                    
+                    # Show quote info
+                    embed = discord.Embed(
+                        title=f"Quote from Episode {quote_data['episode']}",
+                        description=f"*\"{quote_data['quote']}\"*",
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(name="Character", value=quote_data["character"], inline=True)
+                    embed.add_field(name="Episode", value=f"{quote_data['episode']} - {quote_data['title']}", inline=True)
+                    
+                    await message.channel.send(embed=embed)
+                    
+                    # Clean up
+                    del self.active_quotes[message.guild.id]
+                    
+                    # Wait before starting a new round
+                    await asyncio.sleep(60)
+                    
+                    # Start a new round
+                    await self.new_quote_round(message.guild.id)
 
     #################################################
     # 2. EPISODE QUOTE CHALLENGE
@@ -371,10 +634,10 @@ class OnePiece(commands.Cog):
     async def _quote(self, ctx):
         """Commands for the One Piece Quote Challenge"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("quote")
+            await ctx.send_help(ctx.command)
     
     @_quote.command(name="setup")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def quote_setup(self, ctx, channel: discord.TextChannel = None):
         """Set up the Quote Challenge channel"""
         channel = channel or ctx.channel
@@ -383,12 +646,12 @@ class OnePiece(commands.Cog):
         await ctx.send(f"Quote Challenge has been set up in {channel.mention}!")
     
     @_quote.command(name="start")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def quote_start(self, ctx):
         """Start the Quote Challenge"""
         channel_id = await self.config.guild(ctx.guild).quote_channel()
         if not channel_id:
-            return await ctx.send("Please set up the game channel first with `.quote setup`")
+            return await ctx.send("Please set up the game channel first with `!quote setup`")
         
         await self.config.guild(ctx.guild).quote_active.set(True)
         await ctx.send("Quote Challenge has been activated! A new quote will appear shortly.")
@@ -397,7 +660,7 @@ class OnePiece(commands.Cog):
         await self.new_quote_round(ctx.guild.id)
     
     @_quote.command(name="stop")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def quote_stop(self, ctx):
         """Stop the Quote Challenge"""
         await self.config.guild(ctx.guild).quote_active.set(False)
@@ -429,6 +692,13 @@ class OnePiece(commands.Cog):
         
         await ctx.send("\n".join(leaderboard))
     
+    @_quote.command(name="add")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def quote_add(self, ctx, episode_id: str, character: str, *, quote_text: str):
+        """Add a new quote to the database"""
+        await self.quotes_handler.add_quote(episode_id, character, quote_text)
+        await ctx.send(f"Quote added for {character} in episode {episode_id}!")
+    
     async def new_quote_round(self, guild_id: int):
         """Start a new round of Quote Challenge"""
         guild = self.bot.get_guild(guild_id)
@@ -445,10 +715,10 @@ class OnePiece(commands.Cog):
         if not await self.config.guild(guild).quote_active():
             return
         
-        # Get a random quote
-        quote_data = await self.get_random_quote()
+        # Get a random quote using the quotes handler
+        quote_data = await self.quotes_handler.get_random_quote()
         if "error" in quote_data:
-            await channel.send("Error getting a quote! Try again later.")
+            await channel.send("Error getting a quote! Try adding more quotes with `!quote add`.")
             return
         
         # Store the game data
@@ -463,89 +733,6 @@ class OnePiece(commands.Cog):
         embed.set_footer(text="Type your guess in this channel! Format: 'Character Name, Episode Number'")
         
         await channel.send(embed=embed)
-    
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for guesses in the Quote Challenge"""
-        if message.author.bot:
-            return
-        
-        # Check if it's in a guild
-        if not message.guild:
-            return
-            
-        # Check if there's an active game
-        if message.guild.id not in self.active_quotes:
-            return
-            
-        # Check if it's in the right channel
-        channel_id = await self.config.guild(message.guild).quote_channel()
-        if message.channel.id != channel_id:
-            return
-            
-        # Get the game data
-        quote_data = self.active_quotes[message.guild.id]
-        correct_character = quote_data["character"].lower()
-        correct_episode = str(quote_data["episode"])
-        
-        # Check if the message is a guess
-        content = message.content.lower()
-        
-        # Skip commands
-        if content.startswith(tuple(await self.bot.get_prefix(message))):
-            return
-            
-        # Parse the guess (format: "Character, Episode")
-        parts = content.split(",")
-        
-        if len(parts) >= 2:
-            character_guess = parts[0].strip()
-            episode_guess = parts[1].strip()
-            
-            # Check if the guess is correct
-            if character_guess == correct_character and episode_guess == correct_episode:
-                # Full correct
-                points = 2
-                result = "Both character and episode correct!"
-            elif character_guess == correct_character:
-                # Only character correct
-                points = 1
-                result = f"Character correct, but the episode was {correct_episode}!"
-            elif episode_guess == correct_episode:
-                # Only episode correct
-                points = 1
-                result = f"Episode correct, but the character was {quote_data['character']}!"
-            else:
-                # Both wrong
-                return
-                
-            # Update scores
-            async with self.config.guild(message.guild).quote_scores() as scores:
-                user_id = str(message.author.id)
-                scores[user_id] = scores.get(user_id, 0) + points
-            
-            # Announce winner
-            await message.channel.send(f"🎉 **{message.author.display_name}** gets {points} point(s)! {result}")
-            
-            # Show quote info
-            embed = discord.Embed(
-                title=f"Quote from Episode {quote_data['episode']}",
-                description=f"*\"{quote_data['quote']}\"*",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="Character", value=quote_data["character"], inline=True)
-            embed.add_field(name="Episode", value=f"{quote_data['episode']} - {quote_data['title']}", inline=True)
-            
-            await message.channel.send(embed=embed)
-            
-            # Clean up
-            del self.active_quotes[message.guild.id]
-            
-            # Wait before starting a new round
-            await asyncio.sleep(60)
-            
-            # Start a new round
-            await self.new_quote_round(message.guild.id)
 
     #################################################
     # 3. WEEKLY WATCH/READ ALONG
@@ -556,10 +743,10 @@ class OnePiece(commands.Cog):
     async def _watchalong(self, ctx):
         """Commands for the One Piece Watch/Read Along"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("watchalong")
+            await ctx.send_help(ctx.command)
     
     @_watchalong.command(name="setup")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def watchalong_setup(self, ctx, channel: discord.TextChannel = None):
         """Set up the Watch/Read Along channel"""
         channel = channel or ctx.channel
@@ -568,7 +755,7 @@ class OnePiece(commands.Cog):
         await ctx.send(f"Watch/Read Along has been set up in {channel.mention}!")
     
     @_watchalong.command(name="schedule")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def watchalong_schedule(self, ctx, day: int, time: str):
         """
         Schedule the weekly watchalong
@@ -592,7 +779,7 @@ class OnePiece(commands.Cog):
         await ctx.send(f"Watch/Read Along scheduled for every {days[day]} at {time}!")
     
     @_watchalong.command(name="set")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def watchalong_set(self, ctx, content_type: str, number: str):
         """
         Set the current episode or chapter to watch/read
@@ -668,7 +855,7 @@ class OnePiece(commands.Cog):
             embed.add_field(name="Where", value=channel.mention, inline=False)
         
         await ctx.send(embed=embed)
-
+    
     async def watchalong_reminder(self):
         """Background task to send watchalong reminders"""
         await self.bot.wait_until_ready()
@@ -798,10 +985,10 @@ class OnePiece(commands.Cog):
     async def _dashboard(self, ctx):
         """Commands for the One Piece API Dashboard"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("dashboard")
+            await ctx.send_help(ctx.command)
     
     @_dashboard.command(name="setup")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def dashboard_setup(self, ctx, channel: discord.TextChannel = None):
         """Set up the One Piece Dashboard channel"""
         channel = channel or ctx.channel
@@ -810,7 +997,7 @@ class OnePiece(commands.Cog):
         await ctx.send(f"One Piece Dashboard has been set up in {channel.mention}! Daily facts will be posted here.")
     
     @_dashboard.command(name="time")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def dashboard_time(self, ctx, time: str):
         """
         Set the daily fact posting time
@@ -827,7 +1014,7 @@ class OnePiece(commands.Cog):
         await ctx.send(f"Daily One Piece fact will be posted at {time}!")
     
     @_dashboard.command(name="post")
-    @checks.admin_or_permissions(manage_guild=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def dashboard_post(self, ctx):
         """Manually post a One Piece fact"""
         await self.post_one_piece_fact(ctx.guild.id)
@@ -1078,7 +1265,7 @@ class OnePiece(commands.Cog):
     async def _devilfruit(self, ctx):
         """Commands for looking up Devil Fruit information"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help("devilfruit")
+            await ctx.send_help(ctx.command)
     
     @_devilfruit.command(name="search")
     async def devilfruit_search(self, ctx, *, name: str):
@@ -1302,6 +1489,3 @@ class OnePiece(commands.Cog):
                 embed.set_footer(text=f"Showing 10 of {len(matches)} matches. Please refine your search.")
             
             await ctx.send(embed=embed)
-
-async def setup(bot):
-    await bot.add_cog(OnePiece(bot))
