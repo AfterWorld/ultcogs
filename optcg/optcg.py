@@ -157,6 +157,8 @@ class OPTCG(commands.Cog):
                 await asyncio.sleep(5 - (time.time() - last_call))
             
             try:
+                log.info("Fetching cards from OPTCG API...")
+                # First check if we can get all cards
                 async with self.session.get(self.api_url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
@@ -174,9 +176,190 @@ class OPTCG(commands.Cog):
                         
                         log.info(f"Fetched and cached {len(self.cards_cache)} cards from API")
                     else:
-                        log.error(f"API returned status code {resp.status}")
+                        # If we can't get all cards, try with a more specific endpoint
+                        log.warning(f"API returned status code {resp.status}, trying alternative endpoints")
+                        
+                        # Try alternative API endpoints that might help if the main one fails
+                        alt_endpoints = [
+                            "https://api.optcgapi.com/v1/cards",
+                            "https://api.optcgapi.com/cards/search"
+                        ]
+                        
+                        for endpoint in alt_endpoints:
+                            log.info(f"Trying alternative endpoint: {endpoint}")
+                            async with self.session.get(endpoint) as alt_resp:
+                                if alt_resp.status == 200:
+                                    data = await alt_resp.json()
+                                    
+                                    # Process and cache the cards
+                                    self.cards_cache = {str(card["card_id"]): card for card in data}
+                                    
+                                    # Save to file
+                                    with open(self.data_path, "w", encoding="utf-8") as f:
+                                        json.dump(self.cards_cache, f, indent=4)
+                                    
+                                    # Update timestamps
+                                    await self.config.last_api_call.set(time.time())
+                                    await self.config.card_cache_timestamp.set(time.time())
+                                    
+                                    log.info(f"Fetched and cached {len(self.cards_cache)} cards from API")
+                                    break
+                        else:
+                            log.error("All API endpoints failed, using sample data as fallback")
+                            # Use a sample set of cards as fallback
+                            self._load_sample_cards()
             except Exception as e:
                 log.error(f"Error fetching cards from API: {e}")
+                # Use a sample set of cards as fallback
+                self._load_sample_cards()
+                
+    def _load_sample_cards(self):
+        """Load a sample set of cards as fallback"""
+        log.warning("Loading sample card data as fallback")
+        
+        # Sample One Piece TCG cards as fallback
+        sample_cards = [
+            {
+                "card_id": "OP01-001",
+                "name": "Monkey D. Luffy",
+                "rarity": "Leader",
+                "card_type": "Leader",
+                "power": "5000",
+                "effect": "When this card attacks, draw 1 card.",
+                "image": "https://i.imgur.com/sample1.png"
+            },
+            {
+                "card_id": "OP01-002",
+                "name": "Roronoa Zoro",
+                "rarity": "Super Rare",
+                "card_type": "Character",
+                "power": "8000",
+                "effect": "When this card is played, you may rest 1 of your opponent's characters.",
+                "image": "https://i.imgur.com/sample2.png"
+            },
+            {
+                "card_id": "OP01-003",
+                "name": "Nami",
+                "rarity": "Rare",
+                "card_type": "Character",
+                "power": "6000",
+                "effect": "When this card is played, draw 1 card.",
+                "image": "https://i.imgur.com/sample3.png"
+            },
+            {
+                "card_id": "OP01-004",
+                "name": "Usopp",
+                "rarity": "Uncommon",
+                "card_type": "Character",
+                "power": "5000",
+                "effect": "When this card is played, you may rest 1 of your opponent's characters with 5000 power or less.",
+                "image": "https://i.imgur.com/sample4.png"
+            },
+            {
+                "card_id": "OP01-005",
+                "name": "Sanji",
+                "rarity": "Rare",
+                "card_type": "Character",
+                "power": "7000",
+                "effect": "When this card attacks, it gets +2000 power until end of turn.",
+                "image": "https://i.imgur.com/sample5.png"
+            },
+            {
+                "card_id": "OP01-006",
+                "name": "Tony Tony Chopper",
+                "rarity": "Common",
+                "card_type": "Character",
+                "power": "4000",
+                "effect": "When this card is played, heal 1 damage from your Leader.",
+                "image": "https://i.imgur.com/sample6.png"
+            },
+            {
+                "card_id": "OP01-007",
+                "name": "Nico Robin",
+                "rarity": "Rare",
+                "card_type": "Character",
+                "power": "6000",
+                "effect": "When this card is played, look at the top 3 cards of your deck. Add 1 to your hand and put the rest at the bottom of your deck in any order.",
+                "image": "https://i.imgur.com/sample7.png"
+            },
+            {
+                "card_id": "OP01-008",
+                "name": "Franky",
+                "rarity": "Uncommon",
+                "card_type": "Character",
+                "power": "7000",
+                "effect": "When this card is played, you may trash 1 card from your hand. If you do, draw 1 card.",
+                "image": "https://i.imgur.com/sample8.png"
+            },
+            {
+                "card_id": "OP01-009",
+                "name": "Brook",
+                "rarity": "Uncommon",
+                "card_type": "Character",
+                "power": "5000",
+                "effect": "When this card is played, you may put 1 card from your trash on the bottom of your deck.",
+                "image": "https://i.imgur.com/sample9.png"
+            },
+            {
+                "card_id": "OP01-010",
+                "name": "Jinbe",
+                "rarity": "Super Rare",
+                "card_type": "Character",
+                "power": "8000",
+                "effect": "When this card attacks, it gets +1000 power for each other character you control until end of turn.",
+                "image": "https://i.imgur.com/sample10.png"
+            },
+            {
+                "card_id": "OP01-011",
+                "name": "Monkey D. Luffy, Gear 4",
+                "rarity": "Secret Rare",
+                "card_type": "Character",
+                "power": "10000",
+                "effect": "When this card is played, you may KO 1 of your opponent's characters with 8000 power or less.",
+                "image": "https://i.imgur.com/sample11.png"
+            },
+            {
+                "card_id": "OP01-012",
+                "name": "Going Merry",
+                "rarity": "Rare",
+                "card_type": "Event",
+                "effect": "Draw 2 cards, then discard 1 card.",
+                "image": "https://i.imgur.com/sample12.png"
+            },
+            {
+                "card_id": "OP01-013",
+                "name": "Straw Hat Crew",
+                "rarity": "Super Rare",
+                "card_type": "Event",
+                "effect": "All of your characters get +2000 power until end of turn.",
+                "image": "https://i.imgur.com/sample13.png"
+            },
+            {
+                "card_id": "OP01-014",
+                "name": "Thousand Sunny",
+                "rarity": "Common",
+                "card_type": "Event",
+                "effect": "Draw 1 card.",
+                "image": "https://i.imgur.com/sample14.png"
+            },
+            {
+                "card_id": "OP01-015",
+                "name": "Gum-Gum Pistol",
+                "rarity": "Common",
+                "card_type": "Event",
+                "effect": "Your Leader gets +3000 power until end of turn.",
+                "image": "https://i.imgur.com/sample15.png"
+            }
+        ]
+        
+        # Cache the sample cards
+        self.cards_cache = {card["card_id"]: card for card in sample_cards}
+        
+        # Save to file
+        with open(self.data_path, "w", encoding="utf-8") as f:
+            json.dump(self.cards_cache, f, indent=4)
+        
+        log.info(f"Loaded {len(self.cards_cache)} sample cards as fallback")
     
     def _start_spawn_tasks(self):
         """Start card spawn tasks for all enabled guilds"""
@@ -889,11 +1072,42 @@ class OPTCG(commands.Cog):
         """
         search_term = search_term.lower()
         
+        if len(self.cards_cache) == 0:
+            await ctx.send("No cards available in cache. Attempting to refresh...")
+            await self._fetch_and_cache_cards()
+            if len(self.cards_cache) == 0:
+                return await ctx.send("Failed to load any cards. Please try again later.")
+        
         # Search for matching cards
         matching_cards = []
         for card_id, card in self.cards_cache.items():
-            if search_term in card.get("name", "").lower():
+            card_name = card.get("name", "").lower()
+            
+            # Check for exact matches or substring matches
+            if search_term in card_name or search_term == card_name:
                 matching_cards.append(card)
+        
+        # If no direct matches, try more lenient matching
+        if not matching_cards:
+            # Try matching individual words
+            search_words = search_term.split()
+            for card_id, card in self.cards_cache.items():
+                card_name = card.get("name", "").lower()
+                
+                # Check if any of the search words match
+                if any(word in card_name for word in search_words):
+                    matching_cards.append(card)
+        
+        # If still no matches, check for partial word matches
+        if not matching_cards:
+            for card_id, card in self.cards_cache.items():
+                card_name = card.get("name", "").lower()
+                
+                # Check for partial word matches
+                for word in search_term.split():
+                    if len(word) >= 3 and any(word in name_part for name_part in card_name.split()):
+                        matching_cards.append(card)
+                        break
         
         if not matching_cards:
             return await ctx.send(f"No cards found matching '{search_term}'")
@@ -1136,6 +1350,32 @@ class OPTCG(commands.Cog):
         except Exception as e:
             log.error(f"Error during trade: {e}")
             await trade_msg.edit(content="❌ Error occurred during the trade. No cards were exchanged.", embed=embed)
+            
+    @optcg.command(name="debug")
+    @commands.is_owner()
+    async def optcg_debug(self, ctx: commands.Context):
+        """Debug the OPTCG cog (owner only)"""
+        
+        debug_info = [
+            f"Card cache size: {len(self.cards_cache)} cards",
+            f"Card cache file exists: {os.path.exists(self.data_path)}",
+            f"Sample card names: {', '.join([card.get('name', 'Unknown') for card_id, card in list(self.cards_cache.items())[:5]])}",
+            f"Has 'Luffy' cards: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}"
+        ]
+        
+        await ctx.send("```\n" + "\n".join(debug_info) + "\n```")
+        
+        # Force a refresh and try again
+        await ctx.send("Refreshing card cache...")
+        await self._fetch_and_cache_cards()
+        
+        debug_info = [
+            f"Card cache size after refresh: {len(self.cards_cache)} cards",
+            f"Sample card names after refresh: {', '.join([card.get('name', 'Unknown') for card_id, card in list(self.cards_cache.items())[:5]])}",
+            f"Has 'Luffy' cards after refresh: {any('luffy' in card.get('name', '').lower() for card in self.cards_cache.values())}"
+        ]
+        
+        await ctx.send("```\n" + "\n".join(debug_info) + "\n```")
     
     @optcg.command(name="gift")
     @commands.guild_only()
