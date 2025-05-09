@@ -840,6 +840,402 @@ class OPTCG(commands.Cog):
             pages.append(embed)
         
         await menu(ctx, pages, DEFAULT_CONTROLS)
+        
+    @optcg_admin.command(name="testmode")
+    async def toggle_test_mode(self, ctx: commands.Context):
+        """Toggle test mode for OPTCG.
+        
+        In test mode, cards will be generated from a predefined set of sample data
+        instead of fetching from the API. Use this when the API is unavailable.
+        """
+        current_mode = await self.config.get_raw("test_mode", default=False)
+        await self.config.test_mode.set(not current_mode)
+        
+        if not current_mode:
+            await ctx.send("Test mode enabled. Cards will now be generated from sample data.")
+        else:
+            await ctx.send("Test mode disabled. Cards will be fetched from the API.")
+
+    SAMPLE_CARDS = [
+        {
+            "id": "OP01-001",
+            "name": "Monkey D. Luffy",
+            "rarity": "L",
+            "type": "LEADER",
+            "power": 5000,
+            "images": {
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png"
+            }
+        },
+        {
+            "id": "OP01-002",
+            "name": "Roronoa Zoro",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "power": 6000,
+            "images": {
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-002.png"
+            }
+        }
+    ]
+
+    async def fetch_random_card(self) -> Optional[Dict]:
+        """Fetch a random card from the API or use test data."""
+        # Check if test mode is enabled
+        test_mode = await self.config.get_raw("test_mode", default=False)
+        
+        if test_mode:
+            # Use sample card data
+            return random.choice(self.SAMPLE_CARDS)
+        
+        # Normal API fetch logic
+        try:
+            # Try multiple pages to increase chances of success
+            for _ in range(3):  # Try up to 3 different random pages
+                page = random.randint(1, 20)
+                async with self.session.get(
+                    await self.config.api_url(),
+                    params={"limit": 10, "page": page}
+                ) as resp:
+                    if resp.status != 200:
+                        log.error(f"API request failed with status {resp.status}")
+                        continue
+                    
+                    try:
+                        data = await resp.json()
+                        cards = data.get("data", [])
+                        if cards:
+                            return random.choice(cards)
+                    except Exception as e:
+                        log.error(f"Failed to parse API response: {e}")
+                        continue
+            
+            # If we get here, the API attempts failed
+            log.warning("API fetch attempts failed, using sample card data as fallback")
+            return random.choice(self.SAMPLE_CARDS)
+        
+        except Exception as e:
+            log.error(f"Error fetching card from API: {e}")
+            # Fallback to sample data on error
+            log.warning("Using sample card data as fallback due to API error")
+            return random.choice(self.SAMPLE_CARDS)
+
+    # Sample card data for test mode
+    SAMPLE_CARDS = [
+        {
+            "id": "OP01-001",
+            "code": "OP01-001",
+            "rarity": "L",
+            "type": "LEADER",
+            "name": "Monkey D. Luffy",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png"
+            },
+            "cost": 5,
+            "attribute": {
+                "name": "Strike",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type01.png"
+            },
+            "power": 5000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Supernovas/Straw Hat Crew",
+            "ability": "[Your Turn] If you have 5 or less Life cards, this Leader gains +1000 power.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-002",
+            "code": "OP01-002",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Roronoa Zoro",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-002.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-002.png"
+            },
+            "cost": 4,
+            "attribute": {
+                "name": "Slash",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type02.png"
+            },
+            "power": 6000,
+            "counter": "1000",
+            "color": "Red",
+            "family": "Supernovas/Straw Hat Crew",
+            "ability": "[DON!! x1] [When Attacking] You may rest 2 of your DON!! cards: This Character gains +2000 power during this attack.",
+            "trigger": "+1000",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-003",
+            "code": "OP01-003",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Nami",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-003.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-003.png"
+            },
+            "cost": 3,
+            "attribute": {
+                "name": "Special",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type03.png"
+            },
+            "power": 5000,
+            "counter": "1000",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[DON!! x1] [Activate: Main] [Once Per Turn] You may rest one of your DON!! cards: Draw 1 card.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-004",
+            "code": "OP01-004",
+            "rarity": "R",
+            "type": "CHARACTER",
+            "name": "Usopp",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-004.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-004.png"
+            },
+            "cost": 2,
+            "attribute": {
+                "name": "Ranged",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type04.png"
+            },
+            "power": 3000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[On Play] Look at the top 5 cards of your deck, reveal up to 1 Character card with a cost of 4 or less from among them and add it to your hand. Place the remaining cards at the bottom of the deck in any order.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-005",
+            "code": "OP01-005",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Sanji",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-005.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-005.png"
+            },
+            "cost": 4,
+            "attribute": {
+                "name": "Strike",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type01.png"
+            },
+            "power": 6000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[On Play] If you have a Character with \"Nami\" in its name in play, give up to 1 of your opponent's Characters -4000 power during this turn.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-006",
+            "code": "OP01-006",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Tony Tony Chopper",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-006.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-006.png"
+            },
+            "cost": 2,
+            "attribute": {
+                "name": "Special",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type03.png"
+            },
+            "power": 2000,
+            "counter": "1000",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[Activate: Main] [Once Per Turn] <Don!! -1> (You may return the specified number of DON!! cards from your field to your DON!! deck.): Draw 2 cards, then place 1 card from your hand at the bottom of your deck.",
+            "trigger": "+1000",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-007",
+            "code": "OP01-007",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Nico Robin",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-007.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-007.png"
+            },
+            "cost": 3,
+            "attribute": {
+                "name": "Special",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type03.png"
+            },
+            "power": 5000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[On Play] Play up to 1 Character card with a cost of 4 or less from your hand.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-008",
+            "code": "OP01-008",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Franky",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-008.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-008.png"
+            },
+            "cost": 5,
+            "attribute": {
+                "name": "Special",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type03.png"
+            },
+            "power": 7000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[Your Turn] If you have 8 or more cards in your hand, this Character gains +2000 power.",
+            "trigger": "+2000",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-009",
+            "code": "OP01-009",
+            "rarity": "SR",
+            "type": "CHARACTER",
+            "name": "Brook",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-009.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-009.png"
+            },
+            "cost": 5,
+            "attribute": {
+                "name": "Slash",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type02.png"
+            },
+            "power": 7000,
+            "counter": "0",
+            "color": "Red",
+            "family": "Straw Hat Crew",
+            "ability": "[Blocker] (After your opponent declares an attack, you may rest this card to make it the new target of the attack.)",
+            "trigger": "+1000",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        },
+        {
+            "id": "OP01-010",
+            "code": "OP01-010",
+            "rarity": "R",
+            "type": "CHARACTER",
+            "name": "Jinbe",
+            "images": {
+                "small": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-010.png",
+                "large": "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-010.png"
+            },
+            "cost": 5,
+            "attribute": {
+                "name": "Strike",
+                "image": "https://en.onepiece-cardgame.com/images/cardlist/attribute/ico_type01.png"
+            },
+            "power": 7000,
+            "counter": "1000",
+            "color": "Red",
+            "family": "Straw Hat Crew/Fish-Man",
+            "ability": "[DON!! x1] [When Attacking] You may rest one of your DON!! cards: If your Leader has a [DON!! x1] Trigger Icon, this Character gains +2000 power during this attack.",
+            "trigger": "",
+            "set": {
+                "name": "Romance Dawn [OP01]"
+            },
+            "notes": []
+        }
+    ]
+
+    async def fetch_card_by_name(self, name: str) -> List[Dict]:
+        """Fetch cards with the given name from the API or test data."""
+        # Check if test mode is enabled
+        test_mode = await self.config.get_raw("test_mode", default=False)
+        
+        if test_mode:
+            # Filter sample cards by name
+            name_lower = name.lower()
+            matching_cards = [
+                card for card in self.SAMPLE_CARDS 
+                if name_lower in card["name"].lower()
+            ]
+            return matching_cards
+        
+        # Normal API fetch logic
+        try:
+            async with self.session.get(
+                await self.config.api_url(),
+                params={"name": name}
+            ) as resp:
+                if resp.status != 200:
+                    log.error(f"API request failed with status {resp.status}")
+                    # Fall back to test data
+                    name_lower = name.lower()
+                    matching_cards = [
+                        card for card in self.SAMPLE_CARDS 
+                        if name_lower in card["name"].lower()
+                    ]
+                    return matching_cards
+                
+                try:
+                    data = await resp.json()
+                    return data.get("data", [])
+                except Exception as e:
+                    log.error(f"Failed to parse API response: {e}")
+                    # Fall back to test data
+                    name_lower = name.lower()
+                    matching_cards = [
+                        card for card in self.SAMPLE_CARDS 
+                        if name_lower in card["name"].lower()
+                    ]
+                    return matching_cards
+        
+        except Exception as e:
+            log.error(f"Error fetching card by name from API: {e}")
+            # Fall back to test data
+            name_lower = name.lower()
+            matching_cards = [
+                card for card in self.SAMPLE_CARDS 
+                if name_lower in card["name"].lower()
+            ]
+            return matching_cards
     
     @optcg.command(name="spawn")
     @commands.admin_or_permissions(manage_guild=True)
