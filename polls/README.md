@@ -21,7 +21,7 @@ A Red-DiscordBot cog that creates interactive polls using Discord's Components V
 1. Make sure your bot has Components V2 support (Discord.py 2.0+ with the Components V2 PR merged)
 2. Add the repository to your bot:
    ```
-   [p]repo add v2poll-cog [repository URL]
+   [p]repo add v2poll-cog [[repository URL]](https://github.com/AfterWorld/ultcogs)
    ```
 3. Install the cog:
    ```
