@@ -29,7 +29,8 @@ class OPTCG(commands.Cog):
             "spawn_chance": 0.15,  # Chance of spawning a card after each message (15%)
             "spawn_cooldown": 60,  # Cooldown in seconds between card spawns
             "last_spawn_time": 0,  # Timestamp of the last spawn
-            "api_url": "https://apitcg.com/api/one-piece/cards"
+            "api_url": "https://apitcg.com/api/one-piece/cards",
+            "test_mode": False     # Test mode flag
         }
         
         default_guild = {
