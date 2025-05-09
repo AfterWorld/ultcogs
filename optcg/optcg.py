@@ -30,7 +30,8 @@ class OPTCG(commands.Cog):
             "spawn_cooldown": 60,  # Cooldown in seconds between card spawns
             "last_spawn_time": 0,  # Timestamp of the last spawn
             "api_url": "https://apitcg.com/api/one-piece/cards",
-            "test_mode": False     # Test mode flag
+            "test_mode": False,    # Test mode flag
+            "use_silhouette": True # Whether to use silhouettes when spawning cards
         }
         
         default_guild = {
