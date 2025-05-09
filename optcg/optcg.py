@@ -1,0 +1,584 @@
+from logging import config
+import discord
+import asyncio
+import random
+import aiohttp
+import logging
+import io
+from typing import Dict, List, Optional, Union
+from redbot.core import commands, Config
+from redbot.core.bot import Red
+from redbot.core.utils.chat_formatting import box, pagify
+from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+from redbot.core.utils.predicates import MessagePredicate
+
+from .utils import create_silhouette, get_card_stats
+from .battle import BattleSystem
+
+log = logging.getLogger("red.optcg")
+
+class OPTCG(commands.Cog):
+    """One Piece Trading Card Game Cog - Collect cards and battle!"""
+
+    def __init__(self, bot: Red):
+        self.bot = bot
+        self.config = Config.get_conf(self, identifier=20240508, force_registration=True)
+        
+        # Default settings
+        default_global = {
+            "spawn_chance": 0.15,  # Chance of spawning a card after each message (15%)
+            "spawn_cooldown": 60,  # Cooldown in seconds between card spawns
+            "last_spawn_time": 0,  # Timestamp of the last spawn
+            "api_url": "https://apitcg.com/api/one-piece/cards"
+        }
+        
+        default_guild = {
+            "enabled": True,
+            "spawn_channel": None,
+            "active_card": None  # Currently active card that can be claimed
+        }
+        
+        default_user = {
+            "cards": [],           # List of card IDs
+            "card_details": {},    # Dict mapping card IDs to details
+            "claimed_starter": False
+        }
+        
+        self.config.register_global(**default_global)
+        self.config.register_guild(**default_guild)
+        self.config.register_user(**default_user)
+        
+        self.spawn_lock = asyncio.Lock()
+        self.session = aiohttp.ClientSession()
+        
+        # Initialize battle system
+        self.battle_system = BattleSystem(bot, config)
+        
+    def cog_unload(self):
+        asyncio.create_task(self.session.close())
+    
+    async def red_delete_data_for_user(self, *, requester, user_id):
+        """Delete a user's data when they leave the guild."""
+        await self.config.user_from_id(user_id).clear()
+    
+    async def fetch_random_card(self) -> Optional[Dict]:
+        """Fetch a random card from the API."""
+        try:
+            async with self.session.get(
+                await self.config.api_url(),
+                params={"limit": 1, "page": random.randint(1, 20)}
+            ) as resp:
+                if resp.status != 200:
+                    log.error(f"API request failed with status {resp.status}")
+                    return None
+                
+                data = await resp.json()
+                if not data.get("data"):
+                    return None
+                
+                # Sometimes the API might return an empty list or not have the expected amount of cards
+                # Let's try to handle that gracefully
+                cards = data.get("data", [])
+                if not cards:
+                    return None
+                
+                return random.choice(cards)
+        
+        except Exception as e:
+            log.error(f"Error fetching card from API: {e}")
+            return None
+    
+    async def fetch_card_by_name(self, name: str) -> List[Dict]:
+        """Fetch cards with the given name from the API."""
+        try:
+            async with self.session.get(
+                await self.config.api_url(),
+                params={"name": name}
+            ) as resp:
+                if resp.status != 200:
+                    log.error(f"API request failed with status {resp.status}")
+                    return []
+                
+                data = await resp.json()
+                return data.get("data", [])
+        
+        except Exception as e:
+            log.error(f"Error fetching card by name from API: {e}")
+            return []
+    
+    async def spawn_card(self, guild: discord.Guild) -> Optional[discord.Message]:
+        """Spawn a card in the guild's designated channel."""
+        if await self.config.guild(guild).enabled() is False:
+            return None
+        
+        spawn_channel_id = await self.config.guild(guild).spawn_channel()
+        if not spawn_channel_id:
+            return None
+        
+        spawn_channel = guild.get_channel(spawn_channel_id)
+        if not spawn_channel:
+            return None
+        
+        card = await self.fetch_random_card()
+        if not card:
+            return None
+        
+        # Store the active card
+        await self.config.guild(guild).active_card.set(card)
+        
+        # Create embed
+        embed = discord.Embed(
+            title="A Wild One Piece Card Appears!",
+            description="Use the button below or type `.optcg claim` to claim this card!",
+            color=discord.Color.dark_gold()
+        )
+        
+        # Create a silhouette of the card image
+        try:
+            silhouette_image = await create_silhouette(self.session, card["images"]["large"])
+            if silhouette_image:
+                # If we successfully created a silhouette
+                file = discord.File(silhouette_image, filename="silhouette.png")
+                embed.set_image(url="attachment://silhouette.png")
+                use_file = True
+            else:
+                # Fall back to regular image if silhouette creation fails
+                embed.set_image(url=card["images"]["large"])
+                file = None
+                use_file = False
+        except Exception as e:
+            log.error(f"Error creating silhouette: {e}")
+            embed.set_image(url=card["images"]["large"])
+            file = None
+            use_file = False
+        
+        # Create a button for claiming
+        claim_button = discord.ui.Button(label="Claim Card", style=discord.ButtonStyle.primary)
+        
+        async def claim_callback(interaction: discord.Interaction):
+            await self.claim_card(interaction.user, guild, interaction.message)
+            
+        claim_button.callback = claim_callback
+        
+        view = discord.ui.View()
+        view.add_item(claim_button)
+        
+        try:
+            if use_file:
+                message = await spawn_channel.send(embed=embed, file=file, view=view)
+            else:
+                message = await spawn_channel.send(embed=embed, view=view)
+            return message
+        except Exception as e:
+            log.error(f"Error spawning card: {e}")
+            return None
+    
+    async def claim_card(self, user: discord.User, guild: discord.Guild, message: Optional[discord.Message] = None):
+        """Claim the active card in the guild."""
+        active_card = await self.config.guild(guild).active_card()
+        if not active_card:
+            if message:
+                await message.edit(content="There's no card to claim right now!", view=None)
+            return
+        
+        async with self.config.user(user).all() as user_data:
+            cards = user_data["cards"]
+            card_details = user_data["card_details"]
+            
+            # Add card to user's collection
+            cards.append(active_card["id"])
+            card_details[active_card["id"]] = active_card
+        
+        # Clear active card
+        await self.config.guild(guild).active_card.set(None)
+        
+        # Create a new embed showing the card was claimed
+        embed = discord.Embed(
+            title=f"Card Claimed by {user.display_name}!",
+            description=f"**{active_card['name']}** has been added to your collection.",
+            color=discord.Color.green()
+        )
+        embed.set_image(url=active_card["images"]["large"])
+        embed.add_field(name="Rarity", value=active_card["rarity"])
+        embed.add_field(name="Type", value=active_card["type"])
+        embed.add_field(name="Color", value=active_card["color"])
+        embed.add_field(name="Power", value=str(active_card["power"]))
+        
+        if message:
+            await message.edit(embed=embed, view=None)
+    
+    @commands.group(name="optcg")
+    async def optcg(self, ctx: commands.Context):
+        """Commands for the One Piece TCG Game."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+            
+    #
+    # Battle related commands
+    #
+            
+    @optcg.command(name="deck")
+    async def set_battle_deck(self, ctx: commands.Context, *card_ids: str):
+        """Set your battle deck with up to 5 cards from your collection.
+        
+        Example:
+        `.optcg deck OP01-001 OP01-002 OP01-003`
+        """
+        if not card_ids:
+            await ctx.send("Please specify at least one card ID to add to your battle deck.")
+            return
+            
+        if len(card_ids) > 5:
+            await ctx.send("You can only have up to 5 cards in your battle deck.")
+            return
+            
+        success = await self.battle_system.set_battle_deck(ctx.author, list(card_ids))
+            
+        if success:
+            await ctx.send(f"Battle deck updated with {len(card_ids)} cards!")
+        else:
+            await ctx.send("Failed to update battle deck. Make sure all card IDs are from your collection.")
+            
+    @optcg.command(name="battle")
+    async def battle_command(self, ctx: commands.Context, opponent: discord.Member):
+        """Challenge another user to a battle with your deck."""
+        if opponent.bot:
+            await ctx.send("You can't battle against bots!")
+            return
+            
+        if opponent == ctx.author:
+            await ctx.send("You can't battle against yourself!")
+            return
+            
+        # Start the battle
+        await self.battle_system.create_battle(ctx, ctx.author, opponent)
+            
+    @optcg.command(name="stats")
+    async def battle_stats(self, ctx: commands.Context, user: discord.Member = None):
+        """View your battle statistics or another user's."""
+        target = user or ctx.author
+        wins, losses = await self.battle_system.get_user_battle_stats(target)
+        total = wins + losses
+            
+        # Calculate win rate
+        win_rate = (wins / total) * 100 if total > 0 else 0
+            
+        embed = discord.Embed(
+            title=f"{target.display_name}'s Battle Statistics",
+            color=discord.Color.blue()
+        )
+            
+        embed.add_field(name="Wins", value=str(wins), inline=True)
+        embed.add_field(name="Losses", value=str(losses), inline=True)
+        embed.add_field(name="Total Battles", value=str(total), inline=True)
+        embed.add_field(name="Win Rate", value=f"{win_rate:.1f}%", inline=True)
+            
+        await ctx.send(embed=embed)
+        
+    @optcg.command(name="viewdeck")
+    async def view_deck(self, ctx: commands.Context, user: discord.Member = None):
+        """View your battle deck or another user's."""
+        target = user or ctx.author
+        user_data = await self.config.user(target).all()
+        
+        if not user_data.get("battle_deck"):
+            if target == ctx.author:
+                await ctx.send("You don't have a battle deck set up! Use `.optcg deck` to set one up.")
+            else:
+                await ctx.send(f"{target.display_name} doesn't have a battle deck set up!")
+            return
+        
+        embed = discord.Embed(
+            title=f"{target.display_name}'s Battle Deck",
+            description=f"{len(user_data['battle_deck'])} cards",
+            color=discord.Color.blue()
+        )
+        
+        for card_id in user_data["battle_deck"]:
+            if card_id in user_data["card_details"]:
+                card = user_data["card_details"][card_id]
+                stats = user_data.get("battle_stats", {}).get(card_id, (0, 0, 0))
+                
+                embed.add_field(
+                    name=f"{card['name']} ({card['rarity']})",
+                    value=f"ID: {card['id']}\nType: {card['type']}\nPower: {card['power']}\n"
+                         f"Battle Stats: {stats[0]} ATK | {stats[1]} DEF | {stats[2]} HP",
+                    inline=True
+                )
+        
+        await ctx.send(embed=embed)
+    
+    @optcg.group(name="admin")
+    @commands.admin_or_permissions(administrator=True)
+    async def optcg_admin(self, ctx: commands.Context):
+        """Admin commands for OPTCG configuration."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+    
+    @optcg_admin.command(name="spawnrate")
+    async def set_spawn_rate(self, ctx: commands.Context, rate: float):
+        """Set the chance for a card to spawn (0.0 - 1.0).
+        
+        Example:
+        `.optcg admin spawnrate 0.15` - Sets a 15% chance to spawn a card
+        """
+        if rate < 0 or rate > 1:
+            await ctx.send("Spawn rate must be between 0.0 (0%) and 1.0 (100%).")
+            return
+        
+        await self.config.spawn_chance.set(rate)
+        await ctx.send(f"Card spawn rate set to {rate * 100:.1f}%")
+    
+    @optcg_admin.command(name="cooldown")
+    async def set_cooldown(self, ctx: commands.Context, seconds: int):
+        """Set the cooldown between card spawns in seconds.
+        
+        Example:
+        `.optcg admin cooldown 60` - Sets a 60 second cooldown between spawns
+        """
+        if seconds < 0:
+            await ctx.send("Cooldown must be a positive number of seconds.")
+            return
+        
+        await self.config.spawn_cooldown.set(seconds)
+        await ctx.send(f"Card spawn cooldown set to {seconds} seconds")
+        
+    @optcg_admin.command(name="reset")
+    async def reset_user(self, ctx: commands.Context, user: discord.Member):
+        """Reset a user's OPTCG data (admin only).
+        
+        This will delete all cards and reset stats. Use with caution!
+        """
+        await ctx.send(f"Are you sure you want to reset **{user.display_name}**'s OPTCG data? This will delete all their cards and cannot be undone. Type 'yes' to confirm.")
+        
+        try:
+            pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+            await ctx.bot.wait_for("message", check=pred, timeout=30)
+        except asyncio.TimeoutError:
+            await ctx.send("Reset canceled due to timeout.")
+            return
+            
+        if pred.result:
+            await self.config.user(user).clear()
+            await ctx.send(f"**{user.display_name}**'s OPTCG data has been reset!")
+        else:
+            await ctx.send("Reset canceled.")
+    
+    @optcg.command(name="enable")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def enable_optcg(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        """Enable card spawning in the specified channel."""
+        if channel is None:
+            channel = ctx.channel
+        
+        await self.config.guild(ctx.guild).enabled.set(True)
+        await self.config.guild(ctx.guild).spawn_channel.set(channel.id)
+        
+        await ctx.send(f"OPTCG card spawning enabled in {channel.mention}!")
+    
+    @optcg.command(name="disable")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def disable_optcg(self, ctx: commands.Context):
+        """Disable card spawning in this guild."""
+        await self.config.guild(ctx.guild).enabled.set(False)
+        
+        await ctx.send("OPTCG card spawning disabled for this server!")
+    
+    @optcg.command(name="claim")
+    async def claim_command(self, ctx: commands.Context):
+        """Claim the active card in the channel."""
+        await ctx.message.delete()
+        await self.claim_card(ctx.author, ctx.guild)
+    
+    @optcg.command(name="starter")
+    async def claim_starter(self, ctx: commands.Context):
+        """Claim a starter pack of 5 random One Piece cards."""
+        user_data = await self.config.user(ctx.author).all()
+        
+        if user_data["claimed_starter"]:
+            await ctx.send("You've already claimed your starter pack!")
+            return
+        
+        # Fetch 5 random cards
+        cards = []
+        for _ in range(5):
+            card = await self.fetch_random_card()
+            if card:
+                cards.append(card)
+        
+        if not cards:
+            await ctx.send("Sorry, I couldn't fetch any cards right now. Try again later.")
+            return
+        
+        # Add cards to user's collection
+        async with self.config.user(ctx.author).all() as user_data:
+            for card in cards:
+                user_data["cards"].append(card["id"])
+                user_data["card_details"][card["id"]] = card
+            
+            user_data["claimed_starter"] = True
+        
+        # Create embed to show the cards
+        embed = discord.Embed(
+            title=f"{ctx.author.display_name}'s Starter Pack",
+            description="You've received 5 random One Piece cards!",
+            color=discord.Color.blue()
+        )
+        
+        for i, card in enumerate(cards, 1):
+            embed.add_field(
+                name=f"{i}. {card['name']} ({card['rarity']})",
+                value=f"Type: {card['type']}\nColor: {card['color']}\nPower: {card['power']}",
+                inline=False
+            )
+        
+        # Show the first card's image
+        embed.set_image(url=cards[0]["images"]["large"])
+        
+        await ctx.send(embed=embed)
+    
+    @optcg.command(name="collection", aliases=["cards"])
+    async def view_collection(self, ctx: commands.Context, user: discord.User = None):
+        """View your card collection or another user's collection."""
+        target = user or ctx.author
+        user_data = await self.config.user(target).all()
+        
+        if not user_data["cards"]:
+            if target == ctx.author:
+                await ctx.send("You don't have any cards yet! Use `.optcg starter` to get your first cards.")
+            else:
+                await ctx.send(f"{target.display_name} doesn't have any cards yet!")
+            return
+        
+        # Create pages of cards
+        pages = []
+        card_details = user_data["card_details"]
+        chunks = [user_data["cards"][i:i+10] for i in range(0, len(user_data["cards"]), 10)]
+        
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"{target.display_name}'s Collection",
+                description=f"Page {i+1}/{len(chunks)} - {len(user_data['cards'])} cards total",
+                color=discord.Color.blue()
+            )
+            
+            for card_id in chunk:
+                if card_id in card_details:
+                    card = card_details[card_id]
+                    embed.add_field(
+                        name=f"{card['name']} ({card['rarity']})",
+                        value=f"ID: {card['id']}\nType: {card['type']}\nColor: {card['color']}\nPower: {card['power']}",
+                        inline=True
+                    )
+            
+            pages.append(embed)
+        
+        await menu(ctx, pages, DEFAULT_CONTROLS)
+    
+    @optcg.command(name="card")
+    async def view_card(self, ctx: commands.Context, card_id: str):
+        """View details of a specific card from your collection."""
+        user_data = await self.config.user(ctx.author).all()
+        card_details = user_data["card_details"]
+        
+        if card_id not in card_details:
+            await ctx.send(f"You don't have a card with ID `{card_id}` in your collection.")
+            return
+        
+        card = card_details[card_id]
+        
+        embed = discord.Embed(
+            title=f"{card['name']} ({card['rarity']})",
+            description=f"ID: {card['id']}",
+            color=discord.Color.blue()
+        )
+        
+        embed.set_image(url=card["images"]["large"])
+        
+        embed.add_field(name="Type", value=card["type"], inline=True)
+        embed.add_field(name="Color", value=card["color"], inline=True)
+        embed.add_field(name="Power", value=str(card["power"]), inline=True)
+        embed.add_field(name="Cost", value=str(card["cost"]), inline=True)
+        embed.add_field(name="Counter", value=card["counter"], inline=True)
+        embed.add_field(name="Family", value=card["family"], inline=True)
+        
+        if card["ability"]:
+            # Remove HTML tags
+            ability = card["ability"].replace("<br>", "\n")
+            embed.add_field(name="Ability", value=ability, inline=False)
+        
+        if card["trigger"]:
+            embed.add_field(name="Trigger", value=card["trigger"], inline=False)
+        
+        await ctx.send(embed=embed)
+    
+    @optcg.command(name="search")
+    async def search_cards(self, ctx: commands.Context, *, name: str):
+        """Search for One Piece cards by name."""
+        cards = await self.fetch_card_by_name(name)
+        
+        if not cards:
+            await ctx.send(f"No cards found matching '{name}'.")
+            return
+        
+        # Create pages
+        pages = []
+        chunks = [cards[i:i+5] for i in range(0, len(cards), 5)]
+        
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"Search Results for '{name}'",
+                description=f"Page {i+1}/{len(chunks)} - {len(cards)} cards total",
+                color=discord.Color.blue()
+            )
+            
+            for card in chunk:
+                embed.add_field(
+                    name=f"{card['name']} ({card['rarity']})",
+                    value=f"ID: {card['id']}\nType: {card['type']}\nColor: {card['color']}\nPower: {card['power']}",
+                    inline=True
+                )
+            
+            # Show the first card's image
+            if i == 0:
+                embed.set_image(url=cards[0]["images"]["large"])
+            
+            pages.append(embed)
+        
+        await menu(ctx, pages, DEFAULT_CONTROLS)
+    
+    @optcg.command(name="spawn")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def force_spawn(self, ctx: commands.Context):
+        """Force spawn a card in the designated channel."""
+        message = await self.spawn_card(ctx.guild)
+        
+        if message:
+            await ctx.send("A card has been spawned!")
+        else:
+            await ctx.send("Failed to spawn a card. Is OPTCG enabled and configured correctly?")
+    
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Listen for messages to possibly spawn a card."""
+        # Skip if the message is from a bot or not in a guild
+        if message.author.bot or not message.guild:
+            return
+        
+        # Skip if the cog is disabled for this guild
+        if not await self.config.guild(message.guild).enabled():
+            return
+        
+        # Check if we're on cooldown
+        async with self.spawn_lock:
+            last_spawn_time = await self.config.last_spawn_time()
+            current_time = int(message.created_at.timestamp())
+            
+            if current_time - last_spawn_time < await self.config.spawn_cooldown():
+                return
+            
+            # Roll for spawn chance
+            spawn_chance = await self.config.spawn_chance()
+            if random.random() < spawn_chance:
+                await self.config.last_spawn_time.set(current_time)
+                await self.spawn_card(message.guild)
