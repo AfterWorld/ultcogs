@@ -29,10 +29,28 @@ async def create_silhouette(session: aiohttp.ClientSession, image_url: str) -> O
     # Process the image in a thread pool to avoid blocking
     loop = asyncio.get_event_loop()
     try:
-        return await loop.run_in_executor(None, _process_silhouette, image_data)
+        # Try with the full processing first
+        silhouette = await loop.run_in_executor(None, _process_silhouette, image_data)
+        
+        # Verify that the silhouette was created successfully by checking file size
+        silhouette.seek(0, io.SEEK_END)
+        size = silhouette.tell()
+        silhouette.seek(0)
+        
+        # If the silhouette is too small (failed to process properly), fall back to simple method
+        if size < 1000:  # Less than 1KB is suspect
+            log.warning("Silhouette creation produced small file, falling back to simple method")
+            return await loop.run_in_executor(None, _simple_silhouette, image_data)
+            
+        return silhouette
     except Exception as e:
         log.error(f"Error creating silhouette: {e}")
-        return None
+        # Try the simple method as a fallback
+        try:
+            return await loop.run_in_executor(None, _simple_silhouette, image_data)
+        except Exception as e:
+            log.error(f"Error creating simple silhouette: {e}")
+            return None
 
 def _process_silhouette(image_data: bytes) -> io.BytesIO:
     """Process the image to create a silhouette (runs in a thread pool)."""
@@ -58,6 +76,27 @@ def _process_silhouette(image_data: bytes) -> io.BytesIO:
     # Save to BytesIO
     output = io.BytesIO()
     img.save(output, format="PNG")
+    output.seek(0)
+    
+    return output
+
+def _simple_silhouette(image_data: bytes) -> io.BytesIO:
+    """Create a simple silhouette by just making the image black (runs in a thread pool)."""
+    img = Image.open(io.BytesIO(image_data))
+    
+    # Create a blank black image of the same size
+    width, height = img.size
+    black_img = Image.new('RGB', (width, height), color='black')
+    
+    # Preserve the alpha channel if it exists
+    if img.mode == 'RGBA':
+        # Create an alpha mask from the original image
+        _, _, _, alpha = img.split()
+        black_img.putalpha(alpha)
+    
+    # Save to BytesIO
+    output = io.BytesIO()
+    black_img.save(output, format="PNG")
     output.seek(0)
     
     return output
