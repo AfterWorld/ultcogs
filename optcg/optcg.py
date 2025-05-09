@@ -1,10 +1,10 @@
-from logging import config
 import discord
 import asyncio
 import random
 import aiohttp
 import logging
 import io
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 from redbot.core import commands, Config
 from redbot.core.bot import Red
@@ -52,8 +52,12 @@ class OPTCG(commands.Cog):
         self.session = aiohttp.ClientSession()
         
         # Initialize battle system
-        self.battle_system = BattleSystem(bot, config)
-        
+        self.battle_system = BattleSystem(bot, self.config)
+    
+    async def cog_load(self):
+        # Initialize battle system
+        await self.battle_system.initialize()
+    
     def cog_unload(self):
         asyncio.create_task(self.session.close())
     
@@ -64,25 +68,36 @@ class OPTCG(commands.Cog):
     async def fetch_random_card(self) -> Optional[Dict]:
         """Fetch a random card from the API."""
         try:
+            # Try multiple pages to increase chances of success
+            for _ in range(3):  # Try up to 3 different random pages
+                page = random.randint(1, 20)
+                async with self.session.get(
+                    await self.config.api_url(),
+                    params={"limit": 10, "page": page}
+                ) as resp:
+                    if resp.status != 200:
+                        log.error(f"API request failed with status {resp.status}")
+                        continue
+                    
+                    data = await resp.json()
+                    cards = data.get("data", [])
+                    if cards:
+                        return random.choice(cards)
+            
+            # Fallback: try with a simpler request for any card
             async with self.session.get(
                 await self.config.api_url(),
-                params={"limit": 1, "page": random.randint(1, 20)}
+                params={"limit": 1}
             ) as resp:
                 if resp.status != 200:
                     log.error(f"API request failed with status {resp.status}")
                     return None
                 
                 data = await resp.json()
-                if not data.get("data"):
-                    return None
-                
-                # Sometimes the API might return an empty list or not have the expected amount of cards
-                # Let's try to handle that gracefully
                 cards = data.get("data", [])
-                if not cards:
-                    return None
-                
-                return random.choice(cards)
+                if cards:
+                    return cards[0]
+                return None
         
         except Exception as e:
             log.error(f"Error fetching card from API: {e}")
@@ -108,69 +123,103 @@ class OPTCG(commands.Cog):
     
     async def spawn_card(self, guild: discord.Guild) -> Optional[discord.Message]:
         """Spawn a card in the guild's designated channel."""
-        if await self.config.guild(guild).enabled() is False:
-            return None
-        
-        spawn_channel_id = await self.config.guild(guild).spawn_channel()
-        if not spawn_channel_id:
-            return None
-        
-        spawn_channel = guild.get_channel(spawn_channel_id)
-        if not spawn_channel:
-            return None
-        
-        card = await self.fetch_random_card()
-        if not card:
-            return None
-        
-        # Store the active card
-        await self.config.guild(guild).active_card.set(card)
-        
-        # Create embed
-        embed = discord.Embed(
-            title="A Wild One Piece Card Appears!",
-            description="Use the button below or type `.optcg claim` to claim this card!",
-            color=discord.Color.dark_gold()
-        )
-        
-        # Create a silhouette of the card image
         try:
-            silhouette_image = await create_silhouette(self.session, card["images"]["large"])
-            if silhouette_image:
-                # If we successfully created a silhouette
-                file = discord.File(silhouette_image, filename="silhouette.png")
-                embed.set_image(url="attachment://silhouette.png")
-                use_file = True
-            else:
-                # Fall back to regular image if silhouette creation fails
-                embed.set_image(url=card["images"]["large"])
-                file = None
-                use_file = False
-        except Exception as e:
-            log.error(f"Error creating silhouette: {e}")
-            embed.set_image(url=card["images"]["large"])
-            file = None
-            use_file = False
-        
-        # Create a button for claiming
-        claim_button = discord.ui.Button(label="Claim Card", style=discord.ButtonStyle.primary)
-        
-        async def claim_callback(interaction: discord.Interaction):
-            await self.claim_card(interaction.user, guild, interaction.message)
+            if await self.config.guild(guild).enabled() is False:
+                log.debug(f"OPTCG is disabled in guild {guild.id}")
+                return None
             
-        claim_button.callback = claim_callback
-        
-        view = discord.ui.View()
-        view.add_item(claim_button)
-        
-        try:
-            if use_file:
-                message = await spawn_channel.send(embed=embed, file=file, view=view)
+            spawn_channel_id = await self.config.guild(guild).spawn_channel()
+            if not spawn_channel_id:
+                log.debug(f"No spawn channel configured for guild {guild.id}")
+                return None
+            
+            spawn_channel = guild.get_channel(spawn_channel_id)
+            if not spawn_channel:
+                log.debug(f"Could not find channel {spawn_channel_id} in guild {guild.id}")
+                return None
+            
+            # Check permissions
+            bot_member = guild.me
+            permissions = spawn_channel.permissions_for(bot_member)
+            
+            if not permissions.send_messages:
+                log.debug(f"Bot doesn't have permission to send messages in channel {spawn_channel_id}")
+                return None
+            
+            if not permissions.embed_links:
+                log.debug(f"Bot doesn't have permission to embed links in channel {spawn_channel_id}")
+                return None
+            
+            if not permissions.attach_files:
+                log.debug(f"Bot doesn't have permission to attach files in channel {spawn_channel_id}")
+                # We'll continue but won't use file attachments
+            
+            log.debug(f"Fetching random card for guild {guild.id}")
+            card = await self.fetch_random_card()
+            if not card:
+                log.error(f"Failed to fetch a random card for guild {guild.id}")
+                return None
+            
+            log.debug(f"Storing active card for guild {guild.id}")
+            await self.config.guild(guild).active_card.set(card)
+            
+            # Create embed
+            embed = discord.Embed(
+                title="A Wild One Piece Card Appears!",
+                description="Use the button below or type `.optcg claim` to claim this card!",
+                color=discord.Color.dark_gold()
+            )
+            
+            use_file = False
+            file = None
+            
+            # Create a silhouette of the card image if we have permissions
+            if permissions.attach_files:
+                try:
+                    silhouette_image = await create_silhouette(self.session, card["images"]["large"])
+                    if silhouette_image:
+                        # If we successfully created a silhouette
+                        file = discord.File(silhouette_image, filename="silhouette.png")
+                        embed.set_image(url="attachment://silhouette.png")
+                        use_file = True
+                    else:
+                        # Fall back to regular image if silhouette creation fails
+                        embed.set_image(url=card["images"]["large"])
+                except Exception as e:
+                    log.error(f"Error creating silhouette: {e}")
+                    embed.set_image(url=card["images"]["large"])
             else:
-                message = await spawn_channel.send(embed=embed, view=view)
-            return message
+                embed.set_image(url=card["images"]["large"])
+            
+            # Check if we can use message components (buttons)
+            if hasattr(discord, "ui") and hasattr(discord.ui, "Button"):
+                # Create a button for claiming
+                claim_button = discord.ui.Button(label="Claim Card", style=discord.ButtonStyle.primary)
+                
+                async def claim_callback(interaction: discord.Interaction):
+                    await self.claim_card(interaction.user, guild, interaction.message)
+                    
+                claim_button.callback = claim_callback
+                
+                view = discord.ui.View()
+                view.add_item(claim_button)
+            else:
+                view = None
+                embed.description += "\n\nNote: Use `.optcg claim` to claim this card!"
+            
+            try:
+                log.debug(f"Sending card spawn message to channel {spawn_channel_id}")
+                if use_file:
+                    message = await spawn_channel.send(embed=embed, file=file, view=view)
+                else:
+                    message = await spawn_channel.send(embed=embed, view=view)
+                return message
+            except Exception as e:
+                log.error(f"Error spawning card: {e}")
+                return None
+                
         except Exception as e:
-            log.error(f"Error spawning card: {e}")
+            log.error(f"Unexpected error in spawn_card: {e}")
             return None
     
     async def claim_card(self, user: discord.User, guild: discord.Guild, message: Optional[discord.Message] = None):
@@ -363,6 +412,116 @@ class OPTCG(commands.Cog):
             await ctx.send(f"**{user.display_name}**'s OPTCG data has been reset!")
         else:
             await ctx.send("Reset canceled.")
+            
+    @optcg_admin.command(name="debug")
+    async def debug_info(self, ctx: commands.Context):
+        """Display debugging information for OPTCG setup."""
+        guild = ctx.guild
+        embed = discord.Embed(
+            title="OPTCG Debug Information",
+            description="Here's the current setup information to help diagnose issues.",
+            color=discord.Color.blue()
+        )
+        
+        # Guild Settings
+        enabled = await self.config.guild(guild).enabled()
+        spawn_channel_id = await self.config.guild(guild).spawn_channel()
+        spawn_channel = guild.get_channel(spawn_channel_id) if spawn_channel_id else None
+        
+        embed.add_field(
+            name="Guild Settings",
+            value=f"Enabled: {enabled}\n"
+                  f"Spawn Channel: {spawn_channel.mention if spawn_channel else 'Not Set'}\n"
+                  f"Spawn Channel ID: {spawn_channel_id}",
+            inline=False
+        )
+        
+        # Global Settings
+        spawn_chance = await self.config.spawn_chance()
+        spawn_cooldown = await self.config.spawn_cooldown()
+        last_spawn_time = await self.config.last_spawn_time()
+        current_time = int(datetime.now().timestamp())
+        time_since_last = current_time - last_spawn_time if last_spawn_time else 0
+        
+        embed.add_field(
+            name="Global Settings",
+            value=f"Spawn Chance: {spawn_chance * 100}%\n"
+                  f"Spawn Cooldown: {spawn_cooldown} seconds\n"
+                  f"Time Since Last Spawn: {time_since_last} seconds",
+            inline=False
+        )
+        
+        # Bot Permissions
+        if spawn_channel:
+            perms = spawn_channel.permissions_for(guild.me)
+            
+            perm_list = [
+                f"Send Messages: {perms.send_messages}",
+                f"Embed Links: {perms.embed_links}",
+                f"Attach Files: {perms.attach_files}",
+                f"Use External Emojis: {perms.use_external_emojis}",
+                f"Add Reactions: {perms.add_reactions}",
+                f"Read Message History: {perms.read_message_history}"
+            ]
+            
+            embed.add_field(
+                name="Bot Permissions in Spawn Channel",
+                value="\n".join(perm_list),
+                inline=False
+            )
+        
+        # API Connection Test
+        try:
+            async with self.session.get(await self.config.api_url()) as resp:
+                api_status = f"Status Code: {resp.status}"
+                if resp.status == 200:
+                    data = await resp.json()
+                    api_status += f"\nCards Available: {data.get('total', 'Unknown')}"
+        except Exception as e:
+            api_status = f"Error: {str(e)}"
+        
+        embed.add_field(
+            name="API Connection",
+            value=api_status,
+            inline=False
+        )
+        
+        # Card Silhouette Testing
+        try:
+            test_url = "https://en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png"
+            silhouette_result = "Not Tested"
+            
+            async with self.session.get(test_url) as resp:
+                if resp.status == 200:
+                    silhouette_result = "Image Fetch: Success\n"
+                    try:
+                        silhouette = await create_silhouette(self.session, test_url)
+                        if silhouette:
+                            silhouette_result += "Silhouette Creation: Success"
+                        else:
+                            silhouette_result += "Silhouette Creation: Failed"
+                    except Exception as e:
+                        silhouette_result += f"Silhouette Creation: Error ({str(e)})"
+                else:
+                    silhouette_result = f"Image Fetch: Failed (Status {resp.status})"
+        except Exception as e:
+            silhouette_result = f"Error: {str(e)}"
+        
+        embed.add_field(
+            name="Silhouette Testing",
+            value=silhouette_result,
+            inline=False
+        )
+        
+        # Cog Version Info
+        embed.add_field(
+            name="Cog Information",
+            value="Version: 1.0.1\n"  # Bumped to version 1.0.1 with these fixes
+                  "Last Updated: May 8, 2024",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
     
     @optcg.command(name="enable")
     @commands.admin_or_permissions(manage_guild=True)
@@ -371,10 +530,67 @@ class OPTCG(commands.Cog):
         if channel is None:
             channel = ctx.channel
         
+        # Check permissions in the target channel
+        permissions = channel.permissions_for(ctx.guild.me)
+        missing_perms = []
+        
+        if not permissions.send_messages:
+            missing_perms.append("Send Messages")
+        if not permissions.embed_links:
+            missing_perms.append("Embed Links")
+        
+        if missing_perms:
+            await ctx.send(
+                f"⚠️ Warning: I don't have the following required permissions in {channel.mention}: "
+                f"{', '.join(missing_perms)}. Please grant these permissions for the game to work properly."
+            )
+            await ctx.send("Do you want to continue enabling OPTCG in this channel anyway? (yes/no)")
+            
+            try:
+                pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                await ctx.bot.wait_for("message", check=pred, timeout=30)
+                if not pred.result:
+                    await ctx.send("OPTCG setup canceled.")
+                    return
+            except asyncio.TimeoutError:
+                await ctx.send("OPTCG setup canceled due to timeout.")
+                return
+        
         await self.config.guild(ctx.guild).enabled.set(True)
         await self.config.guild(ctx.guild).spawn_channel.set(channel.id)
         
-        await ctx.send(f"OPTCG card spawning enabled in {channel.mention}!")
+        # Test API connection
+        api_ok = False
+        try:
+            async with self.session.get(await self.config.api_url()) as resp:
+                if resp.status == 200:
+                    api_ok = True
+        except Exception:
+            api_ok = False
+        
+        embed = discord.Embed(
+            title="OPTCG Enabled!",
+            description=f"One Piece TCG card game has been enabled in {channel.mention}!",
+            color=discord.Color.green()
+        )
+        
+        embed.add_field(
+            name="Next Steps",
+            value="1. Players can get starter packs with `.optcg starter`\n"
+                  "2. Cards will randomly spawn in this channel\n"
+                  "3. Use `.optcg spawn` to force a card spawn (admin only)",
+            inline=False
+        )
+        
+        if not api_ok:
+            embed.add_field(
+                name="⚠️ Warning",
+                value="Could not connect to the API. Cards may not spawn correctly. "
+                      "Check `.optcg admin debug` for more information.",
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
     
     @optcg.command(name="disable")
     @commands.admin_or_permissions(manage_guild=True)
@@ -551,12 +767,49 @@ class OPTCG(commands.Cog):
     @commands.admin_or_permissions(manage_guild=True)
     async def force_spawn(self, ctx: commands.Context):
         """Force spawn a card in the designated channel."""
+        # Check if the cog is enabled for this guild
+        if not await self.config.guild(ctx.guild).enabled():
+            await ctx.send("OPTCG is not enabled in this server. Use `.optcg enable` first.")
+            return
+        
+        # Check if a spawn channel is set
+        spawn_channel_id = await self.config.guild(ctx.guild).spawn_channel()
+        if not spawn_channel_id:
+            await ctx.send("No spawn channel has been set. Use `.optcg enable #channel` to set one.")
+            return
+        
+        # Check if the channel exists
+        spawn_channel = ctx.guild.get_channel(spawn_channel_id)
+        if not spawn_channel:
+            await ctx.send(f"The configured spawn channel (ID: {spawn_channel_id}) doesn't exist anymore. Please set a new one with `.optcg enable #channel`.")
+            return
+        
+        # Check permissions in the channel
+        permissions = spawn_channel.permissions_for(ctx.guild.me)
+        
+        if not permissions.send_messages:
+            await ctx.send(f"I don't have permission to send messages in {spawn_channel.mention}.")
+            return
+        
+        if not permissions.embed_links:
+            await ctx.send(f"I don't have permission to embed links in {spawn_channel.mention}.")
+            return
+        
+        # Attempt to spawn a card
         message = await self.spawn_card(ctx.guild)
         
         if message:
-            await ctx.send("A card has been spawned!")
+            await ctx.send(f"A card has been spawned in {spawn_channel.mention}!")
         else:
-            await ctx.send("Failed to spawn a card. Is OPTCG enabled and configured correctly?")
+            # Test API connection to diagnose issues
+            try:
+                async with self.session.get(await self.config.api_url()) as resp:
+                    if resp.status != 200:
+                        await ctx.send(f"Failed to connect to the API. Status code: {resp.status}. Please try again later.")
+                    else:
+                        await ctx.send("Failed to spawn a card, but the API seems to be working. There might be an issue with card generation or message sending. Check the logs for more details.")
+            except Exception as e:
+                await ctx.send(f"Failed to connect to the API: {str(e)}. Please check your internet connection or try again later.")
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
