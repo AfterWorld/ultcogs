@@ -1,10 +1,11 @@
 {
     "author": ["UltPanda"],
     "description": "A One Piece Trading Card Game for Discord servers, similar to Pokecord",
-    "install_msg": "Thanks for installing the One Piece TCG game! Use `.optcg` to get started. Make sure to enable the game with `.optcg enable` in the channel you want cards to spawn.",
+    "install_msg": "Thanks for installing the One Piece TCG game! Use `.optcg` to get started. Make sure to enable the game with `.optcg enable` in the channel you want cards to spawn. If you encounter any issues, use `.optcg admin debug` to troubleshoot.",
     "short": "Collect One Piece Trading Cards",
     "tags": ["game", "onepiece", "tcg", "cards", "collection"],
-    "requirements": ["aiohttp"],
+    "requirements": ["Pillow", "aiohttp"],
     "min_bot_version": "3.5.0",
+    "version": "1.0.1",
     "type": "COG"
 }
