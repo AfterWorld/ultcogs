@@ -523,6 +523,84 @@ class OPTCG(commands.Cog):
         
         await ctx.send(embed=embed)
     
+    @optcg_admin.command(name="apiurl")
+    async def set_api_url(self, ctx: commands.Context, new_url: str = None):
+        """View or set the API URL for fetching card data.
+        
+        If no URL is provided, shows the current API URL.
+        
+        Example:
+        `.optcg admin apiurl https://apitcg.com/api/one-piece/cards`
+        """
+        if new_url is None:
+            current_url = await self.config.api_url()
+            await ctx.send(f"Current API URL: `{current_url}`")
+            return
+        
+        # Test the new URL
+        try:
+            async with self.session.get(new_url) as resp:
+                if resp.status != 200:
+                    await ctx.send(f"Warning: Received status code {resp.status} when testing the new URL. Are you sure this is correct?")
+                    await ctx.send("Do you want to set this URL anyway? (yes/no)")
+                    
+                    try:
+                        pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                        await ctx.bot.wait_for("message", check=pred, timeout=30)
+                        if not pred.result:
+                            await ctx.send("API URL update canceled.")
+                            return
+                    except asyncio.TimeoutError:
+                        await ctx.send("API URL update canceled due to timeout.")
+                        return
+                else:
+                    # Test parsing the response as JSON
+                    try:
+                        data = await resp.json()
+                        if "data" not in data:
+                            await ctx.send("Warning: Response does not contain a 'data' field. This may not be a valid API endpoint for One Piece TCG cards.")
+                            await ctx.send("Do you want to set this URL anyway? (yes/no)")
+                            
+                            try:
+                                pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                                await ctx.bot.wait_for("message", check=pred, timeout=30)
+                                if not pred.result:
+                                    await ctx.send("API URL update canceled.")
+                                    return
+                            except asyncio.TimeoutError:
+                                await ctx.send("API URL update canceled due to timeout.")
+                                return
+                    except Exception as e:
+                        await ctx.send(f"Warning: Could not parse response as JSON: {str(e)}")
+                        await ctx.send("Do you want to set this URL anyway? (yes/no)")
+                        
+                        try:
+                            pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                            await ctx.bot.wait_for("message", check=pred, timeout=30)
+                            if not pred.result:
+                                await ctx.send("API URL update canceled.")
+                                return
+                        except asyncio.TimeoutError:
+                            await ctx.send("API URL update canceled due to timeout.")
+                            return
+        except Exception as e:
+            await ctx.send(f"Error testing URL: {str(e)}")
+            await ctx.send("Do you want to set this URL anyway? (yes/no)")
+            
+            try:
+                pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                await ctx.bot.wait_for("message", check=pred, timeout=30)
+                if not pred.result:
+                    await ctx.send("API URL update canceled.")
+                    return
+            except asyncio.TimeoutError:
+                await ctx.send("API URL update canceled due to timeout.")
+                return
+        
+        # Update the API URL
+        await self.config.api_url.set(new_url)
+        await ctx.send(f"API URL has been updated to: `{new_url}`")
+    
     @optcg.command(name="enable")
     @commands.admin_or_permissions(manage_guild=True)
     async def enable_optcg(self, ctx: commands.Context, channel: discord.TextChannel = None):
