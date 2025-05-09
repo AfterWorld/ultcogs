@@ -1,0 +1,21 @@
+{
+    "author": [
+        "UltPanda"
+    ],
+    "name": "V2Poll",
+    "short": "Create interactive polls using Discord Components V2",
+    "description": "A feature-rich poll system that utilizes Discord's Components V2 to create interactive polls with real-time voting and results.",
+    "install_msg": "Thanks for installing V2Poll! Use `[p]poll create` to create your first interactive poll. Note that this cog requires Discord.py with Components V2 support.",
+    "tags": [
+        "poll",
+        "vote",
+        "interactive",
+        "utility",
+        "components-v2"
+    ],
+    "requirements": [
+        "discord.py>=2.0.0"
+    ],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog stores user IDs for tracking poll votes. This data is deleted when polls expire or are manually deleted."
+}
