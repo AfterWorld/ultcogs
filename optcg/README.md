@@ -22,7 +22,7 @@ To install this cog, you need to have a running Red-DiscordBot instance (v3.5+).
 
 2. Add the repository to your bot:
 ```
-[p]repo add optcg-cog [https://github.com/AfterWorld/ultcogs]
+[p]repo add optcg-cog https://github.com/AfterWorld/ultcogs
 ```
 
 3. Install the cog:
