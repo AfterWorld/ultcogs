@@ -87,20 +87,18 @@ class V2Poll(commands.Cog):
                     
                     # Create option sections with vote buttons
                     for i, option in enumerate(options):
-                        # Create a section for each option
-                        section = discord.ui.Section()
-                        
-                        # Add option text to the section
-                        option_text = discord.ui.TextDisplay(f"{i+1}. {option}")
-                        section.add_item(option_text)
-                        
-                        # Add vote button as the accessory
+                        # Create vote button
                         vote_button = discord.ui.Button(
                             label=f"Vote", 
                             custom_id=f"vote_{i}", 
                             style=discord.ButtonStyle.primary
                         )
-                        section.accessory = vote_button
+                        
+                        # Create a section with the button as accessory
+                        option_text = discord.ui.TextDisplay(f"{i+1}. {option}")
+                        # Create section with accessory provided as a keyword argument
+                        section = discord.ui.Section(accessory=vote_button)
+                        section.add_item(option_text)
                         
                         # Add the section to the container
                         self.add_item(section)
