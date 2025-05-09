@@ -30,6 +30,7 @@ class OPTCG(commands.Cog):
             "spawn_cooldown": 60,  # Cooldown in seconds between card spawns
             "last_spawn_time": 0,  # Timestamp of the last spawn
             "api_url": "https://apitcg.com/api/one-piece/cards",
+            "api_key": None,       # API key for authentication
             "test_mode": False,    # Test mode flag
             "use_silhouette": True # Whether to use silhouettes when spawning cards
         }
@@ -433,8 +434,8 @@ class OPTCG(commands.Cog):
         embed.add_field(
             name="Guild Settings",
             value=f"Enabled: {enabled}\n"
-                  f"Spawn Channel: {spawn_channel.mention if spawn_channel else 'Not Set'}\n"
-                  f"Spawn Channel ID: {spawn_channel_id}",
+                f"Spawn Channel: {spawn_channel.mention if spawn_channel else 'Not Set'}\n"
+                f"Spawn Channel ID: {spawn_channel_id}",
             inline=False
         )
         
@@ -442,14 +443,22 @@ class OPTCG(commands.Cog):
         spawn_chance = await self.config.spawn_chance()
         spawn_cooldown = await self.config.spawn_cooldown()
         last_spawn_time = await self.config.last_spawn_time()
+        test_mode = await self.config.get_raw("test_mode", default=False)
+        use_silhouette = await self.config.get_raw("use_silhouette", default=True)
         current_time = int(datetime.now().timestamp())
         time_since_last = current_time - last_spawn_time if last_spawn_time else 0
+        
+        api_key = await self.config.api_key()
+        api_key_status = "Set" if api_key else "Not Set"
         
         embed.add_field(
             name="Global Settings",
             value=f"Spawn Chance: {spawn_chance * 100}%\n"
-                  f"Spawn Cooldown: {spawn_cooldown} seconds\n"
-                  f"Time Since Last Spawn: {time_since_last} seconds",
+                f"Spawn Cooldown: {spawn_cooldown} seconds\n"
+                f"Time Since Last Spawn: {time_since_last} seconds\n"
+                f"Test Mode: {test_mode}\n"
+                f"Use Silhouette: {use_silhouette}\n"
+                f"API Key: {api_key_status}",
             inline=False
         )
         
@@ -473,12 +482,21 @@ class OPTCG(commands.Cog):
             )
         
         # API Connection Test
+        headers = {}
+        if api_key:
+            headers["x-api-key"] = api_key
+        
         try:
-            async with self.session.get(await self.config.api_url()) as resp:
+            async with self.session.get(await self.config.api_url(), headers=headers) as resp:
                 api_status = f"Status Code: {resp.status}"
                 if resp.status == 200:
-                    data = await resp.json()
-                    api_status += f"\nCards Available: {data.get('total', 'Unknown')}"
+                    try:
+                        data = await resp.json()
+                        api_status += f"\nCards Available: {data.get('total', 'Unknown')}"
+                    except Exception as e:
+                        api_status += f"\nCould not parse response: {str(e)}"
+                else:
+                    api_status += f"\nError: {resp.reason}"
         except Exception as e:
             api_status = f"Error: {str(e)}"
         
@@ -518,8 +536,8 @@ class OPTCG(commands.Cog):
         # Cog Version Info
         embed.add_field(
             name="Cog Information",
-            value="Version: 1.0.1\n"  # Bumped to version 1.0.1 with these fixes
-                  "Last Updated: May 8, 2024",
+            value="Version: 1.0.2\n"  # Updated version number
+                "Last Updated: May 8, 2024",
             inline=False
         )
         
@@ -1357,6 +1375,211 @@ class OPTCG(commands.Cog):
         except Exception as e:
             log.error(f"Unexpected error in spawn_card: {e}")
             return None
+    
+    @optcg_admin.command(name="apikey")
+    async def set_api_key(self, ctx: commands.Context, api_key: str = None):
+        """Set or view the API key for the OPTCG API.
+        
+        If no API key is provided, shows if an API key is currently set.
+        
+        Example:
+        `.optcg admin apikey your_api_key_here`
+        
+        Note: This command should ideally be used in a private channel
+        to keep your API key secure.
+        """
+        if api_key is None:
+            # Check if API key is set without displaying it
+            current_key = await self.config.api_key()
+            if current_key:
+                await ctx.send("An API key is currently set. Use this command with a new key to change it.")
+            else:
+                await ctx.send("No API key is currently set. Use `.optcg admin apikey your_api_key_here` to set one.")
+            return
+        
+        # Try to delete the message to protect the API key
+        try:
+            await ctx.message.delete()
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            await ctx.send("⚠️ I couldn't delete your message. Consider editing or deleting it yourself to protect your API key.")
+        
+        # Test the API key
+        try:
+            async with self.session.get(
+                await self.config.api_url(),
+                headers={"x-api-key": api_key}
+            ) as resp:
+                if resp.status != 200:
+                    await ctx.send(f"Warning: Received status code {resp.status} when testing the API key. Are you sure it's correct?")
+                    await ctx.send("Do you want to set this API key anyway? (yes/no)")
+                    
+                    try:
+                        pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                        await ctx.bot.wait_for("message", check=pred, timeout=30)
+                        if not pred.result:
+                            await ctx.send("API key update canceled.")
+                            return
+                    except asyncio.TimeoutError:
+                        await ctx.send("API key update canceled due to timeout.")
+                        return
+                else:
+                    # Test parsing the response as JSON
+                    try:
+                        data = await resp.json()
+                        if "data" not in data:
+                            await ctx.send("Warning: Response does not contain a 'data' field. This may not be a valid API endpoint.")
+                            await ctx.send("Do you want to set this API key anyway? (yes/no)")
+                            
+                            try:
+                                pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                                await ctx.bot.wait_for("message", check=pred, timeout=30)
+                                if not pred.result:
+                                    await ctx.send("API key update canceled.")
+                                    return
+                            except asyncio.TimeoutError:
+                                await ctx.send("API key update canceled due to timeout.")
+                                return
+                        else:
+                            await ctx.send("API key successfully validated! The API connection is working.")
+                    except Exception as e:
+                        await ctx.send(f"Warning: Could not parse response as JSON: {str(e)}")
+                        await ctx.send("Do you want to set this API key anyway? (yes/no)")
+                        
+                        try:
+                            pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                            await ctx.bot.wait_for("message", check=pred, timeout=30)
+                            if not pred.result:
+                                await ctx.send("API key update canceled.")
+                                return
+                        except asyncio.TimeoutError:
+                            await ctx.send("API key update canceled due to timeout.")
+                            return
+        except Exception as e:
+            await ctx.send(f"Error testing API key: {str(e)}")
+            await ctx.send("Do you want to set this API key anyway? (yes/no)")
+            
+            try:
+                pred = MessagePredicate.yes_or_no(ctx, user=ctx.author)
+                await ctx.bot.wait_for("message", check=pred, timeout=30)
+                if not pred.result:
+                    await ctx.send("API key update canceled.")
+                    return
+            except asyncio.TimeoutError:
+                await ctx.send("API key update canceled due to timeout.")
+                return
+        
+        # Update the API key
+        await self.config.api_key.set(api_key)
+        await ctx.send("API key has been set successfully!")
+
+    # Update the fetch methods to use the API key
+    async def fetch_random_card(self) -> Optional[Dict]:
+        """Fetch a random card from the API or use test data."""
+        # Check if test mode is enabled
+        test_mode = await self.config.get_raw("test_mode", default=False)
+        
+        if test_mode:
+            # Use sample card data
+            return random.choice(SAMPLE_CARDS)
+        
+        # Get API key
+        api_key = await self.config.api_key()
+        headers = {}
+        if api_key:
+            headers["x-api-key"] = api_key
+        
+        # Normal API fetch logic
+        try:
+            # Try multiple pages to increase chances of success
+            for _ in range(3):  # Try up to 3 different random pages
+                page = random.randint(1, 20)
+                async with self.session.get(
+                    await self.config.api_url(),
+                    params={"limit": 10, "page": page},
+                    headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        log.error(f"API request failed with status {resp.status}")
+                        continue
+                    
+                    try:
+                        data = await resp.json()
+                        cards = data.get("data", [])
+                        if cards:
+                            return random.choice(cards)
+                    except Exception as e:
+                        log.error(f"Failed to parse API response: {e}")
+                        continue
+            
+            # If we get here, the API attempts failed
+            log.warning("API fetch attempts failed, using sample card data as fallback")
+            return random.choice(SAMPLE_CARDS)
+        
+        except Exception as e:
+            log.error(f"Error fetching card from API: {e}")
+            # Fallback to sample data on error
+            log.warning("Using sample card data as fallback due to API error")
+            return random.choice(SAMPLE_CARDS)
+
+    async def fetch_card_by_name(self, name: str) -> List[Dict]:
+        """Fetch cards with the given name from the API or test data."""
+        # Check if test mode is enabled
+        test_mode = await self.config.get_raw("test_mode", default=False)
+        
+        if test_mode:
+            # Filter sample cards by name
+            name_lower = name.lower()
+            matching_cards = [
+                card for card in SAMPLE_CARDS 
+                if name_lower in card["name"].lower()
+            ]
+            return matching_cards
+        
+        # Get API key
+        api_key = await self.config.api_key()
+        headers = {}
+        if api_key:
+            headers["x-api-key"] = api_key
+        
+        # Normal API fetch logic
+        try:
+            async with self.session.get(
+                await self.config.api_url(),
+                params={"name": name},
+                headers=headers
+            ) as resp:
+                if resp.status != 200:
+                    log.error(f"API request failed with status {resp.status}")
+                    # Fall back to test data
+                    name_lower = name.lower()
+                    matching_cards = [
+                        card for card in SAMPLE_CARDS 
+                        if name_lower in card["name"].lower()
+                    ]
+                    return matching_cards
+                
+                try:
+                    data = await resp.json()
+                    return data.get("data", [])
+                except Exception as e:
+                    log.error(f"Failed to parse API response: {e}")
+                    # Fall back to test data
+                    name_lower = name.lower()
+                    matching_cards = [
+                        card for card in SAMPLE_CARDS 
+                        if name_lower in card["name"].lower()
+                    ]
+                    return matching_cards
+        
+        except Exception as e:
+            log.error(f"Error fetching card by name from API: {e}")
+            # Fall back to test data
+            name_lower = name.lower()
+            matching_cards = [
+                card for card in SAMPLE_CARDS 
+                if name_lower in card["name"].lower()
+            ]
+            return matching_cards
     
     @optcg.command(name="spawn")
     @commands.admin_or_permissions(manage_guild=True)
