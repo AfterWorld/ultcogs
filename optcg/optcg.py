@@ -1237,6 +1237,125 @@ class OPTCG(commands.Cog):
                 if name_lower in card["name"].lower()
             ]
             return matching_cards
+        
+    @optcg_admin.command(name="silhouette")
+    async def toggle_silhouette(self, ctx: commands.Context):
+        """Toggle the silhouette feature for card spawning.
+        
+        When enabled, cards will appear as black silhouettes until claimed.
+        When disabled, cards will appear normally when spawned.
+        """
+        current_setting = await self.config.get_raw("use_silhouette", default=True)
+        await self.config.use_silhouette.set(not current_setting)
+        
+        if not current_setting:
+            await ctx.send("Silhouette feature enabled. Cards will appear as silhouettes until claimed.")
+        else:
+            await ctx.send("Silhouette feature disabled. Cards will appear normally when spawned.")
+
+    # Then update the spawn_card method to respect this setting
+    async def spawn_card(self, guild: discord.Guild) -> Optional[discord.Message]:
+        """Spawn a card in the guild's designated channel."""
+        try:
+            if await self.config.guild(guild).enabled() is False:
+                log.debug(f"OPTCG is disabled in guild {guild.id}")
+                return None
+            
+            spawn_channel_id = await self.config.guild(guild).spawn_channel()
+            if not spawn_channel_id:
+                log.debug(f"No spawn channel configured for guild {guild.id}")
+                return None
+            
+            spawn_channel = guild.get_channel(spawn_channel_id)
+            if not spawn_channel:
+                log.debug(f"Could not find channel {spawn_channel_id} in guild {guild.id}")
+                return None
+            
+            # Check permissions
+            bot_member = guild.me
+            permissions = spawn_channel.permissions_for(bot_member)
+            
+            if not permissions.send_messages:
+                log.debug(f"Bot doesn't have permission to send messages in channel {spawn_channel_id}")
+                return None
+            
+            if not permissions.embed_links:
+                log.debug(f"Bot doesn't have permission to embed links in channel {spawn_channel_id}")
+                return None
+            
+            log.debug(f"Fetching random card for guild {guild.id}")
+            card = await self.fetch_random_card()
+            if not card:
+                log.error(f"Failed to fetch a random card for guild {guild.id}")
+                return None
+            
+            log.debug(f"Storing active card for guild {guild.id}")
+            await self.config.guild(guild).active_card.set(card)
+            
+            # Create embed
+            embed = discord.Embed(
+                title="A Wild One Piece Card Appears!",
+                description="Use the button below or type `.optcg claim` to claim this card!",
+                color=discord.Color.dark_gold()
+            )
+            
+            # Check if silhouette is enabled
+            use_silhouette = await self.config.get_raw("use_silhouette", default=True)
+            
+            if use_silhouette and permissions.attach_files:
+                try:
+                    silhouette_image = await create_silhouette(self.session, card["images"]["large"])
+                    if silhouette_image:
+                        # If we successfully created a silhouette
+                        file = discord.File(silhouette_image, filename="silhouette.png")
+                        embed.set_image(url="attachment://silhouette.png")
+                        use_file = True
+                    else:
+                        # Fall back to regular image if silhouette creation fails
+                        embed.set_image(url=card["images"]["large"])
+                        file = None
+                        use_file = False
+                except Exception as e:
+                    log.error(f"Error creating silhouette: {e}")
+                    embed.set_image(url=card["images"]["large"])
+                    file = None
+                    use_file = False
+            else:
+                # Just use the regular image without silhouette
+                embed.set_image(url=card["images"]["large"])
+                file = None
+                use_file = False
+            
+            # Check if we can use message components (buttons)
+            if hasattr(discord, "ui") and hasattr(discord.ui, "Button"):
+                # Create a button for claiming
+                claim_button = discord.ui.Button(label="Claim Card", style=discord.ButtonStyle.primary)
+                
+                async def claim_callback(interaction: discord.Interaction):
+                    await self.claim_card(interaction.user, guild, interaction.message)
+                    
+                claim_button.callback = claim_callback
+                
+                view = discord.ui.View()
+                view.add_item(claim_button)
+            else:
+                view = None
+                embed.description += "\n\nNote: Use `.optcg claim` to claim this card!"
+            
+            try:
+                log.debug(f"Sending card spawn message to channel {spawn_channel_id}")
+                if use_file:
+                    message = await spawn_channel.send(embed=embed, file=file, view=view)
+                else:
+                    message = await spawn_channel.send(embed=embed, view=view)
+                return message
+            except Exception as e:
+                log.error(f"Error spawning card: {e}")
+                return None
+                
+        except Exception as e:
+            log.error(f"Unexpected error in spawn_card: {e}")
+            return None
     
     @optcg.command(name="spawn")
     @commands.admin_or_permissions(manage_guild=True)
