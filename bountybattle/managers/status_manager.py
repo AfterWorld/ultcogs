@@ -148,39 +148,50 @@ class StatusEffectManager:
 
     async def calculate_damage_with_effects(self, base_damage: int, attacker: dict, defender: dict) -> tuple[int, list[str]]:
         """Calculate final damage considering all status effects."""
+        if not isinstance(base_damage, (int, float)):
+            # If base_damage is not a number, log error and provide default
+            base_damage = 0
+        
         messages = []
         final_damage = base_damage
+        
+        # Ensure status dictionaries exist
+        if "status" not in defender:
+            defender["status"] = {}
+        if "status" not in attacker:
+            attacker["status"] = {}
         
         # Defender effects
         if defender["status"].get("protected", False):
             final_damage = int(final_damage * 0.5)
             messages.append("🛡️ Damage reduced by protection!")
             
-        if defender["status"].get("shell_defense", False):
+        if defender["status"].get("shell_defense", 0):
             final_damage = int(final_damage * 0.6)  # 40% reduction
             messages.append("🐢 Shell defense reduces damage!")
             
-        if defender["status"].get("defense_down", False):
+        if defender["status"].get("defense_down", 0):
             final_damage = int(final_damage * 1.3)  # 30% more damage taken
             messages.append("🛡️ Reduced defense increases damage!")
             
         # Attacker effects
-        if attacker["status"].get("attack_boost", False):
+        if attacker["status"].get("attack_boost", 0):
             final_damage = int(final_damage * 1.3)
             messages.append("⚔️ Attack boost increases damage!")
             
-        if attacker["status"].get("thunder_charge", False):
+        if attacker["status"].get("thunder_charge", 0):
             final_damage = int(final_damage * 1.25)
             messages.append("⚡ Thunder charge amplifies damage!")
             
-        if attacker["status"].get("elemental_boost", False):
+        if attacker["status"].get("elemental_boost", 0):
             final_damage = int(final_damage * 1.2)
             messages.append("✨ Elemental boost increases damage!")
             
-        if attacker["status"].get("attack_down", False):
+        if attacker["status"].get("attack_down", 0):
             final_damage = int(final_damage * 0.7)  # 30% less damage dealt
             messages.append("⚔️ Attack down reduces damage!")
             
+        # Ensure damage is non-negative
         return max(0, final_damage), messages
         
     def clear_all_effects(self, player: dict):
