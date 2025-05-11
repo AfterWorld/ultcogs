@@ -90,26 +90,58 @@ class EnvironmentManager:
         # Get active effects
         active_effect = self.active_effects.get(environment, {})
         
-        if environment == "Skypiea" and "lightning" in move_data.get("effect", ""):
+        # Add safety checks to avoid type errors
+        if "damage" not in modified_move:
+            modified_move["damage"] = 0  # Ensure there's a damage value
+        
+        if environment == "Skypiea" and "lightning" in str(move_data.get("effect", "")):
             modified_move["damage"] = int(modified_move.get("damage", 0) * 1.2)
             messages.append("⚡ Lightning enhanced by Skypiea's atmosphere!")
             
-        elif environment == "Alabasta" and "burn" in move_data.get("effect", ""):
-            modified_move["burn_chance"] = modified_move.get("burn_chance", 0) + 0.1
-            messages.append("🔥 Burn chance increased in the desert heat!")
+        elif environment == "Alabasta" and "burn" in str(move_data.get("effect", "")):
+            burn_chance = modified_move.get("burn_chance", 0)
+            if isinstance(burn_chance, (int, float)):
+                modified_move["burn_chance"] = burn_chance + 0.1
+                messages.append("🔥 Burn chance increased in the desert heat!")
             
         elif environment == "Punk Hazard":
             if active_effect.get("type") == "extreme_climate":
-                if "burn" in move_data.get("effect", ""):
-                    modified_move["burn_chance"] = modified_move.get("burn_chance", 0) * 1.5
-                    messages.append("🌋 Burn effects amplified by extreme climate!")
+                if "burn" in str(move_data.get("effect", "")):
+                    burn_chance = modified_move.get("burn_chance", 0)
+                    if isinstance(burn_chance, (int, float)):
+                        modified_move["burn_chance"] = burn_chance * 1.5
+                        messages.append("🌋 Burn effects amplified by extreme climate!")
                     
         elif environment == "Raftel":
             if active_effect.get("type") == "ancient_weapon":
-                modified_move["damage"] = int(modified_move.get("damage", 0) * 1.3)
-                if "heal" in move_data.get("effect", ""):
-                    modified_move["heal_amount"] = int(modified_move.get("heal_amount", 0) * 1.3)
+                damage = modified_move.get("damage", 0)
+                if isinstance(damage, (int, float)):
+                    modified_move["damage"] = int(damage * 1.3)
+                
+                heal_amount = modified_move.get("heal_amount", 0)
+                if isinstance(heal_amount, (int, float)):
+                    modified_move["heal_amount"] = int(heal_amount * 1.3)
+                    
                 messages.append("🏺 Move enhanced by ancient weapon power!")
+                
+        # Add additional environment interactions as needed
+        if environment == "Wano" and move_data.get("type") == "strong":
+            damage = modified_move.get("damage", 0)
+            if isinstance(damage, (int, float)):
+                modified_move["damage"] = int(damage * 1.15)  # 15% boost to strong attacks
+                messages.append("⚔️ Strong attack enhanced by Wano's warrior spirit!")
+                
+        elif environment == "Marineford" and move_data.get("type") == "critical":
+            damage = modified_move.get("damage", 0)
+            if isinstance(damage, (int, float)):
+                modified_move["damage"] = int(damage * 1.2)  # 20% boost to critical attacks
+                messages.append("🏛️ Critical attack amplified by Marineford's war energy!")
+                
+        elif environment == "Whole Cake Island" and "heal" in str(move_data.get("effect", "")):
+            heal_amount = modified_move.get("heal_amount", 0)
+            if isinstance(heal_amount, (int, float)):
+                modified_move["heal_amount"] = int(heal_amount * 1.25)  # 25% more healing
+                messages.append("🍰 Healing enhanced by Whole Cake Island's sweet energy!")
                 
         return modified_move, messages
         
