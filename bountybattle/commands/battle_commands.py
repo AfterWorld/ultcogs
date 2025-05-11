@@ -142,41 +142,41 @@ class BattleCommands:
             # Safety check for ctx
             if ctx is None or not hasattr(ctx, 'channel'):
                 return await self.bot.send_to_owners("Error: Context was None in fight method")
-                
+                    
             channel_id = ctx.channel.id
-                
+                    
             # Check if channel is already in battle
             if self.battle_manager.is_channel_in_battle(channel_id):
                 return await ctx.send("❌ A battle is already in progress in this channel!")
-
+    
             # Initialize player data
             challenger_data = await self._initialize_player_data(challenger)
             opponent_data = await self._initialize_player_data(opponent)
-
+    
             # Create battle state
             battle_state = await self.battle_manager.create_battle(
                 channel_id,
                 challenger_data,
                 opponent_data
             )
-
+    
             # Initialize environment
             environment = self.environment_manager.choose_environment()
             battle_state["environment"] = environment
             environment_data = self.environment_manager.get_environment_data(environment)
-
+    
             # Clear any lingering effects from all managers
             self.status_manager.clear_all_effects(challenger_data)
             self.status_manager.clear_all_effects(opponent_data)
             self.environment_manager.clear_environment_effects()
-
+    
             # Create initial battle embed
             embed = discord.Embed(
                 title="⚔️ EPIC ONE PIECE BATTLE ⚔️",
                 description=f"Battle begins in **{environment}**!\n*{environment_data['description']}*",
                 color=discord.Color.blue()
             )
-
+    
             # Initialize display
             def update_player_fields():
                 embed.clear_fields()
@@ -197,22 +197,22 @@ class BattleCommands:
                     
                     if player == challenger_data:
                         embed.add_field(name="⚔️", value="VS", inline=True)
-
+    
             # Send initial battle state
             update_player_fields()
             message = await ctx.send(embed=embed)
             battle_log = await ctx.send("📜 **Battle Log:**")
-
+    
             # Battle loop
             turn = 0
             players = [challenger_data, opponent_data]
             current_player = 0
-
+    
             while all(p["hp"] > 0 for p in players) and not self.cog.battle_stopped:
                 turn += 1
                 attacker = players[current_player]
                 defender = players[1 - current_player]
-
+    
                 # Process environment effects first
                 env_messages, env_effects = await self.environment_manager.apply_environment_effect(
                     environment, players, turn
@@ -220,7 +220,7 @@ class BattleCommands:
                 
                 if env_messages:
                     await battle_log.edit(content=f"{battle_log.content}\n{''.join(env_messages)}")
-
+    
                 # Process status effects
                 status_messages, status_damage = await self.status_manager.process_effects(attacker)
                 if status_damage > 0:
@@ -229,7 +229,7 @@ class BattleCommands:
                 
                 if status_messages:
                     await battle_log.edit(content=f"{battle_log.content}\n{''.join(status_messages)}")
-
+    
                 # Check if attacker can move (status effects might prevent action)
                 if self.status_manager.get_effect_duration(attacker, "stun") > 0 or \
                    self.status_manager.get_effect_duration(attacker, "freeze") > 0:
@@ -241,16 +241,16 @@ class BattleCommands:
                     available_moves = [move for move in self.cog.constants.MOVES if move["name"] not in attacker.get("moves_on_cooldown", {})]
                     if not available_moves:
                         available_moves = [move for move in self.cog.constants.MOVES if move["type"] == "regular"]
-
+    
                     # Select move and apply environment modifications
                     selected_move = random.choice(available_moves)
                     modified_move, env_move_messages = await self.environment_manager.calculate_environment_modifiers(
                         environment, selected_move
                     )
-
+    
                     # Calculate base damage
                     base_damage, damage_message = self.cog.data_utils.calculate_damage(modified_move, attacker, turn)
-
+    
                     # Process Devil Fruit effects
                     devil_fruit_bonus, fruit_message = await self.devil_fruit_manager.process_devil_fruit_effect(
                         attacker, defender, modified_move, environment
@@ -260,13 +260,13 @@ class BattleCommands:
                     final_damage, effect_messages = await self.status_manager.calculate_damage_with_effects(
                         base_damage + devil_fruit_bonus, attacker, defender
                     )
-
+    
                     # Apply final damage
                     if final_damage > 0:
                         defender["hp"] = max(0, defender["hp"] - final_damage)
                         defender["stats"]["damage_taken"] += final_damage
                         attacker["stats"]["damage_dealt"] += final_damage
-
+    
                     # Apply move effects through status manager
                     if "effect" in modified_move:
                         effect_result = await self.status_manager.apply_effect(
@@ -277,11 +277,11 @@ class BattleCommands:
                         )
                         if effect_result:
                             effect_messages.append(effect_result)
-
+    
                 turn_message = [
                     f"\n➤ Turn {turn}: **{attacker['name']}** used **{modified_move['name']}**!"  # Move announcement
                 ]
-
+    
                 # Add effects on separate lines
                 if damage_message:
                     turn_message.append(f"• {damage_message}")
@@ -291,35 +291,35 @@ class BattleCommands:
                     turn_message.append(f"• {fruit_message}")
                 if effect_messages:
                     turn_message.extend(f"• {msg}" for msg in effect_messages)
-
+    
                 # Add final damage as its own line
                 turn_message.append(f"💥 Dealt **{final_damage}** damage!")
-
+    
                 # Join with newlines for better readability
                 formatted_message = "\n".join(turn_message)
-
+    
                 # Update battle log
                 await battle_log.edit(content=f"{battle_log.content}\n{formatted_message}")
                 
                 # Update display
                 update_player_fields()
                 await message.edit(embed=embed)
-
+    
                 # Add delay between turns
                 await asyncio.sleep(2)
-
+    
                 # Switch turns
                 current_player = 1 - current_player
-
+    
                 # Check if anyone is defeated
                 if any(p["hp"] <= 0 for p in players):
                     break
-
+    
             # After battle ends, determine winner
             if not self.cog.battle_stopped:
                 winner = next((p for p in players if p["hp"] > 0), players[0])
                 loser = players[1] if winner == players[0] else players[0]
-
+    
                 # Create victory embed
                 victory_embed = discord.Embed(
                     title="🏆 Battle Complete!",
@@ -327,13 +327,13 @@ class BattleCommands:
                     color=discord.Color.gold()
                 )
                 await message.edit(embed=victory_embed)
-
+    
                 # Process victory rewards
                 await self._process_victory_rewards(ctx, winner, loser)
                 
                 # Check for achievements
                 await self.cog.data_utils.check_achievements(winner["member"])
-
+    
         except Exception as e:
             self.logger.error(f"Error in fight: {str(e)}")
             if ctx and hasattr(ctx, 'send'):
