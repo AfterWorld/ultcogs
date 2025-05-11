@@ -72,37 +72,58 @@ class DataUtils:
             player_data["stats"]["cooldowns_managed"] += 1
 
     def calculate_damage(self, move: dict, attacker_data: dict, turn_number: int) -> Tuple[int, Optional[str]]:
-        """Calculate balanced damage considering cooldowns and effects."""
+        """Calculate damage considering cooldowns and effects."""
         # Check if move is on cooldown
         if move["name"] in attacker_data.get("moves_on_cooldown", {}):
             if attacker_data["moves_on_cooldown"][move["name"]] > 0:
                 return 0, "Move is on cooldown!"
-
-        move_type = self.MOVE_TYPES[move["type"]]
-        base_min, base_max = move_type["base_damage_range"]
-        base_damage = random.randint(base_min, base_max)
-
+    
+        # Handle move_type properly - ensure we're getting correct type info
+        move_type_name = move.get("type", "regular")
+        if move_type_name not in self.MOVE_TYPES:
+            move_type_name = "regular"  # Fallback to regular if type not found
+            
+        move_type = self.MOVE_TYPES[move_type_name]
+        
+        # Ensure base_damage_range is a tuple of two integers
+        if isinstance(move_type["base_damage_range"], tuple) and len(move_type["base_damage_range"]) == 2:
+            base_min, base_max = move_type["base_damage_range"]
+            base_damage = random.randint(base_min, base_max)
+        else:
+            # Fallback values if the range is not properly defined
+            base_damage = random.randint(5, 15)
+    
         # Critical hit calculation
-        crit_chance = move.get("crit_chance", move_type["crit_chance"])
+        crit_chance = move.get("crit_chance", move_type.get("crit_chance", 0.15))
+        crit_message = None
+        
         if random.random() < crit_chance:
             base_damage = int(base_damage * 1.5)
-            message = "Critical hit!"
+            crit_message = "Critical hit!"
+            
+            # Update stats if available
             if "stats" in attacker_data:
                 if "critical_hits" not in attacker_data["stats"]:
                     attacker_data["stats"]["critical_hits"] = 0
                 attacker_data["stats"]["critical_hits"] += 1
-        else:
-            message = None
-
-        # Apply scaling with turn number for longer battles
-        turn_scaling = 1 + (turn_number * 0.05)  # 5% increase per turn
+    
+        # Apply scaling with turn number for longer battles (cap at reasonable value)
+        max_turn_bonus = 2.0  # Maximum scaling factor
+        turn_scaling = min(1 + (turn_number * 0.05), max_turn_bonus)  # 5% increase per turn, capped
         final_damage = int(base_damage * turn_scaling)
-
+    
         # Set cooldown if the move has one
-        if move["cooldown"] > 0:
-            self.set_move_cooldown(move["name"], move["cooldown"], attacker_data)
-
-        return final_damage, message
+        cooldown = move.get("cooldown", 0)
+        if cooldown > 0:
+            self.set_move_cooldown(move["name"], cooldown, attacker_data)
+            
+        # Update damage stats
+        if "stats" in attacker_data:
+            if "damage" not in attacker_data["stats"]:
+                attacker_data["stats"]["damage"] = 0
+            attacker_data["stats"]["damage"] += final_damage
+    
+        return final_damage, crit_message
     
     def get_bounty_title(self, bounty_amount: int) -> str:
         """Get the bounty title based on the bounty amount.
