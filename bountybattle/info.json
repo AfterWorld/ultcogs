@@ -7,7 +7,7 @@
     "tags": ["fun", "games", "rpg", "one piece", "battles"],
     "requirements": ["pillow", "requests"],
     "min_bot_version": "3.5.0",
-    "max_bot_version": "3.5.19",
+    "max_bot_version": "3.5.20",
     "type": "COG",
     "end_user_data_statement": "This cog stores user data including bounties, devil fruits, battle statistics, achievements, and titles. All data can be removed with the resetstats command.",
     "permissions": ["embed_links", "attach_files", "add_reactions", "manage_messages"]
