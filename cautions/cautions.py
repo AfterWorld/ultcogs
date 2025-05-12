@@ -389,6 +389,72 @@ class Cautions(commands.Cog):
             
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         await ctx.send(f"Log channel set to {channel.mention}")
+        
+    @caution_settings.command(name="mute")
+    @checks.admin_or_permissions(administrator=True)
+    async def set_mute_role(self, ctx, role: discord.Role = None):
+        """
+        Set the mute role for the caution system.
+        
+        If no role is provided, it will display the current mute role.
+        To create a new mute role with proper permissions, use [p]setupmute.
+        
+        Examples:
+        [p]cautionset mute @Muted
+        [p]cautionset mute "Timeout Role"
+        [p]cautionset mute  (shows current role)
+        """
+        # If no role provided, show current setting
+        if role is None:
+            mute_role_id = await self.config.guild(ctx.guild).mute_role()
+            if not mute_role_id:
+                return await ctx.send("No mute role is currently set. Use this command with a role mention or name to set one.")
+                
+            mute_role = ctx.guild.get_role(mute_role_id)
+            if not mute_role:
+                return await ctx.send("The configured mute role no longer exists. Please set a new one.")
+                
+            return await ctx.send(f"Current mute role: {mute_role.mention} (ID: {mute_role.id})")
+        
+        # Check if bot has required permissions
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            return await ctx.send("I need the 'Manage Roles' permission to apply the mute role.")
+        
+        # Check role hierarchy - bot needs to be able to manage this role
+        if role.position >= ctx.guild.me.top_role.position:
+            return await ctx.send(f"I cannot manage the role {role.mention} because it's position is higher than or equal to my highest role.")
+        
+        # Check if role has required permissions set correctly
+        issues = []
+        
+        # Check a sample of text channels
+        for channel in ctx.guild.text_channels[:3]:  # Check first 3 text channels
+            perms = channel.permissions_for(role)
+            if perms.send_messages:
+                issues.append(f"⚠️ In {channel.mention}: Role can still send messages")
+                break
+        
+        # Check a sample of voice channels
+        for channel in ctx.guild.voice_channels[:3]:  # Check first 3 voice channels
+            perms = channel.permissions_for(role)
+            if perms.speak:
+                issues.append(f"⚠️ In {channel.mention}: Role can still speak in voice channels")
+                break
+        
+        # Save the role even if there are issues
+        await self.config.guild(ctx.guild).mute_role.set(role.id)
+        
+        # Create response message
+        response = f"Mute role set to {role.mention}."
+        
+        if issues:
+            response += "\n\n**Potential issues detected:**\n" + "\n".join(issues)
+            response += f"\n\nYou may want to run `{ctx.clean_prefix}setupmute` to create a properly configured mute role."
+        else:
+            response += "\n\nNo obvious permission issues detected. The role appears to be properly configured."
+        
+        await ctx.send(response)
+        
 
     @commands.command(name="caution")
     @checks.mod_or_permissions(kick_members=True)
