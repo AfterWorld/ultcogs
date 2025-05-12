@@ -485,23 +485,23 @@ class OnePieceEvents(commands.Cog):
         # Schedule restoration of original reminder times
         self.bot.loop.create_task(self._restore_reminder_settings(ctx.guild, original_reminder_times, minutes + 10))
 
-async def _restore_reminder_settings(self, guild, original_settings, delay_minutes):
-    """Restore original reminder settings after a test"""
-    await asyncio.sleep(delay_minutes * 60)
-    await self.config.guild(guild).reminder_times.set(original_settings)
-    
-    # Clean up any test events that are still in the database
-    async with self.config.guild(guild).all() as guild_data:
-        # Find and remove any test events
-        events_to_remove = []
-        for event_id, event in guild_data["events"].items():
-            if event.get("is_test", False):
-                events_to_remove.append(event_id)
+    async def _restore_reminder_settings(self, guild, original_settings, delay_minutes):
+        """Restore original reminder settings after a test"""
+        await asyncio.sleep(delay_minutes * 60)
+        await self.config.guild(guild).reminder_times.set(original_settings)
         
-        # Remove the test events
-        for event_id in events_to_remove:
-            if event_id in guild_data["events"]:
-                del guild_data["events"][event_id]
+        # Clean up any test events that are still in the database
+        async with self.config.guild(guild).all() as guild_data:
+            # Find and remove any test events
+            events_to_remove = []
+            for event_id, event in guild_data["events"].items():
+                if event.get("is_test", False):
+                    events_to_remove.append(event_id)
+            
+            # Remove the test events
+            for event_id in events_to_remove:
+                if event_id in guild_data["events"]:
+                    del guild_data["events"][event_id]
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
