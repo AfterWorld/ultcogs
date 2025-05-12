@@ -708,6 +708,83 @@ class SpriteAnnouncer(commands.Cog):
             
         await self._send_random_announcement(ctx.guild)
         await ctx.send("Sprite announcement triggered manually.")
+        
+    @spriteannouncer.command(name="import")
+    async def spriteannouncer_import(self, ctx):
+        """Import topics and announcements from an attached text file.
+        
+        Attach a text file with the following format:
+        
+        ```
+        [TOPICS]
+        Topic 1
+        Topic 2
+        Topic 3
+        
+        [ANNOUNCEMENTS]
+        Announcement 1
+        Announcement 2
+        Announcement 3
+        ```
+        
+        The cog will parse the file and add all topics and announcements.
+        """
+        if not ctx.message.attachments:
+            await ctx.send("Please attach a text file with topics and announcements.")
+            return
+            
+        attachment = ctx.message.attachments[0]
+        if not attachment.filename.endswith('.txt'):
+            await ctx.send("Please attach a text file (.txt).")
+            return
+            
+        try:
+            content = await attachment.read()
+            text = content.decode('utf-8')
+        except Exception as e:
+            await ctx.send(f"Error reading the file: {str(e)}")
+            return
+            
+        # Parse the file content
+        mode = None
+        topics = []
+        announcements = []
+        
+        for line in text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.upper() == '[TOPICS]':
+                mode = 'topics'
+            elif line.upper() == '[ANNOUNCEMENTS]':
+                mode = 'announcements'
+            elif mode == 'topics':
+                topics.append(line)
+            elif mode == 'announcements':
+                announcements.append(line)
+                
+        # Add topics to config
+        topics_added = 0
+        announcements_added = 0
+        
+        if topics:
+            async with self.config.guild(ctx.guild).topics() as existing_topics:
+                for topic in topics:
+                    if topic not in existing_topics:
+                        existing_topics.append(topic)
+                        topics_added += 1
+                        
+        if announcements:
+            async with self.config.guild(ctx.guild).announcements() as existing_announcements:
+                for announcement in announcements:
+                    if announcement not in existing_announcements:
+                        existing_announcements.append(announcement)
+                        announcements_added += 1
+                        
+        # Build response message
+        msg = f"Import complete: Added {topics_added} topics and {announcements_added} announcements."
+        await ctx.send(msg)
     
     @spriteannouncer.command(name="status")
     async def spriteannouncer_status(self, ctx):
