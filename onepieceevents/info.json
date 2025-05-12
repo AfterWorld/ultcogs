@@ -1,0 +1,12 @@
+{
+    "author": ["UltPanda"],
+    "description": "A cog for managing One Piece themed events in your server. Schedule watch parties, manga discussions, quiz nights, and more with automated reminders.",
+    "install_msg": "Thanks for installing the OnePieceEvents cog! Use `[p]help events` to see the available commands. Set up watch parties, manga discussions, theory crafting sessions, and much more with ease!",
+    "short": "One Piece themed events management for your server",
+    "tags": ["onepiece", "events", "calendar", "schedule", "anime", "manga"],
+    "requirements": [],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
