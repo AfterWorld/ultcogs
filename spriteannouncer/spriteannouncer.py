@@ -569,13 +569,43 @@ class SpriteAnnouncer(commands.Cog):
         for page in pagify(message):
             await ctx.send(box(page, lang="md"))
     
-    @spriteannouncer_topics.command(name="add")
-    async def topics_add(self, ctx, *, topic: str):
-        """Add a new discussion topic."""
-        async with self.config.guild(ctx.guild).topics() as topics:
-            topics.append(topic)
+    @spriteannouncer_topics.command(name="bulk")
+    async def topics_bulk_add(self, ctx, *, topics_text: str):
+        """Add multiple topics at once.
+        
+        Each topic should be on a new line. You can copy-paste a list of topics.
+        
+        Example:
+        ```
+        [p]spriteannouncer topics bulk What's your favorite game?
+        If you could travel anywhere, where would you go?
+        What's something new you learned recently?
+        ```
+        """
+        # Split the text by newlines and filter out empty lines
+        topic_lines = [line.strip() for line in topics_text.split('\n') if line.strip()]
+        
+        if not topic_lines:
+            await ctx.send("No valid topics found. Please provide at least one topic.")
+            return
             
-        await ctx.send(f"Added new discussion topic: {topic}")
+        # Add topics to config
+        added_count = 0
+        existing_count = 0
+        async with self.config.guild(ctx.guild).topics() as topics:
+            for topic in topic_lines:
+                if topic in topics:
+                    existing_count += 1
+                else:
+                    topics.append(topic)
+                    added_count += 1
+                    
+        # Build response message
+        msg = f"Added {added_count} new topics."
+        if existing_count:
+            msg += f" Skipped {existing_count} topics that already existed."
+            
+        await ctx.send(msg)
     
     @spriteannouncer_topics.command(name="remove")
     async def topics_remove(self, ctx, index: int):
@@ -618,6 +648,44 @@ class SpriteAnnouncer(commands.Cog):
             announcements.append(announcement)
             
         await ctx.send(f"Added new announcement: {announcement}")
+        
+    @spriteannouncer_announcements.command(name="bulk")
+    async def announcements_bulk_add(self, ctx, *, announcements_text: str):
+        """Add multiple announcements at once.
+        
+        Each announcement should be on a new line. You can copy-paste a list of announcements.
+        
+        Example:
+        ```
+        [p]spriteannouncer announcements bulk Welcome to our movie night!
+        Don't forget to check out our new server rules.
+        The server will be getting an update this weekend.
+        ```
+        """
+        # Split the text by newlines and filter out empty lines
+        announcement_lines = [line.strip() for line in announcements_text.split('\n') if line.strip()]
+        
+        if not announcement_lines:
+            await ctx.send("No valid announcements found. Please provide at least one announcement.")
+            return
+            
+        # Add announcements to config
+        added_count = 0
+        existing_count = 0
+        async with self.config.guild(ctx.guild).announcements() as announcements:
+            for announcement in announcement_lines:
+                if announcement in announcements:
+                    existing_count += 1
+                else:
+                    announcements.append(announcement)
+                    added_count += 1
+                    
+        # Build response message
+        msg = f"Added {added_count} new announcements."
+        if existing_count:
+            msg += f" Skipped {existing_count} announcements that already existed."
+            
+        await ctx.send(msg)
     
     @spriteannouncer_announcements.command(name="remove")
     async def announcements_remove(self, ctx, index: int):
