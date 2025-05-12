@@ -1,7 +1,10 @@
 import discord
 import asyncio
-from typing import Dict, List, Optional
+import aiohttp
+import random
+from typing import Dict, List, Optional, Union, Tuple
 from datetime import datetime, timedelta
+import json
 
 from redbot.core import commands, Config
 from redbot.core.bot import Red
@@ -9,8 +12,15 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.utils.chat_formatting import humanize_list, box
 
 
+# GitHub API endpoints for character sprites
+GITHUB_REPO_OWNER = "AfterWorld"
+GITHUB_REPO_NAME = "ultcogs"
+GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/Character%20Sprite"
+GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/main/Character%20Sprite/"
+
+
 class V2Poll(commands.Cog):
-    """Create interactive polls using Discord Components V2."""
+    """Create interactive polls using Discord Components V2 with character sprites."""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -18,32 +28,102 @@ class V2Poll(commands.Cog):
         
         default_guild = {
             "polls": {},  # poll_id: {options, votes, end_time, etc.}
-            "settings": {"default_duration": 60}  # Default poll duration in minutes
+            "settings": {
+                "default_duration": 60,  # Default poll duration in minutes
+                "use_sprites": True,     # Whether to use character sprites by default
+                "cached_sprites": []     # List of cached sprite URLs
+            }
         }
         
         self.config.register_guild(**default_guild)
         self.active_polls: Dict[int, asyncio.Task] = {}  # message_id: task
+        self.sprite_cache: Dict[str, str] = {}  # filename: url
+        self.session = aiohttp.ClientSession()
 
     def cog_unload(self):
         """Clean up running tasks when the cog is unloaded."""
         for task in self.active_polls.values():
             task.cancel()
+        
+        # Close the aiohttp session
+        asyncio.create_task(self.session.close())
+
+    async def fetch_available_sprites(self, force_refresh: bool = False) -> List[Dict[str, str]]:
+        """Fetch available sprites from GitHub repository."""
+        guild_settings = await self.config.guild_from_id(None).settings()
+        cached_sprites = guild_settings.get("cached_sprites", [])
+        
+        # Use cached sprites if available and not forcing refresh
+        if cached_sprites and not force_refresh:
+            return cached_sprites
+            
+        try:
+            async with self.session.get(GITHUB_API_BASE) as response:
+                if response.status == 200:
+                    content = await response.json()
+                    sprites = []
+                    for item in content:
+                        if item["type"] == "file" and item["name"].lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+                            sprite_info = {
+                                "name": item["name"],
+                                "url": GITHUB_RAW_BASE + item["name"],
+                                "display_name": item["name"].split(".")[0].replace("_", " ")
+                            }
+                            sprites.append(sprite_info)
+                            self.sprite_cache[item["name"]] = sprite_info["url"]
+                    
+                    # Cache the sprites
+                    if sprites:
+                        await self.config.guild_from_id(None).settings.cached_sprites.set(sprites)
+                    
+                    return sprites
+                else:
+                    return []
+        except Exception as e:
+            print(f"Error fetching sprites: {e}")
+            return cached_sprites or []
+
+    async def get_sprite_url(self, sprite_name: str) -> Optional[str]:
+        """Get the URL for a sprite by name."""
+        # Check cache first
+        if sprite_name in self.sprite_cache:
+            return self.sprite_cache[sprite_name]
+            
+        # Try to find in cached sprites
+        sprites = await self.fetch_available_sprites()
+        for sprite in sprites:
+            if sprite["name"] == sprite_name:
+                self.sprite_cache[sprite_name] = sprite["url"]
+                return sprite["url"]
+                
+        return None
+
+    async def get_random_sprites(self, count: int = 4) -> List[Dict[str, str]]:
+        """Get a random selection of sprites."""
+        sprites = await self.fetch_available_sprites()
+        if not sprites:
+            return []
+            
+        if len(sprites) <= count:
+            return sprites
+            
+        return random.sample(sprites, count)
 
     @commands.group()
     @commands.guild_only()
     async def poll(self, ctx: commands.Context):
-        """Commands for creating and managing interactive polls."""
+        """Commands for creating and managing interactive polls with sprites."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help()
 
     @poll.command(name="create")
     @commands.guild_only()
     async def poll_create(self, ctx: commands.Context, title: str, duration: Optional[int] = None, *options):
-        """Create a new poll with interactive voting buttons.
+        """Create a new poll with interactive voting components.
         
         Examples:
-        - [p]poll create "Favorite color?" 30 Red Blue Green
-        - [p]poll create "Best movie?" 60 "The Matrix" "Star Wars" "Inception"
+        - [p]poll create "Favorite character?" 30 Mario Luigi Peach Bowser
+        - [p]poll create "Best game?" 60 "Super Mario" "Zelda" "Pokemon" "Final Fantasy"
         
         Arguments:
         - title: The title/question for the poll
@@ -58,15 +138,37 @@ class V2Poll(commands.Cog):
             
         # Get default duration if not specified
         if duration is None:
-            duration = await self.config.guild(ctx.guild).settings.default_duration()
+            guild_settings = await self.config.guild(ctx.guild).settings()
+            duration = guild_settings["default_duration"]
         
         # Calculate end time
         end_time = datetime.utcnow() + timedelta(minutes=duration)
         end_timestamp = int(end_time.timestamp())
         
         try:
-            # Try to create a Components V2 poll
-            # Create a LayoutView for the poll
+            # Fetch sprites for the poll
+            all_sprites = await self.fetch_available_sprites()
+            
+            # Try to match options with sprite names
+            option_sprites = []
+            for option in options:
+                found = False
+                for sprite in all_sprites:
+                    # Check for exact match or if option is in sprite name (case insensitive)
+                    if option.lower() == sprite["display_name"].lower() or option.lower() in sprite["name"].lower():
+                        option_sprites.append(sprite)
+                        found = True
+                        break
+                
+                if not found:
+                    # Add a placeholder for options without matching sprites
+                    option_sprites.append({
+                        "name": None,
+                        "url": None,
+                        "display_name": option
+                    })
+            
+            # Create a Components V2 poll
             layout_view = discord.ui.LayoutView()
             
             # Add the title as a TextDisplay component
@@ -79,40 +181,46 @@ class V2Poll(commands.Cog):
             )
             layout_view.add_item(duration_text)
             
-            # Set up a container for options and vote buttons
-            class PollContainer(discord.ui.Container):
-                def __init__(self, options):
-                    super().__init__()
-                    self.options = options
-                    
-                    # Create option sections with vote buttons
-                    for i, option in enumerate(options):
-                        # Create vote button
-                        vote_button = discord.ui.Button(
-                            label=f"Vote", 
-                            custom_id=f"vote_{i}", 
-                            style=discord.ButtonStyle.primary
-                        )
-                        
-                        # Create a section with the button as accessory
-                        option_text = discord.ui.TextDisplay(f"{i+1}. {option}")
-                        # Create section with accessory provided as a keyword argument
-                        section = discord.ui.Section(accessory=vote_button)
-                        section.add_item(option_text)
-                        
-                        # Add the section to the container
-                        self.add_item(section)
+            # Create containers for each option with sprites
+            options_container = discord.ui.Container()
+            for i, (option, sprite) in enumerate(zip(options, option_sprites)):
+                # Create a section for this option
+                option_section = discord.ui.Section()
+                
+                # Build vote button
+                vote_button = discord.ui.Button(
+                    label=f"Vote", 
+                    custom_id=f"vote_{i}", 
+                    style=discord.ButtonStyle.primary
+                )
+                
+                # If this option has a sprite, add an image
+                if sprite["url"]:
+                    # Add sprite image
+                    option_img = discord.ui.Image(
+                        url=sprite["url"],
+                        height=64,
+                        width=64
+                    )
+                    option_section.add_item(option_img)
+                
+                # Add option text
+                option_text = discord.ui.TextDisplay(f"{i+1}. {option}")
+                option_section.add_item(option_text)
+                
+                # Add vote button as an accessory
+                option_section.accessory = vote_button
+                
+                # Add section to container
+                options_container.add_item(option_section)
             
-            # Create the container with options
-            options_container = PollContainer(options)
+            # Add options container to layout
+            layout_view.add_item(options_container)
             
             # Create vote counters display
             vote_counters = discord.ui.TextDisplay(
                 "\n".join([f"{i+1}. {option}: 0 votes" for i, option in enumerate(options)])
             )
-            
-            # Add components to the layout
-            layout_view.add_item(options_container)
             layout_view.add_item(vote_counters)
             
             # Send the poll message
@@ -123,6 +231,7 @@ class V2Poll(commands.Cog):
                 poll_data = {
                     "title": title,
                     "options": list(options),
+                    "option_sprites": [sprite["name"] for sprite in option_sprites],
                     "votes": {str(i): [] for i in range(len(options))},
                     "end_time": end_timestamp,
                     "channel_id": ctx.channel.id,
@@ -172,15 +281,14 @@ class V2Poll(commands.Cog):
                 ])
                 
                 # Update the message with new vote counts
-                # Since Components V2 doesn't allow editing individual components yet,
-                # we need to recreate the entire view
-                new_layout_view = discord.ui.LayoutView()
-                new_layout_view.add_item(title_text)
-                new_layout_view.add_item(duration_text)
-                new_layout_view.add_item(options_container)
-                new_layout_view.add_item(discord.ui.TextDisplay(vote_counts))
+                # Recreate the entire view with updated vote counts
+                updated_layout_view = discord.ui.LayoutView()
+                updated_layout_view.add_item(title_text)
+                updated_layout_view.add_item(duration_text)
+                updated_layout_view.add_item(options_container)
+                updated_layout_view.add_item(discord.ui.TextDisplay(vote_counts))
                 
-                await interaction.message.edit(view=new_layout_view)
+                await interaction.message.edit(view=updated_layout_view)
                 
                 # Acknowledge the interaction
                 await interaction.response.send_message(
@@ -188,12 +296,33 @@ class V2Poll(commands.Cog):
                     ephemeral=True
                 )
                 
-        except (AttributeError, ImportError):
-            # Fallback for older Discord.py versions without Components V2 support
-            await ctx.send(
-                "This cog requires Discord.py with Components V2 support, which your bot "
-                "doesn't currently have. Please update to use this feature."
-            )
+        except Exception as e:
+            await ctx.send(f"Error creating poll: {e}")
+
+    @poll.command(name="sprite")
+    @commands.guild_only()
+    async def poll_sprite(self, ctx: commands.Context, title: str, duration: Optional[int] = None):
+        """Create a poll using random character sprites as options.
+        
+        Examples:
+        - [p]poll sprite "Which character is best?" 30
+        - [p]poll sprite "Vote for your favorite!" 
+        
+        Arguments:
+        - title: The title/question for the poll
+        - duration: Optional duration in minutes (default: 60)
+        """
+        # Get random sprites
+        sprites = await self.get_random_sprites(count=4)
+        
+        if not sprites:
+            return await ctx.send("No character sprites found! Please try again later.")
+        
+        # Use sprite display names as options
+        options = [sprite["display_name"] for sprite in sprites]
+        
+        # Call the regular poll create command
+        await ctx.invoke(self.poll_create, title=title, duration=duration, *options)
 
     async def _end_poll_timer(self, guild_id: int, message_id: int, duration: int):
         """Timer to end the poll after the specified duration."""
@@ -249,14 +378,34 @@ class V2Poll(commands.Cog):
                     votes = vote_counts.get(i, 0)
                     percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
                     bar = "█" * int(percentage / 10) + "░" * (10 - int(percentage / 10))
+                    
+                    # Add sprite thumbnail if available
+                    sprite_name = poll_data.get("option_sprites", [])[i] if i < len(poll_data.get("option_sprites", [])) else None
+                    if sprite_name:
+                        sprite_url = await self.get_sprite_url(sprite_name)
+                        if sprite_url:
+                            field_value = f"{bar} {votes} votes ({percentage:.1f}%)\n[Sprite]({sprite_url})"
+                        else:
+                            field_value = f"{bar} {votes} votes ({percentage:.1f}%)"
+                    else:
+                        field_value = f"{bar} {votes} votes ({percentage:.1f}%)"
+                    
                     embed.add_field(
                         name=f"{i+1}. {option}",
-                        value=f"{bar} {votes} votes ({percentage:.1f}%)",
+                        value=field_value,
                         inline=False
                     )
                 
                 if len(winners) == 1:
                     embed.description = f"**Winner: {winners[0]}** with {max_votes} votes!"
+                    
+                    # Add winner sprite as thumbnail if available
+                    winner_idx = poll_data["options"].index(winners[0])
+                    winner_sprite = poll_data.get("option_sprites", [])[winner_idx] if winner_idx < len(poll_data.get("option_sprites", [])) else None
+                    if winner_sprite:
+                        winner_url = await self.get_sprite_url(winner_sprite)
+                        if winner_url:
+                            embed.set_thumbnail(url=winner_url)
                 else:
                     embed.description = f"**Tie between: {humanize_list(winners)}** with {max_votes} votes each!"
                 
@@ -265,9 +414,9 @@ class V2Poll(commands.Cog):
                 embed.description = "No votes were cast in this poll."
             
             # Remove the poll from the active polls and config
-            async with self.config.guild_from_id(guild_id).polls() as polls:
-                if str(message_id) in polls:
-                    del polls[str(message_id)]
+            async with self.config.guild_from_id(guild_id).polls() as polls_config:
+                if str(message_id) in polls_config:
+                    del polls_config[str(message_id)]
             
             # Send results and update the original message
             await channel.send(
@@ -375,6 +524,11 @@ class V2Poll(commands.Cog):
                 value=f"{settings['default_duration']} minutes"
             )
             
+            embed.add_field(
+                name="Use Character Sprites",
+                value="Enabled" if settings.get('use_sprites', True) else "Disabled"
+            )
+            
             await ctx.send(embed=embed)
 
     @poll_settings.command(name="duration")
@@ -392,24 +546,84 @@ class V2Poll(commands.Cog):
         await self.config.guild(ctx.guild).settings.default_duration.set(minutes)
         await ctx.send(f"Default poll duration set to {minutes} minutes.")
 
+    @poll_settings.command(name="sprites")
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_guild=True)
+    async def poll_settings_sprites(self, ctx: commands.Context, enabled: bool = None):
+        """Toggle the use of character sprites in polls.
+        
+        Arguments:
+        - enabled: Set to True to enable sprites, False to disable
+        """
+        if enabled is None:
+            # Toggle current setting
+            current = await self.config.guild(ctx.guild).settings.use_sprites()
+            enabled = not current
+            
+        await self.config.guild(ctx.guild).settings.use_sprites.set(enabled)
+        status = "enabled" if enabled else "disabled"
+        await ctx.send(f"Character sprites in polls are now {status}.")
+
+    @poll.command(name="sprites")
+    @commands.guild_only()
+    async def poll_sprites(self, ctx: commands.Context, force_refresh: bool = False):
+        """List all available character sprites for polls.
+        
+        Arguments:
+        - force_refresh: Set to True to force refresh the sprite cache
+        """
+        # Fetch available sprites
+        sprites = await self.fetch_available_sprites(force_refresh=force_refresh)
+        
+        if not sprites:
+            return await ctx.send("No character sprites are available.")
+            
+        # Create an embed to display sprites
+        embed = discord.Embed(
+            title="Available Character Sprites",
+            color=discord.Color.blue(),
+            description=f"There are {len(sprites)} sprites available for polls."
+        )
+        
+        # Add up to 25 sprites (Discord embed field limit)
+        for i, sprite in enumerate(sprites[:25]):
+            embed.add_field(
+                name=sprite["display_name"],
+                value=f"[View]({sprite['url']})",
+                inline=True
+            )
+            
+        # Set a random sprite as the thumbnail
+        if sprites:
+            embed.set_thumbnail(url=random.choice(sprites)["url"])
+            
+        await ctx.send(embed=embed)
+
     @commands.command()
     @commands.guild_only()
-    async def quickpoll(self, ctx: commands.Context, title: str, *options):
-        """Create a quick poll with default duration.
+    async def spritepoll(self, ctx: commands.Context, title: str, *options):
+        """Create a sprite-based poll with the specified options.
+        
+        If options are provided, it will try to match them with sprites.
+        If no options are provided, it will use random sprites.
         
         Examples:
-        - [p]quickpoll "Favorite color?" Red Blue Green
-        - [p]quickpoll "Best movie?" "The Matrix" "Star Wars" "Inception"
+        - [p]spritepoll "Best character?" Mario Luigi Peach
+        - [p]spritepoll "Who would win?" 
         
         Arguments:
         - title: The title/question for the poll
-        - options: The voting options (at least 2, maximum 10)
+        - options: Optional. The character names to use as options
         """
         # Get default duration
         duration = await self.config.guild(ctx.guild).settings.default_duration()
         
-        # Pass to the main poll creation command
-        await ctx.invoke(self.poll_create, title=title, duration=duration, *options)
+        if options:
+            # Pass to the main poll creation command
+            await ctx.invoke(self.poll_create, title=title, duration=duration, *options)
+        else:
+            # Use random sprites
+            await ctx.invoke(self.poll_sprite, title=title, duration=duration)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
