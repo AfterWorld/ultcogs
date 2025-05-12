@@ -1030,6 +1030,11 @@ class Cautions(commands.Cog):
               if field and field.get("name") and field.get("value"):
                   embed.description += f"\n**{field['name']}:** {field['value']}"
       
+      # Add the footer instead of sending a separate message
+      current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+      bot_name = guild.me.display_name
+      embed.set_footer(text=f"{bot_name} Support • Today at {current_time}")
+      
       # Create buttons for additional actions
       view = discord.ui.View()
       
@@ -1049,8 +1054,6 @@ class Cautions(commands.Cog):
       
       # Send the case message with buttons
       try:
-          # Use direct channel.send instead of safe_send_message for the main embed
-          # This ensures the message is sent immediately and a reference is returned
           case_message = await log_channel.send(embed=embed, view=view)
       except discord.HTTPException as e:
           # Log error and try without view
@@ -1077,11 +1080,6 @@ class Cautions(commands.Cog):
                   "message_id": case_message.id
               }
           )
-          
-          # Add the timestamp message - use direct send for this too
-          current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
-          bot_name = guild.me.display_name
-          await log_channel.send(f"{bot_name} Support • Today at {current_time}")
       
       return case_message  # Return message for potential use by caller
       
