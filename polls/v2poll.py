@@ -1,4 +1,23 @@
-import discord
+@commands.Cog.listener()
+    async def on_message_delete(self, message):
+        """Handle poll message deletion."""
+        # Check if this message was a poll
+        guild = message.guild
+        if not guild:
+            return
+            
+        polls = await self.config.guild(guild).polls()
+        
+        if str(message.id) in polls:
+            # Cancel the timer task if it exists
+            if message.id in self.active_polls:
+                self.active_polls[message.id].cancel()
+                del self.active_polls[message.id]
+                
+            # Remove the poll from the config
+            async with self.config.guild(guild).polls() as polls_config:
+                if str(message.id) in polls_config:
+                    del polls_config[str(message.id)]import discord
 import asyncio
 import aiohttp
 import random
@@ -677,25 +696,110 @@ class V2Poll(commands.Cog):
             await self.poll_sprite(ctx, title, duration)
 
     @commands.Cog.listener()
-    async def on_message_delete(self, message):
-        """Handle poll message deletion."""
-        # Check if this message was a poll
-        guild = message.guild
-        if not guild:
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle interactions for polls."""
+        if not interaction.data or not interaction.data.get('custom_id', '').startswith('vote_'):
             return
+
+        try:
+            # Get the message id
+            message_id = interaction.message.id
+            guild_id = interaction.guild.id
             
-        polls = await self.config.guild(guild).polls()
-        
-        if str(message.id) in polls:
-            # Cancel the timer task if it exists
-            if message.id in self.active_polls:
-                self.active_polls[message.id].cancel()
-                del self.active_polls[message.id]
+            # Get poll data
+            all_polls = await self.config.guild(interaction.guild).polls()
+            if str(message_id) not in all_polls:
+                return
                 
-            # Remove the poll from the config
-            async with self.config.guild(guild).polls() as polls_config:
-                if str(message.id) in polls_config:
-                    del polls_config[str(message.id)]
+            poll_data = all_polls[str(message_id)]
+            
+            # Get the option index from the custom_id
+            option_index = int(interaction.data['custom_id'].split('_')[1])
+            
+            # Update the vote in the config
+            async with self.config.guild(interaction.guild).polls() as polls:
+                if str(message_id) not in polls:
+                    return
+                    
+                poll_data = polls[str(message_id)]
+                
+                # Remove user from any existing votes
+                for opt_idx in poll_data["votes"].keys():
+                    if interaction.user.id in poll_data["votes"][opt_idx]:
+                        poll_data["votes"][opt_idx].remove(interaction.user.id)
+                
+                # Add user to the selected option
+                poll_data["votes"][str(option_index)].append(interaction.user.id)
+                
+                # Update the poll data
+                polls[str(message_id)] = poll_data
+            
+            # Update the vote counters
+            vote_counts = {}
+            for opt_idx, voters in poll_data["votes"].items():
+                vote_counts[int(opt_idx)] = len(voters)
+            
+            # Create a new updated embed with current vote counts
+            updated_embed = discord.Embed(
+                title=f"📊 {poll_data['title']}",
+                description=f"Poll ends: <t:{poll_data['end_time']}:R>",
+                color=discord.Color.blue()
+            )
+            
+            # Create a layout that shows all sprites inline with their options
+            options = poll_data["options"]
+            
+            # Add sprites first as a grid at the top
+            sprite_names = poll_data.get("option_sprites", [])
+            sprite_urls = []
+            for i, sprite_name in enumerate(sprite_names):
+                if sprite_name:
+                    url = await self.get_sprite_url(sprite_name)
+                    if url:
+                        sprite_urls.append((i, options[i], url))
+            
+            if sprite_urls:
+                # Create sprite showcase
+                sprite_showcase = ""
+                for i, option, url in sprite_urls:
+                    sprite_showcase += f"[{option}]({url}) • "
+                
+                if sprite_showcase:
+                    updated_embed.description = f"Poll ends: <t:{poll_data['end_time']}:R>\n\n{sprite_showcase[:-3]}"
+            
+            # Add all options in a single field for compact display
+            options_text = ""
+            for i, option in enumerate(poll_data["options"]):
+                votes = vote_counts.get(i, 0)
+                options_text += f"**{i+1}. {option}** - {votes} votes\n"
+            
+            updated_embed.add_field(
+                name="Options",
+                value=options_text,
+                inline=False
+            )
+            
+            # Add a random sprite as thumbnail if available
+            if sprite_urls:
+                updated_embed.set_thumbnail(url=random.choice(sprite_urls)[2])
+            
+            await interaction.message.edit(embed=updated_embed)
+            
+            # Acknowledge the interaction
+            await interaction.response.send_message(
+                f"Your vote for '{poll_data['options'][option_index]}' has been recorded!", 
+                ephemeral=True
+            )
+        except Exception as e:
+            print(f"Error handling interaction: {e}")
+            # Try to acknowledge the interaction even if there was an error
+            try:
+                await interaction.response.send_message(
+                    "There was an error processing your vote. Please try again.",
+                    ephemeral=True
+                )
+            except:
+                pass
 
 async def setup(bot):
     await bot.add_cog(V2Poll(bot))
