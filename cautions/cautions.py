@@ -415,7 +415,7 @@ class Cautions(commands.Cog):
         if points < 1:
             return await ctx.send("Warning points must be at least 1.")
         
-        # Create warning entry
+        # Get warning expiry days first
         expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
         warning = {
             "points": points,
@@ -986,79 +986,79 @@ class Cautions(commands.Cog):
         )
 
     async def log_action(self, guild, action, target, moderator, reason=None, extra_fields=None):
-        """Log moderation actions to the log channel in a case-based format."""
-        log_channel_id = await self.config.guild(guild).log_channel()
-        if not log_channel_id:
-            return
-        
-        log_channel = guild.get_channel(log_channel_id)
-        if not log_channel:
-            return
-        
-        # Get current case number
-        case_num = await self.config.guild(guild).get_attr("case_count")
-        if case_num is None:
-            case_num = 1
-        else:
-            case_num += 1
-        
-        # Save the incremented case number
-        await self.config.guild(guild).case_count.set(case_num)
-        
-        # Create embed in the style shown in the example
-        embed = discord.Embed(color=0x2f3136)  # Dark Discord UI color
-        
-        # Adding the icon and case number at the top
-        embed.set_author(name=f"carsonthecreator", icon_url="https://cdn.discordapp.com/emojis/1061114293952323586.png")
-        
-        # Case title
-        case_title = f"Case #{case_num}"
-        embed.title = case_title
-        
-        # Format the fields like in the example
-        embed.description = (
-            f"**Action:** {action}\n"
-            f"**User:** {target.mention} ( {target.id} )\n"
-            f"**Moderator:** {moderator.mention} ( {moderator.id} )\n"
-            f"**Reason:** {reason or 'No reason provided'}\n"
-            f"**Date:** {datetime.now(timezone.utc).strftime('%b %d, %Y %I:%M %p')} (just now)"
-        )
-        
-        # If there are extra fields, add them to the description
-        if extra_fields:
-            for field in extra_fields:
-                if field and field.get("name") and field.get("value"):
-                    embed.description += f"\n**{field['name']}:** {field['value']}"
-        
-        # Add a footer with the time
-        current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
-        
-        # We're not adding a footer with timestamp as in the example this appears to be a separate message
-        
-        # Send the case message
-        case_message = await self.safe_send_message(log_channel, embed=embed)
-        
-        # Add entry to the modlog database
-        await self.config.guild(guild).modlog.set_raw(
-            str(case_num),
-            value={
-                "case_num": case_num,
-                "action": action,
-                "user_id": target.id,
-                "user_name": str(target),
-                "moderator_id": moderator.id,
-                "moderator_name": str(moderator),
-                "reason": reason or "No reason provided",
-                "timestamp": datetime.now(timezone.utc).timestamp(),
-                "message_id": case_message.id if case_message else None
-            }
-        )
-        
-        # Add a "Koya • Today at XX:XX" type message with timestamp (as shown in screenshot)
-        timestamp_embed = discord.Embed(color=0x2f3136)
-        current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
-        bot_name = guild.me.display_name
-        await self.safe_send_message(log_channel, f"{bot_name} • Today at {current_time}")
+      """Log moderation actions to the log channel in a case-based format."""
+      log_channel_id = await self.config.guild(guild).log_channel()
+      if not log_channel_id:
+          return
+      
+      log_channel = guild.get_channel(log_channel_id)
+      if not log_channel:
+          return
+      
+      # Get current case number
+      case_num = await self.config.guild(guild).case_count()  # Fixed this line
+      if case_num is None:
+          case_num = 1
+      else:
+          case_num += 1
+      
+      # Save the incremented case number
+      await self.config.guild(guild).case_count.set(case_num)
+      
+      # Create embed in the style shown in the example
+      embed = discord.Embed(color=0x2f3136)  # Dark Discord UI color
+      
+      # Adding the icon and case number at the top
+      embed.set_author(name=f"carsonthecreator", icon_url="https://cdn.discordapp.com/emojis/1061114293952323586.png")
+      
+      # Case title
+      case_title = f"Case #{case_num}"
+      embed.title = case_title
+      
+      # Format the fields like in the example
+      embed.description = (
+          f"**Action:** {action}\n"
+          f"**User:** {target.mention} ( {target.id} )\n"
+          f"**Moderator:** {moderator.mention} ( {moderator.id} )\n"
+          f"**Reason:** {reason or 'No reason provided'}\n"
+          f"**Date:** {datetime.now(timezone.utc).strftime('%b %d, %Y %I:%M %p')} (just now)"
+      )
+      
+      # If there are extra fields, add them to the description
+      if extra_fields:
+          for field in extra_fields:
+              if field and field.get("name") and field.get("value"):
+                  embed.description += f"\n**{field['name']}:** {field['value']}"
+      
+      # Add a footer with the time
+      current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+      
+      # We're not adding a footer with timestamp as in the example this appears to be a separate message
+      
+      # Send the case message
+      case_message = await self.safe_send_message(log_channel, embed=embed)
+      
+      # Add entry to the modlog database
+      await self.config.guild(guild).modlog.set_raw(
+          str(case_num),
+          value={
+              "case_num": case_num,
+              "action": action,
+              "user_id": target.id,
+              "user_name": str(target),
+              "moderator_id": moderator.id,
+              "moderator_name": str(moderator),
+              "reason": reason or "No reason provided",
+              "timestamp": datetime.now(timezone.utc).timestamp(),
+              "message_id": case_message.id if case_message else None
+          }
+      )
+      
+      # Add a "Koya • Today at XX:XX" type message with timestamp (as shown in screenshot)
+      timestamp_embed = discord.Embed(color=0x2f3136)
+      current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+      bot_name = guild.me.display_name
+      await self.safe_send_message(log_channel, f"{bot_name} • Today at {current_time}")
 
     # Error handling for commands
     @commands.Cog.listener()
