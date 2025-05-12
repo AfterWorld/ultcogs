@@ -286,6 +286,7 @@ class Cautions(commands.Cog):
                     f"`{ctx.clean_prefix}cautionset removethreshold <points>` - Remove a threshold\n"
                     f"`{ctx.clean_prefix}cautionset showthresholds` - List all thresholds\n"
                     f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel"
+                    f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
                 ),
                 inline=False
             )
@@ -454,7 +455,7 @@ class Cautions(commands.Cog):
             response += "\n\nNo obvious permission issues detected. The role appears to be properly configured."
         
         await ctx.send(response)
-        
+
 
     @commands.command(name="caution")
     @checks.mod_or_permissions(kick_members=True)
