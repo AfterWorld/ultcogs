@@ -285,7 +285,7 @@ class Cautions(commands.Cog):
                     f"`{ctx.clean_prefix}cautionset setthreshold <points> <action> [duration] [reason]` - Set action thresholds\n"
                     f"`{ctx.clean_prefix}cautionset removethreshold <points>` - Remove a threshold\n"
                     f"`{ctx.clean_prefix}cautionset showthresholds` - List all thresholds\n"
-                    f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel"
+                    f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel\n"
                     f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
                 ),
                 inline=False
