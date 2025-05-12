@@ -1,23 +1,4 @@
-@commands.Cog.listener()
-    async def on_message_delete(self, message):
-        """Handle poll message deletion."""
-        # Check if this message was a poll
-        guild = message.guild
-        if not guild:
-            return
-            
-        polls = await self.config.guild(guild).polls()
-        
-        if str(message.id) in polls:
-            # Cancel the timer task if it exists
-            if message.id in self.active_polls:
-                self.active_polls[message.id].cancel()
-                del self.active_polls[message.id]
-                
-            # Remove the poll from the config
-            async with self.config.guild(guild).polls() as polls_config:
-                if str(message.id) in polls_config:
-                    del polls_config[str(message.id)]import discord
+import discord
 import asyncio
 import aiohttp
 import random
@@ -188,24 +169,11 @@ class V2Poll(commands.Cog):
                         "display_name": option
                     })
             
-            # Create a Components V2 poll
-            layout_view = discord.ui.LayoutView()
-            
-            # Add the title as a TextDisplay component
-            title_text = discord.ui.TextDisplay(f"📊 **{title}**")
-            layout_view.add_item(title_text)
-            
-            # Add duration info
-            duration_text = discord.ui.TextDisplay(
-                f"Poll ends: <t:{end_timestamp}:R>"
-            )
-            layout_view.add_item(duration_text)
-            
-            # Create a simplified view without using Section components
+            # Create a standard Discord view with buttons
             view = discord.ui.View()
             
             # Add vote buttons for each option
-            for i, (option, sprite) in enumerate(zip(options, option_sprites)):
+            for i, option in enumerate(options):
                 # Create a vote button for this option
                 vote_button = discord.ui.Button(
                     label=f"Vote for {option}", 
@@ -221,40 +189,34 @@ class V2Poll(commands.Cog):
                 color=discord.Color.blue()
             )
             
-            # Add fields for each option with its sprite
-            for i, (option, sprite) in enumerate(zip(options, option_sprites)):
+            # Add sprites first as a grid at the top if available
+            sprite_showcase = ""
+            sprite_urls = []
+            for i, sprite in enumerate(option_sprites):
                 if sprite["url"]:
-                    embed.add_field(
-                        name=f"{i+1}. {option}",
-                        value=f"0 votes\n[View Sprite]({sprite['url']})",
-                        inline=True
-                    )
-                else:
-                    embed.add_field(
-                        name=f"{i+1}. {option}",
-                        value="0 votes",
-                        inline=True
-                    )
+                    sprite_showcase += f"[{options[i]}]({sprite['url']}) • "
+                    sprite_urls.append(sprite["url"])
+            
+            if sprite_showcase:
+                embed.description = f"Poll ends: <t:{end_timestamp}:R>\n\n{sprite_showcase[:-3]}"
+            
+            # Add all options in a single field for compact display
+            options_text = ""
+            for i, option in enumerate(options):
+                options_text += f"**{i+1}. {option}** - 0 votes\n"
+            
+            embed.add_field(
+                name="Options",
+                value=options_text,
+                inline=False
+            )
             
             # Add a random sprite as thumbnail if available
-            sprite_urls = [s["url"] for s in option_sprites if s["url"]]
             if sprite_urls:
                 embed.set_thumbnail(url=random.choice(sprite_urls))
             
             # Send the poll message
             poll_message = await ctx.send(embed=embed, view=view)
-            
-            # Add options container to layout
-            layout_view.add_item(options_container)
-            
-            # Create vote counters display
-            vote_counters = discord.ui.TextDisplay(
-                "\n".join([f"{i+1}. {option}: 0 votes" for i, option in enumerate(options)])
-            )
-            layout_view.add_item(vote_counters)
-            
-            # Send the poll message
-            poll_message = await ctx.send(view=layout_view)
             
             # Register the poll in the config
             async with self.config.guild(ctx.guild).polls() as polls:
@@ -274,57 +236,6 @@ class V2Poll(commands.Cog):
             self.active_polls[poll_message.id] = asyncio.create_task(
                 self._end_poll_timer(ctx.guild.id, poll_message.id, duration * 60)
             )
-            
-            # Set up interaction handler for vote buttons
-            @self.bot.listen('on_interaction')
-            async def on_poll_vote(interaction: discord.Interaction):
-                # Check if this is a vote interaction for our poll
-                if (interaction.message.id != poll_message.id or 
-                    not interaction.data.get('custom_id', '').startswith('vote_')):
-                    return
-                    
-                # Get the option index from the custom_id
-                option_index = int(interaction.data['custom_id'].split('_')[1])
-                
-                # Update the vote in the config
-                async with self.config.guild(ctx.guild).polls() as polls:
-                    if str(poll_message.id) not in polls:
-                        return
-                        
-                    poll_data = polls[str(poll_message.id)]
-                    
-                    # Remove user from any existing votes
-                    for opt_idx in poll_data["votes"].keys():
-                        if interaction.user.id in poll_data["votes"][opt_idx]:
-                            poll_data["votes"][opt_idx].remove(interaction.user.id)
-                    
-                    # Add user to the selected option
-                    poll_data["votes"][str(option_index)].append(interaction.user.id)
-                    
-                    # Update the poll data
-                    polls[str(poll_message.id)] = poll_data
-                
-                # Update the vote counters
-                vote_counts = "\n".join([
-                    f"{i+1}. {option}: {len(poll_data['votes'][str(i)])} votes" 
-                    for i, option in enumerate(poll_data["options"])
-                ])
-                
-                # Update the message with new vote counts
-                # Recreate the entire view with updated vote counts
-                updated_layout_view = discord.ui.LayoutView()
-                updated_layout_view.add_item(title_text)
-                updated_layout_view.add_item(duration_text)
-                updated_layout_view.add_item(options_container)
-                updated_layout_view.add_item(discord.ui.TextDisplay(vote_counts))
-                
-                await interaction.message.edit(view=updated_layout_view)
-                
-                # Acknowledge the interaction
-                await interaction.response.send_message(
-                    f"Your vote for '{poll_data['options'][option_index]}' has been recorded!", 
-                    ephemeral=True
-                )
                 
         except Exception as e:
             await ctx.send(f"Error creating poll: {e}")
@@ -800,6 +711,27 @@ class V2Poll(commands.Cog):
                 )
             except:
                 pass
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        """Handle poll message deletion."""
+        # Check if this message was a poll
+        guild = message.guild
+        if not guild:
+            return
+            
+        polls = await self.config.guild(guild).polls()
+        
+        if str(message.id) in polls:
+            # Cancel the timer task if it exists
+            if message.id in self.active_polls:
+                self.active_polls[message.id].cancel()
+                del self.active_polls[message.id]
+                
+            # Remove the poll from the config
+            async with self.config.guild(guild).polls() as polls_config:
+                if str(message.id) in polls_config:
+                    del polls_config[str(message.id)]
 
 async def setup(bot):
     await bot.add_cog(V2Poll(bot))
