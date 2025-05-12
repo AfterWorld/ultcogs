@@ -30,11 +30,12 @@ class V2Poll(commands.Cog):
             "polls": {},  # poll_id: {options, votes, end_time, etc.}
             "settings": {
                 "default_duration": 60,  # Default poll duration in minutes
-                "use_sprites": True,     # Whether to use character sprites by default
-                "cached_sprites": []     # List of cached sprite URLs
+                "use_sprites": True      # Whether to use character sprites by default
             }
         }
         
+        # Global settings for sprite cache
+        self.config.register_global(cached_sprites=[])
         self.config.register_guild(**default_guild)
         self.active_polls: Dict[int, asyncio.Task] = {}  # message_id: task
         self.sprite_cache: Dict[str, str] = {}  # filename: url
@@ -50,8 +51,8 @@ class V2Poll(commands.Cog):
 
     async def fetch_available_sprites(self, force_refresh: bool = False) -> List[Dict[str, str]]:
         """Fetch available sprites from GitHub repository."""
-        guild_settings = await self.config.guild_from_id(None).settings()
-        cached_sprites = guild_settings.get("cached_sprites", [])
+        # Use global scope for sprite caching
+        cached_sprites = await self.config.cached_sprites()
         
         # Use cached sprites if available and not forcing refresh
         if cached_sprites and not force_refresh:
@@ -74,7 +75,7 @@ class V2Poll(commands.Cog):
                     
                     # Cache the sprites
                     if sprites:
-                        await self.config.guild_from_id(None).settings.cached_sprites.set(sprites)
+                        await self.config.cached_sprites.set(sprites)
                     
                     return sprites
                 else:
