@@ -397,6 +397,111 @@ class OnePieceEvents(commands.Cog):
         
         await self.config.guild(ctx.guild).reminder_times.set(valid_minutes)
         await ctx.send(f"Event reminders will be sent {humanize_list([f'{m} minutes' for m in valid_minutes])} before events start.")
+
+    @events.command(name="test")
+    @commands.mod_or_permissions(manage_events=True)
+    async def events_test(self, ctx, minutes: int = 5, *, role_mention: str = None):
+        """Create a test event that will occur in the specified number of minutes
+        
+        This command is for testing event notifications to ensure they're working properly.
+        
+        Parameters:
+        - minutes: How many minutes until the test event (default: 5)
+        - role_mention: Optional role to ping (mention the role directly)
+        
+        Example:
+        [p]events test 5 @Nakama
+        """
+        if minutes < 1:
+            return await ctx.send("Test events must be at least 1 minute in the future.")
+        
+        # Calculate the event time
+        event_time = datetime.now() + timedelta(minutes=minutes)
+        
+        # Process role mention if provided
+        role_id = None
+        if role_mention and ctx.message.role_mentions:
+            role_id = ctx.message.role_mentions[0].id
+        
+        # Create a clear test event name
+        test_name = f"Test Event ({ctx.author.display_name})"
+        
+        # Get the next event ID
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            event_id = guild_data["next_id"]
+            guild_data["next_id"] += 1
+            
+            # Create the event with shorter reminder times specifically for testing
+            guild_data["events"][str(event_id)] = {
+                "name": test_name,
+                "type": "Other",
+                "description": f"This is a test event created by {ctx.author.mention} that will trigger in {minutes} minutes.",
+                "time": event_time.timestamp(),
+                "channel_id": ctx.channel.id,
+                "role_id": role_id,
+                "host_id": ctx.author.id,
+                "participants": [],
+                "reminder_sent": {},
+                "created_at": datetime.now().timestamp(),
+                "is_test": True  # Flag to identify test events
+            }
+        
+        # Create a special reminder time just for this test
+        test_reminder_times = [max(1, minutes - 1)]  # 1 minute before if possible
+        if minutes >= 3:
+            test_reminder_times.append(2)  # Also add a 2-minute reminder if there's time
+        
+        # Save these reminder times temporarily
+        original_reminder_times = await self.config.guild(ctx.guild).reminder_times()
+        await self.config.guild(ctx.guild).reminder_times.set(test_reminder_times)
+        
+        # Create and send the event embed
+        embed = await self._create_event_embed(ctx.guild, str(event_id))
+        
+        # Format the test event notification
+        content = f"**TEST EVENT** created for {minutes} minutes from now"
+        if role_id:
+            role = ctx.guild.get_role(role_id)
+            if role:
+                content = f"{content} with {role.mention} ping"
+        
+        msg = await ctx.send(content, embed=embed)
+        
+        # Add reaction for users to join
+        await msg.add_reaction("🏴‍☠️")
+        
+        # Store the message ID for later use
+        async with self.config.guild(ctx.guild).all() as guild_data:
+            guild_data["events"][str(event_id)]["message_id"] = msg.id
+        
+        await ctx.send(
+            f"Test event created (ID: {event_id})!\n"
+            f"• Will trigger in {minutes} minutes (at {event_time.strftime('%H:%M:%S')})\n"
+            f"• Reminder will be sent {humanize_list([f'{m} min' for m in test_reminder_times])} before the event\n"
+            f"• Once tested, test events will auto-delete after 10 minutes\n\n"
+            f"Join the test event by reacting with 🏴‍☠️ to receive DM notifications."
+        )
+        
+        # Schedule restoration of original reminder times
+        self.bot.loop.create_task(self._restore_reminder_settings(ctx.guild, original_reminder_times, minutes + 10))
+
+async def _restore_reminder_settings(self, guild, original_settings, delay_minutes):
+    """Restore original reminder settings after a test"""
+    await asyncio.sleep(delay_minutes * 60)
+    await self.config.guild(guild).reminder_times.set(original_settings)
+    
+    # Clean up any test events that are still in the database
+    async with self.config.guild(guild).all() as guild_data:
+        # Find and remove any test events
+        events_to_remove = []
+        for event_id, event in guild_data["events"].items():
+            if event.get("is_test", False):
+                events_to_remove.append(event_id)
+        
+        # Remove the test events
+        for event_id in events_to_remove:
+            if event_id in guild_data["events"]:
+                del guild_data["events"][event_id]
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -485,16 +590,28 @@ class OnePieceEvents(commands.Cog):
                 
             guild_data = await self.config.guild(guild).all()
             events = guild_data.get("events", {})
-            reminder_times = guild_data.get("reminder_times", [30])  # Minutes before event
             
             for event_id, event in list(events.items()):
                 event_time = datetime.fromtimestamp(event["time"])
                 now = datetime.now()
                 
+                # Handle test events with custom reminder times if needed
+                reminder_times = guild_data.get("reminder_times", [30])  # Default reminder times
+                
+                # For test events, use more frequent checks
+                if event.get("is_test", False):
+                    # For test events, check every remaining minute too
+                    minutes_until = max(0, int((event_time - now).total_seconds() / 60))
+                    if minutes_until <= 5:  # Only for the last 5 minutes
+                        # Add every minute as a reminder time
+                        for i in range(1, minutes_until + 1):
+                            if i not in reminder_times:
+                                reminder_times.append(i)
+                
                 if now > event_time:
                     # Event has passed, check if it's time to clean up
-                    if now > event_time + timedelta(hours=1):
-                        # Clean up past event
+                    if now > event_time + timedelta(hours=1) or (event.get("is_test", False) and now > event_time + timedelta(minutes=10)):
+                        # Clean up past event - clean up test events more quickly
                         async with self.config.guild(guild).all() as updated_data:
                             if event_id in updated_data["events"]:
                                 del updated_data["events"][event_id]
@@ -505,7 +622,7 @@ class OnePieceEvents(commands.Cog):
                     reminder_key = f"reminder_{minutes}"
                     
                     # If this reminder hasn't been sent and it's time to send it
-                    if (reminder_key not in event["reminder_sent"] or not event["reminder_sent"][reminder_key]) and \
+                    if (reminder_key not in event.get("reminder_sent", {}) or not event["reminder_sent"].get(reminder_key, False)) and \
                        event_time - now <= timedelta(minutes=minutes) and \
                        event_time > now:
                         
