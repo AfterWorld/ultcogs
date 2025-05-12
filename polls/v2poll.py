@@ -323,7 +323,7 @@ class V2Poll(commands.Cog):
         options = [sprite["display_name"] for sprite in sprites]
         
         # Call the regular poll create command
-        await ctx.invoke(self.poll_create, title=title, duration=duration, *options)
+        await self.poll_create(ctx, title, duration, *options)
 
     async def _end_poll_timer(self, guild_id: int, message_id: int, duration: int):
         """Timer to end the poll after the specified duration."""
@@ -621,10 +621,10 @@ class V2Poll(commands.Cog):
         
         if options:
             # Pass to the main poll creation command
-            await ctx.invoke(self.poll_create, title=title, duration=duration, *options)
+            await self.poll_create(ctx, title, duration, *options)
         else:
             # Use random sprites
-            await ctx.invoke(self.poll_sprite, title=title, duration=duration)
+            await self.poll_sprite(ctx, title, duration)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
