@@ -416,12 +416,13 @@ class Cautions(commands.Cog):
             return await ctx.send("Warning points must be at least 1.")
         
         # Create warning entry
+        expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
         warning = {
             "points": points,
             "reason": reason or "No reason provided",
             "moderator_id": ctx.author.id,
             "timestamp": datetime.utcnow().timestamp(),
-            "expiry": (datetime.utcnow() + timedelta(days=await self.config.guild(ctx.guild).warning_expiry_days())).timestamp()
+            "expiry": (datetime.utcnow() + timedelta(days=expiry_days)).timestamp()
         }
         
         # Get member config and update warnings
