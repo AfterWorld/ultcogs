@@ -24,41 +24,41 @@ class Cautions(commands.Cog):
     """Enhanced moderation cog with point-based warning system."""
 
     def __init__(self, bot: Red):
-        self.bot = bot
-        self.config = Config.get_conf(self, identifier=3487613987, force_registration=True)
-        
-        # Default guild settings
-        default_guild = {
-            "log_channel": None,
-            "mute_role": None,
-            "warning_expiry_days": DEFAULT_WARNING_EXPIRY_DAYS,
-            "action_thresholds": DEFAULT_ACTION_THRESHOLDS,
-            "case_count": 0,  # Track the number of cases
-            "modlog": {}  # Store case details
-        }
-        
-        # Default member settings
-        default_member = {
-            "warnings": [],
-            "total_points": 0,
-            "muted_until": None,
-            "applied_thresholds": []
-        }
-        
-        # Register defaults
-        self.config.register_guild(**default_guild)
-        self.config.register_member(**default_member)
-        
-        # Rate limiting protection
-        self.rate_limit = {
-            "message_queue": {},  # Per-channel message queue
-            "command_cooldown": {},  # Per-guild command cooldown
-            "global_cooldown": deque(maxlen=10),  # Global command timestamps
-        }
-        
-        # Start background tasks
-        self.warning_cleanup_task = self.bot.loop.create_task(self.warning_cleanup_loop())
-        self.mute_check_task = self.bot.loop.create_task(self.mute_check_loop())
+      self.bot = bot
+      self.config = Config.get_conf(self, identifier=3487613987, force_registration=True)
+      
+      # Default guild settings
+      default_guild = {
+          "log_channel": None,
+          "mute_role": None,
+          "warning_expiry_days": DEFAULT_WARNING_EXPIRY_DAYS,
+          "action_thresholds": DEFAULT_ACTION_THRESHOLDS,
+          "case_count": 0,  # Track the number of cases
+          "modlog": {}  # Store case details
+      }
+      
+      # Default member settings
+      default_member = {
+          "warnings": [],
+          "total_points": 0,
+          "muted_until": None,
+          "applied_thresholds": []
+      }
+      
+      # Register defaults
+      self.config.register_guild(**default_guild)
+      self.config.register_member(**default_member)
+      
+      # Rate limiting protection
+      self.rate_limit = {
+          "message_queue": {},  # Per-channel message queue
+          "command_cooldown": {},  # Per-guild command cooldown
+          "global_cooldown": deque(maxlen=10),  # Global command timestamps
+      }
+      
+      # Start background tasks
+      self.warning_cleanup_task = self.bot.loop.create_task(self.warning_cleanup_loop())
+      self.mute_check_task = self.bot.loop.create_task(self.mute_check_loop())
     
     def cog_unload(self):
         """Called when the cog is unloaded."""
@@ -996,7 +996,7 @@ class Cautions(commands.Cog):
           return
       
       # Get current case number
-      case_num = await self.config.guild(guild).case_count()  # Fixed this line
+      case_num = await self.config.guild(guild).case_count()
       if case_num is None:
           case_num = 1
       else:
@@ -1008,8 +1008,8 @@ class Cautions(commands.Cog):
       # Create embed in the style shown in the example
       embed = discord.Embed(color=0x2f3136)  # Dark Discord UI color
       
-      # Adding the icon and case number at the top
-      embed.set_author(name=f"carsonthecreator", icon_url="https://cdn.discordapp.com/emojis/1061114293952323586.png")
+      # Use the bot's actual name and avatar for the author field
+      embed.set_author(name=f"{guild.me.display_name}", icon_url=guild.me.display_avatar.url)
       
       # Case title
       case_title = f"Case #{case_num}"
@@ -1030,13 +1030,29 @@ class Cautions(commands.Cog):
               if field and field.get("name") and field.get("value"):
                   embed.description += f"\n**{field['name']}:** {field['value']}"
       
-      # Add a footer with the time
-      current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+      # Create buttons for additional actions
+      view = discord.ui.View()
       
-      # We're not adding a footer with timestamp as in the example this appears to be a separate message
+      # Button to view all cautions for this user
+      view.add_item(discord.ui.Button(
+          style=discord.ButtonStyle.primary,
+          label="View All Cautions",
+          custom_id=f"cautions_view_{target.id}",
+      ))
       
-      # Send the case message
-      case_message = await self.safe_send_message(log_channel, embed=embed)
+      # Button to clear cautions for this user
+      view.add_item(discord.ui.Button(
+          style=discord.ButtonStyle.danger,
+          label="Clear All Cautions",
+          custom_id=f"cautions_clear_{target.id}",
+      ))
+      
+      # Send the case message with buttons
+      try:
+          case_message = await log_channel.send(embed=embed, view=view)
+      except discord.HTTPException:
+          # Fall back to sending without view if button creation fails
+          case_message = await log_channel.send(embed=embed)
       
       # Add entry to the modlog database
       await self.config.guild(guild).modlog.set_raw(
@@ -1054,11 +1070,112 @@ class Cautions(commands.Cog):
           }
       )
       
-      # Add a "Koya • Today at XX:XX" type message with timestamp (as shown in screenshot)
-      timestamp_embed = discord.Embed(color=0x2f3136)
+      # Add the timestamp message (this is correct)
       current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
       bot_name = guild.me.display_name
-      await self.safe_send_message(log_channel, f"{bot_name} • Today at {current_time}")
+      await self.safe_send_message(log_channel, f"{bot_name} Support • Today at {current_time}")
+      
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle button interactions for moderation actions."""
+        if not interaction.data or not interaction.data.get("custom_id"):
+            return
+            
+        custom_id = interaction.data["custom_id"]
+        
+        # Handle cautions view button
+        if custom_id.startswith("cautions_view_"):
+            # Extract user ID from custom_id
+            try:
+                user_id = int(custom_id.split("_")[-1])
+                member = interaction.guild.get_member(user_id)
+                
+                if not member:
+                    await interaction.response.send_message("Member not found or has left the server.", ephemeral=True)
+                    return
+                    
+                # Check if the interacting user has permissions
+                if not interaction.user.guild_permissions.kick_members:
+                    await interaction.response.send_message("You don't have permission to view warnings.", ephemeral=True)
+                    return
+                    
+                # Get warnings for the member
+                warnings = await self.config.member(member).warnings()
+                total_points = await self.config.member(member).total_points()
+                
+                if not warnings:
+                    await interaction.response.send_message(f"{member.mention} has no active warnings.", ephemeral=True)
+                    return
+                    
+                # Create embed with warnings
+                embed = discord.Embed(title=f"Warnings for {member.display_name}", color=0xff9900)
+                embed.add_field(name="Total Points", value=str(total_points))
+                
+                # List all warnings
+                for i, warning in enumerate(warnings, start=1):
+                    moderator = interaction.guild.get_member(warning.get("moderator_id"))
+                    moderator_mention = moderator.mention if moderator else "Unknown Moderator"
+                    
+                    timestamp = warning.get("timestamp", 0)
+                    issued_time = f"<t:{int(timestamp)}:R>"
+                    
+                    expiry = warning.get("expiry", 0)
+                    expiry_time = f"<t:{int(expiry)}:R>"
+                    
+                    value = f"**Points:** {warning.get('points', 1)}\n"
+                    value += f"**Reason:** {warning.get('reason', 'No reason provided')}\n"
+                    value += f"**Moderator:** {moderator_mention}\n"
+                    value += f"**Issued:** {issued_time}\n"
+                    value += f"**Expires:** {expiry_time}"
+                    
+                    embed.add_field(name=f"Warning #{i}", value=value, inline=False)
+                    
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                
+            except Exception as e:
+                await interaction.response.send_message(f"Error processing request: {str(e)}", ephemeral=True)
+                
+        # Handle cautions clear button
+        elif custom_id.startswith("cautions_clear_"):
+            # Extract user ID from custom_id
+            try:
+                user_id = int(custom_id.split("_")[-1])
+                member = interaction.guild.get_member(user_id)
+                
+                if not member:
+                    await interaction.response.send_message("Member not found or has left the server.", ephemeral=True)
+                    return
+                    
+                # Check if the interacting user has permissions
+                if not interaction.user.guild_permissions.kick_members:
+                    await interaction.response.send_message("You don't have permission to clear warnings.", ephemeral=True)
+                    return
+                    
+                # Check if there are warnings to clear
+                warnings = await self.config.member(member).warnings()
+                
+                if not warnings:
+                    await interaction.response.send_message(f"{member.mention} has no warnings to clear.", ephemeral=True)
+                    return
+                    
+                # Clear warnings
+                await self.config.member(member).warnings.set([])
+                await self.config.member(member).total_points.set(0)
+                await self.config.member(member).applied_thresholds.set([])
+                
+                # Log the action
+                await self.log_action(
+                    interaction.guild, 
+                    "Clear Warnings", 
+                    member, 
+                    interaction.user, 
+                    "Cleared via button interaction"
+                )
+                
+                await interaction.response.send_message(f"All warnings for {member.mention} have been cleared.", ephemeral=True)
+                
+            except Exception as e:
+                await interaction.response.send_message(f"Error processing request: {str(e)}", ephemeral=True)
 
     # Error handling for commands
     @commands.Cog.listener()
