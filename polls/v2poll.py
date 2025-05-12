@@ -384,26 +384,55 @@ class V2Poll(commands.Cog):
                     if votes == max_votes
                 ]
                 
-                # Add results to embed
-                for i, option in enumerate(poll_data["options"]):
+                # Group results by rows of 2
+                options = poll_data["options"]
+                value_chunks = []
+                
+                for i in range(0, len(options), 2):
+                    chunk = ""
+                    
+                    # First option in the row
+                    option_num = i + 1
+                    option = options[i]
                     votes = vote_counts.get(i, 0)
                     percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
                     bar = "█" * int(percentage / 10) + "░" * (10 - int(percentage / 10))
                     
-                    # Add sprite thumbnail if available
+                    # Get sprite if available
                     sprite_name = poll_data.get("option_sprites", [])[i] if i < len(poll_data.get("option_sprites", [])) else None
-                    if sprite_name:
-                        sprite_url = await self.get_sprite_url(sprite_name)
-                        if sprite_url:
-                            field_value = f"{bar} {votes} votes ({percentage:.1f}%)\n[Sprite]({sprite_url})"
-                        else:
-                            field_value = f"{bar} {votes} votes ({percentage:.1f}%)"
-                    else:
-                        field_value = f"{bar} {votes} votes ({percentage:.1f}%)"
+                    sprite_url = await self.get_sprite_url(sprite_name) if sprite_name else None
                     
+                    is_winner = option in winners
+                    option_text = f"**{option_num}. {option}**" + (" 👑" if is_winner else "")
+                    chunk += f"{option_text}\n{bar} {votes} votes ({percentage:.1f}%)\n"
+                    if sprite_url:
+                        chunk += f"[View Sprite]({sprite_url})\n"
+                    
+                    # Second option in the row if available
+                    if i + 1 < len(options):
+                        option_num = i + 2
+                        option = options[i + 1]
+                        votes = vote_counts.get(i+1, 0)
+                        percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
+                        bar = "█" * int(percentage / 10) + "░" * (10 - int(percentage / 10))
+                        
+                        # Get sprite if available
+                        sprite_name = poll_data.get("option_sprites", [])[i+1] if i+1 < len(poll_data.get("option_sprites", [])) else None
+                        sprite_url = await self.get_sprite_url(sprite_name) if sprite_name else None
+                        
+                        is_winner = option in winners
+                        option_text = f"**{option_num}. {option}**" + (" 👑" if is_winner else "")
+                        chunk += f"{option_text}\n{bar} {votes} votes ({percentage:.1f}%)\n"
+                        if sprite_url:
+                            chunk += f"[View Sprite]({sprite_url})"
+                    
+                    value_chunks.append(chunk)
+                
+                # Add the formatted chunks to the embed
+                for i, chunk in enumerate(value_chunks):
                     embed.add_field(
-                        name=f"{i+1}. {option}",
-                        value=field_value,
+                        name=f"Options {i*2+1}-{min((i+1)*2, len(options))}",
+                        value=chunk,
                         inline=False
                     )
                 
@@ -437,15 +466,26 @@ class V2Poll(commands.Cog):
             
             # Try to disable the buttons on the original message
             try:
-                # Create a new view with disabled buttons
-                layout_view = discord.ui.LayoutView()
+                # Create a disabled view
+                disabled_view = discord.ui.View()
+                for i, option in enumerate(poll_data["options"]):
+                    # Add disabled buttons
+                    disabled_button = discord.ui.Button(
+                        label=f"Vote for {option}",
+                        custom_id=f"vote_{i}",
+                        style=discord.ButtonStyle.primary,
+                        disabled=True
+                    )
+                    disabled_view.add_item(disabled_button)
                 
-                # Add poll ended text
-                layout_view.add_item(discord.ui.TextDisplay(
-                    f"📊 **{poll_data['title']}**\n\n**This poll has ended. See results above.**"
-                ))
+                # Update the embed to show it's ended
+                ended_embed = discord.Embed(
+                    title=f"📊 {poll_data['title']} (ENDED)",
+                    description="This poll has ended. See results above.",
+                    color=discord.Color.grey()
+                )
                 
-                await message.edit(view=layout_view)
+                await message.edit(embed=ended_embed, view=disabled_view)
             except discord.HTTPException:
                 # If we can't edit the message, just ignore
                 pass
