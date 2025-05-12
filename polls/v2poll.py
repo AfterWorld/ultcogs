@@ -18,6 +18,9 @@ GITHUB_REPO_NAME = "ultcogs"
 GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/Character%20Sprite"
 GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/main/Character%20Sprite/"
 
+# Component V2 flag
+IS_COMPONENTS_V2 = 1 << 15
+
 
 class V2Poll(commands.Cog):
     """Create interactive polls using Discord Components V2 with character sprites."""
@@ -87,7 +90,7 @@ class V2Poll(commands.Cog):
     async def get_sprite_url(self, sprite_name: str) -> Optional[str]:
         """Get the URL for a sprite by name."""
         # Check cache first
-        if sprite_name in self.sprite_cache:
+        if sprite_name and sprite_name in self.sprite_cache:
             return self.sprite_cache[sprite_name]
             
         # Try to find in cached sprites
@@ -109,6 +112,52 @@ class V2Poll(commands.Cog):
             return sprites
             
         return random.sample(sprites, count)
+
+    def create_poll_components(self, options: List[str]) -> List[Dict]:
+        """Create Components V2 for a poll."""
+        components = []
+        
+        # Group vote buttons into action rows (max 5 buttons per row)
+        for i in range(0, len(options), 5):
+            buttons = []
+            for j, option in enumerate(options[i:i+5], i):
+                buttons.append({
+                    "type": 2,  # Button type
+                    "style": 1,  # Primary style
+                    "label": f"Vote for {option}",
+                    "custom_id": f"vote_{j}"
+                })
+            
+            # Add action row with buttons
+            components.append({
+                "type": 1,  # Action row
+                "components": buttons
+            })
+        
+        return components
+
+    def create_sprite_select_menu(self, options: List[str], sprites: List[Dict[str, str]]) -> Dict:
+        """Create a select menu for sprite options."""
+        select_options = []
+        
+        for i, (option, sprite) in enumerate(zip(options, sprites)):
+            # Create option with emoji if applicable
+            option_data = {
+                "label": option,
+                "value": f"vote_{i}",
+                "description": f"Vote for {option}"
+            }
+            
+            # TODO: Add custom emojis for sprites if possible
+            
+            select_options.append(option_data)
+        
+        return {
+            "type": 3,  # Select Menu
+            "custom_id": "sprite_vote",
+            "placeholder": "Select your favorite",
+            "options": select_options
+        }
 
     @commands.group()
     @commands.guild_only()
@@ -169,7 +218,7 @@ class V2Poll(commands.Cog):
                         "display_name": option
                     })
             
-            # Create a standard Discord view with buttons
+            # Create a standard Discord view with buttons first as fallback
             view = discord.ui.View()
             
             # Add vote buttons for each option
@@ -215,8 +264,44 @@ class V2Poll(commands.Cog):
             if sprite_urls:
                 embed.set_thumbnail(url=random.choice(sprite_urls))
             
-            # Send the poll message
-            poll_message = await ctx.send(embed=embed, view=view)
+            # Create Components V2 formatted components
+            components = self.create_poll_components(options)
+            
+            # Try to send with Components V2 first via HTTP
+            try:
+                # Use webhook execution to send the message with Components V2
+                webhook = await ctx.channel.create_webhook(name="PollBot")
+                poll_message = await webhook.send(
+                    embed=embed,
+                    wait=True,
+                    username=ctx.me.display_name,
+                    avatar_url=ctx.me.display_avatar.url,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    flags=IS_COMPONENTS_V2,
+                    components=components
+                )
+                await webhook.delete()
+            except Exception as e:
+                # Fallback to standard view if Components V2 fails
+                print(f"Components V2 failed: {e}, using standard view instead")
+                
+                # Create a standard Discord select menu
+                view = discord.ui.View()
+                select = discord.ui.Select(
+                    placeholder="Choose your favorite option",
+                    custom_id="sprite_vote"
+                )
+                
+                # Add options to the select menu
+                for i, option in enumerate(options):
+                    select.add_option(
+                        label=option,
+                        value=f"vote_{i}",
+                        description=f"Vote for {option}"
+                    )
+                
+                view.add_item(select)
+                poll_message = await ctx.send(embed=embed, view=view)
             
             # Register the poll in the config
             async with self.config.guild(ctx.guild).polls() as polls:
@@ -228,7 +313,8 @@ class V2Poll(commands.Cog):
                     "end_time": end_timestamp,
                     "channel_id": ctx.channel.id,
                     "author_id": ctx.author.id,
-                    "message_id": poll_message.id
+                    "message_id": poll_message.id,
+                    "is_dropdown": True
                 }
                 polls[str(poll_message.id)] = poll_data
             
@@ -238,7 +324,161 @@ class V2Poll(commands.Cog):
             )
                 
         except Exception as e:
-            await ctx.send(f"Error creating poll: {e}")
+            await ctx.send(f"Error creating dropdown poll: {e}")
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle interactions for polls."""
+        if not interaction.data:
+            return
+            
+        # Handle both button votes and dropdown select votes
+        custom_id = interaction.data.get('custom_id', '')
+        is_vote = custom_id.startswith('vote_')
+        is_dropdown = custom_id == 'sprite_vote'
+        
+        if not (is_vote or is_dropdown):
+            return
+
+        try:
+            # Get the message id
+            message_id = interaction.message.id
+            guild_id = interaction.guild.id
+            
+            # Get poll data
+            all_polls = await self.config.guild(interaction.guild).polls()
+            if str(message_id) not in all_polls:
+                return
+                
+            poll_data = all_polls[str(message_id)]
+            
+            # Get the option index from the custom_id
+            if is_vote:
+                option_index = int(custom_id.split('_')[1])
+            elif is_dropdown:
+                # For dropdown, get the selected value
+                values = interaction.data.get('values', [])
+                if not values:
+                    return
+                    
+                option_value = values[0]
+                if not option_value.startswith('vote_'):
+                    return
+                    
+                option_index = int(option_value.split('_')[1])
+            else:
+                return
+            
+            # Update the vote in the config
+            async with self.config.guild(interaction.guild).polls() as polls:
+                if str(message_id) not in polls:
+                    return
+                    
+                poll_data = polls[str(message_id)]
+                
+                # Remove user from any existing votes
+                for opt_idx in poll_data["votes"].keys():
+                    if interaction.user.id in poll_data["votes"][opt_idx]:
+                        poll_data["votes"][opt_idx].remove(interaction.user.id)
+                
+                # Add user to the selected option
+                poll_data["votes"][str(option_index)].append(interaction.user.id)
+                
+                # Update the poll data
+                polls[str(message_id)] = poll_data
+            
+            # Update the vote counters
+            vote_counts = {}
+            for opt_idx, voters in poll_data["votes"].items():
+                vote_counts[int(opt_idx)] = len(voters)
+            
+            # Create a new updated embed with current vote counts
+            updated_embed = discord.Embed(
+                title=f"📊 {poll_data['title']}",
+                description=f"Poll ends: <t:{poll_data['end_time']}:R>",
+                color=discord.Color.blue()
+            )
+            
+            # Create a layout that shows all sprites inline with their options
+            options = poll_data["options"]
+            
+            # Add sprites first as a grid at the top
+            sprite_names = poll_data.get("option_sprites", [])
+            sprite_urls = []
+            for i, sprite_name in enumerate(sprite_names):
+                if sprite_name:
+                    url = await self.get_sprite_url(sprite_name)
+                    if url:
+                        sprite_urls.append((i, options[i], url))
+            
+            if sprite_urls:
+                # Create sprite showcase
+                sprite_showcase = ""
+                for i, option, url in sprite_urls:
+                    sprite_showcase += f"[{option}]({url}) • "
+                
+                if sprite_showcase:
+                    updated_embed.description = f"Poll ends: <t:{poll_data['end_time']}:R>\n\n{sprite_showcase[:-3]}"
+            
+            # Add all options in a single field for compact display
+            options_text = ""
+            for i, option in enumerate(poll_data["options"]):
+                votes = vote_counts.get(i, 0)
+                options_text += f"**{i+1}. {option}** - {votes} votes\n"
+            
+            updated_embed.add_field(
+                name="Options",
+                value=options_text,
+                inline=False
+            )
+            
+            # Add a random sprite as thumbnail if available
+            if sprite_urls:
+                updated_embed.set_thumbnail(url=random.choice(sprite_urls)[2])
+            
+            # Try to update with V2 components
+            try:
+                # Get the original components and update them
+                await interaction.message.edit(embed=updated_embed)
+            except Exception as e:
+                print(f"Error updating poll message: {e}")
+            
+            # Acknowledge the interaction
+            await interaction.response.send_message(
+                f"Your vote for '{poll_data['options'][option_index]}' has been recorded!", 
+                ephemeral=True
+            )
+        except Exception as e:
+            print(f"Error handling interaction: {e}")
+            # Try to acknowledge the interaction even if there was an error
+            try:
+                await interaction.response.send_message(
+                    "There was an error processing your vote. Please try again.",
+                    ephemeral=True
+                )
+            except:
+                pass
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        """Handle poll message deletion."""
+        # Check if this message was a poll
+        guild = message.guild
+        if not guild:
+            return
+            
+        polls = await self.config.guild(guild).polls()
+        
+        if str(message.id) in polls:
+            # Cancel the timer task if it exists
+            if message.id in self.active_polls:
+                self.active_polls[message.id].cancel()
+                del self.active_polls[message.id]
+                
+            # Remove the poll from the config
+            async with self.config.guild(guild).polls() as polls_config:
+                if str(message.id) in polls_config:
+                    del polls_config[str(message.id)]
 
     @poll.command(name="sprite")
     @commands.guild_only()
@@ -314,60 +554,44 @@ class V2Poll(commands.Cog):
                     if votes == max_votes
                 ]
                 
-                # Group results by rows of 2
+                # Add sprites first as a grid at the top
+                sprite_showcase = ""
+                sprite_urls = []
                 options = poll_data["options"]
-                value_chunks = []
+                sprite_names = poll_data.get("option_sprites", [])
                 
-                for i in range(0, len(options), 2):
-                    chunk = ""
-                    
-                    # First option in the row
-                    option_num = i + 1
-                    option = options[i]
+                for i, sprite_name in enumerate(sprite_names):
+                    if sprite_name:
+                        url = await self.get_sprite_url(sprite_name)
+                        if url:
+                            sprite_showcase += f"[{options[i]}]({url}) • "
+                            sprite_urls.append((i, options[i], url))
+                
+                if sprite_showcase:
+                    embed.description = f"{sprite_showcase[:-3]}\n\n"
+                
+                # Add results
+                results_text = ""
+                for i, option in enumerate(poll_data["options"]):
                     votes = vote_counts.get(i, 0)
                     percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
                     bar = "█" * int(percentage / 10) + "░" * (10 - int(percentage / 10))
-                    
-                    # Get sprite if available
-                    sprite_name = poll_data.get("option_sprites", [])[i] if i < len(poll_data.get("option_sprites", [])) else None
-                    sprite_url = await self.get_sprite_url(sprite_name) if sprite_name else None
-                    
                     is_winner = option in winners
-                    option_text = f"**{option_num}. {option}**" + (" 👑" if is_winner else "")
-                    chunk += f"{option_text}\n{bar} {votes} votes ({percentage:.1f}%)\n"
-                    if sprite_url:
-                        chunk += f"[View Sprite]({sprite_url})\n"
                     
-                    # Second option in the row if available
-                    if i + 1 < len(options):
-                        option_num = i + 2
-                        option = options[i + 1]
-                        votes = vote_counts.get(i+1, 0)
-                        percentage = (votes / total_votes) * 100 if total_votes > 0 else 0
-                        bar = "█" * int(percentage / 10) + "░" * (10 - int(percentage / 10))
-                        
-                        # Get sprite if available
-                        sprite_name = poll_data.get("option_sprites", [])[i+1] if i+1 < len(poll_data.get("option_sprites", [])) else None
-                        sprite_url = await self.get_sprite_url(sprite_name) if sprite_name else None
-                        
-                        is_winner = option in winners
-                        option_text = f"**{option_num}. {option}**" + (" 👑" if is_winner else "")
-                        chunk += f"{option_text}\n{bar} {votes} votes ({percentage:.1f}%)\n"
-                        if sprite_url:
-                            chunk += f"[View Sprite]({sprite_url})"
-                    
-                    value_chunks.append(chunk)
+                    results_text += f"**{i+1}.** **{option}**" + (" 👑" if is_winner else "") + "\n"
+                    results_text += f"{bar} {votes} votes ({percentage:.1f}%)\n\n"
                 
-                # Add the formatted chunks to the embed
-                for i, chunk in enumerate(value_chunks):
-                    embed.add_field(
-                        name=f"Options {i*2+1}-{min((i+1)*2, len(options))}",
-                        value=chunk,
-                        inline=False
-                    )
+                embed.add_field(
+                    name="Results",
+                    value=results_text,
+                    inline=False
+                )
                 
                 if len(winners) == 1:
-                    embed.description = f"**Winner: {winners[0]}** with {max_votes} votes!"
+                    if embed.description:
+                        embed.description = f"**Winner: {winners[0]}** with {max_votes} votes!\n\n" + embed.description
+                    else:
+                        embed.description = f"**Winner: {winners[0]}** with {max_votes} votes!"
                     
                     # Add winner sprite as thumbnail if available
                     winner_idx = poll_data["options"].index(winners[0])
@@ -377,7 +601,10 @@ class V2Poll(commands.Cog):
                         if winner_url:
                             embed.set_thumbnail(url=winner_url)
                 else:
-                    embed.description = f"**Tie between: {humanize_list(winners)}** with {max_votes} votes each!"
+                    if embed.description:
+                        embed.description = f"**Tie between: {humanize_list(winners)}** with {max_votes} votes each!\n\n" + embed.description
+                    else:
+                        embed.description = f"**Tie between: {humanize_list(winners)}** with {max_votes} votes each!"
                 
                 embed.set_footer(text=f"Total votes: {total_votes}")
             else:
@@ -415,7 +642,36 @@ class V2Poll(commands.Cog):
                     color=discord.Color.grey()
                 )
                 
-                await message.edit(embed=ended_embed, view=disabled_view)
+                try:
+                    # Try to update with V2 components first
+                    webhook = await channel.create_webhook(name="PollBot")
+                    disabled_components = []
+                    for i in range(0, len(poll_data["options"]), 5):
+                        buttons = []
+                        for j, option in enumerate(poll_data["options"][i:i+5], i):
+                            buttons.append({
+                                "type": 2,  # Button type
+                                "style": 1,  # Primary style
+                                "label": f"Vote for {option}",
+                                "custom_id": f"vote_{j}",
+                                "disabled": True
+                            })
+                        
+                        disabled_components.append({
+                            "type": 1,  # Action row
+                            "components": buttons
+                        })
+                    
+                    await message.edit(
+                        embed=ended_embed,
+                        flags=IS_COMPONENTS_V2,
+                        components=disabled_components
+                    )
+                    await webhook.delete()
+                except Exception:
+                    # Fallback to standard view
+                    await message.edit(embed=ended_embed, view=disabled_view)
+                
             except discord.HTTPException:
                 # If we can't edit the message, just ignore
                 pass
@@ -606,85 +862,82 @@ class V2Poll(commands.Cog):
             # Use random sprites
             await self.poll_sprite(ctx, title, duration)
 
-    @commands.Cog.listener()
-    async def on_interaction(self, interaction: discord.Interaction):
-        """Handle interactions for polls."""
-        if not interaction.data or not interaction.data.get('custom_id', '').startswith('vote_'):
-            return
-
+    @poll.command(name="dropdown")
+    @commands.guild_only()
+    async def poll_dropdown(self, ctx: commands.Context, title: str, duration: Optional[int] = None, *options):
+        """Create a poll with a dropdown menu for voting.
+        
+        Examples:
+        - [p]poll dropdown "Which element is your favorite?" 30 Fire Water Earth Air
+        - [p]poll dropdown "Best Pokemon type?" 60 "Normal" "Fire" "Water" "Grass"
+        
+        Arguments:
+        - title: The title/question for the poll
+        - duration: Optional duration in minutes (default: 60)
+        - options: The voting options (at least 2, maximum 25)
+        """
+        if not options or len(options) < 2:
+            return await ctx.send("You need to provide at least 2 options for the poll.")
+        
+        if len(options) > 25:
+            return await ctx.send("You can only have up to 25 options in a dropdown poll.")
+            
+        # Get default duration if not specified
+        if duration is None:
+            guild_settings = await self.config.guild(ctx.guild).settings()
+            duration = guild_settings["default_duration"]
+        
+        # Calculate end time
+        end_time = datetime.utcnow() + timedelta(minutes=duration)
+        end_timestamp = int(end_time.timestamp())
+        
         try:
-            # Get the message id
-            message_id = interaction.message.id
-            guild_id = interaction.guild.id
+            # Fetch sprites for the poll
+            all_sprites = await self.fetch_available_sprites()
             
-            # Get poll data
-            all_polls = await self.config.guild(interaction.guild).polls()
-            if str(message_id) not in all_polls:
-                return
+            # Try to match options with sprite names
+            option_sprites = []
+            for option in options:
+                found = False
+                for sprite in all_sprites:
+                    # Check for exact match or if option is in sprite name (case insensitive)
+                    if option.lower() == sprite["display_name"].lower() or option.lower() in sprite["name"].lower():
+                        option_sprites.append(sprite)
+                        found = True
+                        break
                 
-            poll_data = all_polls[str(message_id)]
+                if not found:
+                    # Add a placeholder for options without matching sprites
+                    option_sprites.append({
+                        "name": None,
+                        "url": None,
+                        "display_name": option
+                    })
             
-            # Get the option index from the custom_id
-            option_index = int(interaction.data['custom_id'].split('_')[1])
-            
-            # Update the vote in the config
-            async with self.config.guild(interaction.guild).polls() as polls:
-                if str(message_id) not in polls:
-                    return
-                    
-                poll_data = polls[str(message_id)]
-                
-                # Remove user from any existing votes
-                for opt_idx in poll_data["votes"].keys():
-                    if interaction.user.id in poll_data["votes"][opt_idx]:
-                        poll_data["votes"][opt_idx].remove(interaction.user.id)
-                
-                # Add user to the selected option
-                poll_data["votes"][str(option_index)].append(interaction.user.id)
-                
-                # Update the poll data
-                polls[str(message_id)] = poll_data
-            
-            # Update the vote counters
-            vote_counts = {}
-            for opt_idx, voters in poll_data["votes"].items():
-                vote_counts[int(opt_idx)] = len(voters)
-            
-            # Create a new updated embed with current vote counts
-            updated_embed = discord.Embed(
-                title=f"📊 {poll_data['title']}",
-                description=f"Poll ends: <t:{poll_data['end_time']}:R>",
+            # Create an embed with sprite images
+            embed = discord.Embed(
+                title=f"📊 {title}",
+                description=f"Poll ends: <t:{end_timestamp}:R>",
                 color=discord.Color.blue()
             )
             
-            # Create a layout that shows all sprites inline with their options
-            options = poll_data["options"]
-            
-            # Add sprites first as a grid at the top
-            sprite_names = poll_data.get("option_sprites", [])
+            # Add sprites first as a grid at the top if available
+            sprite_showcase = ""
             sprite_urls = []
-            for i, sprite_name in enumerate(sprite_names):
-                if sprite_name:
-                    url = await self.get_sprite_url(sprite_name)
-                    if url:
-                        sprite_urls.append((i, options[i], url))
+            for i, sprite in enumerate(option_sprites):
+                if sprite["url"]:
+                    sprite_showcase += f"[{options[i]}]({sprite['url']}) • "
+                    sprite_urls.append(sprite["url"])
             
-            if sprite_urls:
-                # Create sprite showcase
-                sprite_showcase = ""
-                for i, option, url in sprite_urls:
-                    sprite_showcase += f"[{option}]({url}) • "
-                
-                if sprite_showcase:
-                    updated_embed.description = f"Poll ends: <t:{poll_data['end_time']}:R>\n\n{sprite_showcase[:-3]}"
+            if sprite_showcase:
+                embed.description = f"Poll ends: <t:{end_timestamp}:R>\n\n{sprite_showcase[:-3]}"
             
             # Add all options in a single field for compact display
             options_text = ""
-            for i, option in enumerate(poll_data["options"]):
-                votes = vote_counts.get(i, 0)
-                options_text += f"**{i+1}. {option}** - {votes} votes\n"
+            for i, option in enumerate(options):
+                options_text += f"**{i+1}. {option}** - 0 votes\n"
             
-            updated_embed.add_field(
+            embed.add_field(
                 name="Options",
                 value=options_text,
                 inline=False
@@ -692,46 +945,89 @@ class V2Poll(commands.Cog):
             
             # Add a random sprite as thumbnail if available
             if sprite_urls:
-                updated_embed.set_thumbnail(url=random.choice(sprite_urls)[2])
+                embed.set_thumbnail(url=random.choice(sprite_urls))
             
-            await interaction.message.edit(embed=updated_embed)
+            # Create select menu options
+            select_options = []
+            for i, option in enumerate(options):
+                option_data = {
+                    "label": option,
+                    "value": f"vote_{i}",
+                    "description": f"Vote for {option}"
+                }
+                select_options.append(option_data)
             
-            # Acknowledge the interaction
-            await interaction.response.send_message(
-                f"Your vote for '{poll_data['options'][option_index]}' has been recorded!", 
-                ephemeral=True
-            )
-        except Exception as e:
-            print(f"Error handling interaction: {e}")
-            # Try to acknowledge the interaction even if there was an error
+            # Create select menu component
+            select_menu = {
+                "type": 3,  # Select Menu
+                "custom_id": "sprite_vote",
+                "placeholder": "Choose your favorite option",
+                "options": select_options
+            }
+            
+            # Create Components V2 formatted components with select menu
+            components = [{
+                "type": 1,  # Action row
+                "components": [select_menu]
+            }]
+            
             try:
-                await interaction.response.send_message(
-                    "There was an error processing your vote. Please try again.",
-                    ephemeral=True
+                # Use webhook execution to send the message with Components V2
+                webhook = await ctx.channel.create_webhook(name="PollBot")
+                poll_message = await webhook.send(
+                    embed=embed,
+                    wait=True,
+                    username=ctx.me.display_name,
+                    avatar_url=ctx.me.display_avatar.url,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    flags=IS_COMPONENTS_V2,
+                    components=components
                 )
-            except:
-                pass
-
-    @commands.Cog.listener()
-    async def on_message_delete(self, message):
-        """Handle poll message deletion."""
-        # Check if this message was a poll
-        guild = message.guild
-        if not guild:
-            return
-            
-        polls = await self.config.guild(guild).polls()
-        
-        if str(message.id) in polls:
-            # Cancel the timer task if it exists
-            if message.id in self.active_polls:
-                self.active_polls[message.id].cancel()
-                del self.active_polls[message.id]
+                await webhook.delete()
+            except Exception as e:
+                # Fallback to standard view if Components V2 fails
+                print(f"Components V2 failed: {e}, using standard view instead")
                 
-            # Remove the poll from the config
-            async with self.config.guild(guild).polls() as polls_config:
-                if str(message.id) in polls_config:
-                    del polls_config[str(message.id)]
+                # Create a standard Discord select menu
+                view = discord.ui.View()
+                select = discord.ui.Select(
+                    placeholder="Choose your favorite option",
+                    custom_id="sprite_vote"
+                )
+                
+                # Add options to the select menu
+                for i, option in enumerate(options):
+                    select.add_option(
+                        label=option,
+                        value=f"vote_{i}",
+                        description=f"Vote for {option}"
+                    )
+                
+                view.add_item(select)
+                poll_message = await ctx.send(embed=embed, view=view)
+            
+            # Register the poll in the config
+            async with self.config.guild(ctx.guild).polls() as polls:
+                poll_data = {
+                    "title": title,
+                    "options": list(options),
+                    "option_sprites": [sprite["name"] for sprite in option_sprites],
+                    "votes": {str(i): [] for i in range(len(options))},
+                    "end_time": end_timestamp,
+                    "channel_id": ctx.channel.id,
+                    "author_id": ctx.author.id,
+                    "message_id": poll_message.id,
+                    "is_dropdown": True
+                }
+                polls[str(poll_message.id)] = poll_data
+            
+            # Start the poll end timer
+            self.active_polls[poll_message.id] = asyncio.create_task(
+                self._end_poll_timer(ctx.guild.id, poll_message.id, duration * 60)
+            )
+                
+        except Exception as e:
+            await ctx.send(f"Error creating dropdown poll: {e}")
 
 async def setup(bot):
     await bot.add_cog(V2Poll(bot))
