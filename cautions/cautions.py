@@ -1049,31 +1049,41 @@ class Cautions(commands.Cog):
       
       # Send the case message with buttons
       try:
+          # Use direct channel.send instead of safe_send_message for the main embed
+          # This ensures the message is sent immediately and a reference is returned
           case_message = await log_channel.send(embed=embed, view=view)
-      except discord.HTTPException:
-          # Fall back to sending without view if button creation fails
-          case_message = await log_channel.send(embed=embed)
+      except discord.HTTPException as e:
+          # Log error and try without view
+          log.error(f"Error sending embed with buttons: {e}")
+          try:
+              case_message = await log_channel.send(embed=embed)
+          except discord.HTTPException as e2:
+              log.error(f"Error sending embed without buttons: {e2}")
+              case_message = None
       
       # Add entry to the modlog database
-      await self.config.guild(guild).modlog.set_raw(
-          str(case_num),
-          value={
-              "case_num": case_num,
-              "action": action,
-              "user_id": target.id,
-              "user_name": str(target),
-              "moderator_id": moderator.id,
-              "moderator_name": str(moderator),
-              "reason": reason or "No reason provided",
-              "timestamp": datetime.now(timezone.utc).timestamp(),
-              "message_id": case_message.id if case_message else None
-          }
-      )
+      if case_message:
+          await self.config.guild(guild).modlog.set_raw(
+              str(case_num),
+              value={
+                  "case_num": case_num,
+                  "action": action,
+                  "user_id": target.id,
+                  "user_name": str(target),
+                  "moderator_id": moderator.id,
+                  "moderator_name": str(moderator),
+                  "reason": reason or "No reason provided",
+                  "timestamp": datetime.now(timezone.utc).timestamp(),
+                  "message_id": case_message.id
+              }
+          )
+          
+          # Add the timestamp message - use direct send for this too
+          current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+          bot_name = guild.me.display_name
+          await log_channel.send(f"{bot_name} Support • Today at {current_time}")
       
-      # Add the timestamp message (this is correct)
-      current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
-      bot_name = guild.me.display_name
-      await self.safe_send_message(log_channel, f"{bot_name} Support • Today at {current_time}")
+      return case_message  # Return message for potential use by caller
       
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
