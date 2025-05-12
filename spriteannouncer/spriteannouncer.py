@@ -279,21 +279,21 @@ class SpriteAnnouncer(commands.Cog):
         
         # Create buttons for interaction
         view = discord.ui.View()
-        
+
         # Add a button to get a new topic
         view.add_item(discord.ui.Button(
             style=discord.ButtonStyle.primary,
-            label="New Topic",
+            label="New Topic (Admin Only)",  # Updated label to indicate admin-only
             custom_id="sprite_announcer:new_topic"
         ))
-        
+
         # Add a button to show character info
         view.add_item(discord.ui.Button(
             style=discord.ButtonStyle.secondary,
             label="Character Info",
             custom_id="sprite_announcer:character_info"
         ))
-        
+              
         try:
             await channel.send(embed=embed, view=view)
             log.info(f"Sent announcement with sprite {sprite} in guild {guild.id}")
@@ -875,11 +875,17 @@ class SpriteAnnouncer(commands.Cog):
         action = custom_id.split(":", 1)[1]
         
         if action == "new_topic":
+            # Check if the user has admin permissions
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("Sorry, only administrators can generate new topics.", ephemeral=True)
+                return
+                
             await interaction.response.defer(thinking=True)
             await self._send_random_announcement(interaction.guild)
             await interaction.followup.send("Generated a new topic!", ephemeral=True)
             
         elif action == "character_info":
+            # This part remains unchanged - all users can view character info
             # Try to extract character name from the original message
             if not interaction.message or not interaction.message.embeds:
                 await interaction.response.send_message("Unable to find character information.", ephemeral=True)
