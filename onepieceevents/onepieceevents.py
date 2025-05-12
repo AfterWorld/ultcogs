@@ -1,7 +1,8 @@
-# onepiece_events/onepiece_events.py
+# onepieceevents/onepieceevents.py
 import asyncio
 import discord
 import datetime
+import logging
 from typing import Optional, Union, Dict, List
 from datetime import datetime, timedelta
 
@@ -23,10 +24,13 @@ class OnePieceEvents(commands.Cog):
         default_guild = {
             "events": {},  # event_id: {name, description, time, channel_id, role_id, participants, reminder_sent}
             "next_id": 1,
+            "announcement_channel": None,  # Default to None, will use event creation channel
+            "reminder_times": [30]  # Minutes before event to send reminders, default 30 mins
         }
         
         self.config.register_guild(**default_guild)
         self.event_check_task = self.bot.loop.create_task(self.check_events_loop())
+        self.logger = logging.getLogger("red.onepieceevents")
         
         # One Piece specific event types
         self.event_types = [
@@ -120,11 +124,20 @@ class OnePieceEvents(commands.Cog):
                 "role_id": role_id,
                 "host_id": ctx.author.id,
                 "participants": [],
-                "reminder_sent": False
+                "reminder_sent": {},  # Changed to dict to track multiple reminder times
+                "created_at": datetime.now().timestamp()
             }
         
         embed = await self._create_event_embed(ctx.guild, str(event_id))
-        msg = await ctx.send("Event created!", embed=embed)
+        
+        # Direct mention the role in the creation message if one was set
+        content = ""
+        if role_id:
+            role = ctx.guild.get_role(role_id)
+            if role:
+                content = f"New event created! {role.mention}"
+        
+        msg = await ctx.send(content, embed=embed)
         
         # Add reaction for users to join
         await msg.add_reaction("🏴‍☠️")  # Pirate flag emoji
@@ -132,6 +145,8 @@ class OnePieceEvents(commands.Cog):
         # Store the message ID for later use
         async with self.config.guild(ctx.guild).all() as guild_data:
             guild_data["events"][str(event_id)]["message_id"] = msg.id
+            
+        await ctx.send(f"Event created with ID: {event_id}. Users can join by reacting with 🏴‍☠️ to the announcement message.")
     
     @events.command(name="list")
     async def events_list(self, ctx):
@@ -219,13 +234,16 @@ class OnePieceEvents(commands.Cog):
             if ctx.author.id != event["host_id"] and not await self.bot.is_mod(ctx.author):
                 return await ctx.send("You can only cancel events that you've created!")
             
+            # Get event details for notifications before removing
+            event_details = event.copy()
+            
             # Remove the event
             del events[event_id]
         
-        await ctx.send(f"Event canceled: **{event['name']}**")
+        await ctx.send(f"Event canceled: **{event_details['name']}**")
         
         # Notify participants
-        await self._notify_participants(ctx.guild, event, f"The event **{event['name']}** has been canceled.")
+        await self._notify_participants(ctx.guild, event_details, f"The event **{event_details['name']}** has been canceled.")
     
     @events.command(name="info")
     async def events_info(self, ctx, event_id: str):
@@ -250,12 +268,13 @@ class OnePieceEvents(commands.Cog):
         
         Parameters:
         - event_id: The ID of the event to edit
-        - field: The field to edit (name, type, description, time)
+        - field: The field to edit (name, type, description, time, role)
         - new_value: The new value for the field
         
         Example:
         [p]events edit 1 name New Event Name
         [p]events edit 1 time 20/05/2025 19:30
+        [p]events edit 1 role @Nakama
         """
         async with self.config.guild(ctx.guild).all() as guild_data:
             events = guild_data.get("events", {})
@@ -286,15 +305,98 @@ class OnePieceEvents(commands.Cog):
                     if event_time < datetime.now():
                         return await ctx.send("The event time can't be in the past!")
                     event["time"] = event_time.timestamp()
+                    # Reset reminder flags since time changed
+                    event["reminder_sent"] = {}
                 except ValueError:
                     return await ctx.send("Invalid time format. Please use DD/MM/YYYY HH:MM (24h)")
+            elif field == "role":
+                # Check if a role mention was provided
+                if len(ctx.message.role_mentions) > 0:
+                    event["role_id"] = ctx.message.role_mentions[0].id
+                elif new_value.lower() == "none":
+                    event["role_id"] = None
+                else:
+                    return await ctx.send("Please mention a role or use 'none' to remove the role ping.")
             else:
-                return await ctx.send("Invalid field! Valid fields are: name, type, description, time")
+                return await ctx.send("Invalid field! Valid fields are: name, type, description, time, role")
         
         await ctx.send(f"Event updated: **{event['name']}**")
         
+        # Update the event message if it exists
+        if "message_id" in event:
+            try:
+                channel = ctx.guild.get_channel(event["channel_id"])
+                if channel:
+                    try:
+                        message = await channel.fetch_message(event["message_id"])
+                        updated_embed = await self._create_event_embed(ctx.guild, event_id)
+                        await message.edit(embed=updated_embed)
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        self.logger.warning(f"Could not update event message for event {event_id}")
+            except Exception as e:
+                self.logger.error(f"Error updating event message: {e}")
+        
         # Notify participants of the change
         await self._notify_participants(ctx.guild, event, f"The event **{event['name']}** has been updated.")
+
+    @events.group(name="config")
+    @commands.admin_or_permissions(administrator=True)
+    async def events_config(self, ctx):
+        """Configure event settings for your server"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
+    
+    @events_config.command(name="channel")
+    async def config_channel(self, ctx, channel: Optional[discord.TextChannel] = None):
+        """Set the default channel for event announcements
+        
+        If no channel is specified, event announcements will be sent in the same
+        channel where the event is created.
+        """
+        if channel:
+            # Test permissions
+            if not channel.permissions_for(ctx.guild.me).send_messages:
+                return await ctx.send(f"I don't have permission to send messages in {channel.mention}")
+            
+            await self.config.guild(ctx.guild).announcement_channel.set(channel.id)
+            await ctx.send(f"Event announcements will now be sent in {channel.mention}.")
+        else:
+            await self.config.guild(ctx.guild).announcement_channel.set(None)
+            await ctx.send("Event announcements will now be sent in the channel where events are created.")
+    
+    @events_config.command(name="reminders")
+    async def config_reminders(self, ctx, *minutes: int):
+        """Set when event reminders should be sent
+        
+        Provide one or more times (in minutes before event) when reminders should be sent.
+        
+        Examples:
+        - `[p]events config reminders 30` - Send reminder 30 minutes before
+        - `[p]events config reminders 60 30 10` - Send reminders 60, 30, and 10 minutes before
+        - `[p]events config reminders` - Reset to default (30 minutes)
+        """
+        if not minutes:
+            # Reset to default
+            await self.config.guild(ctx.guild).reminder_times.set([30])
+            return await ctx.send("Reset reminders to default (30 minutes before event).")
+        
+        # Validate minutes
+        valid_minutes = []
+        for m in minutes:
+            if m <= 0:
+                await ctx.send(f"Ignoring invalid time: {m} minutes (must be positive)")
+            else:
+                valid_minutes.append(m)
+        
+        if not valid_minutes:
+            await ctx.send("No valid reminder times provided. Using default (30 minutes).")
+            valid_minutes = [30]
+        
+        # Sort in descending order (largest first)
+        valid_minutes.sort(reverse=True)
+        
+        await self.config.guild(ctx.guild).reminder_times.set(valid_minutes)
+        await ctx.send(f"Event reminders will be sent {humanize_list([f'{m} minutes' for m in valid_minutes])} before events start.")
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -314,9 +416,22 @@ class OnePieceEvents(commands.Cog):
             if event.get("message_id") == payload.message_id and str(payload.emoji) == "🏴‍☠️":
                 # User is joining the event
                 async with self.config.guild(guild).all() as updated_data:
-                    updated_event = updated_data["events"][event_id]
-                    if payload.user_id not in updated_event["participants"]:
-                        updated_event["participants"].append(payload.user_id)
+                    if event_id in updated_data["events"]:  # Make sure event still exists
+                        updated_event = updated_data["events"][event_id]
+                        if payload.user_id not in updated_event["participants"]:
+                            updated_event["participants"].append(payload.user_id)
+                            
+                            # Optionally, send a DM confirmation
+                            try:
+                                user = guild.get_member(payload.user_id)
+                                if user:
+                                    event_time = datetime.fromtimestamp(updated_event["time"])
+                                    await user.send(
+                                        f"You've joined the One Piece event: **{updated_event['name']}**\n"
+                                        f"Event time: <t:{int(updated_event['time'])}:F>"
+                                    )
+                            except (discord.Forbidden, discord.HTTPException):
+                                pass  # Couldn't DM
                 break
     
     @commands.Cog.listener()
@@ -337,9 +452,18 @@ class OnePieceEvents(commands.Cog):
             if event.get("message_id") == payload.message_id and str(payload.emoji) == "🏴‍☠️":
                 # User is leaving the event
                 async with self.config.guild(guild).all() as updated_data:
-                    updated_event = updated_data["events"][event_id]
-                    if payload.user_id in updated_event["participants"]:
-                        updated_event["participants"].remove(payload.user_id)
+                    if event_id in updated_data["events"]:  # Make sure event still exists
+                        updated_event = updated_data["events"][event_id]
+                        if payload.user_id in updated_event["participants"]:
+                            updated_event["participants"].remove(payload.user_id)
+                            
+                            # Optionally, send a DM confirmation
+                            try:
+                                user = guild.get_member(payload.user_id)
+                                if user:
+                                    await user.send(f"You've left the One Piece event: **{updated_event['name']}**")
+                            except (discord.Forbidden, discord.HTTPException):
+                                pass  # Couldn't DM
                 break
     
     async def check_events_loop(self):
@@ -350,54 +474,108 @@ class OnePieceEvents(commands.Cog):
                 await self._check_events()
                 await asyncio.sleep(60)  # Check every minute
             except Exception as e:
-                print(f"Error in events loop: {e}")
+                self.logger.error(f"Error in events loop: {e}", exc_info=True)
                 await asyncio.sleep(60)
     
     async def _check_events(self):
         """Check all events and send reminders as needed"""
         for guild in self.bot.guilds:
+            if await self.bot.cog_disabled_in_guild(self, guild):
+                continue
+                
             guild_data = await self.config.guild(guild).all()
             events = guild_data.get("events", {})
+            reminder_times = guild_data.get("reminder_times", [30])  # Minutes before event
             
             for event_id, event in list(events.items()):
                 event_time = datetime.fromtimestamp(event["time"])
                 now = datetime.now()
                 
-                # Send a reminder 30 minutes before the event
-                if not event["reminder_sent"] and event_time - now <= timedelta(minutes=30) and event_time > now:
-                    await self._send_reminder(guild, event_id, event)
-                    async with self.config.guild(guild).all() as updated_data:
-                        updated_data["events"][event_id]["reminder_sent"] = True
+                if now > event_time:
+                    # Event has passed, check if it's time to clean up
+                    if now > event_time + timedelta(hours=1):
+                        # Clean up past event
+                        async with self.config.guild(guild).all() as updated_data:
+                            if event_id in updated_data["events"]:
+                                del updated_data["events"][event_id]
+                    continue
                 
-                # Clean up past events (1 hour after they're done)
-                if event_time + timedelta(hours=1) < now:
-                    async with self.config.guild(guild).all() as updated_data:
-                        if event_id in updated_data["events"]:
-                            del updated_data["events"][event_id]
+                # Check reminders for each reminder time
+                for minutes in reminder_times:
+                    reminder_key = f"reminder_{minutes}"
+                    
+                    # If this reminder hasn't been sent and it's time to send it
+                    if (reminder_key not in event["reminder_sent"] or not event["reminder_sent"][reminder_key]) and \
+                       event_time - now <= timedelta(minutes=minutes) and \
+                       event_time > now:
+                        
+                        # Send the reminder
+                        sent = await self._send_reminder(guild, event_id, event, minutes)
+                        
+                        if sent:
+                            # Mark reminder as sent
+                            async with self.config.guild(guild).all() as updated_data:
+                                if event_id in updated_data["events"]:
+                                    if "reminder_sent" not in updated_data["events"][event_id]:
+                                        updated_data["events"][event_id]["reminder_sent"] = {}
+                                    updated_data["events"][event_id]["reminder_sent"][reminder_key] = True
     
-    async def _send_reminder(self, guild, event_id, event):
+    async def _send_reminder(self, guild, event_id, event, minutes_before):
         """Send a reminder for an upcoming event"""
-        channel = guild.get_channel(event["channel_id"])
-        if not channel:
-            return
-        
-        embed = await self._create_event_embed(guild, event_id)
-        
-        # Add the reminder message
-        minutes_left = int((datetime.fromtimestamp(event["time"]) - datetime.now()).total_seconds() / 60)
-        reminder_msg = f"⏰ **EVENT REMINDER** ⏰\nThe event is starting in approximately {minutes_left} minutes!"
-        
-        # Ping role if set
-        content = reminder_msg
-        if event["role_id"]:
-            role = guild.get_role(event["role_id"])
-            if role:
-                content = f"{role.mention}\n{reminder_msg}"
-        
-        await channel.send(content, embed=embed)
-        
-        # Also send DMs to participants
-        await self._notify_participants(guild, event, f"⏰ Reminder: The event **{event['name']}** is starting in approximately {minutes_left} minutes!")
+        try:
+            channel = guild.get_channel(event["channel_id"])
+            if not channel:
+                # Try the default announcement channel if set
+                announcement_channel_id = await self.config.guild(guild).announcement_channel()
+                if announcement_channel_id:
+                    channel = guild.get_channel(announcement_channel_id)
+            
+            if not channel:
+                self.logger.warning(f"Could not find channel for event {event_id} in guild {guild.id}")
+                return False
+            
+            embed = await self._create_event_embed(guild, event_id)
+            
+            # Add the reminder message
+            minutes_left = int((datetime.fromtimestamp(event["time"]) - datetime.now()).total_seconds() / 60)
+            time_str = f"{minutes_left} minutes" if minutes_left != 1 else "1 minute"
+            
+            if minutes_left <= 0:
+                reminder_msg = f"⏰ **EVENT STARTING NOW** ⏰\n**{event['name']}** is starting now!"
+            else:
+                reminder_msg = f"⏰ **EVENT REMINDER** ⏰\n**{event['name']}** is starting in approximately {time_str}!"
+            
+            # Create a different message for the actual event start
+            if minutes_left <= 1:
+                embed.set_author(name="📣 EVENT STARTING NOW 📣")
+                embed.color = discord.Color.red()  # Make it stand out
+            
+            # Create content with role ping if applicable
+            content = reminder_msg
+            if event["role_id"]:
+                role = guild.get_role(event["role_id"])
+                if role:
+                    content = f"{role.mention}\n{reminder_msg}"
+            
+            # Send the reminder
+            message = await channel.send(content, embed=embed)
+            
+            # If this is the start reminder, add the reaction
+            if minutes_left <= 1:
+                await message.add_reaction("🏴‍☠️")
+            
+            # Also send DMs to participants
+            if minutes_left <= 1:
+                notification_msg = f"⏰ The event **{event['name']}** is starting now!"
+            else:
+                notification_msg = f"⏰ Reminder: The event **{event['name']}** is starting in approximately {time_str}!"
+                
+            await self._notify_participants(guild, event, notification_msg)
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Error sending event reminder: {e}", exc_info=True)
+            return False
     
     async def _notify_participants(self, guild, event, message):
         """Send a DM to all participants of an event"""
@@ -405,9 +583,27 @@ class OnePieceEvents(commands.Cog):
             user = guild.get_member(user_id)
             if user:
                 try:
-                    await user.send(message)
-                except discord.Forbidden:
-                    pass  # Can't send DM
+                    embed = discord.Embed(
+                        title=f"One Piece Event: {event['name']}",
+                        description=message,
+                        color=discord.Color.blue()
+                    )
+                    
+                    # Add event time to the notification
+                    if "time" in event:
+                        embed.add_field(
+                            name="Event Time", 
+                            value=f"<t:{int(event['time'])}:F>", 
+                            inline=False
+                        )
+                        
+                    # Add a footer with the event type
+                    if "type" in event:
+                        embed.set_footer(text=f"Event Type: {event['type']}")
+                    
+                    await user.send(embed=embed)
+                except (discord.Forbidden, discord.HTTPException) as e:
+                    self.logger.warning(f"Could not send DM to user {user_id}: {e}")
     
     async def _create_event_embed(self, guild, event_id):
         """Create an embed for an event"""
@@ -464,6 +660,12 @@ class OnePieceEvents(commands.Cog):
         embed.add_field(name="Time", value=f"<t:{int(event['time'])}:F>", inline=False)
         embed.add_field(name="Host", value=host_name, inline=True)
         
+        # Add role information if available
+        if event["role_id"]:
+            role = guild.get_role(event["role_id"])
+            if role:
+                embed.add_field(name="Ping Role", value=role.mention, inline=True)
+        
         if participant_count > 0:
             participants_text = f"{participant_count} {'person' if participant_count == 1 else 'people'} attending"
             if participant_names:
@@ -499,18 +701,18 @@ class OnePieceEvents(commands.Cog):
         
         # Add One Piece themed thumbnail based on event type
         thumbnails = {
-            "watch party": "https://i.imgur.com/JfkJyLf.png",  # TV
-            "manga discussion": "https://i.imgur.com/hLkWPLS.png",  # Manga panel
-            "theory crafting": "https://i.imgur.com/QJcyO1K.png",  # Luffy thinking
-            "quiz night": "https://i.imgur.com/jzEfRE9.png",  # Question mark
-            "character analysis": "https://i.imgur.com/iBT1rhR.png",  # Character lineup
-            "devil fruit discussion": "https://i.imgur.com/1KRgQ0i.png",  # Devil fruit
-            "bounty predictions": "https://i.imgur.com/pTpnz7G.png",  # Wanted poster
-            "cosplay showcase": "https://i.imgur.com/Jj9jWVX.png",  # Cosplay
-            "amv sharing": "https://i.imgur.com/PnUTHtv.png",  # Video camera
-            "episode release": "https://i.imgur.com/Qj0mSOg.png",  # Episode screenshot
-            "manga chapter release": "https://i.imgur.com/n2MtHNe.png",  # Manga cover
-            "other": "https://i.imgur.com/q4JDmZl.png"  # One Piece logo
+            "watch party": "https://i.imgur.com/pbVXkY0.jpeg",  # TV
+            "manga discussion": "https://i.imgur.com/uFrvXbS.png",  # Manga panel
+            "theory crafting": "https://media1.tenor.com/m/gD9lMFUMUUIAAAAd/luffy-one-piece.gif",  # Luffy thinking
+            "quiz night": "https://upload.wikimedia.org/wikipedia/commons/5/5a/Black_question_mark.png",  # Question mark
+            "character analysis": "https://i.ytimg.com/vi/ewu9PE1xOM0/maxresdefault.jpg",  # Character lineup
+            "devil fruit discussion": "https://media1.tenor.com/m/6yjxOCSrfQYAAAAd/gomu-gomu-no-mi.gif",  # Devil fruit
+            "bounty predictions": "https://media1.tenor.com/m/9scKYAkUeY0AAAAC/brook.gif",  # Wanted poster
+            "cosplay showcase": "https://media1.tenor.com/m/pI82pBBUI5MAAAAC/deadpool-joke.gif",  # Cosplay
+            "amv sharing": "https://media1.tenor.com/m/xU5o4oSq-aIAAAAC/cop-watch-camera-man.gif",  # Video camera
+            "episode release": "https://media1.tenor.com/m/6J6UfzLqvRAAAAAC/one-piece-killer.gif",  # Episode screenshot
+            "manga chapter release": "https://static.wikia.nocookie.net/onepiece/images/c/c6/Volume_100.png/revision/latest?cb=20210903160940",  # Manga cover
+            "other": "https://www.pngall.com/wp-content/uploads/13/One-Piece-Logo-PNG-Photo.png"  # One Piece logo
         }
         
         thumbnail_url = thumbnails.get(event["type"].lower(), "https://i.imgur.com/q4JDmZl.png")
