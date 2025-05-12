@@ -182,38 +182,48 @@ class V2Poll(commands.Cog):
             )
             layout_view.add_item(duration_text)
             
-            # Create containers for each option with sprites
-            options_container = discord.ui.Container()
+            # Create a simplified view without using Section components
+            view = discord.ui.View()
+            
+            # Add vote buttons for each option
             for i, (option, sprite) in enumerate(zip(options, option_sprites)):
-                # Create a section for this option
-                option_section = discord.ui.Section()
-                
-                # Build vote button
+                # Create a vote button for this option
                 vote_button = discord.ui.Button(
-                    label=f"Vote", 
+                    label=f"Vote for {option}", 
                     custom_id=f"vote_{i}", 
                     style=discord.ButtonStyle.primary
                 )
-                
-                # If this option has a sprite, add an image
+                view.add_item(vote_button)
+            
+            # Create an embed with sprite images
+            embed = discord.Embed(
+                title=f"📊 {title}",
+                description=f"Poll ends: <t:{end_timestamp}:R>",
+                color=discord.Color.blue()
+            )
+            
+            # Add fields for each option with its sprite
+            for i, (option, sprite) in enumerate(zip(options, option_sprites)):
                 if sprite["url"]:
-                    # Add sprite image
-                    option_img = discord.ui.Image(
-                        url=sprite["url"],
-                        height=64,
-                        width=64
+                    embed.add_field(
+                        name=f"{i+1}. {option}",
+                        value=f"0 votes\n[View Sprite]({sprite['url']})",
+                        inline=True
                     )
-                    option_section.add_item(option_img)
-                
-                # Add option text
-                option_text = discord.ui.TextDisplay(f"{i+1}. {option}")
-                option_section.add_item(option_text)
-                
-                # Add vote button as an accessory
-                option_section.accessory = vote_button
-                
-                # Add section to container
-                options_container.add_item(option_section)
+                else:
+                    embed.add_field(
+                        name=f"{i+1}. {option}",
+                        value="0 votes",
+                        inline=True
+                    )
+            
+            # Add a random sprite as thumbnail if available
+            sprite_urls = [s["url"] for s in option_sprites if s["url"]]
+            if sprite_urls:
+                embed.set_thumbnail(url=random.choice(sprite_urls))
+            
+            # Send the poll message
+            poll_message = await ctx.send(embed=embed, view=view)
             
             # Add options container to layout
             layout_view.add_item(options_container)
