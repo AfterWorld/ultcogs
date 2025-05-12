@@ -1,0 +1,12 @@
+{
+    "author": ["AfterWorld"],
+    "description": "Enhanced moderation logs with interactive buttons allowing moderators to perform actions directly from logs.",
+    "install_msg": "Thank you for installing EnhancedModlog! Use `[p]enhancedmodlog channel #channel-name` to set up your enhanced moderation logs with interactive buttons.",
+    "short": "Enhanced moderation logs with interactive components",
+    "tags": ["moderation", "logs", "buttons", "modlog", "bans", "mutes"],
+    "requirements": [],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
