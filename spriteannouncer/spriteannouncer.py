@@ -4,8 +4,9 @@ import aiohttp
 import discord
 import logging
 import os
+import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 
 from redbot.core import commands, Config, checks
 from redbot.core.bot import Red
@@ -14,7 +15,11 @@ from redbot.core.utils.menus import DEFAULT_CONTROLS, menu
 
 log = logging.getLogger("red.ultcogs.spriteannouncer")
 
-SPRITE_REPO_BASE = "https://raw.githubusercontent.com/AfterWorld/ultcogs/main/Character%20Sprite/"
+# GitHub API endpoints
+GITHUB_REPO_OWNER = "AfterWorld"
+GITHUB_REPO_NAME = "ultcogs"
+GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/Character%20Sprite"
+GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/main/Character%20Sprite/"
 
 class SpriteAnnouncer(commands.Cog):
     """
@@ -46,9 +51,12 @@ class SpriteAnnouncer(commands.Cog):
         }
         
         self.config.register_guild(**default_guild)
-        self.sprite_cache = {}
-        self.task_cache = {}
+        self.sprite_cache = {}  # Cache for sprite URLs
+        self.github_sprites_cache = []  # Cache for available sprites from GitHub
+        self.github_sprites_last_updated = 0  # Timestamp of last GitHub API request
+        self.task_cache = {}  # Track announcement tasks
         self.session = aiohttp.ClientSession()
+        # These are fallback sprites in case GitHub fetch fails
         self.default_sprites = [
             "cat_sprite.png", 
             "dog_sprite.png", 
@@ -68,10 +76,40 @@ class SpriteAnnouncer(commands.Cog):
     async def initialize(self):
         """Initialize the cog by starting tasks for all enabled guilds."""
         await self.bot.wait_until_red_ready()
+        # Fetch available sprites from GitHub
+        await self.refresh_github_sprites()
+        
+        # Start announcement tasks for enabled guilds
         for guild in self.bot.guilds:
             guild_data = await self.config.guild(guild).all()
             if guild_data["enabled"] and guild_data["channel_id"]:
                 self._schedule_next_announcement(guild)
+                
+    async def refresh_github_sprites(self):
+        """Fetch the list of available sprites from GitHub repository."""
+        current_time = datetime.now().timestamp()
+        # Only refresh if it's been more than 1 hour since last refresh
+        if current_time - self.github_sprites_last_updated < 3600 and self.github_sprites_cache:
+            return self.github_sprites_cache
+            
+        try:
+            async with self.session.get(GITHUB_API_BASE) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    # Filter for PNG files
+                    sprite_files = [item["name"] for item in data if item["name"].lower().endswith(".png")]
+                    if sprite_files:
+                        self.github_sprites_cache = sprite_files
+                        self.github_sprites_last_updated = current_time
+                        log.info(f"Refreshed GitHub sprites: found {len(sprite_files)} sprite files")
+                    else:
+                        log.warning("No PNG sprite files found in GitHub repository")
+                else:
+                    log.error(f"Failed to fetch sprites from GitHub: Status {response.status}")
+        except Exception as e:
+            log.error(f"Error refreshing GitHub sprites: {str(e)}", exc_info=e)
+            
+        return self.github_sprites_cache
     
     def _schedule_next_announcement(self, guild):
         """Schedule the next announcement for a guild."""
@@ -139,16 +177,46 @@ class SpriteAnnouncer(commands.Cog):
         if sprite_name.startswith(("http://", "https://")):
             return sprite_name
             
-        # Otherwise, use the GitHub repo URL
-        return f"{SPRITE_REPO_BASE}{sprite_name}"
+        # Check if we have this URL cached
+        if sprite_name in self.sprite_cache:
+            return self.sprite_cache[sprite_name]
+            
+        # Otherwise, construct the URL to the raw GitHub content
+        url = f"{GITHUB_RAW_BASE}{sprite_name}"
+        
+        # Verify the URL is valid by making a HEAD request
+        try:
+            async with self.session.head(url) as response:
+                if response.status == 200:
+                    self.sprite_cache[sprite_name] = url
+                    return url
+                else:
+                    log.warning(f"Sprite {sprite_name} not found at {url}, status: {response.status}")
+        except Exception as e:
+            log.error(f"Error checking sprite URL {url}: {str(e)}")
+            
+        # If we get here, the URL wasn't valid
+        return None
     
     async def _send_random_announcement(self, guild):
         """Send a random announcement in the guild's designated channel."""
         guild_data = await self.config.guild(guild).all()
         
-        # Get available sprites
-        sprites = guild_data["sprites_enabled"]
-        if not sprites:
+        # Get available sprites - first check if we need to refresh from GitHub
+        if not self.github_sprites_cache:
+            await self.refresh_github_sprites()
+            
+        # Get enabled sprites from config
+        enabled_sprites = guild_data["sprites_enabled"]
+        
+        # If user has specific sprites enabled, use those
+        if enabled_sprites:
+            sprites = enabled_sprites
+        # Otherwise use all available sprites from GitHub
+        elif self.github_sprites_cache:
+            sprites = self.github_sprites_cache
+        # Fall back to default sprites if GitHub fetch failed
+        else:
             sprites = self.default_sprites
             
         # Get available topics/announcements
@@ -180,6 +248,20 @@ class SpriteAnnouncer(commands.Cog):
         # Get sprite URL
         sprite_url = await self._get_sprite_url(sprite)
         
+        # If sprite URL is None (not found), try using a default sprite
+        if sprite_url is None:
+            log.warning(f"Could not find sprite {sprite}, using default sprite instead")
+            if self.github_sprites_cache:
+                sprite = random.choice(self.github_sprites_cache)
+            else:
+                sprite = random.choice(self.default_sprites)
+            sprite_url = await self._get_sprite_url(sprite)
+            
+            # If still None, give up
+            if sprite_url is None:
+                log.error("Could not find any valid sprite URL")
+                return
+        
         # Create embed
         embed = discord.Embed(
             title=title,
@@ -188,7 +270,8 @@ class SpriteAnnouncer(commands.Cog):
         )
         
         # Add timestamp and sprite character name
-        embed.set_footer(text=f"Character: {os.path.splitext(os.path.basename(sprite))[0]}")
+        character_name = os.path.splitext(os.path.basename(sprite))[0]
+        embed.set_footer(text=f"Character: {character_name}")
         embed.timestamp = datetime.now()
         
         # Add sprite image
@@ -211,7 +294,11 @@ class SpriteAnnouncer(commands.Cog):
             custom_id="sprite_announcer:character_info"
         ))
         
-        await channel.send(embed=embed, view=view)
+        try:
+            await channel.send(embed=embed, view=view)
+            log.info(f"Sent announcement with sprite {sprite} in guild {guild.id}")
+        except Exception as e:
+            log.error(f"Error sending announcement: {str(e)}", exc_info=e)
         
     @commands.group(name="spriteannouncer", aliases=["sa"])
     @checks.admin_or_permissions(manage_guild=True)
@@ -334,19 +421,48 @@ class SpriteAnnouncer(commands.Cog):
     @spriteannouncer_sprites.command(name="list")
     async def sprites_list(self, ctx):
         """List all available sprite characters."""
+        # Refresh GitHub sprites first
+        await self.refresh_github_sprites()
+        
         guild_data = await self.config.guild(ctx.guild).all()
         enabled_sprites = guild_data["sprites_enabled"]
         
-        if not enabled_sprites:
-            enabled_sprites = self.default_sprites
-            status = "(using default sprites)"
-        else:
-            status = f"({len(enabled_sprites)} enabled)"
+        # Show special message if GitHub fetch succeeded but no sprites are enabled
+        if self.github_sprites_cache and not enabled_sprites:
+            message = "# Sprite Characters\n\n"
+            message += "**Available from GitHub:**\n"
             
-        message = f"# Sprite Characters {status}\n"
-        for sprite in enabled_sprites:
-            sprite_name = os.path.splitext(os.path.basename(sprite))[0]
-            message += f"- {sprite_name}\n"
+            for sprite in self.github_sprites_cache:
+                sprite_name = os.path.splitext(os.path.basename(sprite))[0]
+                message += f"- {sprite_name}\n"
+                
+            message += "\nNo sprites are currently enabled. Using all available sprites."
+            
+        # Show enabled sprites if any
+        elif enabled_sprites:
+            message = f"# Sprite Characters ({len(enabled_sprites)} enabled)\n\n"
+            message += "**Enabled Sprites:**\n"
+            
+            for sprite in enabled_sprites:
+                sprite_name = os.path.splitext(os.path.basename(sprite))[0]
+                message += f"- {sprite_name}\n"
+                
+            # Also show available sprites if any
+            if self.github_sprites_cache:
+                message += "\n**Other Available Sprites:**\n"
+                for sprite in self.github_sprites_cache:
+                    if sprite not in enabled_sprites:
+                        sprite_name = os.path.splitext(os.path.basename(sprite))[0]
+                        message += f"- {sprite_name}\n"
+                        
+        # Fall back to defaults if GitHub fetch failed
+        else:
+            message = "# Sprite Characters (using defaults)\n\n"
+            for sprite in self.default_sprites:
+                sprite_name = os.path.splitext(os.path.basename(sprite))[0]
+                message += f"- {sprite_name}\n"
+                
+            message += "\n**Note:** Could not fetch sprites from GitHub. Using default list."
             
         for page in pagify(message):
             await ctx.send(box(page, lang="md"))
@@ -355,8 +471,22 @@ class SpriteAnnouncer(commands.Cog):
     async def sprites_add(self, ctx, sprite_name: str):
         """Add a sprite to the enabled list.
         
-        This can be a default sprite name or a full URL to a custom sprite.
+        This can be a sprite name from GitHub or a full URL to a custom sprite.
         """
+        # Refresh GitHub sprites first
+        await self.refresh_github_sprites()
+        
+        # Validate the sprite name if it's not a URL
+        if not sprite_name.startswith(("http://", "https://")):
+            # Check if the sprite exists in GitHub
+            if self.github_sprites_cache and sprite_name not in self.github_sprites_cache:
+                # Check if they forgot to add .png extension
+                if sprite_name + ".png" in self.github_sprites_cache:
+                    sprite_name = sprite_name + ".png"
+                else:
+                    await ctx.send(f"Sprite '{sprite_name}' not found in your GitHub repository. Available sprites: {', '.join(self.github_sprites_cache)}")
+                    return
+        
         async with self.config.guild(ctx.guild).sprites_enabled() as sprites:
             if sprite_name in sprites:
                 await ctx.send(f"Sprite {sprite_name} is already enabled.")
@@ -364,7 +494,16 @@ class SpriteAnnouncer(commands.Cog):
                 
             sprites.append(sprite_name)
             
-        await ctx.send(f"Added sprite {sprite_name} to the enabled list.")
+        # Test fetching the sprite to verify it exists
+        sprite_url = await self._get_sprite_url(sprite_name)
+        if sprite_url:
+            await ctx.send(f"Added sprite {sprite_name} to the enabled list.")
+        else:
+            # Remove it if we couldn't fetch it
+            async with self.config.guild(ctx.guild).sprites_enabled() as sprites:
+                if sprite_name in sprites:
+                    sprites.remove(sprite_name)
+            await ctx.send(f"Could not fetch sprite {sprite_name}. Please check that it exists in your GitHub repository.")
     
     @spriteannouncer_sprites.command(name="remove")
     async def sprites_remove(self, ctx, sprite_name: str):
@@ -380,9 +519,33 @@ class SpriteAnnouncer(commands.Cog):
     
     @spriteannouncer_sprites.command(name="reset")
     async def sprites_reset(self, ctx):
-        """Reset to the default sprite list."""
+        """Reset to use all available sprites from GitHub."""
         await self.config.guild(ctx.guild).sprites_enabled.set([])
-        await ctx.send("Reset to default sprite list.")
+        # Refresh the GitHub sprites
+        await self.refresh_github_sprites()
+        
+        if self.github_sprites_cache:
+            await ctx.send(f"Reset to use all sprites from GitHub. Found {len(self.github_sprites_cache)} sprites.")
+        else:
+            await ctx.send("Could not fetch sprites from GitHub. Will use default sprites.")
+            
+    @spriteannouncer_sprites.command(name="refresh")
+    async def sprites_refresh(self, ctx):
+        """Manually refresh the list of available sprites from GitHub."""
+        await ctx.send("Refreshing sprites from GitHub repository...")
+        
+        # Force a refresh by clearing the cache
+        self.github_sprites_last_updated = 0
+        self.github_sprites_cache = []
+        
+        # Refresh from GitHub
+        await self.refresh_github_sprites()
+        
+        if self.github_sprites_cache:
+            sprite_list = ", ".join(self.github_sprites_cache)
+            await ctx.send(f"Found {len(self.github_sprites_cache)} sprites: {sprite_list}")
+        else:
+            await ctx.send("Could not fetch sprites from GitHub. Check your repository or try again later.")
     
     @spriteannouncer.group(name="topics")
     async def spriteannouncer_topics(self, ctx):
@@ -496,8 +659,18 @@ class SpriteAnnouncer(commands.Cog):
         
         topics_count = len(guild_data["topics"])
         announcements_count = len(guild_data["announcements"])
-        sprites_count = len(guild_data["sprites_enabled"]) or len(self.default_sprites)
         
+        # Get sprite counts
+        enabled_sprites = guild_data["sprites_enabled"]
+        github_sprites = len(self.github_sprites_cache)
+        
+        if enabled_sprites:
+            sprite_status = f"{len(enabled_sprites)} enabled"
+        elif github_sprites:
+            sprite_status = f"Using all {github_sprites} from GitHub"
+        else:
+            sprite_status = f"Using {len(self.default_sprites)} defaults"
+            
         embed = discord.Embed(
             title="Sprite Announcer Status",
             color=discord.Color.blue() if enabled else discord.Color.red()
@@ -507,9 +680,16 @@ class SpriteAnnouncer(commands.Cog):
         embed.add_field(name="Channel", value=channel.mention if channel else "Not set", inline=True)
         embed.add_field(name="Frequency", value=f"{min_minutes}-{max_minutes} minutes", inline=True)
         
-        embed.add_field(name="Sprites", value=str(sprites_count), inline=True)
+        embed.add_field(name="Sprites", value=sprite_status, inline=True)
         embed.add_field(name="Topics", value=str(topics_count), inline=True)
         embed.add_field(name="Announcements", value=str(announcements_count), inline=True)
+        
+        # Add GitHub repository info
+        embed.add_field(
+            name="GitHub Repository",
+            value=f"[{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}](https://github.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/tree/main/Character%20Sprite)",
+            inline=False
+        )
         
         if last_triggered:
             last_time = datetime.fromtimestamp(last_triggered)
@@ -526,6 +706,13 @@ class SpriteAnnouncer(commands.Cog):
                 value=f"<t:{int(next_trigger)}:R>",
                 inline=True
             )
+        
+        # Add a thumbnail of a random sprite if available
+        if self.github_sprites_cache:
+            random_sprite = random.choice(self.github_sprites_cache)
+            sprite_url = await self._get_sprite_url(random_sprite)
+            if sprite_url:
+                embed.set_thumbnail(url=sprite_url)
         
         await ctx.send(embed=embed)
     
