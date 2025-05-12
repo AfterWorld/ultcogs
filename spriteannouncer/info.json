@@ -1,0 +1,11 @@
+{
+    "author": ["AfterWorld"],
+    "install_msg": "Thanks for installing SpriteAnnouncer! This cog creates interactive announcements and discussion topics using character sprites. Use `[p]help spriteannouncer` to get started.",
+    "name": "SpriteAnnouncer",
+    "short": "Interactive topic announcements with character sprites",
+    "description": "A cog that creates random announcements and discussion topics presented by character sprites. Includes customizable timing, topics, and characters, with interactive buttons for users to engage with.",
+    "tags": ["announcements", "topics", "sprites", "discussions", "interactive"],
+    "requirements": ["discord>=2.0.0"],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog does not store any user data persistently."
+}
