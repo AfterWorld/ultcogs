@@ -1,4 +1,15 @@
-# SpriteAnnouncer Usage Guide
+## Troubleshooting
+
+If you encounter issues:
+
+1. Ensure the bot has permission to send messages, embed links, and use external emojis in the designated channel
+2. Check if the bot has access to your GitHub repository by triggering a manual announcement
+3. Verify the correct setup with `[p]spriteannouncer status`
+4. If sprites aren't loading, make sure your image filenames match exactly what you've configured
+
+## Support
+
+If you need assistance with this cog, please contact AfterWorld on Discord or open an issue in the GitHub repository.# SpriteAnnouncer Usage Guide
 
 ## Overview
 
@@ -119,6 +130,64 @@ By default, it will look for the following files:
 
 You can add more sprites to your repository, and they will be available for use in the cog.
 
+# Bulk-Adding Content
+
+Adding individual topics and announcements can be time-consuming. The cog offers several ways to add multiple entries at once:
+
+## Bulk Commands
+
+For adding several items at once, use the bulk commands:
+
+```
+[p]spriteannouncer topics bulk What's your favorite game?
+If you could have any superpower, what would you choose?
+Share something interesting you learned recently.
+```
+
+This will add all three topics at once. The same works for announcements:
+
+```
+[p]spriteannouncer announcements bulk Welcome to our movie night!
+Don't forget to check out our new server rules.
+The server will be getting an update this weekend.
+```
+
+## File Import
+
+For adding a large number of items, you can create a text file and import it:
+
+1. Create a text file with the following format:
+   ```
+   [TOPICS]
+   Topic 1
+   Topic 2
+   Topic 3
+   
+   [ANNOUNCEMENTS]
+   Announcement 1
+   Announcement 2
+   Announcement 3
+   ```
+
+2. Attach this file to a message with the command:
+   ```
+   [p]spriteannouncer import
+   ```
+
+An example topics file is included with the cog for your convenience.
+
+## Quick Setup Example
+
+Here's a simple way to get started with a basic set of topics:
+
+```
+[p]spriteannouncer topics bulk What's your favorite game?
+If you could have any superpower, what would you choose?
+Share something interesting you learned recently.
+What's your go-to comfort food?
+What's the best movie you've watched this year?
+```
+
 ## Tips and Best Practices
 
 1. **Topic Quality**: Create engaging, open-ended topics that encourage conversation
@@ -126,16 +195,3 @@ You can add more sprites to your repository, and they will be available for use 
 3. **Channel Selection**: Use a general chat channel where conversation naturally flows
 4. **Sprite Variety**: Use a diverse set of character sprites to keep announcements visually interesting
 5. **Regular Updates**: Add new topics and announcements periodically to keep content fresh
-
-## Troubleshooting
-
-If you encounter issues:
-
-1. Ensure the bot has permission to send messages, embed links, and use external emojis in the designated channel
-2. Check if the bot has access to your GitHub repository by triggering a manual announcement
-3. Verify the correct setup with `[p]spriteannouncer status`
-4. If sprites aren't loading, make sure your image filenames match exactly what you've configured
-
-## Support
-
-If you need assistance with this cog, please contact AfterWorld on Discord or open an issue in the GitHub repository.
