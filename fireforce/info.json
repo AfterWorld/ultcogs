@@ -1,0 +1,14 @@
+{
+    "author": ["ultpanda"],
+    "install_msg": "Thank you for installing the Fire Force cog! Get ready for pyrokinetic battles and infernal encounters. Use `[p]help fireforce` to get started.",
+    "name": "FireForce",
+    "short": "Fire Force-themed RPG gameplay system",
+    "description": "A complete game system inspired by the Fire Force anime/manga. Create characters with pyrokinetic abilities, battle infernals, and join special fire force companies!",
+    "tags": ["game", "rpg", "anime", "fire force", "battle"],
+    "requirements": ["Pillow"],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog stores user data including character information, battle statistics, and game progression data. This data can be removed through the Red bot's user data removal functions.",
+    "type": "COG",
+    "hidden": false,
+    "disabled": false
+}
