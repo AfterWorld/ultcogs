@@ -8,6 +8,7 @@ from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.utils.chat_formatting import box, humanize_list
 from PIL import Image, ImageDraw, ImageFont
 import io
+from datetime import datetime
 
 log = logging.getLogger("red.fireforce")
 
@@ -588,8 +589,17 @@ class FireForce(commands.Cog):
         level_text = f"Level: {character['level']} - XP: {character['experience']}"
         draw.text((300, 330), level_text, fill=(255, 255, 150), font=header_font)
         
-        # Add fire effect overlay
-        self._add_fire_effects(image, draw)
+        # Add fire effects (simpler version that works with RGB mode)
+        for _ in range(30):
+            x = random.randint(20, width - 20)
+            y = random.randint(20, height - 20)
+            size = random.randint(2, 6)
+            
+            # Create orange/red particle
+            draw.ellipse(
+                [(x - size, y - size), (x + size, y + size)],
+                fill=(255, random.randint(50, 150), 0)
+            )
         
         # Convert to bytes for Discord
         buffer = io.BytesIO()
@@ -609,23 +619,6 @@ class FireForce(commands.Cog):
         
         # Draw filled part
         draw.rectangle([(x, y), (x + width, y + height)], fill=color)
-    
-    def _add_fire_effects(self, image, draw):
-        """Add fire effect overlays to character cards"""
-        width, height = image.size
-        
-        # Add some fire particles
-        for _ in range(30):
-            x = random.randint(20, width - 20)
-            y = random.randint(20, height - 20)
-            size = random.randint(2, 6)
-            opacity = random.randint(50, 200)
-            
-            # Create orange/red particle
-            draw.ellipse(
-                [(x - size, y - size), (x + size, y + size)],
-                fill=(255, random.randint(50, 150), 0, opacity)
-            )
 
     async def _run_battle(self, ctx):
         """Run a battle against an infernal"""
