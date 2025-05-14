@@ -47,11 +47,33 @@ class ConsecutiveFilter(commands.Cog):
     async def initialize(self):
         """Initialize the cog by loading data and setting up channels"""
         log.info("ConsecutiveFilter is initializing...")
+        # We need to load the cache from all configured guilds
         for guild in self.bot.guilds:
             self.last_message_cache[guild.id] = {}
-            guild_data = await self.config.guild(guild).all()
-            for channel_id in guild_data["filtered_channels"]:
-                self.last_message_cache[guild.id][channel_id] = []
+            try:
+                guild_data = await self.config.guild(guild).all()
+                for channel_id in guild_data.get("filtered_channels", []):
+                    # Initialize empty list for each filtered channel
+                    self.last_message_cache[guild.id][channel_id] = []
+                    
+                    # Seed the cache with some recent messages
+                    channel = guild.get_channel(channel_id)
+                    if channel:
+                        try:
+                            # Get the most recent messages in the channel to initiate our cache
+                            async for message in channel.history(limit=20):
+                                if not message.author.bot or not guild_data.get("bot_bypass", True):
+                                    self.last_message_cache[guild.id][channel_id].append({
+                                        "author_id": message.author.id,
+                                        "timestamp": message.created_at,
+                                        "message_id": message.id,
+                                        "content": message.content[:100]  # Store a preview of content for debugging
+                                    })
+                        except (discord.Forbidden, discord.HTTPException) as e:
+                            log.warning(f"Could not retrieve message history for channel {channel_id} in guild {guild.id}: {e}")
+            except Exception as e:
+                log.error(f"Error initializing ConsecutiveFilter for guild {guild.id}: {e}", exc_info=True)
+        
         log.info("ConsecutiveFilter initialized successfully.")
 
     def cog_unload(self):
@@ -324,6 +346,69 @@ class ConsecutiveFilter(commands.Cog):
         
         await ctx.send(embed=embed)
     
+    @consecutivefilter.command(name="debug")
+    @checks.is_owner()
+    async def debug_cache(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        """Debug command to show the current message cache for a channel.
+        
+        This is an owner-only command to help diagnose issues with the filter.
+        """
+        channel = channel or ctx.channel
+        
+        if ctx.guild.id not in self.last_message_cache or channel.id not in self.last_message_cache[ctx.guild.id]:
+            return await ctx.send("No cache found for this channel.")
+            
+        cache = self.last_message_cache[ctx.guild.id][channel.id]
+        if not cache:
+            return await ctx.send("Cache is empty for this channel.")
+            
+        # Format cache entries
+        formatted = []
+        for i, entry in enumerate(cache):
+            user = ctx.guild.get_member(entry["author_id"])
+            username = user.display_name if user else f"User ID: {entry['author_id']}"
+            time_str = discord.utils.format_dt(entry["timestamp"], style='R')
+            content = entry.get("content", "<No content stored>")
+            formatted.append(f"{i+1}. {username} ({time_str}): {content}")
+            
+        # Send as pages
+        pages = []
+        for page in pagify("\n".join(formatted), delims=["\n"], page_length=1900):
+            pages.append(box(page))
+            
+        if len(pages) == 1:
+            await ctx.send(pages[0])
+        else:
+            await menu(ctx, pages, {"⏪": menu.prev_page, "⏩": menu.next_page})
+    
+    @consecutivefilter.command(name="clearcache")
+    @checks.is_owner()
+    async def clear_cache(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        """Clear the message cache for a channel.
+        
+        This is an owner-only command to help reset the filter if it's not working correctly.
+        """
+        channel = channel or ctx.channel
+        
+        if ctx.guild.id in self.last_message_cache and channel.id in self.last_message_cache[ctx.guild.id]:
+            self.last_message_cache[ctx.guild.id][channel.id] = []
+            await ctx.send(f"Cache cleared for {channel.mention}.")
+        else:
+            await ctx.send("No cache exists for this channel.")
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        """Clean up the cache when a message is deleted."""
+        if not message.guild:
+            return
+            
+        if message.guild.id in self.last_message_cache and message.channel.id in self.last_message_cache[message.guild.id]:
+            # Remove the message from our cache
+            cache = self.last_message_cache[message.guild.id][message.channel.id]
+            self.last_message_cache[message.guild.id][message.channel.id] = [
+                msg for msg in cache if msg["message_id"] != message.id
+            ]
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Check each message to see if it violates the consecutive message filter."""
@@ -345,44 +430,56 @@ class ConsecutiveFilter(commands.Cog):
             return
             
         # Skip if this is a command
-        if await self.bot.is_command(message):
-            return
+        try:
+            context = await self.bot.get_context(message)
+            if context.valid or await self.bot.is_command(message):
+                return
+        except Exception:
+            # If there's any error checking for commands, err on the side of caution
+            log.warning("Error checking if message is a command, continuing with filter check", exc_info=True)
             
         # Skip if bot bypass is enabled and this is a bot
         if guild_settings["bot_bypass"] and message.author.bot:
             return
             
         # Skip if mod bypass is enabled and author is a mod
-        if guild_settings["mod_bypass"] and await self.bot.is_mod(message.author):
-            return
+        if guild_settings["mod_bypass"]:
+            try:
+                if await self.bot.is_mod(message.author):
+                    return
+            except Exception:
+                log.warning(f"Error checking mod status for {message.author}", exc_info=True)
             
         # Initialize cache if needed
         if message.guild.id not in self.last_message_cache:
             self.last_message_cache[message.guild.id] = {}
         if message.channel.id not in self.last_message_cache[message.guild.id]:
             self.last_message_cache[message.guild.id][message.channel.id] = []
-            
-        # Get the message author's last messages in this channel
-        recent_messages = [
-            msg for msg in self.last_message_cache[message.guild.id][message.channel.id]
-            if msg["author_id"] == message.author.id
-        ]
         
+        # IMPORTANT: We must check BEFORE we add this message to the cache
+        # since we're determining if THIS message should be filtered
+
         # Check if we should filter this message
         should_filter = False
+        consecutive_count = 0
         
         if guild_settings["cooldown_minutes"] > 0:
             # Time-based cooldown
-            if recent_messages:
-                last_message_time = recent_messages[-1]["timestamp"]
+            consecutive_msgs = []
+            for msg in reversed(self.last_message_cache[message.guild.id][message.channel.id]):
+                if msg["author_id"] == message.author.id:
+                    consecutive_msgs.append(msg)
+                else:
+                    break
+                    
+            if consecutive_msgs:
+                last_message_time = consecutive_msgs[0]["timestamp"]
                 cooldown_delta = timedelta(minutes=guild_settings["cooldown_minutes"])
                 if (message.created_at - last_message_time) < cooldown_delta:
-                    should_filter = True
+                    consecutive_count = len(consecutive_msgs) + 1  # +1 for current message
         else:
             # Message-based cooldown (another user must post in between)
-            consecutive_count = 0
-            
-            # Count backwards through the message cache
+            # Count consecutive messages from the same author
             for msg in reversed(self.last_message_cache[message.guild.id][message.channel.id]):
                 if msg["author_id"] == message.author.id:
                     consecutive_count += 1
@@ -392,14 +489,20 @@ class ConsecutiveFilter(commands.Cog):
             # Include the current message in the count
             consecutive_count += 1
             
-            if consecutive_count >= guild_settings["message_count"]:
-                should_filter = True
-                
-        # Update the message cache, limit to last 50 messages
+        # Debug log
+        log.debug(f"Message from {message.author} in {message.channel.name}: consecutive count = {consecutive_count}, threshold = {guild_settings['message_count']}")
+            
+        # Determine if we should filter based on the message count threshold
+        if consecutive_count >= guild_settings["message_count"]:
+            should_filter = True
+        
+        # Add this message to the cache regardless if we'll filter it or not
+        # (This ensures we still count filtered messages)
         self.last_message_cache[message.guild.id][message.channel.id].append({
             "author_id": message.author.id,
             "timestamp": message.created_at,
-            "message_id": message.id
+            "message_id": message.id,
+            "content": message.content[:100]  # Store a preview of content for debugging
         })
         
         # Trim cache to last 50 messages
@@ -417,31 +520,40 @@ class ConsecutiveFilter(commands.Cog):
                 try:
                     dm_message = guild_settings["delete_message"]
                     await message.author.send(dm_message)
-                except (discord.Forbidden, discord.HTTPException):
+                except (discord.Forbidden, discord.HTTPException) as e:
                     # Unable to DM the user, try to send in channel
+                    log.warning(f"Could not DM {message.author} about their deleted message: {e}")
                     try:
                         temp_msg = await message.channel.send(
                             f"{message.author.mention} {guild_settings['delete_message']}",
                             delete_after=10
                         )
-                    except (discord.Forbidden, discord.HTTPException):
-                        log.warning(f"Could not notify {message.author} about their deleted message in {message.guild.name}")
+                    except (discord.Forbidden, discord.HTTPException) as e:
+                        log.warning(f"Could not notify {message.author} in channel about their deleted message: {e}")
                 
                 # Send notification to mod channel if configured
                 if guild_settings["notification_channel"]:
                     notification_channel = message.guild.get_channel(guild_settings["notification_channel"])
                     if notification_channel:
                         try:
-                            notification_message = guild_settings["delete_notification"].format(
+                            # Format content safely
+                            content = message.content if message.content else "<No text content>"
+                            if len(content) > 1000:
+                                content = f"{content[:997]}..."
+                            
+                            notification_message = guild_settings["delete_notification"]
+                            formatted_message = notification_message.format(
                                 member=message.author.mention,
                                 channel=message.channel.mention,
                                 guild=message.guild.name,
-                                message=message.content if len(message.content) < 1000 else f"{message.content[:997]}..."
+                                message=content
                             )
-                            await notification_channel.send(notification_message)
-                        except (discord.Forbidden, discord.HTTPException, KeyError, Exception) as e:
+                            await notification_channel.send(formatted_message)
+                        except Exception as e:
                             log.error(f"Failed to send notification for filtered message: {e}", exc_info=True)
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
+            except discord.NotFound:
+                log.warning(f"Tried to delete message from {message.author.id} but it was already gone")
+            except (discord.Forbidden, discord.HTTPException) as e:
                 log.error(f"Failed to delete consecutive message: {e}", exc_info=True)
 
     @commands.Cog.listener()
