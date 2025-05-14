@@ -1,5 +1,5 @@
 {
-    "author": ["ultpanda"],
+    "author": ["UltPanda"],
     "name": "ConsecutiveFilter",
     "install_msg": "Thanks for installing the ConsecutiveFilter cog! This cog prevents users from posting consecutive messages in specified channels - great for ad channels where you want to prevent spam. Use `[p]help ConsecutiveFilter` to see available commands.",
     "short": "Prevents users from posting consecutive messages in specific channels",
