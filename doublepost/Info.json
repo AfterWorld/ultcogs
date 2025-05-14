@@ -1,0 +1,12 @@
+{
+    "author": ["ultpanda"],
+    "name": "ConsecutiveFilter",
+    "install_msg": "Thanks for installing the ConsecutiveFilter cog! This cog prevents users from posting consecutive messages in specified channels - great for ad channels where you want to prevent spam. Use `[p]help ConsecutiveFilter` to see available commands.",
+    "short": "Prevents users from posting consecutive messages in specific channels",
+    "description": "This cog allows moderators to set up specific channels where users cannot post consecutive messages. Ideal for advertising channels where each user should only post once before someone else responds. The cog can be configured to delete sequential messages and notify both the user and a designated notification channel.",
+    "tags": ["moderation", "filter", "advertising", "spam"],
+    "requirements": [],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "end_user_data_statement": "This cog temporarily stores information about recent messages to track consecutive posts. It does not permanently store any user data."
+}
