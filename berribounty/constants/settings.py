@@ -1,3 +1,4 @@
+# berribounty/constants/settings.py
 """Configuration settings for the One Piece bot."""
 
 from redbot.core import Config
