@@ -103,23 +103,6 @@ def setup_config(cog_instance):
     config.register_global(**DEFAULT_GLOBAL)
     return config
 
-# Configuration validation
-def validate_guild_config(config_data):
-    """Validate guild configuration data."""
-    required_keys = list(DEFAULT_GUILD.keys())
-    for key in required_keys:
-        if key not in config_data:
-            config_data[key] = DEFAULT_GUILD[key]
-    return config_data
-
-def validate_member_config(config_data):
-    """Validate member configuration data."""
-    required_keys = list(DEFAULT_MEMBER.keys())
-    for key in required_keys:
-        if key not in config_data:
-            config_data[key] = DEFAULT_MEMBER[key]
-    return config_data
-
 # Settings for different bot features
 BATTLE_SETTINGS = {
     "max_hp": 100,
@@ -170,7 +153,7 @@ PROGRESSION_SETTINGS = {
     }
 }
 
-# Error messages
+# Error and success messages
 ERROR_MESSAGES = {
     "maintenance_mode": "⚙️ The bot is currently under maintenance. Please try again later.",
     "insufficient_berries": "💸 You don't have enough berries for this action!",
@@ -184,7 +167,6 @@ ERROR_MESSAGES = {
     "permission_denied": "🔒 You don't have permission to use this command."
 }
 
-# Success messages
 SUCCESS_MESSAGES = {
     "berries_transferred": "💸 Berries transferred successfully!",
     "fruit_obtained": "🍎 You have obtained a devil fruit!",
