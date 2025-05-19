@@ -1,0 +1,12 @@
+{
+    "author": ["UltPanda"],
+    "install_msg": "Thanks for installing BerriBattle! This cog adds a One Piece themed RPG system with berries, devil fruits, and epic battles. Use `[p]help BerriBattle` to get started.",
+    "name": "BerriBattle",
+    "short": "One Piece themed RPG with berries and battles",
+    "description": "A comprehensive RPG system inspired by One Piece featuring berries, devil fruits, dynamic battles with UI components, and achievement systems.",
+    "tags": ["fun", "games", "rpg", "one piece", "battles", "ui"],
+    "requirements": ["pillow"],
+    "min_bot_version": "3.5.0",
+    "type": "COG",
+    "end_user_data_statement": "This cog stores user data including berries, devil fruits, battle statistics, and achievements. Data can be cleared with admin commands."
+}
