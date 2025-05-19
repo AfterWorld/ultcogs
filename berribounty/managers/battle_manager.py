@@ -1,7 +1,8 @@
+# berribounty/managers/battle_manager.py
 """Battle management for the One Piece bot."""
 
 import asyncio
-import random
+import random  # Add this missing import
 from typing import Dict, List, Optional
 import discord
 from ..models.battle import Battle, BattleState
