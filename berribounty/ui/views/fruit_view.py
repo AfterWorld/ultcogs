@@ -1,8 +1,10 @@
+# berribounty/ui/views/fruit_view.py
 import discord
 import random
+import asyncio  # Add this import
 from typing import Dict, Any, Optional, List
-from ...constants.fruits import DEVIL_FRUITS
-from ...managers.fruit_manager import FruitManager
+from ...constants.fruits import DEVIL_FRUITS  # Fix import path
+from ...managers.fruit_manager import FruitManager  # Fix import path
 
 class FruitSearchView(discord.ui.View):
     """Interactive view for searching devil fruits."""
