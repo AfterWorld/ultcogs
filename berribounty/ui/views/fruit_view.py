@@ -3,8 +3,8 @@ import discord
 import random
 import asyncio  # Add this import
 from typing import Dict, Any, Optional, List
-from ...constants.fruits import DEVIL_FRUITS  # Fix import path
-from ...managers.fruit_manager import FruitManager  # Fix import path
+from berribounty.constants.fruits import DEVIL_FRUITS
+from berribounty.managers.fruit_manager import FruitManager
 
 class FruitSearchView(discord.ui.View):
     """Interactive view for searching devil fruits."""
