@@ -21,7 +21,7 @@ Modules:
 Usage:
     Load this cog into your Red-DiscordBot instance:
     ```python
-    await bot.load_extension('onepiece')
+    await bot.load_extension('berribounty')
     ```
 
 Requirements:
