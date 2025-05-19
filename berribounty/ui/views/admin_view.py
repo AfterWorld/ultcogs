@@ -1,9 +1,10 @@
+# berribounty/ui/views/admin_view.py
 """Admin interface views for the One Piece bot."""
 
 import discord
 from typing import Dict, Any, Optional, List
-from ..formatters import format_berries, format_percentage
-from ..validators import validate_berries_amount, ValidationError
+from ...utils.formatters import format_berries, format_percentage  # Fix import path
+from ...utils.validators import validate_berries_amount, ValidationError  # Fix import path
 
 class AdminControlPanelView(discord.ui.View):
     """Main admin control panel view."""
