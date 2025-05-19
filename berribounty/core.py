@@ -1,3 +1,4 @@
+# berribounty/core.py
 """Core functionality and main cog class for One Piece bot."""
 
 import discord
@@ -5,7 +6,7 @@ from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.i18n import Translator, cog_i18n
 
-from .constants.settings import setup_config
+from .constants.settings import setup_config  # Fix this import
 from .managers.player_manager import PlayerManager
 from .managers.battle_manager import BattleManager
 from .managers.fruit_manager import FruitManager
