@@ -1,12 +1,13 @@
+# berribounty/commands/admin_commands.py
 """Admin commands for the One Piece bot."""
 
 import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from typing import Union, Optional
-from ..ui.admin_view import AdminControlPanelView
-from ..validators import validate_berries_amount, validate_admin_give_amount
-from ..formatters import format_berries
+from ..ui.views.admin_view import AdminControlPanelView  # Fixed path
+from ..utils.validators import validate_berries_amount, validate_admin_give_amount  # Fixed path
+from ..utils.formatters import format_berries  # Fixed path
 
 class AdminCommands:
     """Admin command handlers."""
