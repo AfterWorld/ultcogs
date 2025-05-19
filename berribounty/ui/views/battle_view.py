@@ -3,9 +3,9 @@ import discord
 import asyncio
 import random
 from typing import Dict, Any, Optional
-from ...models.battle import Battle, BattleState  # Fix import path
-from ...constants.moves import MOVES  # Fix import path
-from ...managers.battle_manager import BattleManager  # Fix import path
+from berribounty.models.battle import Battle, BattleState
+from berribounty.constants.moves import MOVES
+from berribounty.managers.battle_manager import BattleManager
 
 class BattleView(discord.ui.View):
     """Interactive battle interface with buttons and select menus."""
