@@ -1,8 +1,6 @@
+# berribounty/ui/modals/__init__.py
 """User interface components for the One Piece bot."""
 
-from .admin_view import AdminControlPanelView, PlayerManagementView, EconomyControlView, SystemSettingsView
-from .battle_view import BattleView, BattleChallengeView, AttackSelectView, SpecialSelectView
-from .fruit_view import FruitSearchView, FruitChoiceView, FruitMarketView
 from .battle_modal import (
     BattleChallengeModal, 
     BattleMoveCustomModal, 
@@ -12,29 +10,30 @@ from .battle_modal import (
     CustomMoveModal
 )
 
+# Import views from the views directory
+from ..views.admin_view import AdminControlPanelView, PlayerManagementView, EconomyControlView, SystemSettingsView
+from ..views.battle_view import BattleView, BattleChallengeView, AttackSelectView, SpecialSelectView
+from ..views.fruit_view import FruitSearchView, FruitChoiceView, FruitMarketView
+
 __all__ = [
-    # Admin Views
-    "AdminControlPanelView",
-    "PlayerManagementView", 
-    "EconomyControlView",
-    "SystemSettingsView",
-    
-    # Battle Views
-    "BattleView",
-    "BattleChallengeView",
-    "AttackSelectView",
-    "SpecialSelectView",
-    
-    # Fruit Views
-    "FruitSearchView",
-    "FruitChoiceView", 
-    "FruitMarketView",
-    
-    # Battle Modals
+    # Modals
     "BattleChallengeModal",
     "BattleMoveCustomModal",
     "BattleStrategyModal", 
     "BattleWagerModal",
     "BattleReportModal",
-    "CustomMoveModal"
+    "CustomMoveModal",
+    
+    # Views from other modules
+    "AdminControlPanelView",
+    "PlayerManagementView", 
+    "EconomyControlView",
+    "SystemSettingsView",
+    "BattleView",
+    "BattleChallengeView",
+    "AttackSelectView",
+    "SpecialSelectView",
+    "FruitSearchView",
+    "FruitChoiceView", 
+    "FruitMarketView"
 ]
