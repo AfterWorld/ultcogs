@@ -1,10 +1,11 @@
+# berribounty/ui/views/battle_view.py
 import discord
 import asyncio
 import random
 from typing import Dict, Any, Optional
-from ...models.battle import Battle, BattleState
-from ...constants.moves import MOVES
-from ...managers.battle_manager import BattleManager
+from ...models.battle import Battle, BattleState  # Fix import path
+from ...constants.moves import MOVES  # Fix import path
+from ...managers.battle_manager import BattleManager  # Fix import path
 
 class BattleView(discord.ui.View):
     """Interactive battle interface with buttons and select menus."""
