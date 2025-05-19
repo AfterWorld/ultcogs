@@ -1,12 +1,13 @@
+# berribounty/commands/fruit_commands.py
 """Devil fruit commands for the One Piece bot."""
 
 import discord
 import random
 from redbot.core import commands
 from typing import Optional
-from ..ui import FruitSearchView
+from ..ui.views.fruit_view import FruitSearchView  # Fixed path
 from ..constants.fruits import DEVIL_FRUITS
-from ..formatters import format_devil_fruit_info, format_berries
+from ..utils.formatters import format_devil_fruit_info, format_berries  # Fixed path
 
 class FruitCommands:
     """Devil fruit command handlers."""
