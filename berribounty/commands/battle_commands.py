@@ -1,12 +1,13 @@
+# berribounty/commands/battle_commands.py
 """Battle commands for the One Piece bot."""
 
 import discord
 from redbot.core import commands
 from typing import Optional
-from ..ui.battle_view import BattleView
-from ..ui.battle_modal import BattleChallengeModal
-from ..formatters import format_battle_stats, format_percentage, format_time_remaining
-from ..validators import validate_battle_challenge
+from ..ui.views.battle_view import BattleView  # Fixed path
+from ..ui.modals.battle_modal import BattleChallengeModal  # Fixed path
+from ..utils.formatters import format_battle_stats, format_percentage, format_time_remaining  # Fixed path
+from ..utils.validators import validate_battle_challenge  # Fixed path
 
 class BattleCommands:
     """Battle command handlers."""
