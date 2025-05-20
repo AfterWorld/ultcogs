@@ -294,7 +294,7 @@ class LoLCommands:
                 await ctx.send(f"❌ Error getting rank info: {str(e)}")
 
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.command(name="champion", aliases=["champ", "info"])
+    @commands.command(name="champion", aliases=["champ"])  # Removed "info" alias
     async def champion_info(self, ctx, *, champion_name: str):
         """Get detailed information about a champion"""
         async with ctx.typing():
