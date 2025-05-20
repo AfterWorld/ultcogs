@@ -4,14 +4,20 @@ import discord
 import time
 import json
 import statistics
+import sqlite3
+import aiosqlite
+from pathlib import Path
+from typing import Set
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Deque, Tuple
 from collections import deque, defaultdict, Counter
 from redbot.core import commands, Config, checks
 from redbot.core.i18n import Translator, cog_i18n
-from redbot.core.utils.chat_formatting import box, pagify
+from redbot.core.utils.chat_formatting import box, pagify, humanize_timedelta
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.utils.predicates import MessagePredicate
+from redbot.core import data_manager
+
 
 _ = Translator("LoL", __file__)
 
@@ -84,6 +90,221 @@ ENDPOINT_RATE_LIMITS = {
     "clash-tournaments": [(10, 60)],  # 10/1m
     "clash-players": [(20000, 10), (1200000, 600)],  # 20000/10s, 1200000/10m
 }
+
+class NotificationManager:
+    """Manage live game notifications"""
+    
+    def __init__(self, cog):
+        self.cog = cog
+        self.monitored_summoners: Dict[str, Dict] = {}
+        self.notification_channels: Dict[int, Set[int]] = defaultdict(set)
+        self.check_interval = 300  # 5 minutes
+        self.monitor_task = None
+        
+    def start_monitoring(self):
+        """Start the background monitoring task"""
+        if self.monitor_task is None or self.monitor_task.done():
+            self.monitor_task = asyncio.create_task(self._monitor_loop())
+    
+    def stop_monitoring(self):
+        """Stop the background monitoring task"""
+        if self.monitor_task:
+            self.monitor_task.cancel()
+    
+    async def add_summoner(self, guild_id: int, channel_id: int, summoner_data: Dict):
+        """Add a summoner to monitoring list"""
+        key = f"{summoner_data['region']}:{summoner_data['puuid']}"
+        
+        self.monitored_summoners[key] = {
+            **summoner_data,
+            "in_game": False,
+            "last_checked": time.time(),
+            "current_game_id": None
+        }
+        
+        self.notification_channels[guild_id].add(channel_id)
+        
+        # Save to database
+        await self._save_monitored_summoner(guild_id, channel_id, summoner_data)
+    
+    async def remove_summoner(self, guild_id: int, summoner_data: Dict):
+        """Remove a summoner from monitoring"""
+        key = f"{summoner_data['region']}:{summoner_data['puuid']}"
+        
+        if key in self.monitored_summoners:
+            del self.monitored_summoners[key]
+        
+        # Remove from database
+        await self._delete_monitored_summoner(guild_id, summoner_data['puuid'])
+    
+    async def _monitor_loop(self):
+        """Main monitoring loop"""
+        while True:
+            try:
+                await self._check_all_summoners()
+                await asyncio.sleep(self.check_interval)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                # Log error but continue monitoring
+                print(f"Error in monitor loop: {e}")
+                await asyncio.sleep(60)  # Wait a minute before retrying
+    
+    async def _check_all_summoners(self):
+        """Check all monitored summoners for game status changes"""
+        for key, summoner_data in self.monitored_summoners.items():
+            try:
+                await self._check_summoner_status(key, summoner_data)
+                await asyncio.sleep(1)  # Small delay between checks
+            except Exception as e:
+                print(f"Error checking summoner {key}: {e}")
+    
+    async def _check_summoner_status(self, key: str, summoner_data: Dict):
+        """Check if a specific summoner's game status has changed"""
+        region = summoner_data['region']
+        puuid = summoner_data['puuid']
+        
+        # Check for active game
+        url = f"https://{region}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{puuid}"
+        
+        try:
+            game_data = await self.cog._make_request(url)
+            # Summoner is in game
+            current_game_id = game_data.get("gameId")
+            
+            if not summoner_data["in_game"] or summoner_data["current_game_id"] != current_game_id:
+                # Game started or changed
+                summoner_data["in_game"] = True
+                summoner_data["current_game_id"] = current_game_id
+                summoner_data["last_checked"] = time.time()
+                
+                await self._send_game_start_notification(summoner_data, game_data)
+                
+        except commands.UserFeedbackCheckFailure:
+            # Summoner is not in game
+            if summoner_data["in_game"]:
+                # Game ended
+                summoner_data["in_game"] = False
+                summoner_data["current_game_id"] = None
+                summoner_data["last_checked"] = time.time()
+                
+                await self._send_game_end_notification(summoner_data)
+    
+    async def _send_game_start_notification(self, summoner_data: Dict, game_data: Dict):
+        """Send notification when a summoner starts a game"""
+        embed = discord.Embed(
+            title="🎮 Game Started!",
+            description=f"**{summoner_data['gameName']}#{summoner_data['tagLine']}** started a game",
+            color=0x00FF00,
+            timestamp=datetime.now()
+        )
+        
+        game_mode = game_data.get("gameMode", "Unknown")
+        queue_type = self._get_queue_name(game_data.get("gameQueueConfigId", 0))
+        
+        embed.add_field(name="Game Mode", value=game_mode, inline=True)
+        embed.add_field(name="Queue", value=queue_type, inline=True)
+        embed.add_field(name="Region", value=summoner_data['region'].upper(), inline=True)
+        
+        # Find the player's champion
+        for participant in game_data.get("participants", []):
+            if participant["puuid"] == summoner_data["puuid"]:
+                champion_id = participant.get("championId", 0)
+                champion_name = await self._get_champion_name_by_id(champion_id)
+                embed.add_field(name="Champion", value=champion_name, inline=True)
+                break
+        
+        await self._send_to_notification_channels(embed)
+    
+    async def _send_game_end_notification(self, summoner_data: Dict):
+        """Send notification when a summoner ends a game"""
+        embed = discord.Embed(
+            title="🏁 Game Ended",
+            description=f"**{summoner_data['gameName']}#{summoner_data['tagLine']}** finished their game",
+            color=0xFF6B35,
+            timestamp=datetime.now()
+        )
+        
+        embed.add_field(name="Region", value=summoner_data['region'].upper(), inline=True)
+        
+        await self._send_to_notification_channels(embed)
+    
+    async def _send_to_notification_channels(self, embed: discord.Embed):
+        """Send embed to all notification channels"""
+        for guild_id, channel_ids in self.notification_channels.items():
+            guild = self.cog.bot.get_guild(guild_id)
+            if not guild:
+                continue
+                
+            for channel_id in channel_ids:
+                channel = guild.get_channel(channel_id)
+                if channel:
+                    try:
+                        await channel.send(embed=embed)
+                    except (discord.Forbidden, discord.HTTPException):
+                        # Remove invalid channels
+                        channel_ids.discard(channel_id)
+    
+    def _get_queue_name(self, queue_id: int) -> str:
+        """Get human-readable queue name from queue ID"""
+        queue_names = {
+            420: "Ranked Solo/Duo",
+            440: "Ranked Flex",
+            450: "ARAM",
+            400: "Normal Draft",
+            430: "Normal Blind",
+            900: "URF",
+            1020: "One for All",
+            1300: "Nexus Blitz"
+        }
+        return queue_names.get(queue_id, f"Queue {queue_id}")
+    
+    async def _get_champion_name_by_id(self, champion_id: int) -> str:
+        """Get champion name by ID"""
+        champion_data = await self.cog._get_champion_data()
+        return self.cog._get_champion_name_by_id(champion_id, champion_data)
+    
+    # Database methods for persistence
+    async def _save_monitored_summoner(self, guild_id: int, channel_id: int, summoner_data: Dict):
+        """Save monitored summoner to database"""
+        async with self.cog.db_connection() as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO monitored_summoners 
+                (guild_id, channel_id, puuid, region, game_name, tag_line)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (guild_id, channel_id, summoner_data['puuid'], 
+                  summoner_data['region'], summoner_data['gameName'], 
+                  summoner_data['tagLine']))
+            await db.commit()
+    
+    async def _delete_monitored_summoner(self, guild_id: int, puuid: str):
+        """Remove monitored summoner from database"""
+        async with self.cog.db_connection() as db:
+            await db.execute(
+                "DELETE FROM monitored_summoners WHERE guild_id = ? AND puuid = ?",
+                (guild_id, puuid)
+            )
+            await db.commit()
+    
+    async def load_from_database(self):
+        """Load monitored summoners from database on startup"""
+        async with self.cog.db_connection() as db:
+            async with db.execute("SELECT * FROM monitored_summoners") as cursor:
+                async for row in cursor:
+                    guild_id, channel_id, puuid, region, game_name, tag_line = row
+                    key = f"{region}:{puuid}"
+                    
+                    self.monitored_summoners[key] = {
+                        "puuid": puuid,
+                        "region": region,
+                        "gameName": game_name,
+                        "tagLine": tag_line,
+                        "in_game": False,
+                        "last_checked": time.time(),
+                        "current_game_id": None
+                    }
+                    
+                    self.notification_channels[guild_id].add(channel_id)
 
 class DataCache:
     """Cache frequently requested data to reduce API calls"""
@@ -203,6 +424,7 @@ class LeagueOfLegends(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.db_path = Path(data_manager.cog_data_path(self)) / "lol_data.db"
         
         # Default settings
         default_guild = {
@@ -218,6 +440,37 @@ class LeagueOfLegends(commands.Cog):
             "preferred_region": None
         }
         
+        self.rank_emojis = {
+            "IRON": "🥉",
+            "BRONZE": "🟤", 
+            "SILVER": "🩶",
+            "GOLD": "🟡",
+            "PLATINUM": "🐱‍👤",
+            "EMERALD": "💚",
+            "DIAMOND": "💎",
+            "MASTER": "🔥",
+            "GRANDMASTER": "⭐",
+            "CHALLENGER": "🏆"
+        }
+        
+        self.champion_role_emojis = {
+            "Assassin": "🗡️",
+            "Fighter": "⚔️",
+            "Mage": "🔮",
+            "Marksman": "🏹",
+            "Support": "🛡️",
+            "Tank": "🛡️"
+        }
+        
+        self.game_mode_emojis = {
+            "CLASSIC": "🏛️",
+            "ARAM": "🌉",
+            "URF": "🚀",
+            "ODIN": "🔱",
+            "TUTORIAL": "📚",
+            "DOOMBOTSTEEMO": "🍄"
+        }
+        
         self.config.register_guild(**default_guild)
         self.config.register_global(**default_global)
         self.config.register_user(**default_user)
@@ -228,9 +481,130 @@ class LeagueOfLegends(commands.Cog):
         self.champion_cache = DataCache(ttl=3600)  # 1 hour for champion data
         self.stats = CogStatistics()
         
-    def cog_unload(self):
+    async def cog_load(self):
+        """Initialize database and start monitoring"""
+        await self.init_database()
+        await self.notification_manager.load_from_database()
+        self.notification_manager.start_monitoring()
+    
+    async def cog_unload(self):
+        """Clean shutdown"""
+        self.notification_manager.stop_monitoring()
         if self.session:
-            asyncio.create_task(self.session.close())
+            await self.session.close()
+    
+    async def init_database(self):
+        """Initialize the SQLite database"""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Monitored summoners table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS monitored_summoners (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id INTEGER NOT NULL,
+                    channel_id INTEGER NOT NULL,
+                    puuid TEXT NOT NULL,
+                    region TEXT NOT NULL,
+                    game_name TEXT NOT NULL,
+                    tag_line TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(guild_id, puuid)
+                )
+            """)
+            
+            # User preferences table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    user_id INTEGER PRIMARY KEY,
+                    favorite_region TEXT,
+                    notification_preferences TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Match history cache table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS match_cache (
+                    match_id TEXT PRIMARY KEY,
+                    region TEXT NOT NULL,
+                    match_data TEXT NOT NULL,
+                    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL
+                )
+            """)
+            
+            # Summoner lookup history
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS lookup_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    guild_id INTEGER NOT NULL,
+                    summoner_name TEXT NOT NULL,
+                    region TEXT NOT NULL,
+                    looked_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            await db.commit()
+    
+    def db_connection(self):
+        """Get database connection context manager"""
+        return aiosqlite.connect(self.db_path)
+    
+    async def save_lookup_history(self, ctx, summoner_name: str, region: str):
+        """Save summoner lookup to history"""
+        async with self.db_connection() as db:
+            await db.execute("""
+                INSERT INTO lookup_history (user_id, guild_id, summoner_name, region)
+                VALUES (?, ?, ?, ?)
+            """, (ctx.author.id, ctx.guild.id if ctx.guild else None, summoner_name, region))
+            await db.commit()
+    
+    async def get_user_lookup_history(self, user_id: int, limit: int = 10) -> List[Dict]:
+        """Get recent lookup history for a user"""
+        async with self.db_connection() as db:
+            async with db.execute("""
+                SELECT summoner_name, region, looked_up_at 
+                FROM lookup_history 
+                WHERE user_id = ? 
+                ORDER BY looked_up_at DESC 
+                LIMIT ?
+            """, (user_id, limit)) as cursor:
+                return [
+                    {
+                        "summoner_name": row[0],
+                        "region": row[1],
+                        "looked_up_at": row[2]
+                    }
+                    async for row in cursor
+                ]
+    
+    async def cache_match_data(self, match_id: str, region: str, match_data: Dict, ttl_hours: int = 24):
+        """Cache match data to database"""
+        expires_at = datetime.now() + timedelta(hours=ttl_hours)
+        async with self.db_connection() as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO match_cache (match_id, region, match_data, expires_at)
+                VALUES (?, ?, ?, ?)
+            """, (match_id, region, json.dumps(match_data), expires_at.isoformat()))
+            await db.commit()
+    
+    async def get_cached_match_data(self, match_id: str, region: str) -> Optional[Dict]:
+        """Get cached match data if not expired"""
+        async with self.db_connection() as db:
+            async with db.execute("""
+                SELECT match_data FROM match_cache 
+                WHERE match_id = ? AND region = ? AND expires_at > CURRENT_TIMESTAMP
+            """, (match_id, region)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return json.loads(row[0])
+        return None
+    
+    async def cleanup_expired_cache(self):
+        """Remove expired cache entries"""
+        async with self.db_connection() as db:
+            await db.execute("DELETE FROM match_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+            await db.commit()
 
     async def red_delete_data_for_user(self, **kwargs):
         """Delete user data for GDPR compliance"""
@@ -556,6 +930,324 @@ class LeagueOfLegends(commands.Cog):
             "CHALLENGER": "🏆"
         }
         return rank_emojis.get(tier, "❓")
+    
+    def get_rank_emoji(self, tier: str, with_text: bool = False) -> str:
+        """Get emoji for rank tier"""
+        emoji = self.rank_emojis.get(tier.upper(), "❓")
+        if with_text:
+            return f"{emoji} {tier.title()}"
+        return emoji
+    
+    def get_champion_role_emoji(self, tags: List[str]) -> str:
+        """Get emoji for champion role based on tags"""
+        for tag in tags:
+            if tag in self.champion_role_emojis:
+                return self.champion_role_emojis[tag]
+        return "⚪"
+    
+    def get_game_mode_emoji(self, mode: str) -> str:
+        """Get emoji for game mode"""
+        return self.game_mode_emojis.get(mode, "🎮")
+    
+    def create_enhanced_summoner_embed(self, summoner_data: Dict, rank_data: List[Dict]) -> discord.Embed:
+        """Create an enhanced embed with better visuals"""
+        # Determine embed color based on highest rank
+        embed_color = self._get_rank_color(rank_data)
+        
+        embed = discord.Embed(
+            title=f"🎮 {summoner_data['gameName']}#{summoner_data['tagLine']}",
+            color=embed_color,
+            timestamp=datetime.now()
+        )
+        
+        # Profile icon with better formatting
+        if "profileIconId" in summoner_data:
+            icon_url = f"http://ddragon.leagueoflegends.com/cdn/13.24.1/img/profileicon/{summoner_data['profileIconId']}.png"
+            embed.set_thumbnail(url=icon_url)
+        
+        # Basic info with emojis
+        level = summoner_data.get("summonerLevel", "N/A")
+        embed.add_field(
+            name="📊 Summoner Level", 
+            value=f"**{level}**", 
+            inline=True
+        )
+        
+        # Enhanced ranked information
+        if rank_data:
+            for rank in rank_data[:2]:  # Show top 2 ranked queues
+                queue_type = rank["queueType"].replace("_", " ").title()
+                tier = rank.get("tier", "Unranked").upper()
+                division = rank.get("rank", "")
+                lp = rank.get("leaguePoints", 0)
+                wins = rank.get("wins", 0)
+                losses = rank.get("losses", 0)
+                
+                if tier != "UNRANKED":
+                    rank_emoji = self.get_rank_emoji(tier)
+                    winrate = round((wins / (wins + losses)) * 100, 1) if (wins + losses) > 0 else 0
+                    
+                    # Color-coded win rate
+                    if winrate >= 60:
+                        wr_emoji = "🟢"
+                    elif winrate >= 50:
+                        wr_emoji = "🟡"
+                    else:
+                        wr_emoji = "🔴"
+                    
+                    rank_str = (
+                        f"{rank_emoji} **{tier.title()} {division}** ({lp} LP)\n"
+                        f"📈 {wins}W / {losses}L\n"
+                        f"{wr_emoji} {winrate}% Win Rate"
+                    )
+                    
+                    # Add streaks and special status
+                    if rank.get("hotStreak"):
+                        rank_str += "\n🔥 Hot Streak!"
+                    if rank.get("veteran"):
+                        rank_str += "\n⭐ Veteran"
+                    if rank.get("inactive"):
+                        rank_str += "\n💤 Inactive"
+                        
+                else:
+                    rank_str = "❓ Unranked"
+                
+                embed.add_field(
+                    name=f"🏆 {queue_type}", 
+                    value=rank_str, 
+                    inline=True
+                )
+        else:
+            embed.add_field(
+                name="🏆 Ranked Status", 
+                value="❓ Unranked", 
+                inline=True
+            )
+        
+        # Footer with region and last update
+        embed.set_footer(
+            text=f"🌍 Region: {summoner_data.get('region', 'Unknown').upper()} • Updated",
+            icon_url="https://raw.githubusercontent.com/RiotGamesMinions/DataDragon-Layouts/main/logos/riot-logo.png"
+        )
+        
+        return embed
+    
+    def create_enhanced_match_embed(self, summoner_data: Dict, match_details: Dict, participant: Dict) -> discord.Embed:
+        """Create an enhanced match embed with better visuals"""
+        # Determine color based on win/loss
+        win = participant["win"]
+        embed_color = 0x00FF7F if win else 0xFF6B6B
+        
+        # Game info
+        game_mode = match_details["info"]["gameMode"]
+        game_duration = match_details["info"]["gameDuration"]
+        champion = participant["championName"]
+        
+        # KDA info
+        kills = participant["kills"]
+        deaths = participant["deaths"]
+        assists = participant["assists"]
+        kda_ratio = (kills + assists) / max(deaths, 1)
+        
+        # Result emoji and text
+        result_emoji = "🏆" if win else "❌"
+        result_text = "Victory" if win else "Defeat"
+        
+        embed = discord.Embed(
+            title=f"{result_emoji} {result_text}",
+            description=f"**{champion}** • {self._format_duration(game_duration)}",
+            color=embed_color,
+            timestamp=datetime.fromtimestamp(match_details["info"]["gameCreation"] / 1000)
+        )
+        
+        # Game mode with emoji
+        mode_emoji = self.get_game_mode_emoji(game_mode)
+        embed.add_field(
+            name=f"{mode_emoji} Game Mode",
+            value=game_mode,
+            inline=True
+        )
+        
+        # Enhanced KDA display
+        embed.add_field(
+            name="⚔️ KDA",
+            value=f"**{kills}** / {deaths} / **{assists}**\n({kda_ratio:.2f} ratio)",
+            inline=True
+        )
+        
+        # Damage and vision score if available
+        if "totalDamageDealtToChampions" in participant:
+            damage = participant["totalDamageDealtToChampions"]
+            embed.add_field(
+                name="💥 Damage to Champions",
+                value=f"{damage:,}",
+                inline=True
+            )
+        
+        if "visionScore" in participant:
+            vision = participant["visionScore"]
+            embed.add_field(
+                name="👁️ Vision Score",
+                value=f"{vision}",
+                inline=True
+            )
+        
+        # Items display (if available)
+        items = []
+        for i in range(7):  # Items 0-6
+            item_id = participant.get(f"item{i}", 0)
+            if item_id:
+                items.append(str(item_id))
+        
+        if items:
+            embed.add_field(
+                name="🎒 Items",
+                value=" • ".join(items[:6]),  # Show first 6 items
+                inline=False
+            )
+        
+        # Champion image
+        champion_icon = f"http://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/{champion}.png"
+        embed.set_thumbnail(url=champion_icon)
+        
+        return embed
+    
+    def create_enhanced_champion_embed(self, champion: Dict) -> discord.Embed:
+        """Create an enhanced champion information embed"""
+        embed = discord.Embed(
+            title=f"🏛️ {champion['name']}",
+            description=f"*{champion['title']}*",
+            color=0x0596AA
+        )
+        
+        # Champion splash art
+        splash_url = f"http://ddragon.leagueoflegends.com/cdn/img/champion/splash/{champion['id']}_0.jpg"
+        embed.set_image(url=splash_url)
+        
+        # Champion icon
+        icon_url = f"http://ddragon.leagueoflegends.com/cdn/13.24.1/img/champion/{champion['id']}.png"
+        embed.set_thumbnail(url=icon_url)
+        
+        # Enhanced role display with emojis
+        role_emoji = self.get_champion_role_emoji(champion["tags"])
+        embed.add_field(
+            name=f"{role_emoji} Role",
+            value=" • ".join(champion["tags"]),
+            inline=True
+        )
+        
+        # Difficulty with visual representation
+        difficulty = champion['info']['difficulty']
+        difficulty_bars = "▓" * difficulty + "░" * (10 - difficulty)
+        embed.add_field(
+            name="📊 Difficulty",
+            value=f"{difficulty_bars} ({difficulty}/10)",
+            inline=True
+        )
+        
+        # Enhanced stats display
+        stats = champion["stats"]
+        embed.add_field(
+            name="❤️ Health",
+            value=f"{stats['hp']} (+{stats['hpperlevel']}/lvl)",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🔮 Mana",
+            value=f"{stats['mp']} (+{stats['mpperlevel']}/lvl)",
+            inline=True
+        )
+        
+        # Attack damage and speed
+        embed.add_field(
+            name="⚔️ Attack Damage",
+            value=f"{stats['attackdamage']} (+{stats['attackdamageperlevel']}/lvl)",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🗲 Attack Speed",
+            value=f"{stats['attackspeed']:.3f} (+{stats['attackspeedperlevel']:.3f}%/lvl)",
+            inline=True
+        )
+        
+        # Defensive stats
+        embed.add_field(
+            name="🛡️ Armor",
+            value=f"{stats['armor']} (+{stats['armorperlevel']}/lvl)",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="✨ Magic Resist",
+            value=f"{stats['spellblock']} (+{stats['spellblockperlevel']}/lvl)",
+            inline=True
+        )
+        
+        # Movement and range
+        embed.add_field(
+            name="💨 Movement Speed",
+            value=f"{stats['movespeed']}",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🎯 Attack Range",
+            value=f"{stats['attackrange']}",
+            inline=True
+        )
+        
+        # Lore preview with proper length handling
+        lore = champion.get("lore", "No lore available.")
+        if len(lore) > 300:
+            lore = lore[:297] + "..."
+        
+        embed.add_field(
+            name="📜 Lore",
+            value=lore,
+            inline=False
+        )
+        
+        # Footer with additional info
+        embed.set_footer(
+            text=f"Patch 13.24.1 • Data from Riot Games",
+            icon_url="https://raw.githubusercontent.com/RiotGamesMinions/DataDragon-Layouts/main/logos/riot-logo.png"
+        )
+        
+        return embed
+    
+    def _get_rank_color(self, rank_data: List[Dict]) -> int:
+        """Get embed color based on highest rank"""
+        rank_colors = {
+            "IRON": 0x8B4513,
+            "BRONZE": 0xCD7F32,
+            "SILVER": 0xC0C0C0,
+            "GOLD": 0xFFD700,
+            "PLATINUM": 0x00CED1,
+            "EMERALD": 0x50C878,
+            "DIAMOND": 0xB9F2FF,
+            "MASTER": 0x9F2B68,
+            "GRANDMASTER": 0xFF5722,
+            "CHALLENGER": 0x9C27B0
+        }
+        
+        # Find highest rank from all queues
+        highest_tier = "UNRANKED"
+        for rank in rank_data:
+            tier = rank.get("tier", "UNRANKED")
+            if tier in rank_colors:
+                # Simple ranking system - could be enhanced with proper tier comparison
+                if tier == "CHALLENGER":
+                    highest_tier = tier
+                    break
+                elif tier == "GRANDMASTER" and highest_tier != "CHALLENGER":
+                    highest_tier = tier
+                elif tier == "MASTER" and highest_tier not in ["CHALLENGER", "GRANDMASTER"]:
+                    highest_tier = tier
+                # Continue for other tiers...
+        
+        return rank_colors.get(highest_tier, 0x1E90FF)  # Default blue color
 
     # Commands
     @commands.group(name="lol", aliases=["league"])
@@ -1385,6 +2077,121 @@ class LeagueOfLegends(commands.Cog):
                 
             except Exception as e:
                 await ctx.send(f"Error comparing summoners: {str(e)}")
+    
+    @lol.command(name="notify")
+    async def setup_notifications(self, ctx, region: str = None, *, summoner_name: str):
+        """Get notified when a summoner starts/ends a game
+        
+        Examples:
+        - `[p]lol notify na Faker#KR1`
+        - `[p]lol notify Doublelift#NA1` (uses default region)
+        """
+        # Determine region
+        if region is None:
+            region = await self.config.guild(ctx.guild).default_region()
+        else:
+            region = self._normalize_region(region)
+        
+        try:
+            # Get summoner data
+            summoner_data = await self._get_summoner_by_name(region, summoner_name)
+            summoner_data['region'] = region
+            
+            # Add to monitoring
+            await self.notification_manager.add_summoner(
+                ctx.guild.id, 
+                ctx.channel.id, 
+                summoner_data
+            )
+            
+            await ctx.send(
+                f"✅ Now monitoring **{summoner_data['gameName']}#{summoner_data['tagLine']}** "
+                f"({region.upper()}) for live games in this channel."
+            )
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error setting up notifications: {str(e)}")
+    
+    @lol.command(name="unnotify")
+    async def remove_notifications(self, ctx, region: str = None, *, summoner_name: str):
+        """Stop notifications for a summoner
+        
+        Examples:
+        - `[p]lol unnotify na Faker#KR1`
+        - `[p]lol unnotify Doublelift#NA1` (uses default region)
+        """
+        # Determine region
+        if region is None:
+            region = await self.config.guild(ctx.guild).default_region()
+        else:
+            region = self._normalize_region(region)
+        
+        try:
+            # Get summoner data
+            summoner_data = await self._get_summoner_by_name(region, summoner_name)
+            summoner_data['region'] = region
+            
+            # Remove from monitoring
+            await self.notification_manager.remove_summoner(ctx.guild.id, summoner_data)
+            
+            await ctx.send(
+                f"✅ Stopped monitoring **{summoner_data['gameName']}#{summoner_data['tagLine']}** "
+                f"({region.upper()}) in this server."
+            )
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error removing notifications: {str(e)}")
+    
+    @lol.command(name="monitored")
+    async def list_monitored(self, ctx):
+        """List all summoners being monitored in this server"""
+        monitored = []
+        for key, summoner_data in self.notification_manager.monitored_summoners.items():
+            if any(ctx.guild.id in guild_ids for guild_ids in 
+                   self.notification_manager.notification_channels.values()):
+                status = "🟢 In Game" if summoner_data["in_game"] else "⚫ Offline"
+                monitored.append(
+                    f"{status} **{summoner_data['gameName']}#{summoner_data['tagLine']}** "
+                    f"({summoner_data['region'].upper()})"
+                )
+        
+        if not monitored:
+            await ctx.send("No summoners are currently being monitored in this server.")
+            return
+        
+        embed = discord.Embed(
+            title="📋 Monitored Summoners",
+            description="\n".join(monitored),
+            color=0x0099E1
+        )
+        
+        await ctx.send(embed=embed)
+    
+    @lol.command(name="history")
+    async def lookup_history(self, ctx):
+        """Show your recent summoner lookups"""
+        history = await self.get_user_lookup_history(ctx.author.id, limit=10)
+        
+        if not history:
+            await ctx.send("You haven't looked up any summoners yet.")
+            return
+        
+        embed = discord.Embed(
+            title="📜 Your Recent Lookups",
+            color=0x9932CC
+        )
+        
+        for i, entry in enumerate(history, 1):
+            looked_up = datetime.fromisoformat(entry['looked_up_at'])
+            time_ago = humanize_timedelta(timedelta=datetime.now() - looked_up)
+            
+            embed.add_field(
+                name=f"{i}. {entry['summoner_name']}",
+                value=f"Region: {entry['region'].upper()}\n{time_ago} ago",
+                inline=True
+            )
+        
+        await ctx.send(embed=embed)
 
     # Settings commands
     @commands.group(name="lolset")
