@@ -562,3 +562,271 @@ class RiotAPIManager:
                 
         except Exception as e:
             logger.error(f"Error caching match {match_id}: {e}")
+            
+    async def get_champion_build_data(self, champion_id: str) -> Optional[Dict]:
+        """Get champion build data including items and recommendations"""
+        # Check cache first
+        cache_key = f"build_data:{champion_id}"
+        cached_data = self.champion_cache.get(cache_key)
+        
+        if cached_data is not None:
+            return cached_data
+        
+        try:
+            # Get item data
+            items_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/data/en_US/item.json"
+            async with self.session.get(items_url) as resp:
+                if resp.status == 200:
+                    items_data = await resp.json()
+                else:
+                    logger.warning(f"Failed to fetch items data: {resp.status}")
+                    return None
+            
+            # Get champion-specific recommended items from basic champion data
+            champion_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/data/en_US/champion/{champion_id}.json"
+            async with self.session.get(champion_url) as resp:
+                if resp.status == 200:
+                    champion_details = await resp.json()
+                    champion_info = champion_details["data"][champion_id]
+                else:
+                    # Fallback to basic champion data if detailed data fails
+                    logger.warning(f"Failed to fetch champion details: {resp.status}")
+                    all_champions = await self.get_champion_data()
+                    champion_info = None
+                    for champ_data in all_champions.get("data", {}).values():
+                        if champ_data["id"] == champion_id:
+                            champion_info = champ_data
+                            break
+                    
+                    if not champion_info:
+                        return None
+            
+            # Process build data
+            build_data = {
+                "items": items_data["data"],
+                "champion_recommended": champion_info.get("recommended", []),
+                "popular_builds": self._get_popular_builds(champion_id, champion_info.get("tags", [])),
+                "starting_items": self._get_starting_items_by_role(champion_info.get("tags", [])),
+                "core_items": self._get_core_items_by_role(champion_info.get("tags", [])),
+                "boots": self._get_boots_options(),
+                "situational": self._get_situational_items_by_role(champion_info.get("tags", []))
+            }
+            
+            # Cache the result for 1 hour
+            self.champion_cache.set(cache_key, build_data)
+            return build_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching build data for {champion_id}: {e}")
+            return None
+    
+    def _get_popular_builds(self, champion_id: str, tags: List[str]) -> List[Dict]:
+        """Get popular builds based on champion role"""
+        # Build recommendations based on primary role
+        primary_role = tags[0] if tags else "Fighter"
+        
+        role_builds = {
+            "Marksman": [
+                {
+                    "name": "ADC Core Build", 
+                    "description": "Standard crit build for most games",
+                    "items": ["1001", "1055", "3031", "3006", "3094", "3033", "3036", "3139"]
+                },
+                {
+                    "name": "On-Hit Build",
+                    "description": "Attack speed focused build",
+                    "items": ["1001", "1055", "3085", "3006", "3153", "3124", "3091", "3139"]
+                }
+            ],
+            "Mage": [
+                {
+                    "name": "Burst Build",
+                    "description": "High damage burst focused",
+                    "items": ["1056", "3020", "3157", "3135", "3116", "3089", "3102"]
+                },
+                {
+                    "name": "Sustain Build", 
+                    "description": "Sustained damage with survivability",
+                    "items": ["1056", "3020", "4645", "3135", "3157", "3151", "3102"]
+                }
+            ],
+            "Tank": [
+                {
+                    "name": "Tank Build",
+                    "description": "Maximum survivability",
+                    "items": ["1054", "3047", "3068", "3065", "3143", "3076", "3110"]
+                },
+                {
+                    "name": "Engage Build",
+                    "description": "Initiation focused with utility",
+                    "items": ["1054", "3020", "3190", "3068", "3109", "3107", "3110"]
+                }
+            ],
+            "Fighter": [
+                {
+                    "name": "Bruiser Build",
+                    "description": "Balanced damage and survivability", 
+                    "items": ["1055", "3047", "3071", "3053", "3026", "3072", "3156"]
+                },
+                {
+                    "name": "Split Push Build",
+                    "description": "Dueling and split pushing focused",
+                    "items": ["1055", "3047", "3078", "3748", "3053", "3156", "3026"]
+                }
+            ],
+            "Assassin": [
+                {
+                    "name": "Lethality Build",
+                    "description": "High burst damage",
+                    "items": ["1055", "3020", "3142", "3147", "3814", "3156", "3026"]
+                },
+                {
+                    "name": "Crit Assassin",
+                    "description": "Critical strike based", 
+                    "items": ["1055", "3006", "3031", "3094", "3033", "3156", "3139"]
+                }
+            ],
+            "Support": [
+                {
+                    "name": "Enchanter Build",
+                    "description": "Shield and heal focused",
+                    "items": ["3850", "3111", "3107", "3222", "3504", "3152"]
+                },
+                {
+                    "name": "Tank Support",
+                    "description": "Engage and protection",
+                    "items": ["3851", "3047", "3190", "3109", "3143", "3110"]
+                }
+            ]
+        }
+        
+        return role_builds.get(primary_role, role_builds["Fighter"])
+    
+    def _get_starting_items_by_role(self, tags: List[str]) -> List[Dict]:
+        """Get starting items based on champion role"""
+        primary_role = tags[0] if tags else "Fighter"
+        
+        role_starts = {
+            "Marksman": [
+                {"id": "1055", "name": "Doran's Blade"},
+                {"id": "2003", "name": "Health Potion"},
+                {"id": "3340", "name": "Stealth Ward"}
+            ],
+            "Mage": [
+                {"id": "1056", "name": "Doran's Ring"}, 
+                {"id": "2003", "name": "Health Potion"},
+                {"id": "3340", "name": "Stealth Ward"}
+            ],
+            "Tank": [
+                {"id": "1054", "name": "Doran's Shield"},
+                {"id": "2003", "name": "Health Potion"}, 
+                {"id": "3340", "name": "Stealth Ward"}
+            ],
+            "Support": [
+                {"id": "3850", "name": "Relic Shield"},
+                {"id": "3854", "name": "Steel Shoulderguards"},
+                {"id": "2003", "name": "Health Potion"},
+                {"id": "3340", "name": "Stealth Ward"}
+            ]
+        }
+        
+        return role_starts.get(primary_role, role_starts.get("Fighter", [
+            {"id": "1055", "name": "Doran's Blade"},
+            {"id": "2003", "name": "Health Potion"},
+            {"id": "3340", "name": "Stealth Ward"}
+        ]))
+    
+    def _get_core_items_by_role(self, tags: List[str]) -> List[Dict]:
+        """Get core items based on champion role"""
+        primary_role = tags[0] if tags else "Fighter"
+        
+        role_items = {
+            "Marksman": [
+                {"id": "3031", "name": "Infinity Edge"},
+                {"id": "3094", "name": "Rapid Firecannon"},
+                {"id": "3033", "name": "Mortal Reminder"},
+                {"id": "3036", "name": "Lord Dominik's Regards"}
+            ],
+            "Mage": [
+                {"id": "3157", "name": "Zhonya's Hourglass"},
+                {"id": "3135", "name": "Void Staff"},
+                {"id": "3116", "name": "Rylai's Crystal Scepter"},
+                {"id": "3089", "name": "Rabadon's Deathcap"}
+            ],
+            "Tank": [
+                {"id": "3068", "name": "Sunfire Aegis"},
+                {"id": "3065", "name": "Spirit Visage"},
+                {"id": "3143", "name": "Randuin's Omen"},
+                {"id": "3076", "name": "Bramble Vest"}
+            ],
+            "Fighter": [
+                {"id": "3071", "name": "Black Cleaver"},
+                {"id": "3053", "name": "Sterak's Gage"}, 
+                {"id": "3078", "name": "Trinity Force"},
+                {"id": "3026", "name": "Guardian Angel"}
+            ],
+            "Assassin": [
+                {"id": "3142", "name": "Youmuu's Ghostblade"},
+                {"id": "3814", "name": "Edge of Night"},
+                {"id": "3147", "name": "Duskblade of Draktharr"},
+                {"id": "3156", "name": "Maw of Malmortius"}
+            ],
+            "Support": [
+                {"id": "3107", "name": "Redemption"},
+                {"id": "3109", "name": "Knight's Vow"}, 
+                {"id": "3190", "name": "Locket of the Iron Solari"},
+                {"id": "3222", "name": "Mikael's Blessing"}
+            ]
+        }
+        
+        return role_items.get(primary_role, role_items["Fighter"])
+    
+    def _get_boots_options(self) -> List[Dict]:
+        """Get boots options"""
+        return [
+            {"id": "3006", "name": "Berserker's Greaves"},
+            {"id": "3020", "name": "Sorcerer's Shoes"},
+            {"id": "3047", "name": "Plated Steelcaps"},
+            {"id": "3111", "name": "Mercury's Treads"},
+            {"id": "3117", "name": "Mobility Boots"},
+            {"id": "3009", "name": "Boots of Swiftness"}
+        ]
+    
+    def _get_situational_items_by_role(self, tags: List[str]) -> List[Dict]:
+        """Get situational items based on role"""
+        primary_role = tags[0] if tags else "Fighter"
+        
+        role_situational = {
+            "Marksman": [
+                {"id": "3139", "name": "Mercurial Scimitar"},
+                {"id": "3026", "name": "Guardian Angel"},
+                {"id": "3156", "name": "Maw of Malmortius"},
+                {"id": "3072", "name": "Bloodthirster"}
+            ],
+            "Mage": [
+                {"id": "3102", "name": "Banshee's Veil"},
+                {"id": "3151", "name": "Liandry's Anguish"},  
+                {"id": "4645", "name": "Shadowflame"},
+                {"id": "3152", "name": "Hextech Rocketbelt"}
+            ],
+            "Tank": [
+                {"id": "3110", "name": "Frozen Heart"},
+                {"id": "3193", "name": "Gargoyle Stoneplate"},
+                {"id": "3742", "name": "Dead Man's Plate"},
+                {"id": "3075", "name": "Thornmail"}
+            ],
+            "Support": [
+                {"id": "3504", "name": "Ardent Censer"},
+                {"id": "3152", "name": "Hextech Rocketbelt"},
+                {"id": "3110", "name": "Frozen Heart"},
+                {"id": "3143", "name": "Randuin's Omen"}
+            ]
+        }
+        
+        # Default to Fighter situational items if role not found
+        return role_situational.get(primary_role, [
+            {"id": "3156", "name": "Maw of Malmortius"},
+            {"id": "3026", "name": "Guardian Angel"},
+            {"id": "3139", "name": "Mercurial Scimitar"},
+            {"id": "3053", "name": "Sterak's Gage"}
+        ])
