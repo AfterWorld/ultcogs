@@ -1234,20 +1234,28 @@ class LeagueOfLegends(commands.Cog):
             "CHALLENGER": 0x9C27B0
         }
         
+        # Define tier hierarchy (highest to lowest)
+        tier_hierarchy = [
+            "CHALLENGER",
+            "GRANDMASTER", 
+            "MASTER",
+            "DIAMOND",
+            "EMERALD",
+            "PLATINUM",
+            "GOLD",
+            "SILVER",
+            "BRONZE",
+            "IRON"
+        ]
+        
         # Find highest rank from all queues
         highest_tier = "UNRANKED"
         for rank in rank_data:
             tier = rank.get("tier", "UNRANKED")
-            if tier in rank_colors:
-                # Simple ranking system - could be enhanced with proper tier comparison
-                if tier == "CHALLENGER":
+            if tier in tier_hierarchy:
+                # Check if this tier is higher than current highest
+                if highest_tier == "UNRANKED" or tier_hierarchy.index(tier) < tier_hierarchy.index(highest_tier):
                     highest_tier = tier
-                    break
-                elif tier == "GRANDMASTER" and highest_tier != "CHALLENGER":
-                    highest_tier = tier
-                elif tier == "MASTER" and highest_tier not in ["CHALLENGER", "GRANDMASTER"]:
-                    highest_tier = tier
-                # Continue for other tiers...
         
         return rank_colors.get(highest_tier, 0x1E90FF)  # Default blue color
 
