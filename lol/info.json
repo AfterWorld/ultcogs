@@ -1,9 +1,9 @@
 {
     "author": ["UltPanda"],
-    "description": "League of Legends integration using Riot Games API. Look up summoner stats, match history, champion rotations, and more.",
+    "description": "Comprehensive League of Legends integration using Riot Games API. Look up summoner stats, match history, champion rotations, mastery data, live games, and more with intelligent rate limiting.",
     "install_msg": "Thanks for installing the League of Legends cog! Use `[p]help lol` to get started. Don't forget to set your Riot API key with `[p]lolset apikey <key>`.",
-    "short": "League of Legends integration with Riot Games API",
-    "tags": ["lol", "league", "riot", "games", "stats"],
+    "short": "Complete League of Legends integration with Riot Games API",
+    "tags": ["lol", "league", "riot", "games", "stats", "mastery", "matches"],
     "requirements": ["aiohttp"],
     "min_bot_version": "3.5.0",
     "hidden": false,
