@@ -82,7 +82,7 @@ class LoLSettings:
         except ValueError as e:
             await ctx.send(f"❌ {str(e)}")
 
-    @lol_settings.command(name="info")
+    @lol_settings.command(name="information")
     async def settings_info(self, ctx):
         """Show current settings and status"""
         api_key_set = bool(await self.config.api_key())
