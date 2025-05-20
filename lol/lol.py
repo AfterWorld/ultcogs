@@ -681,7 +681,7 @@ class LeagueOfLegends(commands.Cog):
             await ctx.send("You haven't linked a League of Legends account. Use `[p]lol link <region> <summoner#tag>` to link one.")
             return
         
-        # Call summoner command with proper arguments
+        # Get current data for the linked account using the correct method call
         await self.summoner(ctx, linked_account["region"], summoner_name=linked_account["summoner_name"])
 
     @lol.command(name="mymastery", aliases=["mymasteries"])
@@ -693,7 +693,7 @@ class LeagueOfLegends(commands.Cog):
             await ctx.send("You haven't linked a League of Legends account. Use `[p]lol link <region> <summoner#tag>` to link one.")
             return
         
-        # Call mastery command with proper arguments
+        # Get mastery data for the linked account
         await self.mastery(ctx, linked_account["region"], summoner_name=linked_account["summoner_name"])
 
     @lol.command(name="mymatches", aliases=["myhistory"])
@@ -705,7 +705,7 @@ class LeagueOfLegends(commands.Cog):
             await ctx.send("You haven't linked a League of Legends account. Use `[p]lol link <region> <summoner#tag>` to link one.")
             return
         
-        # Call matches command with proper arguments
+        # Get match history for the linked account
         await self.matches(ctx, linked_account["region"], summoner_name=linked_account["summoner_name"])
 
     @lol.command(name="status")
