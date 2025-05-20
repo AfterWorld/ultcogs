@@ -204,6 +204,12 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error removing notifications: {str(e)}")
 
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    @lol.command(name="build", aliases=["builds", "items"])
+    async def build(self, ctx, *, champion_name: str):
+        """Get recommended builds and items for a champion"""
+        await self.champion_build(ctx, champion_name=champion_name)
+
     # Maintenance and utility methods
     async def _periodic_cleanup(self):
         """Perform periodic cleanup tasks"""
