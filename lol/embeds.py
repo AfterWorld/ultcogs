@@ -589,12 +589,19 @@ class EmbedFactory:
     # Add this method to your EmbedFactory class in embeds.py
 
     def create_me_profile_embed(self, summoner_data: Dict, rank_data: List[Dict], 
-                            mastery_data: List[Dict], match_analysis: Dict, region: str) -> discord.Embed:
-        """Create a personalized embed for the .me command as fallback"""
+                           mastery_data: List[Dict], match_analysis: Dict, region: str) -> discord.Embed:
+        """Create an enhanced profile embed that mimics the React card but in native Discord format"""
         embed_color = self.get_rank_color(rank_data)
         
+        # Create description with header info
+        description = (
+            f"## {summoner_data['gameName']}#{summoner_data['tagLine']}\n"
+            f"**Level {summoner_data.get('summonerLevel', 'N/A')}** • {region.upper()} Region\n\n"
+        )
+        
         embed = discord.Embed(
-            title=f"🎮 My Profile: {summoner_data['gameName']}#{summoner_data['tagLine']}",
+            title="League of Legends Profile",
+            description=description,
             color=embed_color,
             timestamp=datetime.now()
         )
@@ -604,23 +611,10 @@ class EmbedFactory:
             icon_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/profileicon/{summoner_data['profileIconId']}.png"
             embed.set_thumbnail(url=icon_url)
         
-        # Summoner level and basic info
-        level = summoner_data.get("summonerLevel", "N/A")
-        embed.add_field(
-            name="📊 Summoner Level", 
-            value=f"**{level}**", 
-            inline=True
-        )
-        
-        # Region and server
-        embed.add_field(
-            name="🌍 Region",
-            value=f"{region.upper()}",
-            inline=True
-        )
-        
-        # Ranked information
+        # Ranked information with enhanced formatting
         if rank_data:
+            rank_str = "## Ranked Status\n"
+            
             for rank in rank_data[:2]:  # Show top 2 ranked queues
                 queue_type = rank["queueType"].replace("_", " ").title()
                 tier = rank.get("tier", "Unranked").upper()
@@ -633,46 +627,43 @@ class EmbedFactory:
                     rank_emoji = self.get_rank_emoji(tier)
                     winrate = round((wins / (wins + losses)) * 100, 1) if (wins + losses) > 0 else 0
                     
-                    # Color-coded win rate emoji
+                    # Color-coded win rate indicator
                     if winrate >= 60:
-                        wr_emoji = "🟢"
+                        wr_indicator = "🟢"
                     elif winrate >= 50:
-                        wr_emoji = "🟡"
+                        wr_indicator = "🟡"
                     else:
-                        wr_emoji = "🔴"
+                        wr_indicator = "🔴"
                     
-                    rank_str = (
-                        f"{rank_emoji} **{tier.title()} {division}** ({lp} LP)\n"
-                        f"📈 {wins}W / {losses}L\n"
-                        f"{wr_emoji} {winrate}% Win Rate"
+                    rank_str += (
+                        f"### {rank_emoji} {queue_type}\n"
+                        f"**{tier.title()} {division}** • {lp} LP\n"
+                        f"**W/L:** {wins}W / {losses}L • **WR:** {wr_indicator} {winrate}%\n"
                     )
                     
                     # Add special status indicators
+                    status = []
                     if rank.get("hotStreak"):
-                        rank_str += "\n🔥 **Hot Streak!**"
+                        status.append("🔥 **Hot Streak!**")
                     if rank.get("veteran"):
-                        rank_str += "\n⭐ Veteran"
+                        status.append("⭐ Veteran")
                     if rank.get("inactive"):
-                        rank_str += "\n💤 Inactive"
+                        status.append("💤 Inactive")
                         
+                    if status:
+                        rank_str += " • ".join(status) + "\n"
+                        
+                    rank_str += "\n"
                 else:
-                    rank_str = "❓ Unranked"
-                
-                embed.add_field(
-                    name=f"🏆 {queue_type}", 
-                    value=rank_str, 
-                    inline=True
-                )
+                    rank_str += f"### {queue_type}\n❓ **Unranked**\n\n"
         else:
-            embed.add_field(
-                name="🏆 Ranked Status", 
-                value="❓ Unranked", 
-                inline=True
-            )
+            rank_str = "## Ranked Status\n❓ **Unranked in all queues**\n\n"
+        
+        embed.description = description + rank_str
         
         # Top Champions section with mastery info
         if mastery_data:
-            top_champs_str = ""
+            champions_field = ""
             for i, mastery in enumerate(mastery_data[:3], 1):
                 # Level-based emojis
                 level_emojis = {7: "💎", 6: "💜", 5: "🔥", 4: "⭐", 3: "⚡", 2: "✨", 1: "🔹"}
@@ -684,15 +675,15 @@ class EmbedFactory:
                 formatted_points = f"{points:,}"
                 
                 champ_name = mastery.get("championName", f"Champion {mastery['championId']}")
-                top_champs_str += f"{level_emoji} **{champ_name}** (Lvl {level}): {formatted_points} pts\n"
+                champions_field += f"**{i}.** {level_emoji} **{champ_name}** (Lvl {level}): {formatted_points} pts\n"
             
             embed.add_field(
                 name="🏅 Top Champions",
-                value=top_champs_str or "No mastery data available",
+                value=champions_field or "No mastery data available",
                 inline=False
             )
         
-        # Recent performance metrics
+        # Recent performance metrics with enhanced formatting
         if match_analysis:
             winrate = match_analysis.get('winrate', 0)
             kda = match_analysis.get('avg_kda', 0)
@@ -715,23 +706,24 @@ class EmbedFactory:
             else:
                 kda_indicator = "👊 Fighting"
             
-            performance_str = (
-                f"**Recent Games:** {match_analysis.get('total_games', 0)}\n"
+            # Performance section
+            performance_field = (
                 f"**Win Rate:** {winrate:.1f}% ({match_analysis.get('wins', 0)}W / {match_analysis.get('losses', 0)}L) {wr_indicator}\n"
                 f"**KDA:** {match_analysis.get('avg_kda', 0):.2f} {kda_indicator}\n"
-                f"**K/D/A:** {match_analysis.get('avg_kills', 0):.1f}/{match_analysis.get('avg_deaths', 0):.1f}/{match_analysis.get('avg_assists', 0):.1f}"
+                f"**K/D/A:** {match_analysis.get('avg_kills', 0):.1f}/{match_analysis.get('avg_deaths', 0):.1f}/{match_analysis.get('avg_assists', 0):.1f}\n\n"
             )
             
-            # Add most played champions if available
+            # Most played champions
             if match_analysis.get('most_played'):
-                performance_str += "\n\n**Most Played Champions:**\n"
-                for i, (champ_name, stats, *_) in enumerate(match_analysis['most_played'][:2], 1):
+                performance_field += "**Most Played Champions:**\n"
+                for i, (champ_name, stats, *_) in enumerate(match_analysis['most_played'][:3], 1):
                     winrate = (stats["wins"] / stats["games"]) * 100
-                    performance_str += f"• **{champ_name}**: {winrate:.1f}% WR ({stats['games']} games)\n"
+                    win_indicator = "🟢" if winrate >= 55 else "🟡" if winrate >= 45 else "🔴"
+                    performance_field += f"{i}. **{champ_name}**: {win_indicator} {winrate:.1f}% WR ({stats['games']} games)\n"
             
             embed.add_field(
-                name="📈 Recent Performance",
-                value=performance_str,
+                name=f"📈 Recent Performance (Last {match_analysis.get('total_games', 0)} Games)",
+                value=performance_field,
                 inline=False
             )
         
