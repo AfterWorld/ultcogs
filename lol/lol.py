@@ -218,6 +218,10 @@ class LeagueOfLegends(commands.Cog):
             "preferred_region": None
         }
         
+        self.config.register_guild(**default_guild)
+        self.config.register_global(**default_global)
+        self.config.register_user(**default_user)
+        
         self.session = aiohttp.ClientSession()
         self.rate_limiter = RiotRateLimiter()
         self.cache = DataCache(ttl=300)  # 5 minute cache
@@ -227,21 +231,6 @@ class LeagueOfLegends(commands.Cog):
     def cog_unload(self):
         if self.session:
             asyncio.create_task(self.session.close())
-            
-    async def _handle_api_error(self, error_code: int, context: str = "API request") -> str:
-        """Handle API errors with specific user-friendly messages"""
-        error_messages = {
-            403: "❌ Invalid API key. Please contact the bot owner.",
-            404: "❌ Summoner not found. Check the spelling and region.",
-            429: "⏳ Rate limit hit. Please try again in a moment.",
-            500: "🔧 Riot servers are having issues. Try again later.",
-            503: "🚧 Riot API is temporarily unavailable.",
-            400: "❌ Bad request. Please check your input.",
-            401: "🔑 Unauthorized. API key may be expired.",
-            415: "❌ Unsupported media type.",
-        }
-        self.stats.record_error(str(error_code))
-        return error_messages.get(error_code, f"❌ Error during {context}: HTTP {error_code}")
 
     async def red_delete_data_for_user(self, **kwargs):
         """Delete user data for GDPR compliance"""
@@ -259,6 +248,21 @@ class LeagueOfLegends(commands.Cog):
                 _("No Riot API key set. Please set one using `{prefix}lolset apikey <key>`")
             )
         return api_key
+
+    async def _handle_api_error(self, error_code: int, context: str = "API request") -> str:
+        """Handle API errors with specific user-friendly messages"""
+        error_messages = {
+            403: "❌ Invalid API key. Please contact the bot owner.",
+            404: "❌ Summoner not found. Check the spelling and region.",
+            429: "⏳ Rate limit hit. Please try again in a moment.",
+            500: "🔧 Riot servers are having issues. Try again later.",
+            503: "🚧 Riot API is temporarily unavailable.",
+            400: "❌ Bad request. Please check your input.",
+            401: "🔑 Unauthorized. API key may be expired.",
+            415: "❌ Unsupported media type.",
+        }
+        self.stats.record_error(str(error_code))
+        return error_messages.get(error_code, f"❌ Error during {context}: HTTP {error_code}")
 
     def _get_endpoint_key(self, url: str) -> str:
         """Determine the endpoint key for rate limiting"""
@@ -559,6 +563,213 @@ class LeagueOfLegends(commands.Cog):
         """League of Legends commands"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help()
+
+    @lol.command(name="analyze", aliases=["stats"])
+    async def analyze_summoner(self, ctx, region: str = None, *, summoner_name: str):
+        """Deep analysis of summoner performance over last 20 games
+        
+        Examples:
+        - `[p]lol analyze na Faker#KR1`
+        - `[p]lol stats Doublelift#NA1` (uses default region)
+        """
+        async with ctx.typing():
+            self.stats.record_command("analyze")
+            
+            # Determine region
+            if region is None:
+                region = await self.config.guild(ctx.guild).default_region()
+            else:
+                region = self._normalize_region(region)
+            
+            try:
+                # Get summoner data
+                summoner_data = await self._get_summoner_by_name(region, summoner_name)
+                
+                # Get match routing
+                routing = MATCH_ROUTING.get(region, "americas")
+                
+                # Get last 20 matches
+                match_ids = await self._get_match_history(routing, summoner_data["puuid"], count=20)
+                
+                if not match_ids:
+                    await ctx.send("No recent matches found for analysis.")
+                    return
+                
+                # Analyze matches
+                matches_data = []
+                champion_stats = defaultdict(lambda: {"games": 0, "wins": 0, "kills": 0, "deaths": 0, "assists": 0})
+                
+                for match_id in match_ids[:15]:  # Limit to 15 to avoid too many API calls
+                    try:
+                        match_details = await self._get_match_details(routing, match_id)
+                        
+                        # Find the player in the match
+                        participant = None
+                        for p in match_details["info"]["participants"]:
+                            if p["puuid"] == summoner_data["puuid"]:
+                                participant = p
+                                break
+                        
+                        if participant:
+                            matches_data.append({
+                                "champion": participant["championName"],
+                                "kills": participant["kills"],
+                                "deaths": participant["deaths"],
+                                "assists": participant["assists"],
+                                "win": participant["win"],
+                                "gameMode": match_details["info"]["gameMode"],
+                                "gameDuration": match_details["info"]["gameDuration"]
+                            })
+                            
+                            # Update champion stats
+                            champ = participant["championName"]
+                            champion_stats[champ]["games"] += 1
+                            champion_stats[champ]["kills"] += participant["kills"]
+                            champion_stats[champ]["deaths"] += participant["deaths"]
+                            champion_stats[champ]["assists"] += participant["assists"]
+                            if participant["win"]:
+                                champion_stats[champ]["wins"] += 1
+                        
+                    except Exception:
+                        continue
+                
+                if not matches_data:
+                    await ctx.send("Could not analyze any matches.")
+                    return
+                
+                # Calculate statistics
+                total_games = len(matches_data)
+                wins = sum(1 for m in matches_data if m["win"])
+                winrate = (wins / total_games) * 100
+                
+                avg_kills = statistics.mean([m["kills"] for m in matches_data])
+                avg_deaths = statistics.mean([m["deaths"] for m in matches_data])
+                avg_assists = statistics.mean([m["assists"] for m in matches_data])
+                avg_kda = (avg_kills + avg_assists) / max(avg_deaths, 1)
+                
+                # Most played champions
+                most_played = sorted(champion_stats.items(), key=lambda x: x[1]["games"], reverse=True)[:3]
+                
+                # Create analysis embed
+                embed = discord.Embed(
+                    title=f"Performance Analysis - {summoner_data['gameName']}#{summoner_data['tagLine']}",
+                    color=0x00FF7F if winrate >= 50 else 0xFF6B6B
+                )
+                
+                # Overall stats
+                embed.add_field(
+                    name="📊 Overall Performance",
+                    value=f"**Games Analyzed:** {total_games}\n"
+                          f"**Win Rate:** {winrate:.1f}% ({wins}W / {total_games - wins}L)\n"
+                          f"**Average KDA:** {avg_kda:.2f}\n"
+                          f"**K/D/A:** {avg_kills:.1f} / {avg_deaths:.1f} / {avg_assists:.1f}",
+                    inline=False
+                )
+                
+                # Most played champions
+                if most_played:
+                    champ_text = ""
+                    for champ, stats in most_played:
+                        champ_winrate = (stats["wins"] / stats["games"]) * 100
+                        champ_kda = (stats["kills"] + stats["assists"]) / max(stats["deaths"], 1)
+                        champ_text += f"**{champ}** ({stats['games']} games)\n"
+                        champ_text += f"  {champ_winrate:.1f}% WR • {champ_kda:.2f} KDA\n"
+                    
+                    embed.add_field(
+                        name="🏆 Most Played Champions",
+                        value=champ_text,
+                        inline=False
+                    )
+                
+                # Recent trend (last 5 games)
+                recent_matches = matches_data[:5]
+                recent_wins = sum(1 for m in recent_matches if m["win"])
+                recent_trend = "📈 Winning streak!" if recent_wins >= 4 else "📉 Losing streak" if recent_wins <= 1 else "📊 Mixed results"
+                
+                embed.add_field(
+                    name="🔄 Recent Trend (Last 5 Games)",
+                    value=f"{recent_trend}\n{recent_wins}W / {5 - recent_wins}L",
+                    inline=True
+                )
+                
+                embed.add_field(name="Region", value=region.upper(), inline=True)
+                embed.set_footer(text=f"Analysis based on {total_games} recent games")
+                
+                await ctx.send(embed=embed)
+                
+            except Exception as e:
+                await ctx.send(f"Error analyzing summoner: {str(e)}")
+
+    @lol.command(name="usage", aliases=["botinfo"])
+    @checks.is_owner()
+    async def show_usage_statistics(self, ctx):
+        """Show cog usage statistics"""
+        uptime = time.time() - self.stats.start_time
+        uptime_hours = uptime / 3600
+        
+        embed = discord.Embed(title="📊 LoL Cog Statistics", color=0x0099E1)
+        
+        # API calls
+        total_calls = sum(self.stats.api_calls.values())
+        calls_per_hour = total_calls / max(uptime_hours, 1)
+        
+        embed.add_field(
+            name="🔗 API Usage",
+            value=f"**Total Calls:** {total_calls}\n"
+                  f"**Calls/Hour:** {calls_per_hour:.1f}\n"
+                  f"**Cache Hits:** {self.stats.cache_hits}\n"
+                  f"**Cache Misses:** {self.stats.cache_misses}",
+            inline=True
+        )
+        
+        # Cache efficiency
+        total_requests = self.stats.cache_hits + self.stats.cache_misses
+        cache_rate = (self.stats.cache_hits / max(total_requests, 1)) * 100
+        
+        embed.add_field(
+            name="💾 Cache Performance",
+            value=f"**Hit Rate:** {cache_rate:.1f}%\n"
+                  f"**Cache Size:** {self.cache.size()}\n"
+                  f"**Champion Cache:** {self.champion_cache.size()}",
+            inline=True
+        )
+        
+        # Most used commands
+        top_commands = sorted(self.stats.commands_used.items(), key=lambda x: x[1], reverse=True)[:5]
+        commands_text = "\n".join([f"{cmd}: {count}" for cmd, count in top_commands])
+        
+        embed.add_field(
+            name="🎯 Top Commands",
+            value=commands_text or "No commands used yet",
+            inline=True
+        )
+        
+        # Most used endpoints
+        top_endpoints = sorted(self.stats.api_calls.items(), key=lambda x: x[1], reverse=True)[:5]
+        endpoints_text = "\n".join([f"{endpoint}: {count}" for endpoint, count in top_endpoints])
+        
+        embed.add_field(
+            name="🔄 Top API Endpoints",
+            value=endpoints_text or "No API calls yet",
+            inline=True
+        )
+        
+        # Error statistics
+        total_errors = sum(self.stats.errors.values())
+        embed.add_field(
+            name="⚠️ Errors",
+            value=f"**Total:** {total_errors}\n"
+                  f"**Error Rate:** {(total_errors / max(total_calls, 1) * 100):.2f}%",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏰ Uptime",
+            value=f"{uptime_hours:.1f} hours",
+            inline=True
+        )
+        
+        await ctx.send(embed=embed)
 
     @lol.command(name="summoner", aliases=["player", "profile"])
     async def summoner(self, ctx, region: str = None, *, summoner_name: str):
@@ -1084,139 +1295,6 @@ class LeagueOfLegends(commands.Cog):
             except Exception as e:
                 await ctx.send(f"Error getting champion information: {str(e)}")
 
-    @lol.command(name="coginfo", aliases=["usage"])
-    @checks.is_owner()
-    async def cog_statistics(self, ctx):
-        """Show cog usage statistics"""
-        
-        async with ctx.typing():
-            self.stats.record_command("analyze")
-            
-            # Determine region
-            if region is None:
-                region = await self.config.guild(ctx.guild).default_region()
-            else:
-                region = self._normalize_region(region)
-            
-            try:
-                # Get summoner data
-                summoner_data = await self._get_summoner_by_name(region, summoner_name)
-                
-                # Get match routing
-                routing = MATCH_ROUTING.get(region, "americas")
-                
-                # Get last 20 matches
-                match_ids = await self._get_match_history(routing, summoner_data["puuid"], count=20)
-                
-                if not match_ids:
-                    await ctx.send("No recent matches found for analysis.")
-                    return
-                
-                # Analyze matches
-                matches_data = []
-                champion_stats = defaultdict(lambda: {"games": 0, "wins": 0, "kills": 0, "deaths": 0, "assists": 0})
-                
-                for match_id in match_ids[:15]:  # Limit to 15 to avoid too many API calls
-                    try:
-                        match_details = await self._get_match_details(routing, match_id)
-                        
-                        # Find the player in the match
-                        participant = None
-                        for p in match_details["info"]["participants"]:
-                            if p["puuid"] == summoner_data["puuid"]:
-                                participant = p
-                                break
-                        
-                        if participant:
-                            matches_data.append({
-                                "champion": participant["championName"],
-                                "kills": participant["kills"],
-                                "deaths": participant["deaths"],
-                                "assists": participant["assists"],
-                                "win": participant["win"],
-                                "gameMode": match_details["info"]["gameMode"],
-                                "gameDuration": match_details["info"]["gameDuration"]
-                            })
-                            
-                            # Update champion stats
-                            champ = participant["championName"]
-                            champion_stats[champ]["games"] += 1
-                            champion_stats[champ]["kills"] += participant["kills"]
-                            champion_stats[champ]["deaths"] += participant["deaths"]
-                            champion_stats[champ]["assists"] += participant["assists"]
-                            if participant["win"]:
-                                champion_stats[champ]["wins"] += 1
-                        
-                    except Exception:
-                        continue
-                
-                if not matches_data:
-                    await ctx.send("Could not analyze any matches.")
-                    return
-                
-                # Calculate statistics
-                total_games = len(matches_data)
-                wins = sum(1 for m in matches_data if m["win"])
-                winrate = (wins / total_games) * 100
-                
-                avg_kills = statistics.mean([m["kills"] for m in matches_data])
-                avg_deaths = statistics.mean([m["deaths"] for m in matches_data])
-                avg_assists = statistics.mean([m["assists"] for m in matches_data])
-                avg_kda = (avg_kills + avg_assists) / max(avg_deaths, 1)
-                
-                # Most played champions
-                most_played = sorted(champion_stats.items(), key=lambda x: x[1]["games"], reverse=True)[:3]
-                
-                # Create analysis embed
-                embed = discord.Embed(
-                    title=f"Performance Analysis - {summoner_data['gameName']}#{summoner_data['tagLine']}",
-                    color=0x00FF7F if winrate >= 50 else 0xFF6B6B
-                )
-                
-                # Overall stats
-                embed.add_field(
-                    name="📊 Overall Performance",
-                    value=f"**Games Analyzed:** {total_games}\n"
-                          f"**Win Rate:** {winrate:.1f}% ({wins}W / {total_games - wins}L)\n"
-                          f"**Average KDA:** {avg_kda:.2f}\n"
-                          f"**K/D/A:** {avg_kills:.1f} / {avg_deaths:.1f} / {avg_assists:.1f}",
-                    inline=False
-                )
-                
-                # Most played champions
-                if most_played:
-                    champ_text = ""
-                    for champ, stats in most_played:
-                        champ_winrate = (stats["wins"] / stats["games"]) * 100
-                        champ_kda = (stats["kills"] + stats["assists"]) / max(stats["deaths"], 1)
-                        champ_text += f"**{champ}** ({stats['games']} games)\n"
-                        champ_text += f"  {champ_winrate:.1f}% WR • {champ_kda:.2f} KDA\n"
-                    
-                    embed.add_field(
-                        name="🏆 Most Played Champions",
-                        value=champ_text,
-                        inline=False
-                    )
-                
-                # Recent trend (last 5 games)
-                recent_matches = matches_data[:5]
-                recent_wins = sum(1 for m in recent_matches if m["win"])
-                recent_trend = "📈 Winning streak!" if recent_wins >= 4 else "📉 Losing streak" if recent_wins <= 1 else "📊 Mixed results"
-                
-                embed.add_field(
-                    name="🔄 Recent Trend (Last 5 Games)",
-                    value=f"{recent_trend}\n{recent_wins}W / {5 - recent_wins}L",
-                    inline=True
-                )
-                
-                embed.add_field(name="Region", value=region.upper(), inline=True)
-                embed.set_footer(text=f"Analysis based on {total_games} recent games")
-                
-                await ctx.send(embed=embed)
-                
-            except Exception as e:
-                await ctx.send(f"Error analyzing summoner: {str(e)}")
-
     @lol.command(name="compare", aliases=["vs"])
     async def compare_summoners(self, ctx, summoner1: str, summoner2: str, region: str = None):
         """Compare two summoners' stats and performance
@@ -1307,77 +1385,6 @@ class LeagueOfLegends(commands.Cog):
                 
             except Exception as e:
                 await ctx.send(f"Error comparing summoners: {str(e)}")
-
-    @lol.command(name="stats", aliases=["statistics"])  # Changed from "cogstats"
-    @checks.is_owner()
-    async def cog_statistics(self, ctx):
-        """Show cog usage statistics"""
-        uptime = time.time() - self.stats.start_time
-        uptime_hours = uptime / 3600
-        
-        embed = discord.Embed(title="📊 LoL Cog Statistics", color=0x0099E1)
-        
-        # API calls
-        total_calls = sum(self.stats.api_calls.values())
-        calls_per_hour = total_calls / max(uptime_hours, 1)
-        
-        embed.add_field(
-            name="🔗 API Usage",
-            value=f"**Total Calls:** {total_calls}\n"
-                f"**Calls/Hour:** {calls_per_hour:.1f}\n"
-                f"**Cache Hits:** {self.stats.cache_hits}\n"
-                f"**Cache Misses:** {self.stats.cache_misses}",
-            inline=True
-        )
-        
-        # Cache efficiency
-        total_requests = self.stats.cache_hits + self.stats.cache_misses
-        cache_rate = (self.stats.cache_hits / max(total_requests, 1)) * 100
-        
-        embed.add_field(
-            name="💾 Cache Performance",
-            value=f"**Hit Rate:** {cache_rate:.1f}%\n"
-                f"**Cache Size:** {self.cache.size()}\n"
-                f"**Champion Cache:** {self.champion_cache.size()}",
-            inline=True
-        )
-        
-        # Most used commands
-        top_commands = sorted(self.stats.commands_used.items(), key=lambda x: x[1], reverse=True)[:5]
-        commands_text = "\n".join([f"{cmd}: {count}" for cmd, count in top_commands])
-        
-        embed.add_field(
-            name="🎯 Top Commands",
-            value=commands_text or "No commands used yet",
-            inline=True
-        )
-        
-        # Most used endpoints
-        top_endpoints = sorted(self.stats.api_calls.items(), key=lambda x: x[1], reverse=True)[:5]
-        endpoints_text = "\n".join([f"{endpoint}: {count}" for endpoint, count in top_endpoints])
-        
-        embed.add_field(
-            name="🔄 Top API Endpoints",
-            value=endpoints_text or "No API calls yet",
-            inline=True
-        )
-        
-        # Error statistics
-        total_errors = sum(self.stats.errors.values())
-        embed.add_field(
-            name="⚠️ Errors",
-            value=f"**Total:** {total_errors}\n"
-                f"**Error Rate:** {(total_errors / max(total_calls, 1) * 100):.2f}%",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⏰ Uptime",
-            value=f"{uptime_hours:.1f} hours",
-            inline=True
-        )
-        
-        await ctx.send(embed=embed)
 
     # Settings commands
     @commands.group(name="lolset")
