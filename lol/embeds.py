@@ -588,157 +588,157 @@ class EmbedFactory:
     
     # Add this method to your EmbedFactory class in embeds.py
 
-def create_me_profile_embed(self, summoner_data: Dict, rank_data: List[Dict], 
-                           mastery_data: List[Dict], match_analysis: Dict, region: str) -> discord.Embed:
-    """Create a personalized embed for the .me command as fallback"""
-    embed_color = self.get_rank_color(rank_data)
-    
-    embed = discord.Embed(
-        title=f"🎮 My Profile: {summoner_data['gameName']}#{summoner_data['tagLine']}",
-        color=embed_color,
-        timestamp=datetime.now()
-    )
-    
-    # Profile icon
-    if "profileIconId" in summoner_data:
-        icon_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/profileicon/{summoner_data['profileIconId']}.png"
-        embed.set_thumbnail(url=icon_url)
-    
-    # Summoner level and basic info
-    level = summoner_data.get("summonerLevel", "N/A")
-    embed.add_field(
-        name="📊 Summoner Level", 
-        value=f"**{level}**", 
-        inline=True
-    )
-    
-    # Region and server
-    embed.add_field(
-        name="🌍 Region",
-        value=f"{region.upper()}",
-        inline=True
-    )
-    
-    # Ranked information
-    if rank_data:
-        for rank in rank_data[:2]:  # Show top 2 ranked queues
-            queue_type = rank["queueType"].replace("_", " ").title()
-            tier = rank.get("tier", "Unranked").upper()
-            division = rank.get("rank", "")
-            lp = rank.get("leaguePoints", 0)
-            wins = rank.get("wins", 0)
-            losses = rank.get("losses", 0)
-            
-            if tier != "UNRANKED":
-                rank_emoji = self.get_rank_emoji(tier)
-                winrate = round((wins / (wins + losses)) * 100, 1) if (wins + losses) > 0 else 0
-                
-                # Color-coded win rate emoji
-                if winrate >= 60:
-                    wr_emoji = "🟢"
-                elif winrate >= 50:
-                    wr_emoji = "🟡"
-                else:
-                    wr_emoji = "🔴"
-                
-                rank_str = (
-                    f"{rank_emoji} **{tier.title()} {division}** ({lp} LP)\n"
-                    f"📈 {wins}W / {losses}L\n"
-                    f"{wr_emoji} {winrate}% Win Rate"
-                )
-                
-                # Add special status indicators
-                if rank.get("hotStreak"):
-                    rank_str += "\n🔥 **Hot Streak!**"
-                if rank.get("veteran"):
-                    rank_str += "\n⭐ Veteran"
-                if rank.get("inactive"):
-                    rank_str += "\n💤 Inactive"
-                    
-            else:
-                rank_str = "❓ Unranked"
-            
-            embed.add_field(
-                name=f"🏆 {queue_type}", 
-                value=rank_str, 
-                inline=True
-            )
-    else:
+    def create_me_profile_embed(self, summoner_data: Dict, rank_data: List[Dict], 
+                            mastery_data: List[Dict], match_analysis: Dict, region: str) -> discord.Embed:
+        """Create a personalized embed for the .me command as fallback"""
+        embed_color = self.get_rank_color(rank_data)
+        
+        embed = discord.Embed(
+            title=f"🎮 My Profile: {summoner_data['gameName']}#{summoner_data['tagLine']}",
+            color=embed_color,
+            timestamp=datetime.now()
+        )
+        
+        # Profile icon
+        if "profileIconId" in summoner_data:
+            icon_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/profileicon/{summoner_data['profileIconId']}.png"
+            embed.set_thumbnail(url=icon_url)
+        
+        # Summoner level and basic info
+        level = summoner_data.get("summonerLevel", "N/A")
         embed.add_field(
-            name="🏆 Ranked Status", 
-            value="❓ Unranked", 
+            name="📊 Summoner Level", 
+            value=f"**{level}**", 
             inline=True
         )
-    
-    # Top Champions section with mastery info
-    if mastery_data:
-        top_champs_str = ""
-        for i, mastery in enumerate(mastery_data[:3], 1):
-            # Level-based emojis
-            level_emojis = {7: "💎", 6: "💜", 5: "🔥", 4: "⭐", 3: "⚡", 2: "✨", 1: "🔹"}
-            level = mastery["championLevel"]
-            level_emoji = level_emojis.get(level, "⭐")
-            
-            # Format points with commas
-            points = mastery["championPoints"]
-            formatted_points = f"{points:,}"
-            
-            champ_name = mastery.get("championName", f"Champion {mastery['championId']}")
-            top_champs_str += f"{level_emoji} **{champ_name}** (Lvl {level}): {formatted_points} pts\n"
         
+        # Region and server
         embed.add_field(
-            name="🏅 Top Champions",
-            value=top_champs_str or "No mastery data available",
-            inline=False
+            name="🌍 Region",
+            value=f"{region.upper()}",
+            inline=True
         )
-    
-    # Recent performance metrics
-    if match_analysis:
-        winrate = match_analysis.get('winrate', 0)
-        kda = match_analysis.get('avg_kda', 0)
         
-        # Winrate indicator
-        if winrate >= 60:
-            wr_indicator = "🔥 Excellent"
-        elif winrate >= 50:
-            wr_indicator = "✅ Good"
+        # Ranked information
+        if rank_data:
+            for rank in rank_data[:2]:  # Show top 2 ranked queues
+                queue_type = rank["queueType"].replace("_", " ").title()
+                tier = rank.get("tier", "Unranked").upper()
+                division = rank.get("rank", "")
+                lp = rank.get("leaguePoints", 0)
+                wins = rank.get("wins", 0)
+                losses = rank.get("losses", 0)
+                
+                if tier != "UNRANKED":
+                    rank_emoji = self.get_rank_emoji(tier)
+                    winrate = round((wins / (wins + losses)) * 100, 1) if (wins + losses) > 0 else 0
+                    
+                    # Color-coded win rate emoji
+                    if winrate >= 60:
+                        wr_emoji = "🟢"
+                    elif winrate >= 50:
+                        wr_emoji = "🟡"
+                    else:
+                        wr_emoji = "🔴"
+                    
+                    rank_str = (
+                        f"{rank_emoji} **{tier.title()} {division}** ({lp} LP)\n"
+                        f"📈 {wins}W / {losses}L\n"
+                        f"{wr_emoji} {winrate}% Win Rate"
+                    )
+                    
+                    # Add special status indicators
+                    if rank.get("hotStreak"):
+                        rank_str += "\n🔥 **Hot Streak!**"
+                    if rank.get("veteran"):
+                        rank_str += "\n⭐ Veteran"
+                    if rank.get("inactive"):
+                        rank_str += "\n💤 Inactive"
+                        
+                else:
+                    rank_str = "❓ Unranked"
+                
+                embed.add_field(
+                    name=f"🏆 {queue_type}", 
+                    value=rank_str, 
+                    inline=True
+                )
         else:
-            wr_indicator = "🔄 Needs Improvement"
+            embed.add_field(
+                name="🏆 Ranked Status", 
+                value="❓ Unranked", 
+                inline=True
+            )
         
-        # KDA indicator
-        if kda >= 4.0:
-            kda_indicator = "💯 Outstanding"
-        elif kda >= 3.0:
-            kda_indicator = "👍 Great"
-        elif kda >= 2.0:
-            kda_indicator = "👌 Average"
-        else:
-            kda_indicator = "👊 Fighting"
+        # Top Champions section with mastery info
+        if mastery_data:
+            top_champs_str = ""
+            for i, mastery in enumerate(mastery_data[:3], 1):
+                # Level-based emojis
+                level_emojis = {7: "💎", 6: "💜", 5: "🔥", 4: "⭐", 3: "⚡", 2: "✨", 1: "🔹"}
+                level = mastery["championLevel"]
+                level_emoji = level_emojis.get(level, "⭐")
+                
+                # Format points with commas
+                points = mastery["championPoints"]
+                formatted_points = f"{points:,}"
+                
+                champ_name = mastery.get("championName", f"Champion {mastery['championId']}")
+                top_champs_str += f"{level_emoji} **{champ_name}** (Lvl {level}): {formatted_points} pts\n"
+            
+            embed.add_field(
+                name="🏅 Top Champions",
+                value=top_champs_str or "No mastery data available",
+                inline=False
+            )
         
-        performance_str = (
-            f"**Recent Games:** {match_analysis.get('total_games', 0)}\n"
-            f"**Win Rate:** {winrate:.1f}% ({match_analysis.get('wins', 0)}W / {match_analysis.get('losses', 0)}L) {wr_indicator}\n"
-            f"**KDA:** {match_analysis.get('avg_kda', 0):.2f} {kda_indicator}\n"
-            f"**K/D/A:** {match_analysis.get('avg_kills', 0):.1f}/{match_analysis.get('avg_deaths', 0):.1f}/{match_analysis.get('avg_assists', 0):.1f}"
+        # Recent performance metrics
+        if match_analysis:
+            winrate = match_analysis.get('winrate', 0)
+            kda = match_analysis.get('avg_kda', 0)
+            
+            # Winrate indicator
+            if winrate >= 60:
+                wr_indicator = "🔥 Excellent"
+            elif winrate >= 50:
+                wr_indicator = "✅ Good"
+            else:
+                wr_indicator = "🔄 Needs Improvement"
+            
+            # KDA indicator
+            if kda >= 4.0:
+                kda_indicator = "💯 Outstanding"
+            elif kda >= 3.0:
+                kda_indicator = "👍 Great"
+            elif kda >= 2.0:
+                kda_indicator = "👌 Average"
+            else:
+                kda_indicator = "👊 Fighting"
+            
+            performance_str = (
+                f"**Recent Games:** {match_analysis.get('total_games', 0)}\n"
+                f"**Win Rate:** {winrate:.1f}% ({match_analysis.get('wins', 0)}W / {match_analysis.get('losses', 0)}L) {wr_indicator}\n"
+                f"**KDA:** {match_analysis.get('avg_kda', 0):.2f} {kda_indicator}\n"
+                f"**K/D/A:** {match_analysis.get('avg_kills', 0):.1f}/{match_analysis.get('avg_deaths', 0):.1f}/{match_analysis.get('avg_assists', 0):.1f}"
+            )
+            
+            # Add most played champions if available
+            if match_analysis.get('most_played'):
+                performance_str += "\n\n**Most Played Champions:**\n"
+                for i, (champ_name, stats, *_) in enumerate(match_analysis['most_played'][:2], 1):
+                    winrate = (stats["wins"] / stats["games"]) * 100
+                    performance_str += f"• **{champ_name}**: {winrate:.1f}% WR ({stats['games']} games)\n"
+            
+            embed.add_field(
+                name="📈 Recent Performance",
+                value=performance_str,
+                inline=False
+            )
+        
+        # Footer
+        embed.set_footer(
+            text=f"Your linked League of Legends account • Updated", 
+            icon_url=self.riot_logo
         )
         
-        # Add most played champions if available
-        if match_analysis.get('most_played'):
-            performance_str += "\n\n**Most Played Champions:**\n"
-            for i, (champ_name, stats, *_) in enumerate(match_analysis['most_played'][:2], 1):
-                winrate = (stats["wins"] / stats["games"]) * 100
-                performance_str += f"• **{champ_name}**: {winrate:.1f}% WR ({stats['games']} games)\n"
-        
-        embed.add_field(
-            name="📈 Recent Performance",
-            value=performance_str,
-            inline=False
-        )
-    
-    # Footer
-    embed.set_footer(
-        text=f"Your linked League of Legends account • Updated", 
-        icon_url=self.riot_logo
-    )
-    
-    return embed
+        return embed
