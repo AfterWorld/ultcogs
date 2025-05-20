@@ -481,6 +481,8 @@ class LeagueOfLegends(commands.Cog):
         self.champion_cache = DataCache(ttl=3600)  # 1 hour for champion data
         self.stats = CogStatistics()
         
+        self.notification_manager = NotificationManager(self)
+        
     async def cog_load(self):
         """Initialize database and start monitoring"""
         await self.init_database()
