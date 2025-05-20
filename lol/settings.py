@@ -82,7 +82,7 @@ class LoLSettings:
         except ValueError as e:
             await ctx.send(f"❌ {str(e)}")
 
-    @lol_settings.command(name="information")
+    @lol_settings.command(name="settings")
     async def settings_info(self, ctx):
         """Show current settings and status"""
         api_key_set = bool(await self.config.api_key())
@@ -107,8 +107,8 @@ class LoLSettings:
             embed.add_field(
                 name="🗃️ Database Status",
                 value=f"Size: {db_stats['db_size_mb']} MB\n"
-                      f"Monitored: {db_stats['monitored_summoners_count']}\n"
-                      f"Cached Matches: {db_stats['match_cache_count']}",
+                    f"Monitored: {db_stats['monitored_summoners_count']}\n"
+                    f"Cached Matches: {db_stats['match_cache_count']}",
                 inline=True
             )
         except Exception as e:
@@ -121,7 +121,7 @@ class LoLSettings:
             embed.add_field(
                 name="💾 Cache Performance",
                 value=f"Hit Rate: {general_cache['hit_rate']}\n"
-                      f"Size: {general_cache['size']} items",
+                    f"Size: {general_cache['size']} items",
                 inline=True
             )
         except Exception as e:
