@@ -289,7 +289,11 @@ class NotificationManager:
     async def load_from_database(self):
         """Load monitored summoners from database on startup"""
         async with self.cog.db_connection() as db:
-            async with db.execute("SELECT * FROM monitored_summoners") as cursor:
+            # Select only the columns we need, excluding id and created_at
+            async with db.execute("""
+                SELECT guild_id, channel_id, puuid, region, game_name, tag_line 
+                FROM monitored_summoners
+            """) as cursor:
                 async for row in cursor:
                     guild_id, channel_id, puuid, region, game_name, tag_line = row
                     key = f"{region}:{puuid}"
