@@ -1084,14 +1084,11 @@ class LeagueOfLegends(commands.Cog):
             except Exception as e:
                 await ctx.send(f"Error getting champion information: {str(e)}")
 
-    @lol.command(name="analyze", aliases=["stats"])
-    async def analyze_summoner(self, ctx, region: str = None, *, summoner_name: str):
-        """Deep analysis of summoner performance over last 20 games
+    @lol.command(name="coginfo", aliases=["usage"])
+    @checks.is_owner()
+    async def cog_statistics(self, ctx):
+        """Show cog usage statistics"""
         
-        Examples:
-        - `[p]lol analyze na Faker#KR1`
-        - `[p]lol stats Doublelift#NA1` (uses default region)
-        """
         async with ctx.typing():
             self.stats.record_command("analyze")
             
@@ -1311,7 +1308,7 @@ class LeagueOfLegends(commands.Cog):
             except Exception as e:
                 await ctx.send(f"Error comparing summoners: {str(e)}")
 
-    @lol.command(name="cogstats")
+    @lol.command(name="stats", aliases=["statistics"])  # Changed from "cogstats"
     @checks.is_owner()
     async def cog_statistics(self, ctx):
         """Show cog usage statistics"""
@@ -1327,9 +1324,9 @@ class LeagueOfLegends(commands.Cog):
         embed.add_field(
             name="🔗 API Usage",
             value=f"**Total Calls:** {total_calls}\n"
-                  f"**Calls/Hour:** {calls_per_hour:.1f}\n"
-                  f"**Cache Hits:** {self.stats.cache_hits}\n"
-                  f"**Cache Misses:** {self.stats.cache_misses}",
+                f"**Calls/Hour:** {calls_per_hour:.1f}\n"
+                f"**Cache Hits:** {self.stats.cache_hits}\n"
+                f"**Cache Misses:** {self.stats.cache_misses}",
             inline=True
         )
         
@@ -1340,8 +1337,8 @@ class LeagueOfLegends(commands.Cog):
         embed.add_field(
             name="💾 Cache Performance",
             value=f"**Hit Rate:** {cache_rate:.1f}%\n"
-                  f"**Cache Size:** {self.cache.size()}\n"
-                  f"**Champion Cache:** {self.champion_cache.size()}",
+                f"**Cache Size:** {self.cache.size()}\n"
+                f"**Champion Cache:** {self.champion_cache.size()}",
             inline=True
         )
         
@@ -1370,7 +1367,7 @@ class LeagueOfLegends(commands.Cog):
         embed.add_field(
             name="⚠️ Errors",
             value=f"**Total:** {total_errors}\n"
-                  f"**Error Rate:** {(total_errors / max(total_calls, 1) * 100):.2f}%",
+                f"**Error Rate:** {(total_errors / max(total_calls, 1) * 100):.2f}%",
             inline=True
         )
         
