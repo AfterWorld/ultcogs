@@ -553,3 +553,37 @@ class LoLCommands:
         # Get close matches using difflib
         close_matches = difflib.get_close_matches(champion_name, champion_names, n=3, cutoff=0.6)
         return close_matches
+    
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    @commands.command(name="build", aliases=["builds", "items"])
+    async def champion_build(self, ctx, *, champion_name: str):
+        """Get recommended builds and items for a champion"""
+        async with ctx.typing():
+            try:
+                # Get champion data first
+                champion_data = await self.api_manager.get_champion_data_detailed()
+                champion = self._find_champion_by_name(champion_name, champion_data)
+                
+                if not champion:
+                    # Try to suggest similar champions
+                    suggestions = self._find_similar_champions(champion_name, champion_data)
+                    if suggestions:
+                        suggestion_text = ", ".join(suggestions[:3])
+                        await ctx.send(f"❌ Champion '{champion_name}' not found. Did you mean: {suggestion_text}?")
+                    else:
+                        await ctx.send(f"❌ Champion '{champion_name}' not found. Please check the spelling.")
+                    return
+                
+                # Get build recommendations
+                build_data = await self.api_manager.get_champion_build_data(champion['id'])
+                
+                if not build_data:
+                    await ctx.send(f"❌ Build data not available for {champion['name']}.")
+                    return
+                
+                embed = self.embed_factory.create_build_embed(champion, build_data)
+                await ctx.send(embed=embed)
+                
+            except Exception as e:
+                logger.error(f"Error getting champion build: {e}")
+                await ctx.send(f"❌ Error getting champion build: {str(e)}")
