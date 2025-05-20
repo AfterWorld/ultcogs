@@ -135,7 +135,7 @@ class LoLCommands:
                 await ctx.send(f"❌ Error getting rotations: {str(e)}")
 
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.command(name="matches", aliases=["match", "history"])
+    @commands.command(name="matches", aliases=["match"])
     async def matches(self, ctx, region: str = None, *, summoner_name: str):
         """Show recent match history for a summoner"""
         async with ctx.typing():
