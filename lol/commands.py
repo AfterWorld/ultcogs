@@ -387,7 +387,7 @@ class LoLCommands:
             await ctx.send(f"❌ Error listing monitored summoners: {str(e)}")
 
     # Linked account commands
-    @commands.command(name="me", aliases=["myprofile", "profile"])
+    @commands.command(name="me")
     async def my_profile(self, ctx):
         """Show your linked League of Legends profile"""
         try:
