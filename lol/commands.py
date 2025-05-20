@@ -448,7 +448,7 @@ class LoLCommands:
             await ctx.send(f"❌ Error getting linked matches: {str(e)}")
 
     # Owner-only commands
-    @commands.command(name="usage", aliases=["stats", "botinfo"])
+    @commands.command(name="usage", aliases=["stats"])
     @checks.is_owner()
     async def show_usage_statistics(self, ctx):
         """Show cog usage statistics (Owner only)"""
