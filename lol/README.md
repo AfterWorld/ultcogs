@@ -84,6 +84,7 @@ A comprehensive League of Legends integration for Red-DiscordBot using the offic
 | Command | Description |
 |---------|-------------|
 | `[p]lol champion <champion_name>` | Detailed champion info with splash art |
+| `[p]lol build <champion_name>` | Recommended builds and items for a champion |
 | `[p]lol rotations [region]` | Current free champion rotations |
 
 ### 🔔 Monitoring Commands
