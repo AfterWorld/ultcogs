@@ -24,7 +24,7 @@ A comprehensive League of Legends integration for Red-DiscordBot using the offic
 
 1. **Install the cog:**
    ```bash
-   [p]repo add mylol-repo <repository_url>
+   [p]repo add mylol-repo https://github.com/AfterWorld/ultcogs
    [p]cog install mylol-repo lol
    [p]load lol
    ```
