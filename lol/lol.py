@@ -1263,8 +1263,7 @@ class LeagueOfLegends(commands.Cog):
     @commands.group(name="lol", aliases=["league"])
     async def lol(self, ctx):
         """League of Legends commands"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+        pass
 
     @lol.command(name="analyze", aliases=["stats"])
     async def analyze_summoner(self, ctx, region: str = None, *, summoner_name: str):
