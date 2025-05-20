@@ -50,8 +50,7 @@ class LoLSettings:
     @checks.admin_or_permissions(manage_guild=True)
     async def lol_settings(self, ctx):
         """League of Legends cog settings"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+        pass
 
     @lol_settings.command(name="apikey")
     @checks.is_owner()
