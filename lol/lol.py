@@ -1599,7 +1599,7 @@ class LeagueOfLegends(commands.Cog):
             except Exception as e:
                 await ctx.send(f"Error getting rotations: {str(e)}")
 
-    @lol.command(name="matches", aliases=["match", "history"])
+    @lol.command(name="matches", aliases=["match"])
     async def matches(self, ctx, region: str = None, *, summoner_name: str):
         """Show recent match history for a summoner
         
