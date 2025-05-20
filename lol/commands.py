@@ -434,9 +434,32 @@ class LoLCommands:
                 )
                 return
             
-            # Get current data for the linked account
-            await self.summoner(ctx, linked_account["region"], summoner_name=linked_account["summoner_name"])
-            
+            async with ctx.typing():
+                # Get summoner data
+                region = linked_account["region"]
+                summoner_name = linked_account["summoner_name"]
+                summoner_data = await self.api_manager.get_summoner_by_name(region, summoner_name)
+                
+                # Get rank data
+                rank_data = await self.api_manager.get_rank_info(region, summoner_data["id"])
+                
+                # Get champion mastery data
+                mastery_data = await self.api_manager.get_champion_mastery(region, summoner_data["puuid"], count=3)
+                
+                # Get recent match analysis
+                match_analysis = await self.api_manager.analyze_recent_matches(summoner_data, region, count=20)
+                
+                # Create champion names for mastery data
+                champion_data = await self.api_manager.get_champion_data()
+                for mastery in mastery_data:
+                    mastery["championName"] = self._get_champion_name_by_id(mastery["championId"], champion_data)
+                
+                # Create and send the custom embed
+                embed = self.embed_factory.create_me_profile_embed(
+                    summoner_data, rank_data, mastery_data, match_analysis, region
+                )
+                await ctx.send(embed=embed)
+                
         except Exception as e:
             logger.error(f"Error getting linked profile: {e}")
             await ctx.send(f"❌ Error getting linked profile: {str(e)}")
