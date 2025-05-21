@@ -100,10 +100,16 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
                 # Save lookup history
                 await self.db_manager.save_lookup_history(ctx.author.id, ctx.guild.id if ctx.guild else None, summoner_name, region)
                 
-                # Send profile with champion icons - ONLY ONCE
-                await self.v2_helper.send_summoner_profile_with_champions(
+                # Send profile with Components V2
+                success = await self.v2_helper.send_summoner_profile_with_components_v2(
                     ctx, summoner_data, rank_data, mastery_data, region
                 )
+                
+                # If Components V2 fails, fall back to the previous implementation
+                if not success:
+                    await self.v2_helper.fallback_send_summoner_profile(
+                        ctx, summoner_data, rank_data, mastery_data, region
+                    )
                 
             except Exception as e:
                 import logging
