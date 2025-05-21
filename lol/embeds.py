@@ -211,6 +211,7 @@ class EmbedFactory:
         game_mode = match_details["info"]["gameMode"]
         game_duration = match_details["info"]["gameDuration"]
         champion = participant["championName"]
+        champion_id = participant.get("championId", 0)
         
         # KDA info
         kills = participant["kills"]
@@ -261,8 +262,13 @@ class EmbedFactory:
                 inline=True
             )
         
-        # Champion image
-        champion_icon = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/champion/{champion}.png"
+        # Champion image - use custom champion icon
+        if champion_id:
+            champion_icon = self.get_custom_champion_icon_url(champion_id)
+        else:
+            # Fallback to Data Dragon if needed
+            champion_icon = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/champion/{champion}.png"
+        
         embed.set_thumbnail(url=champion_icon)
         
         return embed
@@ -396,7 +402,18 @@ class EmbedFactory:
             for participant in game_data["participants"]:
                 if participant["puuid"] == summoner_data["puuid"]:
                     champion_id = participant.get("championId", 0)
-                    embed.add_field(name="🏆 Champion", value=f"Champion ID: {champion_id}", inline=True)
+                    champion_name = participant.get("championName", f"Champion {champion_id}")
+                    
+                    # Use champion name in field
+                    embed.add_field(
+                        name="🏆 Champion",
+                        value=f"{champion_name}",
+                        inline=True
+                    )
+                    
+                    # Use champion icon as thumbnail if available
+                    if champion_id:
+                        embed.set_thumbnail(url=self.get_custom_champion_icon_url(champion_id))
                     break
             
             embed.set_footer(text="🔴 Currently in game")
@@ -411,7 +428,7 @@ class EmbedFactory:
             embed.set_footer(text="⚫ Offline")
         
         return embed
-    
+
     def create_notification_embed(self, summoner_data: Dict, game_data: Optional[Dict], game_started: bool) -> discord.Embed:
         """Create an embed for live game notifications"""
         if game_started and game_data:
@@ -435,7 +452,18 @@ class EmbedFactory:
             for participant in game_data.get("participants", []):
                 if participant["puuid"] == summoner_data["puuid"]:
                     champion_id = participant.get("championId", 0)
-                    embed.add_field(name="🏅 Champion", value=f"Champion ID: {champion_id}", inline=True)
+                    champion_name = participant.get("championName", f"Champion {champion_id}")
+                    
+                    # Add champion name
+                    embed.add_field(
+                        name="🏅 Champion",
+                        value=champion_name,
+                        inline=True
+                    )
+                    
+                    # Set the champion icon as the thumbnail
+                    if champion_id:
+                        embed.set_thumbnail(url=self.get_custom_champion_icon_url(champion_id))
                     break
         else:
             # Game ended notification
@@ -1067,3 +1095,7 @@ class EmbedFactory:
         embed.set_thumbnail(url=champion_icon)
         
         return embed
+    
+    def get_custom_champion_icon_url(self, champion_key: int) -> str:
+        """Get custom champion icon URL from champion key (numerical ID)"""
+        return f"https://raw.githubusercontent.com/AfterWorld/ultcogs/main/lol/championicons/{champion_key}.png"
