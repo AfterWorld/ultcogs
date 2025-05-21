@@ -344,6 +344,7 @@ class RiotAPIManager:
                     if participant:
                         matches_data.append({
                             "champion": participant["championName"],
+                            "championId": participant.get("championId", 0),  # Get the champion ID
                             "kills": participant["kills"],
                             "deaths": participant["deaths"],
                             "assists": participant["assists"],
@@ -382,20 +383,25 @@ class RiotAPIManager:
         avg_assists = mean([m["assists"] for m in matches_data])
         avg_kda = (avg_kills + avg_assists) / max(avg_deaths, 1)
         
-        # Champion statistics
-        champion_stats = defaultdict(lambda: {"games": 0, "wins": 0, "kills": 0, "deaths": 0, "assists": 0})
+        # Champion statistics - include champion IDs 
+        champion_stats = defaultdict(lambda: {"games": 0, "wins": 0, "kills": 0, "deaths": 0, "assists": 0, "championId": 0})
         
         for match in matches_data:
             champ = match["champion"]
+            champion_id = match.get("championId", 0)
             champion_stats[champ]["games"] += 1
             champion_stats[champ]["kills"] += match["kills"]
             champion_stats[champ]["deaths"] += match["deaths"]
             champion_stats[champ]["assists"] += match["assists"]
+            champion_stats[champ]["championId"] = champion_id  # Store champion ID
             if match["win"]:
                 champion_stats[champ]["wins"] += 1
         
-        # Most played champions
+        # Most played champions with champion IDs
         most_played = sorted(champion_stats.items(), key=lambda x: x[1]["games"], reverse=True)[:3]
+        most_played_with_ids = []
+        for champ_name, stats in most_played:
+            most_played_with_ids.append([champ_name, stats, stats["championId"]])
         
         # Recent trend (last 5 games)
         recent_matches = matches_data[:5]
@@ -410,10 +416,63 @@ class RiotAPIManager:
             "avg_kills": avg_kills,
             "avg_deaths": avg_deaths,
             "avg_assists": avg_assists,
-            "most_played": most_played,
+            "most_played": most_played_with_ids,
             "recent_wins": recent_wins,
             "recent_games": min(5, total_games)
         }
+
+    async def get_recent_matches(self, summoner_data: Dict, region: str, count: int = 5) -> List[Dict]:
+        """Get recent matches with detailed information using caching"""
+        routing = MATCH_ROUTING.get(region, "americas")
+        
+        # Get match IDs
+        match_url = f"https://{routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/{summoner_data['puuid']}/ids"
+        match_ids = await self.make_request(match_url, params={"count": min(count, 20)})
+        
+        if not match_ids:
+            return []
+        
+        # Get match details with caching
+        matches = []
+        for match_id in match_ids[:count]:
+            try:
+                # Check cache first
+                match_details = await self._get_cached_match(match_id, region)
+                
+                if not match_details:
+                    # Fetch from API if not cached
+                    match_detail_url = f"https://{routing}.api.riotgames.com/lol/match/v5/matches/{match_id}"
+                    match_details = await self.make_request(match_detail_url)
+                    # Cache the result
+                    await self._cache_match(match_id, region, match_details)
+                
+                # Find participant data
+                participant = None
+                for p in match_details["info"]["participants"]:
+                    if p["puuid"] == summoner_data["puuid"]:
+                        participant = p
+                        break
+                
+                if participant:
+                    # Make sure championId is included 
+                    if "championId" not in participant and "championName" in participant:
+                        # Try to derive champion ID from champion data
+                        champion_data = await self.get_champion_data()
+                        for champ_key, champ_info in champion_data.get("data", {}).items():
+                            if champ_info["name"] == participant["championName"]:
+                                participant["championId"] = int(champ_info["key"])
+                                break
+                    
+                    matches.append({
+                        "details": match_details,
+                        "participant": participant
+                    })
+                        
+            except Exception as e:
+                logger.warning(f"Failed to fetch match {match_id}: {e}")
+                continue
+        
+        return matches
 
     async def get_rate_limit_status(self) -> Dict[str, str]:
         """Get current rate limit status for key endpoints"""
@@ -458,50 +517,6 @@ class RiotAPIManager:
             if "not found" in str(e).lower() or "404" in str(e):
                 return None
             raise e
-
-    async def get_recent_matches(self, summoner_data: Dict, region: str, count: int = 5) -> List[Dict]:
-        """Get recent matches with detailed information using caching"""
-        routing = MATCH_ROUTING.get(region, "americas")
-        
-        # Get match IDs
-        match_url = f"https://{routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/{summoner_data['puuid']}/ids"
-        match_ids = await self.make_request(match_url, params={"count": min(count, 20)})
-        
-        if not match_ids:
-            return []
-        
-        # Get match details with caching
-        matches = []
-        for match_id in match_ids[:count]:
-            try:
-                # Check cache first
-                match_details = await self._get_cached_match(match_id, region)
-                
-                if not match_details:
-                    # Fetch from API if not cached
-                    match_detail_url = f"https://{routing}.api.riotgames.com/lol/match/v5/matches/{match_id}"
-                    match_details = await self.make_request(match_detail_url)
-                    # Cache the result
-                    await self._cache_match(match_id, region, match_details)
-                
-                # Find participant data
-                participant = None
-                for p in match_details["info"]["participants"]:
-                    if p["puuid"] == summoner_data["puuid"]:
-                        participant = p
-                        break
-                
-                if participant:
-                    matches.append({
-                        "details": match_details,
-                        "participant": participant
-                    })
-                        
-            except Exception as e:
-                logger.warning(f"Failed to fetch match {match_id}: {e}")
-                continue
-        
-        return matches
 
     async def get_champion_data_detailed(self) -> Dict:
         """Get detailed champion data from Data Dragon with caching"""
