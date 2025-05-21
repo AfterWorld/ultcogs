@@ -79,7 +79,7 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
     @commands.cooldown(1, 10, commands.BucketType.user)
     @lol.command(name="summoner", aliases=["player", "profile"])
     async def summoner(self, ctx, region: str = None, *, summoner_name: str):
-        """Look up a summoner's profile"""
+        """Look up a summoner's profile with champion icons"""
         async with ctx.typing():
             try:
                 # Determine region
@@ -90,14 +90,20 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
                 summoner_data = await self.api_manager.get_summoner_by_name(region, summoner_name)
                 rank_data = await self.api_manager.get_rank_info(region, summoner_data["id"])
                 
+                # Get champion mastery data for icons
+                mastery_data = await self.api_manager.get_champion_mastery(region, summoner_data["puuid"], count=5)
+                
                 # Save lookup history
                 await self.db_manager.save_lookup_history(ctx.author.id, ctx.guild.id if ctx.guild else None, summoner_name, region)
                 
-                # Create and send embed
-                embed = self.embed_factory.create_summoner_embed(summoner_data, rank_data, region)
-                await ctx.send(embed=embed)
+                # Send profile with champion icons using V2 components
+                await self.v2_helper.send_summoner_profile_with_champions(
+                    ctx, summoner_data, rank_data, mastery_data, region
+                )
                 
             except Exception as e:
+                import logging
+                logging.error(f"Error in summoner command: {e}", exc_info=True)
                 await ctx.send(f"Error looking up summoner: {str(e)}")
 
     @commands.cooldown(1, 30, commands.BucketType.user)
