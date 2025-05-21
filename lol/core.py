@@ -100,7 +100,7 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
                 # Save lookup history
                 await self.db_manager.save_lookup_history(ctx.author.id, ctx.guild.id if ctx.guild else None, summoner_name, region)
                 
-                # Send profile with champion icons using V2 components
+                # Send profile with champion icons - ONLY ONCE
                 await self.v2_helper.send_summoner_profile_with_champions(
                     ctx, summoner_data, rank_data, mastery_data, region
                 )
