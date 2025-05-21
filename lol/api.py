@@ -344,7 +344,7 @@ class RiotAPIManager:
                     if participant:
                         matches_data.append({
                             "champion": participant["championName"],
-                            "championId": participant.get("championId", 0),  # Get the champion ID
+                            "championId": participant.get("championId", 0),  # Ensure we get the champion ID
                             "kills": participant["kills"],
                             "deaths": participant["deaths"],
                             "assists": participant["assists"],
@@ -393,7 +393,7 @@ class RiotAPIManager:
             champion_stats[champ]["kills"] += match["kills"]
             champion_stats[champ]["deaths"] += match["deaths"]
             champion_stats[champ]["assists"] += match["assists"]
-            champion_stats[champ]["championId"] = champion_id  # Store champion ID
+            champion_stats[champ]["championId"] = champion_id  # Store the champion ID
             if match["win"]:
                 champion_stats[champ]["wins"] += 1
         
@@ -494,7 +494,23 @@ class RiotAPIManager:
         """Get champion mastery for a summoner"""
         url = f"https://{region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top"
         params = {"count": count}
-        return await self.make_request(url, params=params)
+        mastery_data = await self.make_request(url, params=params)
+        
+        # Enhance with champion data if available
+        champion_data = await self.get_champion_data()
+        
+        for mastery in mastery_data:
+            # Make sure we keep championId clearly available for icon display
+            if "championId" in mastery and champion_data and "data" in champion_data:
+                champion_id = mastery["championId"]
+                # Find champion name from ID
+                for champ_key, champ_info in champion_data["data"].items():
+                    if int(champ_info["key"]) == champion_id:
+                        mastery["championName"] = champ_info["name"]
+                        mastery["championIconId"] = champ_info["id"]
+                        break
+        
+        return mastery_data
 
     async def get_mastery_score(self, region: str, puuid: str) -> int:
         """Get total mastery score for a summoner"""
@@ -512,6 +528,20 @@ class RiotAPIManager:
         
         try:
             game_data = await self.make_request(url)
+            
+            # Enhance participant data with champion information
+            champion_data = await self.get_champion_data()
+            
+            if "participants" in game_data and champion_data and "data" in champion_data:
+                for participant in game_data["participants"]:
+                    if "championId" in participant:
+                        champion_id = participant["championId"]
+                        # Find champion name from ID
+                        for champ_key, champ_info in champion_data["data"].items():
+                            if int(champ_info["key"]) == champion_id:
+                                participant["championName"] = champ_info["name"]
+                                break
+            
             return game_data
         except commands.UserFeedbackCheckFailure as e:
             if "not found" in str(e).lower() or "404" in str(e):
@@ -845,3 +875,5 @@ class RiotAPIManager:
             {"id": "3139", "name": "Mercurial Scimitar"},
             {"id": "3053", "name": "Sterak's Gage"}
         ])
+        
+    
