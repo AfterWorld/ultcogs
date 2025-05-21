@@ -138,7 +138,7 @@ class LoLCommands:
     @commands.cooldown(1, 15, commands.BucketType.user)
     @commands.command(name="matches", aliases=["match"])
     async def matches(self, ctx, region: str = None, *, summoner_name: str):
-        """Show recent match history for a summoner"""
+        """Show recent match history for a summoner with champion icons"""
         async with ctx.typing():
             try:
                 # Determine region
@@ -153,33 +153,16 @@ class LoLCommands:
                     summoner_data, region, count=5
                 )
                 
-                if not matches:
-                    await ctx.send("❌ No recent matches found.")
-                    return
-                
-                embed = discord.Embed(
-                    title=f"📜 Recent Matches - {summoner_data['gameName']}#{summoner_data['tagLine']}",
-                    color=0xFF6B35,
-                    timestamp=datetime.now()
+                # Send match history with Components V2
+                success = await self.v2_helper.send_match_history_with_components_v2(
+                    ctx, summoner_data, matches, region
                 )
                 
-                for i, match in enumerate(matches, 1):
-                    # Create match embed for each match
-                    match_embed = self.embed_factory.create_match_embed(
-                        summoner_data, match['details'], match['participant']
+                # If Components V2 fails, fall back to the previous implementation
+                if not success:
+                    await self.v2_helper.fallback_send_match_history(
+                        ctx, summoner_data, matches, region
                     )
-                    
-                    # Add as a field to the main embed
-                    result = "🏆 Victory" if match['participant']['win'] else "❌ Defeat"
-                    champion = match['participant']['championName']
-                    kda = f"{match['participant']['kills']}/{match['participant']['deaths']}/{match['participant']['assists']}"
-                    duration = self.embed_factory._format_duration(match['details']['info']['gameDuration'])
-                    
-                    match_info = f"{result}\n**{champion}** - {kda}\n{duration}"
-                    embed.add_field(name=f"Match {i}", value=match_info, inline=True)
-                
-                embed.set_footer(text=f"Recent matches in {region.upper()}")
-                await ctx.send(embed=embed)
                 
                 # Save lookup history
                 await self.db_manager.save_lookup_history(
@@ -187,13 +170,14 @@ class LoLCommands:
                 )
                 
             except Exception as e:
-                logger.error(f"Error getting match history: {e}")
+                import logging
+                logging.error(f"Error in matches command: {e}", exc_info=True)
                 await ctx.send(f"❌ Error getting match history: {str(e)}")
 
     @commands.cooldown(1, 20, commands.BucketType.user)
     @commands.command(name="live", aliases=["spectate", "current"])
     async def live_game(self, ctx, region: str = None, *, summoner_name: str):
-        """Check if a summoner is currently in a live game"""
+        """Check if a summoner is currently in a live game with champion icon"""
         async with ctx.typing():
             try:
                 # Determine region
@@ -206,13 +190,22 @@ class LoLCommands:
                 # Check for active game
                 game_data = await self.api_manager.get_live_game(region, summoner_data["puuid"])
                 
-                # Create and send embed
-                embed = self.embed_factory.create_live_game_embed(summoner_data, game_data, region)
-                await ctx.send(embed=embed)
+                # Send live game info with Components V2
+                success = await self.v2_helper.send_live_game_with_components_v2(
+                    ctx, summoner_data, game_data, region
+                )
+                
+                # If Components V2 fails, fall back to the previous implementation
+                if not success:
+                    await self.v2_helper.fallback_send_live_game(
+                        ctx, summoner_data, game_data, region
+                    )
                 
             except Exception as e:
-                logger.error(f"Error checking live game: {e}")
+                import logging
+                logging.error(f"Error in live_game command: {e}", exc_info=True)
                 await ctx.send(f"❌ Error checking live game: {str(e)}")
+
 
     @commands.cooldown(1, 10, commands.BucketType.user)
     @commands.command(name="rank", aliases=["ranks", "tier"])
@@ -424,7 +417,7 @@ class LoLCommands:
     # Linked account commands
     @commands.command(name="me")
     async def my_profile(self, ctx):
-        """Show your linked League of Legends profile with an enhanced card"""
+        """Show your linked League of Legends profile with champion icons"""
         try:
             linked_account = await self.config.user(ctx.author).linked_account()
             
@@ -445,34 +438,35 @@ class LoLCommands:
                 rank_data = await self.api_manager.get_rank_info(region, summoner_data["id"])
                 
                 # Get champion mastery data
-                mastery_data = await self.api_manager.get_champion_mastery(region, summoner_data["puuid"], count=3)
+                mastery_data = await self.api_manager.get_champion_mastery(region, summoner_data["puuid"], count=5)
                 
-                # Get champion data
+                # Get champion data to ensure we have names
                 champion_data = await self.api_manager.get_champion_data()
                 
-                # Add champion names and icon IDs to mastery data
+                # Add champion names to mastery data if needed
                 for mastery in mastery_data:
-                    champion_id = mastery["championId"]
-                    for champ_key, champ_info in champion_data.get("data", {}).items():
-                        if int(champ_info["key"]) == champion_id:
-                            mastery["championName"] = champ_info["name"]
-                            mastery["championIconId"] = champ_info["id"]
-                            # Keep numerical championId for custom icon URL
-                            mastery["championId"] = champion_id
-                            break
+                    if "championName" not in mastery:
+                        champion_id = mastery["championId"]
+                        for champ_key, champ_info in champion_data.get("data", {}).items():
+                            if int(champ_info["key"]) == champion_id:
+                                mastery["championName"] = champ_info["name"]
+                                mastery["championIconId"] = champ_info["id"]
+                                break
                 
-                # Get recent match analysis
-                match_analysis = await self.api_manager.analyze_recent_matches(summoner_data, region, count=20)
-                
-                # Create and send the enhanced embed
-                embed = self.embed_factory.create_me_profile_embed(
-                    summoner_data, rank_data, mastery_data, match_analysis, region
+                # Send profile with Components V2
+                success = await self.v2_helper.send_summoner_profile_with_components_v2(
+                    ctx, summoner_data, rank_data, mastery_data, region
                 )
                 
-                await ctx.send(embed=embed)
+                # If Components V2 fails, fall back to the previous implementation
+                if not success:
+                    await self.v2_helper.fallback_send_summoner_profile(
+                        ctx, summoner_data, rank_data, mastery_data, region
+                    )
                 
         except Exception as e:
-            logger.error(f"Error getting linked profile: {str(e)}")
+            import logging
+            logging.error(f"Error in my_profile command: {e}", exc_info=True)
             await ctx.send(f"❌ Error getting linked profile: {str(e)}")
 
     @commands.command(name="mymastery", aliases=["mymasteries"])
