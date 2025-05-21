@@ -457,18 +457,12 @@ class LoLCommands:
                         if int(champ_info["key"]) == champion_id:
                             mastery["championName"] = champ_info["name"]
                             mastery["championIconId"] = champ_info["id"]
+                            # Keep numerical championId for custom icon URL
+                            mastery["championId"] = champion_id
                             break
                 
                 # Get recent match analysis
                 match_analysis = await self.api_manager.analyze_recent_matches(summoner_data, region, count=20)
-                
-                # Find champion IDs for most played champions
-                if match_analysis and "most_played" in match_analysis:
-                    for i, (champ_name, stats) in enumerate(match_analysis["most_played"]):
-                        for champ_key, champ_info in champion_data.get("data", {}).items():
-                            if champ_info["name"] == champ_name:
-                                match_analysis["most_played"][i] = [champ_name, stats, int(champ_info["key"])]
-                                break
                 
                 # Create and send the enhanced embed
                 embed = self.embed_factory.create_me_profile_embed(
