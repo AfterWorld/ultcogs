@@ -21,6 +21,7 @@ from .constants import REGION_MAPPING
 from .commands import LoLCommands
 from .settings import LoLSettings
 from .errors import LoLErrorHandler
+from .v2_components import V2ComponentsHelper
 
 _ = Translator("LoL", __file__)
 
@@ -37,6 +38,9 @@ class LeagueOfLegends(LoLCommands, LoLSettings, LoLErrorHandler, commands.Cog):
         self.embed_factory = EmbedFactory()
         self.notification_manager = NotificationManager(self)
         self.db_manager = DatabaseManager(data_manager.cog_data_path(self))
+        
+        # Initialize V2 Components Helper
+        self.v2_helper = V2ComponentsHelper(bot)
         
         # Default settings
         default_guild = {"default_region": "na1"}
