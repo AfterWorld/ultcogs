@@ -25,114 +25,90 @@ class V2ComponentsHelper:
         if champion_names is None:
             champion_names = [f"Champion {cid}" for cid in champion_ids]
         
-        # Create an action row for each champion (maximum 5 per row)
-        action_rows = []
-        current_row = []
-        
-        for i, (champion_id, champion_name) in enumerate(zip(champion_ids, champion_names)):
-            # Create image component for the champion
-            image_component = {
-                "type": 5,  # Type 5 is for image components
-                "url": f"https://raw.githubusercontent.com/AfterWorld/ultcogs/main/lol/championicons/{champion_id}.png",
-                "width": 80,  # Reasonable size for champion icon
-                "height": 80
-            }
-            
-            # Create a button component with the champion name
-            button_component = {
-                "type": 2,  # Type 2 is for button components
-                "style": 2,  # Style 2 is for secondary buttons (grey)
-                "label": champion_name,
-                "custom_id": f"champion_{champion_id}"
-            }
-            
-            # Add components to current row
-            current_row.append(image_component)
-            current_row.append(button_component)
-            
-            # Start a new row after every champion (2 components per champion)
-            # Or if we've reached maximum components per row
-            if len(current_row) >= 4:  # Max 4 components per row (2 champions)
-                action_rows.append({
-                    "type": 1,  # ActionRow
-                    "components": current_row
-                })
-                current_row = []
-        
-        # Add any remaining components to the last row
-        if current_row:
-            action_rows.append({
-                "type": 1,  # ActionRow
-                "components": current_row
-            })
-        
-        # Create payload for the message
-        payload = {
-            "content": f"## {title}\n{description}",
-            "components": action_rows
-        }
-        
-        # Use Discord.py's HTTP interface to send the message
         try:
-            await ctx.bot.http.request(
-                discord.http.Route('POST', '/channels/{channel_id}/messages', 
-                                 channel_id=ctx.channel.id),
-                json=payload
-            )
+            # Instead of using components directly, let's use standard embeds as a workaround
+            # This avoids the custom_id error issue
+            
+            # Create a message with the header
+            await ctx.send(f"## {title}\n{description}")
+            
+            # Send individual embeds for each champion
+            for champion_id, champion_name in zip(champion_ids, champion_names):
+                embed = discord.Embed(
+                    title=champion_name,
+                    color=discord.Color.blue()
+                )
+                
+                # Set the champion icon as the image
+                icon_url = f"https://raw.githubusercontent.com/AfterWorld/ultcogs/main/lol/championicons/{champion_id}.png"
+                embed.set_image(url=icon_url)
+                
+                # Send the embed
+                await ctx.send(embed=embed)
+            
             return True
         except Exception as e:
-            logger.error(f"Error sending message with champion icons: {e}")
+            import logging
+            logging.error(f"Error sending message with champion icons: {e}")
             return False
     
     async def send_summoner_profile_with_champions(self, ctx, summoner_data, rank_data, mastery_data, region):
         """
-        Send a summoner profile message with champion icons using V2 components
+        Send a summoner profile message with champion icons using standard embeds
         
-        This combines standard Discord.py embeds for the rank info
-        with V2 components for the champion icons
+        This sends a single summoner info embed followed by champion mastery embeds
         """
         try:
-            # First send a standard embed with summoner info
+            # First send a standard embed with summoner info - ONLY ONCE
             embed_factory = ctx.cog.embed_factory  # Get embed factory from the cog
             embed = embed_factory.create_summoner_embed(summoner_data, rank_data, region)
             await ctx.send(embed=embed)
             
-            # Then send champion mastery info with icons using V2 components
+            # Then send champion mastery info with icons using standard embeds
             if mastery_data:
-                champion_ids = []
-                champion_names = []
-                mastery_info = []
+                # Send a header for the champion section
+                await ctx.send(f"## Champion Mastery - {summoner_data['gameName']}#{summoner_data['tagLine']}")
                 
-                for mastery in mastery_data[:5]:  # Show top 5 champions
+                # Create individual embeds for top champions
+                for i, mastery in enumerate(mastery_data[:5]):  # Show top 5 champions
                     champion_id = mastery["championId"]
                     champion_name = mastery.get("championName", f"Champion {champion_id}")
                     level = mastery["championLevel"]
                     points = mastery["championPoints"]
                     
-                    champion_ids.append(champion_id)
-                    champion_names.append(champion_name)
-                    mastery_info.append(f"Level {level} - {points:,} points")
+                    # Create champion embed
+                    embed = discord.Embed(
+                        title=f"Champion #{i+1}: {champion_name}",
+                        description=f"Level {level} - {points:,} points",
+                        color=self._get_mastery_color(level)  # Add this method to get colors based on level
+                    )
+                    
+                    # Set champion icon as the image
+                    icon_url = ctx.cog.embed_factory.get_custom_champion_icon_url(champion_id)
+                    embed.set_thumbnail(url=icon_url)  # Or use set_image() for larger icons
+                    
+                    await ctx.send(embed=embed)
                 
-                title = f"Champion Mastery - {summoner_data['gameName']}#{summoner_data['tagLine']}"
-                description = "Your top champions:"
-                
-                # Send the message with champion icons
-                success = await self.send_message_with_champion_icons(ctx, title, description, champion_ids, champion_names)
-                
-                if success:
-                    # Send additional mastery info in a regular message
-                    mastery_text = "\n".join([f"**{name}**: {info}" for name, info in zip(champion_names, mastery_info)])
-                    await ctx.send(f"**Champion Mastery Details:**\n{mastery_text}")
-                else:
-                    # Fallback if v2 components failed
-                    await self.fallback_send_summoner_profile(ctx, summoner_data, rank_data, mastery_data, region)
+                return True
             
-            return True
         except Exception as e:
-            logger.error(f"Error sending summoner profile with champions: {e}")
+            import logging
+            logging.error(f"Error sending summoner profile with champions: {e}")
             # Fallback to traditional method
             await self.fallback_send_summoner_profile(ctx, summoner_data, rank_data, mastery_data, region)
             return False
+    def _get_mastery_color(self, level: int) -> discord.Color:
+        """Get color based on champion mastery level"""
+        colors = {
+            7: discord.Color.purple(),   # Level 7
+            6: discord.Color.magenta(),  # Level 6
+            5: discord.Color.red(),      # Level 5
+            4: discord.Color.blue(),     # Level 4
+            3: discord.Color.green(),    # Level 3
+            2: discord.Color.gold(),     # Level 2
+            1: discord.Color.light_grey() # Level 1
+        }
+        return colors.get(level, discord.Color.default())
     
     async def send_live_game_with_champion_icon(self, ctx, summoner_data, game_data, region):
         """Send live game info with champion icon using V2 components"""
