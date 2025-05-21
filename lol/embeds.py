@@ -734,3 +734,336 @@ class EmbedFactory:
         )
         
         return embed
+
+    def get_custom_champion_icon_url(self, champion_key: int) -> str:
+        """Get custom champion icon URL from champion key (numerical ID)"""
+        return f"https://raw.githubusercontent.com/AfterWorld/ultcogs/main/lol/championicons/{champion_key}.png"
+
+    def create_me_profile_embed(self, summoner_data: Dict, rank_data: List[Dict], 
+                        mastery_data: List[Dict], match_analysis: Dict, region: str) -> discord.Embed:
+        """Create an enhanced profile embed that mimics the React card but in native Discord format"""
+        embed_color = self.get_rank_color(rank_data)
+        
+        # Create description with header info
+        description = (
+            f"## {summoner_data['gameName']}#{summoner_data['tagLine']}\n"
+            f"**Level {summoner_data.get('summonerLevel', 'N/A')}** • {region.upper()} Region\n\n"
+        )
+        
+        embed = discord.Embed(
+            title="League of Legends Profile",
+            description=description,
+            color=embed_color,
+            timestamp=datetime.now()
+        )
+        
+        # Profile icon
+        if "profileIconId" in summoner_data:
+            icon_url = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/profileicon/{summoner_data['profileIconId']}.png"
+            embed.set_thumbnail(url=icon_url)
+        
+        # Ranked information with enhanced formatting
+        if rank_data:
+            rank_str = "## Ranked Status\n"
+            
+            for rank in rank_data[:2]:  # Show top 2 ranked queues
+                queue_type = rank["queueType"].replace("_", " ").title()
+                tier = rank.get("tier", "Unranked").upper()
+                division = rank.get("rank", "")
+                lp = rank.get("leaguePoints", 0)
+                wins = rank.get("wins", 0)
+                losses = rank.get("losses", 0)
+                
+                if tier != "UNRANKED":
+                    rank_emoji = self.get_rank_emoji(tier)
+                    winrate = round((wins / (wins + losses)) * 100, 1) if (wins + losses) > 0 else 0
+                    
+                    # Color-coded win rate indicator
+                    if winrate >= 60:
+                        wr_indicator = "🟢"
+                    elif winrate >= 50:
+                        wr_indicator = "🟡"
+                    else:
+                        wr_indicator = "🔴"
+                    
+                    rank_str += (
+                        f"### {rank_emoji} {queue_type}\n"
+                        f"**{tier.title()} {division}** • {lp} LP\n"
+                        f"**W/L:** {wins}W / {losses}L • **WR:** {wr_indicator} {winrate}%\n"
+                    )
+                    
+                    # Add special status indicators
+                    status = []
+                    if rank.get("hotStreak"):
+                        status.append("🔥 **Hot Streak!**")
+                    if rank.get("veteran"):
+                        status.append("⭐ Veteran")
+                    if rank.get("inactive"):
+                        status.append("💤 Inactive")
+                        
+                    if status:
+                        rank_str += " • ".join(status) + "\n"
+                        
+                    rank_str += "\n"
+                else:
+                    rank_str += f"### {queue_type}\n❓ **Unranked**\n\n"
+        else:
+            rank_str = "## Ranked Status\n❓ **Unranked in all queues**\n\n"
+        
+        embed.description = description + rank_str
+        
+        # Top Champions section with mastery info - USE CHAMPION ICONS NOW
+        if mastery_data:
+            champions_field = ""
+            for i, mastery in enumerate(mastery_data[:3], 1):
+                # Level-based emojis
+                level_emojis = {7: "💎", 6: "💜", 5: "🔥", 4: "⭐", 3: "⚡", 2: "✨", 1: "🔹"}
+                level = mastery["championLevel"]
+                level_emoji = level_emojis.get(level, "⭐")
+                
+                # Format points with commas
+                points = mastery["championPoints"]
+                formatted_points = f"{points:,}"
+                
+                champ_name = mastery.get("championName", f"Champion {mastery['championId']}")
+                
+                # Add champion icon URL
+                champion_icon = self.get_custom_champion_icon_url(mastery['championId'])
+                champions_field += f"**{i}.** {level_emoji} **[{champ_name}]({champion_icon})** (Lvl {level}): {formatted_points} pts\n"
+            
+            embed.add_field(
+                name="🏅 Top Champions",
+                value=champions_field or "No mastery data available",
+                inline=False
+            )
+        
+        # Recent performance metrics with enhanced formatting
+        if match_analysis:
+            winrate = match_analysis.get('winrate', 0)
+            kda = match_analysis.get('avg_kda', 0)
+            
+            # Winrate indicator
+            if winrate >= 60:
+                wr_indicator = "🔥 Excellent"
+            elif winrate >= 50:
+                wr_indicator = "✅ Good"
+            else:
+                wr_indicator = "🔄 Needs Improvement"
+            
+            # KDA indicator
+            if kda >= 4.0:
+                kda_indicator = "💯 Outstanding"
+            elif kda >= 3.0:
+                kda_indicator = "👍 Great"
+            elif kda >= 2.0:
+                kda_indicator = "👌 Average"
+            else:
+                kda_indicator = "👊 Fighting"
+            
+            # Performance section
+            performance_field = (
+                f"**Win Rate:** {winrate:.1f}% ({match_analysis.get('wins', 0)}W / {match_analysis.get('losses', 0)}L) {wr_indicator}\n"
+                f"**KDA:** {match_analysis.get('avg_kda', 0):.2f} {kda_indicator}\n"
+                f"**K/D/A:** {match_analysis.get('avg_kills', 0):.1f}/{match_analysis.get('avg_deaths', 0):.1f}/{match_analysis.get('avg_assists', 0):.1f}\n\n"
+            )
+            
+            # Most played champions with CHAMPION ICONS
+            if match_analysis.get('most_played'):
+                performance_field += "**Most Played Champions:**\n"
+                for i, (champ_name, stats, champion_id) in enumerate(match_analysis['most_played'][:3], 1):
+                    winrate = (stats["wins"] / stats["games"]) * 100
+                    win_indicator = "🟢" if winrate >= 55 else "🟡" if winrate >= 45 else "🔴"
+                    
+                    # Use champion icon URL if we have the champion ID
+                    if champion_id:
+                        champion_icon = self.get_custom_champion_icon_url(champion_id)
+                        performance_field += f"{i}. **[{champ_name}]({champion_icon})**: {win_indicator} {winrate:.1f}% WR ({stats['games']} games)\n"
+                    else:
+                        performance_field += f"{i}. **{champ_name}**: {win_indicator} {winrate:.1f}% WR ({stats['games']} games)\n"
+            
+            embed.add_field(
+                name=f"📈 Recent Performance (Last {match_analysis.get('total_games', 0)} Games)",
+                value=performance_field,
+                inline=False
+            )
+        
+        # Footer
+        embed.set_footer(
+            text=f"Your linked League of Legends account • Updated", 
+            icon_url=self.riot_logo
+        )
+        
+        return embed
+
+    def create_notification_embed(self, summoner_data: Dict, game_data: Optional[Dict], game_started: bool) -> discord.Embed:
+        """Create an embed for live game notifications"""
+        if game_started and game_data:
+            # Game started notification
+            embed = discord.Embed(
+                title="🎮 Game Started!",
+                description=f"**{summoner_data['gameName']}#{summoner_data['tagLine']}** started a game",
+                color=0x00FF00,
+                timestamp=datetime.now()
+            )
+            
+            game_mode = game_data.get("gameMode", "Unknown")
+            queue_id = game_data.get("gameQueueConfigId", 0)
+            queue_type = QUEUE_TYPES.get(queue_id, f"Queue {queue_id}")
+            
+            embed.add_field(name="🎮 Game Mode", value=game_mode, inline=True)
+            embed.add_field(name="🏆 Queue", value=queue_type, inline=True)
+            embed.add_field(name="🌍 Region", value=summoner_data['region'].upper(), inline=True)
+            
+            # Find the player's champion
+            for participant in game_data.get("participants", []):
+                if participant["puuid"] == summoner_data["puuid"]:
+                    champion_id = participant.get("championId", 0)
+                    
+                    # Use custom champion icon URL
+                    champion_icon = self.get_custom_champion_icon_url(champion_id)
+                    
+                    # Add champion as an image using the icon URL in the description
+                    embed.add_field(
+                        name="🏅 Champion",
+                        value=f"[Champion Icon]({champion_icon})",
+                        inline=True
+                    )
+                    
+                    # Set the champion icon as the thumbnail
+                    embed.set_thumbnail(url=champion_icon)
+                    break
+        else:
+            # Game ended notification
+            embed = discord.Embed(
+                title="🏁 Game Ended",
+                description=f"**{summoner_data['gameName']}#{summoner_data['tagLine']}** finished their game",
+                color=0xFF6B35,
+                timestamp=datetime.now()
+            )
+            
+            embed.add_field(name="🌍 Region", value=summoner_data['region'].upper(), inline=True)
+        
+        return embed
+
+    def create_live_game_embed(self, summoner_data: Dict, game_data: Optional[Dict], region: str) -> discord.Embed:
+        """Create a live game status embed"""
+        if game_data:
+            # In game
+            embed = discord.Embed(
+                title=f"🔴 Live Game - {summoner_data['gameName']}#{summoner_data['tagLine']}",
+                color=0xFF0000,
+                timestamp=datetime.now()
+            )
+            
+            # Game info
+            game_mode = game_data["gameMode"]
+            game_length = game_data["gameLength"]
+            game_minutes = game_length // 60
+            game_seconds = game_length % 60
+            
+            embed.add_field(name="🎮 Game Mode", value=game_mode, inline=True)
+            embed.add_field(name="⏱️ Game Length", value=f"{game_minutes}m {game_seconds}s", inline=True)
+            embed.add_field(name="🌍 Region", value=region.upper(), inline=True)
+            
+            # Find the player's champion
+            for participant in game_data["participants"]:
+                if participant["puuid"] == summoner_data["puuid"]:
+                    champion_id = participant.get("championId", 0)
+                    
+                    # Use custom champion icon URL
+                    champion_icon = self.get_custom_champion_icon_url(champion_id)
+                    
+                    # Add champion info
+                    embed.add_field(
+                        name="🏆 Champion",
+                        value=f"[Champion Icon]({champion_icon})",
+                        inline=True
+                    )
+                    
+                    # Set the thumbnail to the champion icon
+                    embed.set_thumbnail(url=champion_icon)
+                    break
+            
+            embed.set_footer(text="🔴 Currently in game")
+        else:
+            # Not in game
+            embed = discord.Embed(
+                title=f"{summoner_data['gameName']}#{summoner_data['tagLine']}",
+                description="Not currently in a game",
+                color=0x808080
+            )
+            embed.add_field(name="🌍 Region", value=region.upper(), inline=True)
+            embed.set_footer(text="⚫ Offline")
+        
+        return embed
+
+    def create_match_embed(self, summoner_data: Dict, match_details: Dict, participant: Dict) -> discord.Embed:
+        """Create an enhanced match embed"""
+        win = participant["win"]
+        embed_color = 0x00FF7F if win else 0xFF6B6B
+        
+        # Game info
+        game_mode = match_details["info"]["gameMode"]
+        game_duration = match_details["info"]["gameDuration"]
+        champion = participant["championName"]
+        champion_id = participant.get("championId", 0)
+        
+        # KDA info
+        kills = participant["kills"]
+        deaths = participant["deaths"]
+        assists = participant["assists"]
+        kda_ratio = (kills + assists) / max(deaths, 1)
+        
+        # Result emoji and text
+        result_emoji = "🏆" if win else "❌"
+        result_text = "Victory" if win else "Defeat"
+        
+        embed = discord.Embed(
+            title=f"{result_emoji} {result_text}",
+            description=f"**{champion}** • {self._format_duration(game_duration)}",
+            color=embed_color,
+            timestamp=datetime.fromtimestamp(match_details["info"]["gameCreation"] / 1000)
+        )
+        
+        # Game mode with emoji
+        mode_emoji = self.get_game_mode_emoji(game_mode)
+        embed.add_field(
+            name=f"{mode_emoji} Game Mode",
+            value=game_mode,
+            inline=True
+        )
+        
+        # Enhanced KDA display
+        embed.add_field(
+            name="⚔️ KDA",
+            value=f"**{kills}** / {deaths} / **{assists}**\n({kda_ratio:.2f} ratio)",
+            inline=True
+        )
+        
+        # Damage and vision score if available
+        if "totalDamageDealtToChampions" in participant:
+            damage = participant["totalDamageDealtToChampions"]
+            embed.add_field(
+                name="💥 Damage to Champions",
+                value=f"{damage:,}",
+                inline=True
+            )
+        
+        if "visionScore" in participant:
+            vision = participant["visionScore"]
+            embed.add_field(
+                name="👁️ Vision Score",
+                value=f"{vision}",
+                inline=True
+            )
+        
+        # Champion image - use custom champion icon
+        if champion_id:
+            champion_icon = self.get_custom_champion_icon_url(champion_id)
+        else:
+            # Fallback to Data Dragon if needed
+            champion_icon = f"http://ddragon.leagueoflegends.com/cdn/{DDRAGON_VERSION}/img/champion/{champion}.png"
+        
+        embed.set_thumbnail(url=champion_icon)
+        
+        return embed
