@@ -126,7 +126,7 @@ class NotificationManager:
             embed = self.cog.embed_factory.create_notification_embed(
                 summoner_data, game_data, game_started=True
             )
-            await self._send_to_notification_channels(embed)
+            await self._send_to_notification_channels(embed, game_data, summoner_data)
             logger.info(f"{summoner_data['gameName']} started a game")
     
     async def _handle_game_end(self, summoner_data: Dict):
@@ -143,8 +143,8 @@ class NotificationManager:
             await self._send_to_notification_channels(embed)
             logger.info(f"{summoner_data['gameName']} ended their game")
     
-    async def _send_to_notification_channels(self, embed: discord.Embed):
-        """Send embed to all notification channels"""
+    async def _send_to_notification_channels(self, embed: discord.Embed, game_data=None, summoner_data=None):
+        """Send embed to all notification channels with champion icon support"""
         for guild_id, channel_ids in self.notification_channels.items():
             guild = self.cog.bot.get_guild(guild_id)
             if not guild:
@@ -154,7 +154,57 @@ class NotificationManager:
                 channel = guild.get_channel(channel_id)
                 if channel and isinstance(channel, discord.TextChannel):
                     try:
+                        # First send the standard embed
                         await channel.send(embed=embed)
+                        
+                        # If we have game data and summoner data and it's a game start notification
+                        if game_data and summoner_data and summoner_data.get("in_game", False):
+                            # Find champion ID
+                            champion_id = None
+                            champion_name = None
+                            
+                            for participant in game_data.get("participants", []):
+                                if participant.get("puuid") == summoner_data.get("puuid"):
+                                    champion_id = participant.get("championId", 0)
+                                    champion_name = participant.get("championName", f"Champion {champion_id}")
+                                    break
+                            
+                            # If we found a champion, send icon using V2 components
+                            if champion_id:
+                                try:
+                                    # Try to use V2 components
+                                    success = await self.cog.v2_helper.send_message_with_champion_icons(
+                                        channel, 
+                                        "Champion Being Played", 
+                                        f"{summoner_data['gameName']} is playing:", 
+                                        [champion_id], 
+                                        [champion_name]
+                                    )
+                                    
+                                    # If V2 components failed, send a standard image embed
+                                    if not success:
+                                        icon_url = self.cog.embed_factory.get_custom_champion_icon_url(champion_id)
+                                        champ_embed = discord.Embed(
+                                            title=f"Playing: {champion_name}",
+                                            color=discord.Color.red()
+                                        )
+                                        champ_embed.set_image(url=icon_url)
+                                        await channel.send(embed=champ_embed)
+                                        
+                                except Exception as e:
+                                    logger.warning(f"Failed to send champion icon: {e}")
+                                    # Try fallback to standard embed with image
+                                    try:
+                                        icon_url = self.cog.embed_factory.get_custom_champion_icon_url(champion_id)
+                                        champ_embed = discord.Embed(
+                                            title=f"Playing: {champion_name}",
+                                            color=discord.Color.red()
+                                        )
+                                        champ_embed.set_image(url=icon_url)
+                                        await channel.send(embed=champ_embed)
+                                    except Exception:
+                                        pass
+                                    
                     except (discord.Forbidden, discord.HTTPException) as e:
                         logger.warning(f"Failed to send notification to {channel_id}: {e}")
                         # Remove invalid channels
