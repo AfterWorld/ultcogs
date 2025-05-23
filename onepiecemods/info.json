@@ -1,6 +1,6 @@
 {
   "author": [
-    "One Piece Mods Team"
+    "UltPanda"
   ],
   "install_msg": "🏴‍☠️ **One Piece Mods v2.0.0 Installed!**\n\n**Quick Setup:**\n• Use `[p]opm setup` for interactive configuration\n• Or manually set mute role: `[p]opm setmuterole`\n• Set log channel: `[p]opm setlogchannel`\n\n**Commands:**\n• `[p]luffykick` - Kick with One Piece style\n• `[p]shanksban` - Ban with Yonko power\n• `[p]lawroom` - Mute with Sea Prism Stone\n• `[p]bountyset` - Warning system with bounties\n• `[p]impeldown` - Multi-level punishment system\n• `[p]piratehelp` - Full command help\n\n**Features:**\n• 6-level Impel Down punishment system\n• Automatic escalation based on warnings\n• One Piece themed messages and embeds\n• Role preservation and restoration\n• Background task for automatic releases\n• Integration with Red's modlog system\n\n⚡ Ready to sail the Grand Line of moderation!",
   "name": "OnePieceMods",
