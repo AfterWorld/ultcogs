@@ -129,12 +129,21 @@ class ConfigManager:
         if webhook_url is None:
             return True, ""
         
-        if not webhook_url.startswith("https://discord.com/api/webhooks/"):
-            return False, "Invalid webhook URL format"
+        # Accept Discord webhook URLs from all Discord domains
+        valid_prefixes = [
+            "https://discord.com/api/webhooks/",
+            "https://canary.discord.com/api/webhooks/",
+            "https://ptb.discord.com/api/webhooks/"
+        ]
+        
+        if not any(webhook_url.startswith(prefix) for prefix in valid_prefixes):
+            return False, "Invalid webhook URL format. Must be a Discord webhook URL."
         
         try:
             # Test webhook by sending a test message
-            webhook = discord.Webhook.from_url(webhook_url, session=self.bot.session)
+            # Use bot's session if available, otherwise use the default
+            session = getattr(self.bot, 'session', None)
+            webhook = discord.Webhook.from_url(webhook_url, session=session)
             await webhook.send("✅ Webhook test successful", username="One Piece Mods")
             return True, ""
         except Exception as e:

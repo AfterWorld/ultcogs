@@ -59,8 +59,9 @@ class WebhookLogger:
                 return cached_webhook
         
         try:
-            # Discord.py 2.0+ doesn't use adapters anymore
-            webhook = discord.Webhook.from_url(webhook_url, session=self.bot.session)
+            # Use bot's session if available, otherwise use the default
+            session = getattr(self.bot, 'session', None)
+            webhook = discord.Webhook.from_url(webhook_url, session=session)
             
             self._webhook_cache[guild.id] = (webhook, webhook_url)
             return webhook
