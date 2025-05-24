@@ -139,15 +139,21 @@ class ConfigManager:
         if not any(webhook_url.startswith(prefix) for prefix in valid_prefixes):
             return False, "Invalid webhook URL format. Must be a Discord webhook URL."
         
+        # Basic URL structure validation
+        parts = webhook_url.split('/')
+        if len(parts) < 7:
+            return False, "Invalid webhook URL structure."
+        
         try:
-            # Test webhook by sending a test message
-            # Use bot's session if available, otherwise use the default
-            session = getattr(self.bot, 'session', None)
-            webhook = discord.Webhook.from_url(webhook_url, session=session)
-            await webhook.send("✅ Webhook test successful", username="One Piece Mods")
-            return True, ""
-        except Exception as e:
-            return False, f"Webhook test failed: {str(e)}"
+            # Check if webhook ID is a valid integer
+            webhook_id = parts[5]
+            int(webhook_id)
+        except (ValueError, IndexError):
+            return False, "Invalid webhook ID in URL."
+        
+        # Don't test the webhook during validation to avoid session issues
+        # The test will be done separately with the test command
+        return True, ""
     
     async def validate_escalation_levels(self, guild: discord.Guild, escalation_data: dict) -> Tuple[bool, str]:
         """Validate escalation levels configuration"""

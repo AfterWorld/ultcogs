@@ -59,8 +59,13 @@ class WebhookLogger:
                 return cached_webhook
         
         try:
-            # Use bot's session if available, otherwise use the default
-            session = getattr(self.bot, 'session', None)
+            # Try to use the bot's HTTP session first
+            session = None
+            if hasattr(self.bot, '_connection') and hasattr(self.bot._connection, 'http'):
+                session = self.bot._connection.http._HTTPClient__session
+            elif hasattr(self.bot, 'http') and hasattr(self.bot.http, '_HTTPClient__session'):
+                session = self.bot.http._HTTPClient__session
+            
             webhook = discord.Webhook.from_url(webhook_url, session=session)
             
             self._webhook_cache[guild.id] = (webhook, webhook_url)
@@ -394,11 +399,20 @@ class WebhookLogger:
     
     async def test_webhook(self, guild: discord.Guild) -> tuple[bool, str]:
         """Test the webhook configuration"""
-        webhook = await self.get_webhook(guild)
-        if not webhook:
-            return False, "No webhook configured or webhook is invalid"
+        webhook_url = await self.config_manager.get_setting(guild, "webhook_url")
+        if not webhook_url:
+            return False, "No webhook configured"
         
         try:
+            # Try to use the bot's HTTP session
+            session = None
+            if hasattr(self.bot, '_connection') and hasattr(self.bot._connection, 'http'):
+                session = self.bot._connection.http._HTTPClient__session
+            elif hasattr(self.bot, 'http') and hasattr(self.bot.http, '_HTTPClient__session'):
+                session = self.bot.http._HTTPClient__session
+            
+            webhook = discord.Webhook.from_url(webhook_url, session=session)
+            
             embed = discord.Embed(
                 title="\U0001f9ea Webhook Test",  # 🧪
                 description="This is a test message to verify webhook functionality",

@@ -2467,7 +2467,7 @@ class OnePieceMods(commands.Cog):
             if success:
                 embed = EmbedCreator.success_embed(
                     "Webhook Configured",
-                    "Webhook URL has been set and tested successfully!"
+                    f"Webhook URL has been set successfully!\n\nUse `{ctx.clean_prefix}opm webhook test` to verify it's working."
                 )
                 await self.webhook_logger.log_configuration_change(
                     ctx.guild, "webhook_url", "Not set", "Configured", ctx.author
