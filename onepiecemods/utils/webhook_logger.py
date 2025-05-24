@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import logging
 from enum import Enum
+import aiohttp
 
 logger = logging.getLogger("red.onepiecemods.webhook")
 
@@ -36,13 +37,13 @@ class WebhookLogger:
             LogLevel.CRITICAL: discord.Color.dark_red()
         }
         
-        # Emoji mapping for log levels
+        # Emoji mapping for log levels (using Unicode escape sequences)
         self.level_emojis = {
-            LogLevel.INFO: "ℹ️",
-            LogLevel.WARNING: "⚠️",
-            LogLevel.ERROR: "❌",
-            LogLevel.SUCCESS: "✅",
-            LogLevel.CRITICAL: "🚨"
+            LogLevel.INFO: "\u2139\ufe0f",        # ℹ️
+            LogLevel.WARNING: "\u26a0\ufe0f",     # ⚠️
+            LogLevel.ERROR: "\u274c",             # ❌
+            LogLevel.SUCCESS: "\u2705",           # ✅
+            LogLevel.CRITICAL: "\U0001f6a8"       # 🚨
         }
     
     async def get_webhook(self, guild: discord.Guild) -> Optional[discord.Webhook]:
@@ -59,7 +60,14 @@ class WebhookLogger:
                 return cached_webhook
         
         try:
-            webhook = discord.Webhook.from_url(webhook_url, session=self.bot.session)
+            # Use bot's session if available, otherwise create a new one
+            session = getattr(self.bot, 'session', None)
+            if session is None:
+                # Create a temporary session for this webhook
+                webhook = discord.Webhook.from_url(webhook_url, adapter=discord.AsyncWebhookAdapter(aiohttp.ClientSession()))
+            else:
+                webhook = discord.Webhook.from_url(webhook_url, adapter=discord.AsyncWebhookAdapter(session))
+            
             self._webhook_cache[guild.id] = (webhook, webhook_url)
             return webhook
         except Exception as e:
@@ -145,25 +153,25 @@ class WebhookLogger:
         
         # Create embed
         embed = discord.Embed(
-            title=f"🛡️ Moderation Action: {action_type.title()}",
+            title=f"\U0001f6e1\ufe0f Moderation Action: {action_type.title()}",  # 🛡️
             color=self._get_action_color(action_type),
             timestamp=datetime.now()
         )
         
         # Add basic information
-        embed.add_field(name="👤 Target", value=f"{target.mention} ({target.id})", inline=True)
-        embed.add_field(name="⚔️ Moderator", value=f"{moderator.mention} ({moderator.id})", inline=True)
+        embed.add_field(name="\U0001f464 Target", value=f"{target.mention} ({target.id})", inline=True)  # 👤
+        embed.add_field(name="\u2694\ufe0f Moderator", value=f"{moderator.mention} ({moderator.id})", inline=True)  # ⚔️
         
         if case_number:
-            embed.add_field(name="📋 Case", value=f"#{case_number}", inline=True)
+            embed.add_field(name="\U0001f4cb Case", value=f"#{case_number}", inline=True)  # 📋
         
         if duration:
-            embed.add_field(name="⏰ Duration", value=duration, inline=True)
+            embed.add_field(name="\u23f0 Duration", value=duration, inline=True)  # ⏰
         
         if level:
-            embed.add_field(name="📊 Level", value=f"Level {level}", inline=True)
+            embed.add_field(name="\U0001f4ca Level", value=f"Level {level}", inline=True)  # 📊
         
-        embed.add_field(name="📜 Reason", value=reason or "No reason provided", inline=False)
+        embed.add_field(name="\U0001f4dc Reason", value=reason or "No reason provided", inline=False)  # 📜
         
         # Add extra fields
         for key, value in kwargs.items():
@@ -210,7 +218,7 @@ class WebhookLogger:
             return False
         
         embed = discord.Embed(
-            title="⚙️ Configuration Changed",
+            title="\u2699\ufe0f Configuration Changed",  # ⚙️
             color=discord.Color.blue(),
             timestamp=datetime.now()
         )
@@ -234,19 +242,19 @@ class WebhookLogger:
             return False
         
         embed = discord.Embed(
-            title="🔓 Punishment Expired",
+            title="\U0001f513 Punishment Expired",  # 🔓
             description=f"{member.mention} has been automatically released",
             color=discord.Color.green(),
             timestamp=datetime.now()
         )
         
-        embed.add_field(name="👤 Member", value=f"{member.mention} ({member.id})", inline=True)
-        embed.add_field(name="📋 Punishment", value=punishment_type.title(), inline=True)
+        embed.add_field(name="\U0001f464 Member", value=f"{member.mention} ({member.id})", inline=True)  # 👤
+        embed.add_field(name="\U0001f4cb Punishment", value=punishment_type.title(), inline=True)  # 📋
         
         if level:
-            embed.add_field(name="📊 Level", value=f"Level {level}", inline=True)
+            embed.add_field(name="\U0001f4ca Level", value=f"Level {level}", inline=True)  # 📊
         
-        embed.add_field(name="⏰ Original Duration", value=original_duration, inline=True)
+        embed.add_field(name="\u23f0 Original Duration", value=original_duration, inline=True)  # ⏰
         
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_footer(text=f"Guild: {guild.name}", icon_url=guild.icon.url if guild.icon else None)
@@ -262,17 +270,17 @@ class WebhookLogger:
             return False
         
         embed = discord.Embed(
-            title="⚡ Automatic Escalation",
+            title="\u26a1 Automatic Escalation",  # ⚡
             description=f"Warning level {warning_level} triggered automatic escalation",
             color=discord.Color.orange(),
             timestamp=datetime.now()
         )
         
-        embed.add_field(name="👤 Member", value=f"{member.mention} ({member.id})", inline=True)
-        embed.add_field(name="⚠️ Warning Level", value=str(warning_level), inline=True)
-        embed.add_field(name="🏭 Impel Down Level", value=f"Level {escalation_level}", inline=True)
-        embed.add_field(name="⏰ Duration", value=escalation_duration, inline=True)
-        embed.add_field(name="⚔️ Triggered By", value=f"{moderator.mention} ({moderator.id})", inline=True)
+        embed.add_field(name="\U0001f464 Member", value=f"{member.mention} ({member.id})", inline=True)  # 👤
+        embed.add_field(name="\u26a0\ufe0f Warning Level", value=str(warning_level), inline=True)  # ⚠️
+        embed.add_field(name="\U0001f3ed Impel Down Level", value=f"Level {escalation_level}", inline=True)  # 🏭
+        embed.add_field(name="\u23f0 Duration", value=escalation_duration, inline=True)  # ⏰
+        embed.add_field(name="\u2694\ufe0f Triggered By", value=f"{moderator.mention} ({moderator.id})", inline=True)  # ⚔️
         
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_footer(text=f"Guild: {guild.name}", icon_url=guild.icon.url if guild.icon else None)
@@ -288,7 +296,7 @@ class WebhookLogger:
             return False
         
         embed = discord.Embed(
-            title="🚨 Error Occurred",
+            title="\U0001f6a8 Error Occurred",  # 🚨
             description=error_message,
             color=discord.Color.red(),
             timestamp=datetime.now()
@@ -314,7 +322,7 @@ class WebhookLogger:
             return False
         
         embed = discord.Embed(
-            title="📊 Moderation Summary",
+            title="\U0001f4ca Moderation Summary",  # 📊
             description="Summary of recent moderation activity",
             color=discord.Color.blue(),
             timestamp=datetime.now()
@@ -389,7 +397,7 @@ class WebhookLogger:
         
         return color_map.get(action_type.lower(), discord.Color.light_grey())
     
-    async def test_webhook(self, guild: discord.Guild) -> Tuple[bool, str]:
+    async def test_webhook(self, guild: discord.Guild) -> tuple[bool, str]:
         """Test the webhook configuration"""
         webhook = await self.get_webhook(guild)
         if not webhook:
@@ -397,12 +405,12 @@ class WebhookLogger:
         
         try:
             embed = discord.Embed(
-                title="🧪 Webhook Test",
+                title="\U0001f9ea Webhook Test",  # 🧪
                 description="This is a test message to verify webhook functionality",
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            embed.add_field(name="Status", value="✅ Webhook is working correctly", inline=False)
+            embed.add_field(name="Status", value="\u2705 Webhook is working correctly", inline=False)  # ✅
             embed.set_footer(text=f"Guild: {guild.name}")
             
             await webhook.send(
