@@ -1,0 +1,66 @@
+{
+  "author": [
+    "UltPanda"
+  ],
+  "install_msg": "🏴‍☠️ **One Piece Mods v2.0.0 Installed!**\n\n**Quick Setup:**\n• Use `[p]opm setup` for interactive configuration\n• Or manually set mute role: `[p]opm setmuterole`\n• Set log channel: `[p]opm setlogchannel`\n\n**Commands:**\n• `[p]luffykick` - Kick with One Piece style\n• `[p]shanksban` - Ban with Yonko power\n• `[p]lawroom` - Mute with Sea Prism Stone\n• `[p]bountyset` - Warning system with bounties\n• `[p]impeldown` - Multi-level punishment system\n• `[p]piratehelp` - Full command help\n\n**Features:**\n• 6-level Impel Down punishment system\n• Automatic escalation based on warnings\n• One Piece themed messages and embeds\n• Role preservation and restoration\n• Background task for automatic releases\n• Integration with Red's modlog system\n\n⚡ Ready to sail the Grand Line of moderation!",
+  "name": "OnePieceMods",
+  "short": "Advanced One Piece themed Discord moderation system with multi-level punishments",
+  "description": "Transform your Discord server moderation into an epic One Piece adventure! This comprehensive cog provides themed moderation commands with a unique Impel Down punishment system, automatic escalation, bounty-based warnings, and much more. Features include Luffy-style kicks, Shanks-level bans, Law's Room muting, Marine bounty warnings, and a 6-level Impel Down prison system. Perfect for One Piece fans who want to add some Grand Line flair to their server management.",
+  "tags": [
+    "moderation",
+    "anime",
+    "onepiece", 
+    "punishment",
+    "warnings",
+    "mute",
+    "ban",
+    "kick",
+    "themed",
+    "impeldown",
+    "bounty",
+    "pirate",
+    "marine",
+    "escalation",
+    "automatic",
+    "logging"
+  ],
+  "requirements": [
+    "discord.py>=2.3.0"
+  ],
+  "min_bot_version": "3.5.0",
+  "min_python_version": [3, 8, 0],
+  "hidden": false,
+  "disabled": false,
+  "type": "COG",
+  "end_user_data_statement": "This cog stores moderation data including user warnings, punishment history, active punishments, and role information for restoration purposes. This data is stored per-guild and is used solely for moderation tracking and automatic punishment management. No personal data beyond Discord user IDs and moderation records is collected or stored.",
+  "repo_name": "OnePieceMods",
+  "permissions": [
+    "kick_members",
+    "ban_members", 
+    "manage_roles",
+    "moderate_members",
+    "manage_messages",
+    "view_audit_log",
+    "send_messages",
+    "embed_links",
+    "attach_files",
+    "read_message_history",
+    "add_reactions"
+  ],
+  "bot_permissions": [
+    "kick_members",
+    "ban_members",
+    "manage_roles", 
+    "moderate_members",
+    "manage_messages",
+    "send_messages",
+    "embed_links",
+    "attach_files",
+    "read_message_history"
+  ],
+  "changelog": {
+    "2.0.0": "Complete overhaul with advanced features: Interactive setup wizard, enhanced configuration system, improved error handling, background task optimization, comprehensive hierarchy checks, role preservation system, escalation automation, rich embeds, paginated history, detailed statistics, backup system, webhook integration, and extensive One Piece theming.",
+    "1.0.0": "Initial release with basic One Piece themed moderation commands, Impel Down system, warning system, and automatic punishment expiration."
+  },
+  "version": "2.0.0"
+}
