@@ -24,6 +24,8 @@ from .data.impel_down import IMPEL_DOWN_LEVELS, IMPEL_DOWN_MESSAGES, IMPEL_DOWN_
 # Import utilities
 from .utils.embed_creator import EmbedCreator
 from .utils.hierarchy import check_hierarchy, sanitize_reason, format_time_duration
+from .utils.config_manager import ConfigManager
+from .utils.webhook_logger import WebhookLogger
 
 class DurationConverter(commands.Converter):
     """Convert duration strings like 1h30m to seconds"""
