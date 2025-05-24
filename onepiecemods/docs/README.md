@@ -53,7 +53,7 @@ An advanced, feature-rich Discord moderation cog for Red-DiscordBot with complet
 
 ## 🚀 Installation
 
-### Method 1: Red's Cog Manager (Recommended)
+### Red's Cog Manager 
 ```bash
 # Add the repository
 [p]repo add onepiecemods https://github.com/AfterWorld/ultcogs/tree/main/onepiecemods
@@ -118,7 +118,7 @@ This will guide you through:
 | `[p]lawroom` | `seaprism`, `calmcalm` | Mute a user | `!lawroom @user 1h30m reason` |
 | `[p]bountyset` | `marinealert`, `poster` | Warn a user | `!bountyset @user reason` |
 | `[p]impeldown` | `imprison` | Send to Impel Down | `!impeldown @user 3 2h reason` |
-| `[p]liberate` | `free`, `breakout` | Release from punishment | `!liberate @user reason` |
+| `[p]liberate` |  `breakout` | Release from punishment | `!liberate @user reason` |
 
 ### 🔍 Information Commands
 | Command | Aliases | Description | Example |
