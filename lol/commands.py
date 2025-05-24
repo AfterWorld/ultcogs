@@ -313,7 +313,7 @@ class LoLCommands:
                 logger.error(f"Error getting champion information: {e}")
                 await ctx.send(f"❌ Error getting champion information: {str(e)}")
 
-    @commands.command(name="history")
+    @commands.command(name="mhistory")
     async def lookup_history(self, ctx):
         """Show your recent summoner lookups"""
         try:
