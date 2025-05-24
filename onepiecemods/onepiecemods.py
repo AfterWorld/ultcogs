@@ -975,7 +975,7 @@ class OnePieceMods(commands.Cog):
             value=(
                 f"`{ctx.clean_prefix}impeldown @user <level> <duration> [reason]` - Send a user to Impel Down\n"
                 f"`{ctx.clean_prefix}liberate @user [reason]` - Release a user from Impel Down\n"
-                f"Aliases: `{ctx.clean_prefix}imprison`, `{ctx.clean_prefix}breakout`"
+                f"Aliases: `{ctx.clean_prefix}imprison`, `{ctx.clean_prefix}free`, `{ctx.clean_prefix}breakout`"
             ),
             inline=False
         )
@@ -1081,6 +1081,17 @@ class OnePieceMods(commands.Cog):
                 reason=reason
             )
             
+            # Log to webhook if configured
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_moderation_action(
+                    guild=ctx.guild,
+                    action_type="kick",
+                    moderator=ctx.author,
+                    target=member,
+                    reason=reason,
+                    case_number=case.case_number if case else None
+                )
+            
             # Send the fun embed
             await ctx.send(embed=embed)
             
@@ -1175,6 +1186,17 @@ class OnePieceMods(commands.Cog):
                 user=member, 
                 reason=reason
             )
+            
+            # Log to webhook if configured
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_moderation_action(
+                    guild=ctx.guild,
+                    action_type="ban",
+                    moderator=ctx.author,
+                    target=member,
+                    reason=reason,
+                    case_number=case.case_number if case else None
+                )
             
             # Send the fun embed
             await ctx.send(embed=embed)
@@ -1309,6 +1331,18 @@ class OnePieceMods(commands.Cog):
                 reason=reason,
                 duration=duration//60  # Convert seconds to minutes
             )
+            
+            # Log to webhook if configured
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_moderation_action(
+                    guild=ctx.guild,
+                    action_type="mute",
+                    moderator=ctx.author,
+                    target=member,
+                    reason=reason,
+                    case_number=case.case_number if case else None,
+                    duration=format_time_duration(duration//60)
+                )
             
             # Add active punishment so it can be automatically ended
             await self.add_punishment(
@@ -1460,11 +1494,35 @@ class OnePieceMods(commands.Cog):
             level=warning_count
         )
         
+        # Log to webhook if configured
+        if hasattr(self, 'webhook_logger'):
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="warn",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None,
+                level=warning_count,
+                bounty_amount=bounty_level
+            )
+        
         # Send the warning first
         await ctx.send(embed=embed)
         
         # Apply escalation if needed - with a small delay so warning is shown first
         if escalation_level and escalation_duration:
+            # Log escalation to webhook
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_escalation(
+                    guild=ctx.guild,
+                    member=member,
+                    warning_level=warning_count,
+                    escalation_level=escalation_level,
+                    escalation_duration=f"{escalation_duration} minutes",
+                    moderator=ctx.author
+                )
+            
             # Create a task to handle escalation
             self.bot.loop.create_task(
                 self.delayed_escalation(
@@ -1603,6 +1661,20 @@ class OnePieceMods(commands.Cog):
             level=level
         )
         
+        # Log to webhook if configured
+        if hasattr(self, 'webhook_logger'):
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="impeldown",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None,
+                duration=f"{duration} minutes",
+                level=level,
+                level_name=level_data.get("name", f"Level {level}")
+            )
+        
         try:
             # Apply timeout if available (Discord feature)
             timeout_until = datetime.now(timezone.utc) + timedelta(minutes=min(duration, 10080))
@@ -1617,6 +1689,16 @@ class OnePieceMods(commands.Cog):
                     await ctx.send("⚠️ Invalid timeout duration!")
                 else:
                     await ctx.send(f"⚠️ Could not apply Discord timeout: {e}")
+                    
+                # Log error to webhook
+                if hasattr(self, 'webhook_logger'):
+                    await self.webhook_logger.log_error(
+                        guild=ctx.guild,
+                        error_type="Timeout Error",
+                        error_message=str(e),
+                        command="impeldown",
+                        user=ctx.author
+                    )
             
             # Get mute role ID
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
@@ -1629,6 +1711,14 @@ class OnePieceMods(commands.Cog):
                         await member.add_roles(mute_role, reason=audit_reason)
                     except discord.HTTPException as e:
                         await ctx.send(f"⚠️ Could not apply mute role: {e}")
+                        if hasattr(self, 'webhook_logger'):
+                            await self.webhook_logger.log_error(
+                                guild=ctx.guild,
+                                error_type="Role Error",
+                                error_message=str(e),
+                                command="impeldown",
+                                user=ctx.author
+                            )
             
             # Apply additional level-specific restrictions
             success = await self.apply_level_restrictions(ctx.guild, member, level, reason)
@@ -1675,9 +1765,20 @@ class OnePieceMods(commands.Cog):
             await ctx.send("❌ I don't have permission to apply Impel Down restrictions!")
         except Exception as e:
             self.logger.error(f"Unexpected error in impel_down: {e}")
+            
+            # Log error to webhook
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_error(
+                    guild=ctx.guild,
+                    error_type="Impel Down Error",
+                    error_message=str(e),
+                    command="impeldown",
+                    user=ctx.author
+                )
+            
             await ctx.send("❌ An unexpected error occurred!")
     
-    @commands.command(name="liberate", aliases=["breakout"])
+    @commands.command(name="liberate", aliases=["free", "breakout"])
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     @commands.bot_has_permissions(manage_roles=True, moderate_members=True)
@@ -1686,6 +1787,7 @@ class OnePieceMods(commands.Cog):
         
         Examples:
         [p]liberate @User Good behavior
+        [p]free @User Sentence reduced
         [p]breakout @User Impel Down jailbreak
         """
         # Sanitize reason
@@ -1697,24 +1799,22 @@ class OnePieceMods(commands.Cog):
             return await ctx.send(f"❌ {member.mention} is not currently imprisoned in Impel Down!")
             
         try:
+            # Get punishment level for logging
+            punishment_level = punishment.get("level", "Unknown")
+            
             # Release the punishment
             success = await self.release_punishment(ctx.guild, member, f"Released by {ctx.author}: {reason}")
             
             if not success:
                 return await ctx.send("❌ Failed to release the prisoner. The Sea Prism Stone is too strong!")
             
-            # Create release embed
-            embed = discord.Embed(
-                title="🔓 Jailbreak! Released from Impel Down!",
-                description=f"{member.mention} has been released from Impel Down by {ctx.author.mention}!",
-                color=discord.Color.gold()
+            # Create release embed using the improved embed creator
+            embed = EmbedCreator.release_embed(
+                user=member,
+                mod=ctx.author,
+                reason=reason,
+                previous_level=punishment_level
             )
-            
-            embed.add_field(name="Prison Level", value=f"Level {punishment.get('level', 'Unknown')}", inline=True)
-            embed.add_field(name="Reason", value=reason or "No reason provided", inline=True)
-            embed.add_field(name="Roles", value="Previous roles have been restored.", inline=False)
-            embed.set_image(url="https://media.giphy.com/media/PBAl9H8B5Hali/giphy.gif")  # Prison break gif
-            embed.set_footer(text="One Piece Moderation - Early Release")
             
             # Get the log channel
             log_channel_id = await self.config.guild(ctx.guild).log_channel()
@@ -1740,7 +1840,7 @@ class OnePieceMods(commands.Cog):
                     moderator=ctx.author,
                     reason=reason,
                     timestamp=ctx.message.created_at,
-                    Previous_Level=f"Level {punishment.get('level', 'Unknown')}"
+                    Previous_Level=f"Level {punishment_level}"
                 )
                 try:
                     await log_channel.send(embed=log_embed)
@@ -1753,8 +1853,21 @@ class OnePieceMods(commands.Cog):
                 action_type="impeldown_release", 
                 mod=ctx.author, 
                 user=member, 
-                reason=reason
+                reason=reason,
+                previous_level=punishment_level
             )
+            
+            # Log to webhook if configured
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_moderation_action(
+                    guild=ctx.guild,
+                    action_type="release",
+                    moderator=ctx.author,
+                    target=member,
+                    reason=reason,
+                    case_number=case.case_number if case else None,
+                    previous_level=f"Level {punishment_level}"
+                )
             
             await ctx.send(embed=embed)
             
@@ -1762,6 +1875,17 @@ class OnePieceMods(commands.Cog):
             await ctx.send("❌ I don't have permission to release this member!")
         except Exception as e:
             self.logger.error(f"Unexpected error in release_command: {e}")
+            
+            # Log error to webhook
+            if hasattr(self, 'webhook_logger'):
+                await self.webhook_logger.log_error(
+                    guild=ctx.guild,
+                    error_type="Release Error",
+                    error_message=str(e),
+                    command="liberate",
+                    user=ctx.author
+                )
+            
             await ctx.send("❌ An unexpected error occurred!")
     
     @commands.command(name="clearbounty", aliases=["forgive", "pardon"])
@@ -1822,10 +1946,171 @@ class OnePieceMods(commands.Cog):
             action_type="clear_warnings", 
             mod=ctx.author, 
             user=member, 
-            reason=reason
+            reason=reason,
+            previous_level=previous_level
         )
         
+        # Log to webhook if configured
+        if hasattr(self, 'webhook_logger'):
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="clear_warnings",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None,
+                previous_level=previous_level
+            )
+        
         await ctx.send(embed=embed)
+    
+    # Enhanced Background Task with Webhook Integration
+    
+    async def check_expired_punishments(self):
+        """Background task to check for expired punishments with improved efficiency and logging"""
+        await self.bot.wait_until_ready()
+        while True:
+            try:
+                # Check each guild for expired punishments
+                all_guilds = await self.config.all_guilds()
+                
+                for guild_id, guild_data in all_guilds.items():
+                    guild = self.bot.get_guild(guild_id)
+                    if not guild:
+                        continue
+                    
+                    # Get active punishments
+                    active_punishments = guild_data.get("active_punishments", {})
+                    expired_punishments = {}
+                    
+                    current_time = datetime.now().timestamp()
+                    
+                    for user_id, punishment in active_punishments.items():
+                        # Skip if no end time
+                        if "end_time" not in punishment:
+                            continue
+                            
+                        # Check if punishment should end
+                        end_time = punishment["end_time"]
+                        if current_time >= end_time:
+                            # Get the member
+                            member = guild.get_member(int(user_id))
+                            if not member:
+                                # Mark for removal if member left
+                                expired_punishments[user_id] = None
+                                continue
+                                
+                            # Release the punishment
+                            try:
+                                await self.release_punishment(guild, member, "Automatic release after sentence completion")
+                                expired_punishments[user_id] = None
+                                
+                                # Log to webhook if configured
+                                if hasattr(self, 'webhook_logger'):
+                                    await self.webhook_logger.log_punishment_expired(
+                                        guild=guild,
+                                        member=member,
+                                        punishment_type="Impel Down",
+                                        original_duration=format_time_duration((end_time - punishment.get("start_time", end_time)) // 60),
+                                        level=punishment.get("level")
+                                    )
+                                    
+                            except Exception as e:
+                                self.logger.error(f"Error releasing punishment for {user_id}: {e}")
+                                
+                                # Log error to webhook
+                                if hasattr(self, 'webhook_logger'):
+                                    await self.webhook_logger.log_error(
+                                        guild=guild,
+                                        error_type="Auto-Release Error",
+                                        error_message=str(e),
+                                        user=member
+                                    )
+                    
+                    # Batch update expired punishments
+                    if expired_punishments:
+                        await self.batch_update_punishments(guild, expired_punishments)
+                        
+                # Check every 30 seconds
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error in punishment check task: {e}")
+                await asyncio.sleep(60)  # Wait longer if error
+    
+    # Error Handling with improved specificity and webhook integration
+    
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        """Handle common errors for this cog with improved error messages and logging"""
+        # Ignore errors that have already been handled
+        if getattr(ctx, "handled", False):
+            return
+            
+        # Only handle errors for commands from this cog
+        if not ctx.command or ctx.command.cog != self:
+            return
+            
+        ctx.handled = True
+        
+        error_logged = False
+        
+        if isinstance(error, commands.MissingPermissions):
+            missing_perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"⚔️ Your Haki isn't strong enough! You need: **{missing_perms}**")
+            
+        elif isinstance(error, commands.BotMissingPermissions):
+            missing_perms = ", ".join(error.missing_permissions)
+            await ctx.send(f"❌ I need more power! Missing permissions: **{missing_perms}**")
+            
+        elif isinstance(error, commands.CommandOnCooldown):
+            remaining = round(error.retry_after)
+            await ctx.send(f"⏰ Justice is swift but not that swift! Try again in **{remaining}** seconds.")
+            
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send(f"❌ Invalid input: {str(error)}")
+            
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.send("❌ That pirate couldn't be found on this ship!")
+            
+        elif isinstance(error, commands.UserInputError):
+            await ctx.send(f"❌ Invalid input: {str(error)}")
+            
+        elif isinstance(error, commands.CommandInvokeError):
+            original_error = error.original
+            
+            if isinstance(original_error, discord.Forbidden):
+                await ctx.send("❌ I don't have permission to do that!")
+            elif isinstance(original_error, discord.HTTPException):
+                if original_error.status == 400:
+                    await ctx.send("❌ Invalid request to Discord!")
+                elif original_error.status == 429:
+                    await ctx.send("❌ Rate limited! Please try again later.")
+                else:
+                    await ctx.send(f"❌ Discord API error: {original_error}")
+            else:
+                self.logger.error(f"Unexpected error in {ctx.command.name}: {original_error}")
+                await ctx.send("❌ An unexpected error occurred! Check the logs.")
+                error_logged = True
+        
+        elif isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ You don't have permission to use this command!")
+            
+        else:
+            self.logger.error(f"Unhandled error in {ctx.command.name if ctx.command else 'unknown'}: {error}")
+            await ctx.send("❌ Something went wrong! Please contact an administrator.")
+            error_logged = True
+        
+        # Log significant errors to webhook
+        if error_logged and hasattr(self, 'webhook_logger') and ctx.guild:
+            await self.webhook_logger.log_error(
+                guild=ctx.guild,
+                error_type=type(error).__name__,
+                error_message=str(error),
+                command=ctx.command.name if ctx.command else None,
+                user=ctx.author
+            )
     
     # Utility Commands
     
@@ -2150,6 +2435,421 @@ class OnePieceMods(commands.Cog):
         # Otherwise, display the opm_help command's output
         await ctx.invoke(self.opm_help)
 
+    # Advanced Configuration Commands
+    
+    @opm_group.command(name="webhook")
+    async def webhook_config(self, ctx, action: str, *, url: str = None):
+        """Configure webhook logging
+        
+        Actions:
+        - set <url>: Set webhook URL
+        - test: Test current webhook
+        - remove: Remove webhook
+        - stats: Show webhook statistics
+        """
+        action = action.lower()
+        
+        if action == "set":
+            if not url:
+                return await ctx.send("❌ Please provide a webhook URL!")
+            
+            success, error = await self.config_manager.set_setting(ctx.guild, "webhook_url", url)
+            if success:
+                embed = EmbedCreator.success_embed(
+                    "Webhook Configured",
+                    "Webhook URL has been set and tested successfully!"
+                )
+                await self.webhook_logger.log_configuration_change(
+                    ctx.guild, "webhook_url", "Not set", "Configured", ctx.author
+                )
+            else:
+                embed = EmbedCreator.error_embed("Configuration Failed", error)
+            
+            await ctx.send(embed=embed)
+        
+        elif action == "test":
+            success, message = await self.webhook_logger.test_webhook(ctx.guild)
+            if success:
+                embed = EmbedCreator.success_embed("Webhook Test", message)
+            else:
+                embed = EmbedCreator.error_embed("Webhook Test Failed", message)
+            await ctx.send(embed=embed)
+        
+        elif action == "remove":
+            success, error = await self.config_manager.set_setting(ctx.guild, "webhook_url", None)
+            if success:
+                embed = EmbedCreator.success_embed(
+                    "Webhook Removed",
+                    "Webhook logging has been disabled."
+                )
+            else:
+                embed = EmbedCreator.error_embed("Failed to Remove Webhook", error)
+            await ctx.send(embed=embed)
+        
+        elif action == "stats":
+            stats = await self.webhook_logger.get_webhook_stats(ctx.guild)
+            
+            embed = discord.Embed(
+                title="📊 Webhook Statistics",
+                color=discord.Color.blue()
+            )
+            
+            embed.add_field(
+                name="Status",
+                value="✅ Configured" if stats["webhook_configured"] else "❌ Not configured",
+                inline=True
+            )
+            
+            if stats["webhook_configured"]:
+                embed.add_field(
+                    name="Queued Messages",
+                    value=str(stats["messages_queued"]),
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="Rate Limited",
+                    value="⚠️ Yes" if stats["rate_limit_active"] else "✅ No",
+                    inline=True
+                )
+                
+                if "requests_this_minute" in stats:
+                    embed.add_field(
+                        name="Requests This Minute",
+                        value=f"{stats['requests_this_minute']}/25",
+                        inline=True
+                    )
+            
+            await ctx.send(embed=embed)
+        
+        else:
+            await ctx.send("❌ Invalid action! Use: set, test, remove, or stats")
+    
+    @opm_group.command(name="export")
+    async def export_config(self, ctx):
+        """Export server configuration as JSON file"""
+        try:
+            config_json = await self.config_manager.export_config(ctx.guild)
+            
+            # Create file
+            filename = f"onepiece_config_{ctx.guild.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            file_content = config_json.encode('utf-8')
+            
+            file = discord.File(
+                fp=discord.utils._BytesIOLike(file_content),
+                filename=filename
+            )
+            
+            embed = discord.Embed(
+                title="📤 Configuration Exported",
+                description="Your server configuration has been exported!",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Filename", value=filename, inline=False)
+            embed.add_field(name="Contents", value="All moderation settings and preferences", inline=False)
+            
+            await ctx.send(embed=embed, file=file)
+            
+        except Exception as e:
+            embed = EmbedCreator.error_embed("Export Failed", str(e))
+            await ctx.send(embed=embed)
+    
+    @opm_group.command(name="import")
+    async def import_config(self, ctx):
+        """Import server configuration from JSON file
+        
+        Attach a JSON configuration file to import settings.
+        """
+        if not ctx.message.attachments:
+            return await ctx.send("❌ Please attach a JSON configuration file!")
+        
+        attachment = ctx.message.attachments[0]
+        
+        if not attachment.filename.endswith('.json'):
+            return await ctx.send("❌ Please attach a valid JSON file!")
+        
+        try:
+            config_data = await attachment.read()
+            config_json = config_data.decode('utf-8')
+            
+            success, messages = await self.config_manager.import_config(ctx.guild, config_json)
+            
+            embed = discord.Embed(
+                title="📥 Configuration Import",
+                color=discord.Color.green() if success else discord.Color.red()
+            )
+            
+            # Add results
+            results_text = "\n".join(messages[:20])  # Limit to 20 messages
+            if len(messages) > 20:
+                results_text += f"\n... and {len(messages) - 20} more"
+            
+            embed.add_field(name="Results", value=results_text, inline=False)
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            embed = EmbedCreator.error_embed("Import Failed", str(e))
+            await ctx.send(embed=embed)
+    
+    @opm_group.command(name="validate")
+    async def validate_config(self, ctx):
+        """Validate current server configuration"""
+        errors = await self.config_manager.validate_all_settings(ctx.guild)
+        
+        if not errors:
+            embed = EmbedCreator.success_embed(
+                "Configuration Valid",
+                "All settings are properly configured!"
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Configuration Issues Found",
+                color=discord.Color.orange()
+            )
+            
+            error_text = ""
+            for setting, error in errors[:10]:  # Limit to 10 errors
+                error_text += f"**{setting}:** {error}\n"
+            
+            if len(errors) > 10:
+                error_text += f"\n... and {len(errors) - 10} more issues"
+            
+            embed.add_field(name="Issues", value=error_text, inline=False)
+            embed.add_field(
+                name="Fix Command", 
+                value=f"Use `{ctx.clean_prefix}opm set <setting> <value>` to fix issues",
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
+    
+    @opm_group.command(name="reset")
+    async def reset_setting(self, ctx, setting: str):
+        """Reset a setting to its default value"""
+        if setting not in self.config_manager.CONFIG_SCHEMA:
+            available_settings = ", ".join(self.config_manager.CONFIG_SCHEMA.keys())
+            return await ctx.send(f"❌ Unknown setting! Available: {available_settings}")
+        
+        success, error = await self.config_manager.reset_setting(ctx.guild, setting)
+        
+        if success:
+            default_value = self.config_manager.CONFIG_SCHEMA[setting]["default"]
+            embed = EmbedCreator.success_embed(
+                "Setting Reset",
+                f"**{setting}** has been reset to its default value: `{default_value}`"
+            )
+            await self.webhook_logger.log_configuration_change(
+                ctx.guild, setting, "Custom value", default_value, ctx.author
+            )
+        else:
+            embed = EmbedCreator.error_embed("Reset Failed", error)
+        
+        await ctx.send(embed=embed)
+    
+    @opm_group.command(name="info")
+    async def setting_info(self, ctx, setting: str = None):
+        """Get information about configuration settings"""
+        if setting:
+            info = self.config_manager.get_setting_info(setting)
+            if not info:
+                return await ctx.send(f"❌ Unknown setting: {setting}")
+            
+            embed = discord.Embed(
+                title=f"⚙️ Setting: {setting}",
+                color=discord.Color.blue()
+            )
+            
+            embed.add_field(name="Type", value=info["type_name"], inline=True)
+            embed.add_field(name="Default", value=str(info["default"]), inline=True)
+            
+            if "min" in info and "max" in info:
+                embed.add_field(name="Range", value=f"{info['min']} - {info['max']}", inline=True)
+            
+            embed.add_field(name="Description", value=info["description"], inline=False)
+            
+            await ctx.send(embed=embed)
+        else:
+            # Show all settings
+            embed = await self.config_manager.create_config_embed(ctx.guild, detailed=True)
+            await ctx.send(embed=embed)
+    
+    @opm_group.command(name="migrate")
+    async def migrate_config(self, ctx, from_version: str, to_version: str):
+        """Migrate configuration between versions"""
+        if not ctx.author.guild_permissions.administrator:
+            return await ctx.send("❌ Only administrators can migrate configurations!")
+        
+        messages = await self.config_manager.migrate_config(ctx.guild, from_version, to_version)
+        
+        embed = discord.Embed(
+            title="🔄 Configuration Migration",
+            description=f"Migration from {from_version} to {to_version}",
+            color=discord.Color.blue()
+        )
+        
+        if messages:
+            results_text = "\n".join(messages[:15])
+            if len(messages) > 15:
+                results_text += f"\n... and {len(messages) - 15} more"
+            embed.add_field(name="Results", value=results_text, inline=False)
+        else:
+            embed.add_field(name="Results", value="No migration needed", inline=False)
+        
+        await ctx.send(embed=embed)
+    
+    # Enhanced moderation stats with webhook integration
+    
+    @commands.command(name="advancedstats", aliases=["astats"])
+    @commands.guild_only()
+    @commands.mod_or_permissions(manage_messages=True)
+    async def advanced_modstats(self, ctx, days: int = 7):
+        """Advanced moderation statistics with detailed analysis
+        
+        Examples:
+        [p]advancedstats
+        [p]astats 30
+        """
+        if days < 1 or days > 365:
+            return await ctx.send("❌ Days must be between 1 and 365!")
+        
+        # Calculate cutoff date
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        # Get comprehensive data
+        all_history = await self.config.guild(ctx.guild).mod_history()
+        active_punishments = await self.config.guild(ctx.guild).active_punishments()
+        
+        # Analyze data
+        stats = {
+            "total_actions": 0,
+            "actions_by_type": {},
+            "actions_by_moderator": {},
+            "actions_by_day": {},
+            "top_targets": {},
+            "escalations": 0,
+            "average_duration": 0
+        }
+        
+        durations = []
+        
+        for user_id, user_history in all_history.items():
+            for action in user_history:
+                try:
+                    action_date = datetime.fromisoformat(action.get("timestamp", ""))
+                    if action_date >= cutoff_date:
+                        stats["total_actions"] += 1
+                        
+                        # By type
+                        action_type = action.get("action_type", "unknown")
+                        stats["actions_by_type"][action_type] = stats["actions_by_type"].get(action_type, 0) + 1
+                        
+                        # By moderator
+                        mod_id = action.get("mod_id", 0)
+                        stats["actions_by_moderator"][mod_id] = stats["actions_by_moderator"].get(mod_id, 0) + 1
+                        
+                        # By day
+                        day_key = action_date.strftime("%Y-%m-%d")
+                        stats["actions_by_day"][day_key] = stats["actions_by_day"].get(day_key, 0) + 1
+                        
+                        # Top targets
+                        stats["top_targets"][user_id] = stats["top_targets"].get(user_id, 0) + 1
+                        
+                        # Track escalations
+                        if "escalation" in action.get("reason", "").lower():
+                            stats["escalations"] += 1
+                        
+                        # Track durations
+                        if "duration" in action:
+                            durations.append(action["duration"])
+                            
+                except (ValueError, TypeError):
+                    continue
+        
+        # Calculate average duration
+        if durations:
+            stats["average_duration"] = sum(durations) / len(durations)
+        
+        # Create detailed embed
+        embed = discord.Embed(
+            title="📊 Advanced Moderation Statistics",
+            description=f"Detailed analysis for the last {days} days",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        
+        # Overview
+        embed.add_field(
+            name="📈 Overview",
+            value=f"**Total Actions:** {stats['total_actions']}\n"
+                  f"**Active Punishments:** {len(active_punishments)}\n"
+                  f"**Daily Average:** {stats['total_actions']/days:.1f}\n"
+                  f"**Escalations:** {stats['escalations']}",
+            inline=True
+        )
+        
+        # Top action types
+        if stats["actions_by_type"]:
+            top_actions = sorted(stats["actions_by_type"].items(), key=lambda x: x[1], reverse=True)[:5]
+            action_text = "\n".join([f"**{action.replace('_', ' ').title()}:** {count}" 
+                                   for action, count in top_actions])
+            embed.add_field(name="🎯 Top Actions", value=action_text, inline=True)
+        
+        # Top moderators
+        if stats["actions_by_moderator"]:
+            top_mods = sorted(stats["actions_by_moderator"].items(), key=lambda x: x[1], reverse=True)[:5]
+            mod_text = ""
+            for mod_id, count in top_mods:
+                mod = ctx.guild.get_member(int(mod_id))
+                mod_name = mod.name if mod else "Unknown"
+                mod_text += f"**{mod_name}:** {count}\n"
+            embed.add_field(name="⚔️ Most Active Mods", value=mod_text, inline=True)
+        
+        # Activity trend (last 7 days)
+        recent_days = sorted(stats["actions_by_day"].items())[-7:]
+        if recent_days:
+            trend_text = ""
+            for day, count in recent_days:
+                date_obj = datetime.strptime(day, "%Y-%m-%d")
+                day_name = date_obj.strftime("%a")
+                trend_text += f"**{day_name}:** {count}\n"
+            embed.add_field(name="📅 Recent Activity", value=trend_text, inline=True)
+        
+        # Average punishment duration
+        if stats["average_duration"] > 0:
+            avg_duration_text = format_time_duration(int(stats["average_duration"]))
+            embed.add_field(name="⏰ Avg Duration", value=avg_duration_text, inline=True)
+        
+        # System health
+        health_indicators = []
+        if stats["escalations"] / max(stats["total_actions"], 1) > 0.3:
+            health_indicators.append("⚠️ High escalation rate")
+        if len(active_punishments) > ctx.guild.member_count * 0.05:
+            health_indicators.append("⚠️ Many active punishments")
+        if not health_indicators:
+            health_indicators.append("✅ System healthy")
+        
+        embed.add_field(
+            name="🏥 System Health",
+            value="\n".join(health_indicators),
+            inline=True
+        )
+        
+        embed.set_footer(text=f"Generated for {ctx.guild.name}")
+        
+        await ctx.send(embed=embed)
+        
+        # Send to webhook if configured
+        if hasattr(self, 'webhook_logger'):
+            summary_data = {
+                "period": f"{days} days",
+                "total_actions": stats["total_actions"],
+                "active_punishments": len(active_punishments),
+                "escalations": stats["escalations"],
+                "most_common_action": max(stats["actions_by_type"].items(), key=lambda x: x[1])[0] if stats["actions_by_type"] else "None"
+            }
+            await self.webhook_logger.send_bulk_summary(ctx.guild, summary_data)
+    
     # Error Handling with improved specificity
     
     @commands.Cog.listener()
