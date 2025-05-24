@@ -78,7 +78,7 @@ class LoLCommands:
                 await ctx.send(f"❌ Error getting mastery data: {str(e)}")
 
     @commands.cooldown(1, 10, commands.BucketType.user)
-    @commands.command(name="rotations", aliases=["rotation", "free"])
+    @commands.command(name="rotations", aliases=["rotation"])
     async def rotations(self, ctx, region: str = None):
         """Show current champion rotations"""
         async with ctx.typing():
