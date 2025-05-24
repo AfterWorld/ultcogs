@@ -975,7 +975,7 @@ class OnePieceMods(commands.Cog):
             value=(
                 f"`{ctx.clean_prefix}impeldown @user <level> <duration> [reason]` - Send a user to Impel Down\n"
                 f"`{ctx.clean_prefix}liberate @user [reason]` - Release a user from Impel Down\n"
-                f"Aliases: `{ctx.clean_prefix}imprison`, `{ctx.clean_prefix}free`, `{ctx.clean_prefix}breakout`"
+                f"Aliases: `{ctx.clean_prefix}imprison`, `{ctx.clean_prefix}breakout`"
             ),
             inline=False
         )
@@ -1677,7 +1677,7 @@ class OnePieceMods(commands.Cog):
             self.logger.error(f"Unexpected error in impel_down: {e}")
             await ctx.send("❌ An unexpected error occurred!")
     
-    @commands.command(name="liberate", aliases=["free", "breakout"])
+    @commands.command(name="liberate", aliases=["breakout"])
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     @commands.bot_has_permissions(manage_roles=True, moderate_members=True)
@@ -1686,7 +1686,6 @@ class OnePieceMods(commands.Cog):
         
         Examples:
         [p]liberate @User Good behavior
-        [p]free @User Sentence reduced
         [p]breakout @User Impel Down jailbreak
         """
         # Sanitize reason
