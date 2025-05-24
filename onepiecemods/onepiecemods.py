@@ -97,6 +97,10 @@ class OnePieceMods(commands.Cog):
         self.config.register_guild(**self.default_guild_settings)
         self.config.register_member(roles=[])
         
+        # Initialize utility managers
+        self.config_manager = ConfigManager(bot, self.config)
+        self.webhook_logger = WebhookLogger(bot, self.config_manager)
+        
         # Background task
         self.bg_task = None
         
@@ -268,8 +272,26 @@ class OnePieceMods(commands.Cog):
                             try:
                                 await self.release_punishment(guild, member, "Automatic release after sentence completion")
                                 expired_punishments[user_id] = None
+                                
+                                # Log to webhook if configured
+                                await self.webhook_logger.log_punishment_expired(
+                                    guild=guild,
+                                    member=member,
+                                    punishment_type="Impel Down",
+                                    original_duration=format_time_duration((end_time - punishment.get("start_time", end_time)) // 60),
+                                    level=punishment.get("level")
+                                )
+                                    
                             except Exception as e:
                                 self.logger.error(f"Error releasing punishment for {user_id}: {e}")
+                                
+                                # Log error to webhook
+                                await self.webhook_logger.log_error(
+                                    guild=guild,
+                                    error_type="Auto-Release Error",
+                                    error_message=str(e),
+                                    user=member
+                                )
                     
                     # Batch update expired punishments
                     if expired_punishments:
@@ -1084,15 +1106,14 @@ class OnePieceMods(commands.Cog):
             )
             
             # Log to webhook if configured
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_moderation_action(
-                    guild=ctx.guild,
-                    action_type="kick",
-                    moderator=ctx.author,
-                    target=member,
-                    reason=reason,
-                    case_number=case.case_number if case else None
-                )
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="kick",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None
+            )
             
             # Send the fun embed
             await ctx.send(embed=embed)
@@ -1190,15 +1211,14 @@ class OnePieceMods(commands.Cog):
             )
             
             # Log to webhook if configured
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_moderation_action(
-                    guild=ctx.guild,
-                    action_type="ban",
-                    moderator=ctx.author,
-                    target=member,
-                    reason=reason,
-                    case_number=case.case_number if case else None
-                )
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="ban",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None
+            )
             
             # Send the fun embed
             await ctx.send(embed=embed)
@@ -1335,16 +1355,15 @@ class OnePieceMods(commands.Cog):
             )
             
             # Log to webhook if configured
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_moderation_action(
-                    guild=ctx.guild,
-                    action_type="mute",
-                    moderator=ctx.author,
-                    target=member,
-                    reason=reason,
-                    case_number=case.case_number if case else None,
-                    duration=format_time_duration(duration//60)
-                )
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="mute",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None,
+                duration=format_time_duration(duration//60)
+            )
             
             # Add active punishment so it can be automatically ended
             await self.add_punishment(
@@ -1497,17 +1516,16 @@ class OnePieceMods(commands.Cog):
         )
         
         # Log to webhook if configured
-        if hasattr(self, 'webhook_logger'):
-            await self.webhook_logger.log_moderation_action(
-                guild=ctx.guild,
-                action_type="warn",
-                moderator=ctx.author,
-                target=member,
-                reason=reason,
-                case_number=case.case_number if case else None,
-                level=warning_count,
-                bounty_amount=bounty_level
-            )
+        await self.webhook_logger.log_moderation_action(
+            guild=ctx.guild,
+            action_type="warn",
+            moderator=ctx.author,
+            target=member,
+            reason=reason,
+            case_number=case.case_number if case else None,
+            level=warning_count,
+            bounty_amount=bounty_level
+        )
         
         # Send the warning first
         await ctx.send(embed=embed)
@@ -1515,15 +1533,14 @@ class OnePieceMods(commands.Cog):
         # Apply escalation if needed - with a small delay so warning is shown first
         if escalation_level and escalation_duration:
             # Log escalation to webhook
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_escalation(
-                    guild=ctx.guild,
-                    member=member,
-                    warning_level=warning_count,
-                    escalation_level=escalation_level,
-                    escalation_duration=f"{escalation_duration} minutes",
-                    moderator=ctx.author
-                )
+            await self.webhook_logger.log_escalation(
+                guild=ctx.guild,
+                member=member,
+                warning_level=warning_count,
+                escalation_level=escalation_level,
+                escalation_duration=f"{escalation_duration} minutes",
+                moderator=ctx.author
+            )
             
             # Create a task to handle escalation
             self.bot.loop.create_task(
@@ -1664,18 +1681,17 @@ class OnePieceMods(commands.Cog):
         )
         
         # Log to webhook if configured
-        if hasattr(self, 'webhook_logger'):
-            await self.webhook_logger.log_moderation_action(
-                guild=ctx.guild,
-                action_type="impeldown",
-                moderator=ctx.author,
-                target=member,
-                reason=reason,
-                case_number=case.case_number if case else None,
-                duration=f"{duration} minutes",
-                level=level,
-                level_name=level_data.get("name", f"Level {level}")
-            )
+        await self.webhook_logger.log_moderation_action(
+            guild=ctx.guild,
+            action_type="impeldown",
+            moderator=ctx.author,
+            target=member,
+            reason=reason,
+            case_number=case.case_number if case else None,
+            duration=f"{duration} minutes",
+            level=level,
+            level_name=level_data.get("name", f"Level {level}")
+        )
         
         try:
             # Apply timeout if available (Discord feature)
@@ -1693,14 +1709,13 @@ class OnePieceMods(commands.Cog):
                     await ctx.send(f"⚠️ Could not apply Discord timeout: {e}")
                     
                 # Log error to webhook
-                if hasattr(self, 'webhook_logger'):
-                    await self.webhook_logger.log_error(
-                        guild=ctx.guild,
-                        error_type="Timeout Error",
-                        error_message=str(e),
-                        command="impeldown",
-                        user=ctx.author
-                    )
+                await self.webhook_logger.log_error(
+                    guild=ctx.guild,
+                    error_type="Timeout Error",
+                    error_message=str(e),
+                    command="impeldown",
+                    user=ctx.author
+                )
             
             # Get mute role ID
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
@@ -1713,14 +1728,13 @@ class OnePieceMods(commands.Cog):
                         await member.add_roles(mute_role, reason=audit_reason)
                     except discord.HTTPException as e:
                         await ctx.send(f"⚠️ Could not apply mute role: {e}")
-                        if hasattr(self, 'webhook_logger'):
-                            await self.webhook_logger.log_error(
-                                guild=ctx.guild,
-                                error_type="Role Error",
-                                error_message=str(e),
-                                command="impeldown",
-                                user=ctx.author
-                            )
+                        await self.webhook_logger.log_error(
+                            guild=ctx.guild,
+                            error_type="Role Error",
+                            error_message=str(e),
+                            command="impeldown",
+                            user=ctx.author
+                        )
             
             # Apply additional level-specific restrictions
             success = await self.apply_level_restrictions(ctx.guild, member, level, reason)
@@ -1769,14 +1783,13 @@ class OnePieceMods(commands.Cog):
             self.logger.error(f"Unexpected error in impel_down: {e}")
             
             # Log error to webhook
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_error(
-                    guild=ctx.guild,
-                    error_type="Impel Down Error",
-                    error_message=str(e),
-                    command="impeldown",
-                    user=ctx.author
-                )
+            await self.webhook_logger.log_error(
+                guild=ctx.guild,
+                error_type="Impel Down Error",
+                error_message=str(e),
+                command="impeldown",
+                user=ctx.author
+            )
             
             await ctx.send("❌ An unexpected error occurred!")
     
@@ -1860,16 +1873,15 @@ class OnePieceMods(commands.Cog):
             )
             
             # Log to webhook if configured
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_moderation_action(
-                    guild=ctx.guild,
-                    action_type="release",
-                    moderator=ctx.author,
-                    target=member,
-                    reason=reason,
-                    case_number=case.case_number if case else None,
-                    previous_level=f"Level {punishment_level}"
-                )
+            await self.webhook_logger.log_moderation_action(
+                guild=ctx.guild,
+                action_type="release",
+                moderator=ctx.author,
+                target=member,
+                reason=reason,
+                case_number=case.case_number if case else None,
+                previous_level=f"Level {punishment_level}"
+            )
             
             await ctx.send(embed=embed)
             
@@ -1879,14 +1891,13 @@ class OnePieceMods(commands.Cog):
             self.logger.error(f"Unexpected error in release_command: {e}")
             
             # Log error to webhook
-            if hasattr(self, 'webhook_logger'):
-                await self.webhook_logger.log_error(
-                    guild=ctx.guild,
-                    error_type="Release Error",
-                    error_message=str(e),
-                    command="liberate",
-                    user=ctx.author
-                )
+            await self.webhook_logger.log_error(
+                guild=ctx.guild,
+                error_type="Release Error",
+                error_message=str(e),
+                command="liberate",
+                user=ctx.author
+            )
             
             await ctx.send("❌ An unexpected error occurred!")
     
@@ -1953,16 +1964,15 @@ class OnePieceMods(commands.Cog):
         )
         
         # Log to webhook if configured
-        if hasattr(self, 'webhook_logger'):
-            await self.webhook_logger.log_moderation_action(
-                guild=ctx.guild,
-                action_type="clear_warnings",
-                moderator=ctx.author,
-                target=member,
-                reason=reason,
-                case_number=case.case_number if case else None,
-                previous_level=previous_level
-            )
+        await self.webhook_logger.log_moderation_action(
+            guild=ctx.guild,
+            action_type="clear_warnings",
+            moderator=ctx.author,
+            target=member,
+            reason=reason,
+            case_number=case.case_number if case else None,
+            previous_level=previous_level
+        )
         
         await ctx.send(embed=embed)
     
@@ -2008,26 +2018,24 @@ class OnePieceMods(commands.Cog):
                                 expired_punishments[user_id] = None
                                 
                                 # Log to webhook if configured
-                                if hasattr(self, 'webhook_logger'):
-                                    await self.webhook_logger.log_punishment_expired(
-                                        guild=guild,
-                                        member=member,
-                                        punishment_type="Impel Down",
-                                        original_duration=format_time_duration((end_time - punishment.get("start_time", end_time)) // 60),
-                                        level=punishment.get("level")
-                                    )
+                                await self.webhook_logger.log_punishment_expired(
+                                    guild=guild,
+                                    member=member,
+                                    punishment_type="Impel Down",
+                                    original_duration=format_time_duration((end_time - punishment.get("start_time", end_time)) // 60),
+                                    level=punishment.get("level")
+                                )
                                     
                             except Exception as e:
                                 self.logger.error(f"Error releasing punishment for {user_id}: {e}")
                                 
                                 # Log error to webhook
-                                if hasattr(self, 'webhook_logger'):
-                                    await self.webhook_logger.log_error(
-                                        guild=guild,
-                                        error_type="Auto-Release Error",
-                                        error_message=str(e),
-                                        user=member
-                                    )
+                                await self.webhook_logger.log_error(
+                                    guild=guild,
+                                    error_type="Auto-Release Error",
+                                    error_message=str(e),
+                                    user=member
+                                )
                     
                     # Batch update expired punishments
                     if expired_punishments:
@@ -2105,7 +2113,7 @@ class OnePieceMods(commands.Cog):
             error_logged = True
         
         # Log significant errors to webhook
-        if error_logged and hasattr(self, 'webhook_logger') and ctx.guild:
+        if error_logged and ctx.guild:
             await self.webhook_logger.log_error(
                 guild=ctx.guild,
                 error_type=type(error).__name__,
@@ -2842,15 +2850,14 @@ class OnePieceMods(commands.Cog):
         await ctx.send(embed=embed)
         
         # Send to webhook if configured
-        if hasattr(self, 'webhook_logger'):
-            summary_data = {
-                "period": f"{days} days",
-                "total_actions": stats["total_actions"],
-                "active_punishments": len(active_punishments),
-                "escalations": stats["escalations"],
-                "most_common_action": max(stats["actions_by_type"].items(), key=lambda x: x[1])[0] if stats["actions_by_type"] else "None"
-            }
-            await self.webhook_logger.send_bulk_summary(ctx.guild, summary_data)
+        summary_data = {
+            "period": f"{days} days",
+            "total_actions": stats["total_actions"],
+            "active_punishments": len(active_punishments),
+            "escalations": stats["escalations"],
+            "most_common_action": max(stats["actions_by_type"].items(), key=lambda x: x[1])[0] if stats["actions_by_type"] else "None"
+        }
+        await self.webhook_logger.send_bulk_summary(ctx.guild, summary_data)
     
     # Error Handling with improved specificity
     

@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import logging
 from enum import Enum
-import aiohttp
 
 logger = logging.getLogger("red.onepiecemods.webhook")
 
@@ -60,13 +59,8 @@ class WebhookLogger:
                 return cached_webhook
         
         try:
-            # Use bot's session if available, otherwise create a new one
-            session = getattr(self.bot, 'session', None)
-            if session is None:
-                # Create a temporary session for this webhook
-                webhook = discord.Webhook.from_url(webhook_url, adapter=discord.AsyncWebhookAdapter(aiohttp.ClientSession()))
-            else:
-                webhook = discord.Webhook.from_url(webhook_url, adapter=discord.AsyncWebhookAdapter(session))
+            # Discord.py 2.0+ doesn't use adapters anymore
+            webhook = discord.Webhook.from_url(webhook_url, session=self.bot.session)
             
             self._webhook_cache[guild.id] = (webhook, webhook_url)
             return webhook
