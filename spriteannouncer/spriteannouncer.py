@@ -55,7 +55,8 @@ class SpriteAnnouncer(commands.Cog):
         self.github_sprites_cache = []  # Cache for available sprites from GitHub
         self.github_sprites_last_updated = 0  # Timestamp of last GitHub API request
         self.task_cache = {}  # Track announcement tasks
-        self.session = aiohttp.ClientSession()
+        self.session = None  # Will be initialized in the background task
+        self._initialization_task = None
         # These are fallback sprites in case GitHub fetch fails
         self.default_sprites = [
             "cat_sprite.png", 
@@ -64,29 +65,62 @@ class SpriteAnnouncer(commands.Cog):
             "robot_sprite.png", 
             "slime_sprite.png"
         ]
+        
+        # Start initialization in background
+        self._initialization_task = self.bot.loop.create_task(self._initialize_when_ready())
     
     def cog_unload(self):
         """Clean up when cog is unloaded."""
-        self.bot.loop.create_task(self.session.close())
+        # Cancel initialization task if still running
+        if self._initialization_task and not self._initialization_task.done():
+            self._initialization_task.cancel()
+            
+        # Cancel all announcement tasks
         for guild_id in self.task_cache:
             task = self.task_cache[guild_id]
             if task and not task.done():
                 task.cancel()
-    
-    async def initialize(self):
-        """Initialize the cog by starting tasks for all enabled guilds."""
-        await self.bot.wait_until_red_ready()
-        # Fetch available sprites from GitHub
-        await self.refresh_github_sprites()
-        
-        # Start announcement tasks for enabled guilds
-        for guild in self.bot.guilds:
-            guild_data = await self.config.guild(guild).all()
-            if guild_data["enabled"] and guild_data["channel_id"]:
-                self._schedule_next_announcement(guild)
                 
+        # Close aiohttp session if it exists
+        if self.session and not self.session.closed:
+            self.bot.loop.create_task(self.session.close())
+    
+    async def _initialize_when_ready(self):
+        """Initialize the cog when the bot is ready."""
+        try:
+            await self.bot.wait_until_red_ready()
+            
+            # Initialize aiohttp session
+            self.session = aiohttp.ClientSession()
+            
+            # Fetch available sprites from GitHub
+            await self.refresh_github_sprites()
+            
+            # Start announcement tasks for enabled guilds
+            for guild in self.bot.guilds:
+                guild_data = await self.config.guild(guild).all()
+                if guild_data["enabled"] and guild_data["channel_id"]:
+                    self._schedule_next_announcement(guild)
+                    
+            log.info("SpriteAnnouncer initialization completed successfully")
+            
+        except asyncio.CancelledError:
+            # Cog was unloaded during initialization
+            if self.session and not self.session.closed:
+                await self.session.close()
+            raise
+        except Exception as e:
+            log.error(f"Error during SpriteAnnouncer initialization: {str(e)}", exc_info=e)
+            # Clean up session if initialization failed
+            if self.session and not self.session.closed:
+                await self.session.close()
+    
     async def refresh_github_sprites(self):
         """Fetch the list of available sprites from GitHub repository."""
+        if not self.session:
+            log.warning("HTTP session not initialized yet, skipping GitHub sprite refresh")
+            return self.github_sprites_cache
+            
         current_time = datetime.now().timestamp()
         # Only refresh if it's been more than 1 hour since last refresh
         if current_time - self.github_sprites_last_updated < 3600 and self.github_sprites_cache:
@@ -173,6 +207,10 @@ class SpriteAnnouncer(commands.Cog):
     
     async def _get_sprite_url(self, sprite_name):
         """Get the URL for a sprite, either from the default repo or custom sprites."""
+        if not self.session:
+            log.warning("HTTP session not initialized yet")
+            return None
+            
         # Check if it's a full URL already
         if sprite_name.startswith(("http://", "https://")):
             return sprite_name
@@ -835,6 +873,20 @@ class SpriteAnnouncer(commands.Cog):
             value=f"[{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}](https://github.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/tree/main/Character%20Sprite)",
             inline=False
         )
+        
+        # Add initialization status
+        if self._initialization_task:
+            if self._initialization_task.done():
+                if self._initialization_task.exception():
+                    init_status = "❌ Failed"
+                else:
+                    init_status = "✅ Complete"
+            else:
+                init_status = "⏳ In Progress"
+        else:
+            init_status = "❓ Unknown"
+            
+        embed.add_field(name="Initialization", value=init_status, inline=True)
         
         if last_triggered:
             last_time = datetime.fromtimestamp(last_triggered)
