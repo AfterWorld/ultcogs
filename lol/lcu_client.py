@@ -1,22 +1,40 @@
 """
-League Client API (LCU) Integration
+League Client API (LCU) Integration - Fixed Version
 
 Provides direct integration with the local League of Legends client
-for real-time monitoring, auto-accept, and champion select features.
+with graceful handling of missing dependencies.
 """
 
 import asyncio
-import aiohttp
-import websockets
 import json
 import ssl
 import base64
 import time
 from typing import Optional, Dict, List, Callable, Any
 from dataclasses import dataclass
-import psutil
-import os
 import logging
+
+# Optional dependencies with graceful fallbacks
+try:
+    import aiohttp
+    HAS_AIOHTTP = True
+except ImportError:
+    HAS_AIOHTTP = False
+    aiohttp = None
+
+try:
+    import websockets
+    HAS_WEBSOCKETS = True
+except ImportError:
+    HAS_WEBSOCKETS = False
+    websockets = None
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+    psutil = None
 
 logger = logging.getLogger(__name__)
 
@@ -33,49 +51,15 @@ class LCUCredentials:
 @dataclass
 class CurrentSummoner:
     """Current logged-in summoner information"""
-    account_id: str
-    display_name: str
-    internal_name: str
-    profile_icon_id: int
-    puuid: str
-    summoner_id: str
-    summoner_level: int
-    xp_since_last_level: int
-    xp_until_next_level: int
-
-
-@dataclass
-class ChampionSelectState:
-    """Champion select session state"""
-    actions: List[Dict]
-    allow_battle_boost: bool
-    allow_duplicate_picks: bool
-    allow_locked_events: bool
-    allow_rerolling: bool
-    allow_skin_selection: bool
-    bans: List[Dict]
-    bench_champions: List[Dict]
-    bench_enabled: bool
-    boosts_available: bool
-    chat_details: Dict
-    counter: int
-    entry_type: str
-    game_id: int
-    has_simultaneous_bans: bool
-    has_simultaneous_picks: bool
-    is_custom_game: bool
-    is_spectating: bool
-    local_player_cell_id: int
-    locked_event_index: int
-    my_team: List[Dict]
-    phase_time_remaining: int
-    pick_order_swaps: List[Dict]
-    recovery_counter: int
-    reroll_points: Dict
-    skip_champion_select: bool
-    their_team: List[Dict]
-    timer: Dict
-    trades: List[Dict]
+    account_id: str = ""
+    display_name: str = ""
+    internal_name: str = ""
+    profile_icon_id: int = 0
+    puuid: str = ""
+    summoner_id: str = ""
+    summoner_level: int = 0
+    xp_since_last_level: int = 0
+    xp_until_next_level: int = 0
 
 
 class LCUEventHandler:
@@ -119,7 +103,6 @@ class LCUEventHandler:
         """Handle ready check events"""
         if event_type == 'Create' and data:
             logger.info("Ready check detected")
-            # Trigger auto-accept if enabled
     
     async def _handle_champion_select_event(self, event_type: str, data: Any, uri: str):
         """Handle champion select events"""
@@ -137,13 +120,13 @@ class LCUEventHandler:
 
 
 class LCUClient:
-    """Main LCU client for League of Legends integration"""
+    """Main LCU client for League of Legends integration with graceful degradation"""
     
     def __init__(self):
         self.connected = False
         self.credentials: Optional[LCUCredentials] = None
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.websocket: Optional[websockets.WebSocketServerProtocol] = None
+        self.session: Optional[Any] = None  # Will be aiohttp.ClientSession if available
+        self.websocket: Optional[Any] = None  # Will be websockets object if available
         self.event_handler = LCUEventHandler()
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
@@ -153,6 +136,23 @@ class LCUClient:
         self.auto_accept_enabled = False
         self.auto_accept_users = set()
         
+        # Check dependencies on init
+        self._check_dependencies()
+    
+    def _check_dependencies(self):
+        """Check which dependencies are available"""
+        missing_deps = []
+        if not HAS_AIOHTTP:
+            missing_deps.append("aiohttp")
+        if not HAS_WEBSOCKETS:
+            missing_deps.append("websockets")
+        if not HAS_PSUTIL:
+            missing_deps.append("psutil")
+        
+        if missing_deps:
+            logger.warning(f"LCU features limited - missing dependencies: {', '.join(missing_deps)}")
+            logger.info("Install with: pip install " + " ".join(missing_deps))
+    
     async def connect(self) -> bool:
         """
         Connect to the local League Client
@@ -160,6 +160,10 @@ class LCUClient:
         Returns:
             bool: True if connection successful, False otherwise
         """
+        if not HAS_AIOHTTP:
+            logger.error("Cannot connect to LCU - aiohttp not installed")
+            return False
+        
         try:
             # Get LCU credentials
             self.credentials = await self._discover_lcu_credentials()
@@ -190,11 +194,14 @@ class LCUClient:
                 self.connected = True
                 logger.info("Successfully connected to League Client")
                 
-                # Start WebSocket connection
-                await self._connect_websocket()
-                
-                # Start monitoring task
-                self.monitoring_task = asyncio.create_task(self._monitor_events())
+                # Start WebSocket connection if websockets is available
+                if HAS_WEBSOCKETS:
+                    await self._connect_websocket()
+                    
+                    # Start monitoring task
+                    self.monitoring_task = asyncio.create_task(self._monitor_events())
+                else:
+                    logger.warning("WebSocket features disabled - websockets not installed")
                 
                 self.reconnect_attempts = 0
                 return True
@@ -219,7 +226,10 @@ class LCUClient:
                 pass
         
         if self.websocket:
-            await self.websocket.close()
+            try:
+                await self.websocket.close()
+            except:
+                pass
             self.websocket = None
         
         await self._cleanup_session()
@@ -232,6 +242,10 @@ class LCUClient:
         Returns:
             LCUCredentials or None if not found
         """
+        if not HAS_PSUTIL:
+            logger.warning("Cannot discover LCU credentials - psutil not installed")
+            return await self._read_lockfile()
+        
         try:
             # Look for League Client processes
             target_processes = [
@@ -267,7 +281,7 @@ class LCUClient:
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
             
-            # Alternative method: check lockfile
+            # Fallback to lockfile method
             return await self._read_lockfile()
             
         except Exception as e:
@@ -276,6 +290,8 @@ class LCUClient:
     
     async def _read_lockfile(self) -> Optional[LCUCredentials]:
         """Read credentials from League Client lockfile"""
+        import os
+        
         try:
             # Common lockfile locations
             possible_paths = [
@@ -301,6 +317,9 @@ class LCUClient:
     
     async def _test_connection(self) -> bool:
         """Test LCU connection"""
+        if not self.session or not self.credentials:
+            return False
+        
         try:
             url = f"https://{self.credentials.host}:{self.credentials.port}/lol-summoner/v1/current-summoner"
             async with self.session.get(url) as response:
@@ -311,10 +330,10 @@ class LCUClient:
     
     async def _connect_websocket(self):
         """Connect to LCU WebSocket for real-time events"""
+        if not HAS_WEBSOCKETS or not self.credentials:
+            return
+        
         try:
-            if not self.credentials:
-                return
-            
             uri = f"wss://{self.credentials.host}:{self.credentials.port}/"
             
             # WebSocket headers
@@ -346,6 +365,9 @@ class LCUClient:
     
     async def _monitor_events(self):
         """Monitor WebSocket events from LCU"""
+        if not HAS_WEBSOCKETS:
+            return
+        
         while self.connected and self.websocket:
             try:
                 message = await asyncio.wait_for(
@@ -360,15 +382,18 @@ class LCUClient:
             except asyncio.TimeoutError:
                 # Send ping to keep connection alive
                 if self.websocket:
-                    await self.websocket.ping()
+                    try:
+                        await self.websocket.ping()
+                    except:
+                        break
                     
-            except websockets.exceptions.ConnectionClosed:
-                logger.warning("WebSocket connection closed")
-                break
-                
             except Exception as e:
-                logger.error(f"Error in event monitoring: {e}")
-                await asyncio.sleep(1)
+                if "websockets.exceptions.ConnectionClosed" in str(type(e)):
+                    logger.warning("WebSocket connection closed")
+                    break
+                else:
+                    logger.error(f"Error in event monitoring: {e}")
+                    await asyncio.sleep(1)
         
         # Attempt reconnection
         if self.connected and self.reconnect_attempts < self.max_reconnect_attempts:
@@ -380,7 +405,10 @@ class LCUClient:
     async def _cleanup_session(self):
         """Clean up HTTP session"""
         if self.session:
-            await self.session.close()
+            try:
+                await self.session.close()
+            except:
+                pass
             self.session = None
     
     # API Methods
@@ -395,7 +423,17 @@ class LCUClient:
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return CurrentSummoner(**data)
+                    return CurrentSummoner(
+                        account_id=data.get('accountId', ''),
+                        display_name=data.get('displayName', ''),
+                        internal_name=data.get('internalName', ''),
+                        profile_icon_id=data.get('profileIconId', 0),
+                        puuid=data.get('puuid', ''),
+                        summoner_id=data.get('summonerId', ''),
+                        summoner_level=data.get('summonerLevel', 0),
+                        xp_since_last_level=data.get('xpSinceLastLevel', 0),
+                        xp_until_next_level=data.get('xpUntilNextLevel', 0)
+                    )
                 else:
                     logger.error(f"Failed to get current summoner: {response.status}")
                     
@@ -404,7 +442,7 @@ class LCUClient:
         
         return None
     
-    async def get_champion_select_state(self) -> Optional[ChampionSelectState]:
+    async def get_champion_select_state(self) -> Optional[Dict]:
         """Get current champion select state"""
         if not self.connected or not self.session:
             return None
@@ -413,8 +451,7 @@ class LCUClient:
             url = f"https://{self.credentials.host}:{self.credentials.port}/lol-champ-select/v1/session"
             async with self.session.get(url) as response:
                 if response.status == 200:
-                    data = await response.json()
-                    return ChampionSelectState(**data)
+                    return await response.json()
                 elif response.status == 404:
                     return None  # Not in champion select
                 else:
@@ -434,7 +471,8 @@ class LCUClient:
             url = f"https://{self.credentials.host}:{self.credentials.port}/lol-gameflow/v1/gameflow-phase"
             async with self.session.get(url) as response:
                 if response.status == 200:
-                    return await response.text()
+                    text = await response.text()
+                    return text.strip('"')  # Remove quotes from JSON string
                     
         except Exception as e:
             logger.error(f"Error getting gameflow phase: {e}")
@@ -460,6 +498,8 @@ class LCUClient:
             logger.error(f"Error auto-accepting queue: {e}")
             return False
     
+    # Simplified API methods for basic functionality
+    
     async def get_lobby_state(self) -> Optional[Dict]:
         """Get current lobby state"""
         if not self.connected or not self.session:
@@ -475,111 +515,6 @@ class LCUClient:
                     
         except Exception as e:
             logger.error(f"Error getting lobby state: {e}")
-        
-        return None
-    
-    async def get_friends_list(self) -> Optional[List[Dict]]:
-        """Get friends list"""
-        if not self.connected or not self.session:
-            return None
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-chat/v1/friends"
-            async with self.session.get(url) as response:
-                if response.status == 200:
-                    return await response.json()
-                    
-        except Exception as e:
-            logger.error(f"Error getting friends list: {e}")
-        
-        return None
-    
-    async def send_chat_message(self, room_id: str, message: str) -> bool:
-        """Send a chat message to specified room"""
-        if not self.connected or not self.session:
-            return False
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-chat/v1/conversations/{room_id}/messages"
-            payload = {
-                "body": message,
-                "type": "chat"
-            }
-            async with self.session.post(url, json=payload) as response:
-                return response.status == 200
-                
-        except Exception as e:
-            logger.error(f"Error sending chat message: {e}")
-            return False
-    
-    async def pick_champion(self, action_id: int, champion_id: int) -> bool:
-        """Pick a champion in champion select"""
-        if not self.connected or not self.session:
-            return False
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-champ-select/v1/session/actions/{action_id}"
-            payload = {
-                "championId": champion_id,
-                "completed": True,
-                "type": "pick"
-            }
-            async with self.session.patch(url, json=payload) as response:
-                return response.status == 204
-                
-        except Exception as e:
-            logger.error(f"Error picking champion: {e}")
-            return False
-    
-    async def ban_champion(self, action_id: int, champion_id: int) -> bool:
-        """Ban a champion in champion select"""
-        if not self.connected or not self.session:
-            return False
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-champ-select/v1/session/actions/{action_id}"
-            payload = {
-                "championId": champion_id,
-                "completed": True,
-                "type": "ban"
-            }
-            async with self.session.patch(url, json=payload) as response:
-                return response.status == 204
-                
-        except Exception as e:
-            logger.error(f"Error banning champion: {e}")
-            return False
-    
-    async def get_owned_champions(self) -> Optional[List[Dict]]:
-        """Get list of owned champions"""
-        if not self.connected or not self.session:
-            return None
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-champions/v1/owned-champions-minimal"
-            async with self.session.get(url) as response:
-                if response.status == 200:
-                    return await response.json()
-                    
-        except Exception as e:
-            logger.error(f"Error getting owned champions: {e}")
-        
-        return None
-    
-    async def get_match_history(self, start: int = 0, count: int = 20) -> Optional[Dict]:
-        """Get match history for current summoner"""
-        if not self.connected or not self.session:
-            return None
-        
-        try:
-            url = f"https://{self.credentials.host}:{self.credentials.port}/lol-match-history/v1/products/lol/current-summoner/matches"
-            params = {"begIndex": start, "endIndex": start + count}
-            async with self.session.get(url, params=params) as response:
-                if response.status == 200:
-                    return await response.json()
-                    
-        except Exception as e:
-            logger.error(f"Error getting match history: {e}")
         
         return None
     
@@ -617,5 +552,10 @@ class LCUClient:
             "has_websocket": self.websocket is not None,
             "auto_accept_enabled": self.auto_accept_enabled,
             "auto_accept_users": len(self.auto_accept_users),
-            "reconnect_attempts": self.reconnect_attempts
+            "reconnect_attempts": self.reconnect_attempts,
+            "dependencies": {
+                "aiohttp": HAS_AIOHTTP,
+                "websockets": HAS_WEBSOCKETS,
+                "psutil": HAS_PSUTIL
+            }
         }
