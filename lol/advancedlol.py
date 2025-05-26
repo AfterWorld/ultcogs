@@ -380,7 +380,7 @@ class AdvancedLoLv2(commands.Cog):
             await self.load_champion_data()
     
     @lol_commands.command(name="status")
-    async def bot_status(self, ctx):
+    async def check_status(self, ctx):
         """Check bot status and available features"""
         embed = discord.Embed(
             title="🔧 Bot Status",
