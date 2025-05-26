@@ -1,17 +1,17 @@
 """
-Advanced League of Legends Cog - Main Integration File
+Advanced League of Legends Cog - Main Integration File (Fixed)
 
-Combines all enhanced features into a comprehensive LoL bot experience.
+Simplified version with graceful error handling and optional features.
 """
 
 import discord
-import aiohttp
 import asyncio
 import json
 import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, Tuple
 from collections import defaultdict
+import logging
 
 from redbot.core import commands, Config, checks
 from redbot.core.bot import Red
@@ -19,13 +19,47 @@ from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.utils.predicates import ReactionPredicate
 
-# Import our enhanced components
-from .analytics import AdvancedAnalytics
-from .lcu_client import LCUClient
-from .community import CommunityManager
-from .embeds import EnhancedEmbedBuilder
+# Import enhanced components with error handling
+try:
+    from .analytics import AdvancedAnalytics
+    HAS_ANALYTICS = True
+except ImportError as e:
+    logging.warning(f"Analytics module not available: {e}")
+    HAS_ANALYTICS = False
+    AdvancedAnalytics = None
 
-import logging
+try:
+    from .lcu_client import LCUClient
+    HAS_LCU = True
+except ImportError as e:
+    logging.warning(f"LCU client not available: {e}")
+    HAS_LCU = False
+    LCUClient = None
+
+try:
+    from .community import CommunityManager
+    HAS_COMMUNITY = True
+except ImportError as e:
+    logging.warning(f"Community features not available: {e}")
+    HAS_COMMUNITY = False
+    CommunityManager = None
+
+try:
+    from .embeds import EnhancedEmbedBuilder
+    HAS_EMBEDS = True
+except ImportError as e:
+    logging.warning(f"Enhanced embeds not available: {e}")
+    HAS_EMBEDS = False
+    EnhancedEmbedBuilder = None
+
+# Check for aiohttp
+try:
+    import aiohttp
+    HAS_AIOHTTP = True
+except ImportError:
+    HAS_AIOHTTP = False
+    aiohttp = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +80,7 @@ class RateLimiter:
 
 
 class AdvancedLoLv2(commands.Cog):
-    """Enhanced League of Legends integration with advanced analytics and community features"""
+    """Enhanced League of Legends integration with optional advanced features"""
     
     def __init__(self, bot: Red):
         self.bot = bot
@@ -55,8 +89,7 @@ class AdvancedLoLv2(commands.Cog):
         default_global = {
             "riot_api_key": "",
             "default_region": "na1",
-            "champion_data": {},
-            "early_adopter_count": 0
+            "champion_data": {}
         }
         
         default_guild = {
@@ -64,7 +97,6 @@ class AdvancedLoLv2(commands.Cog):
             "auto_update_interval": 30,
             "achievements_enabled": True,
             "leaderboards_enabled": True,
-            "auto_accept_enabled": False,
             "embed_theme": "gaming"
         }
         
@@ -80,15 +112,15 @@ class AdvancedLoLv2(commands.Cog):
         self.config.register_guild(**default_guild)
         self.config.register_user(**default_user)
         
-        # Enhanced components
+        # Basic components
         self.session = None
         self.rate_limiter = RateLimiter()
         self.champion_data = {}
         self.live_game_tasks = {}
         
-        # Initialize enhanced features
-        self.analytics = AdvancedAnalytics()
-        self.lcu_client = LCUClient()
+        # Initialize optional enhanced features
+        self.analytics = None
+        self.lcu_client = None
         self.community_manager = None
         self.embed_builder = None
         
@@ -111,21 +143,34 @@ class AdvancedLoLv2(commands.Cog):
         }
         
     async def cog_load(self):
-        """Initialize the enhanced cog"""
+        """Initialize the cog with available features"""
         try:
-            self.session = aiohttp.ClientSession()
-            await self.load_champion_data()
+            # Initialize HTTP session if aiohttp is available
+            if HAS_AIOHTTP:
+                self.session = aiohttp.ClientSession()
+                await self.load_champion_data()
+            else:
+                logger.warning("HTTP features disabled - aiohttp not installed")
             
-            # Initialize community features
-            db_path = str(self.bot.cog_data_path(self) / "community.db")
-            self.community_manager = CommunityManager(db_path)
+            # Initialize optional enhanced features
+            if HAS_ANALYTICS:
+                self.analytics = AdvancedAnalytics()
+                logger.info("✅ Analytics engine loaded")
             
-            # Initialize embed builder with theme
-            theme = await self.config.embed_theme() or "gaming"
-            self.embed_builder = EnhancedEmbedBuilder(self.champion_data, theme)
+            if HAS_LCU:
+                self.lcu_client = LCUClient()
+                asyncio.create_task(self._try_lcu_connection())
+                logger.info("✅ LCU client loaded")
             
-            # Try to connect to LCU
-            asyncio.create_task(self._try_lcu_connection())
+            if HAS_COMMUNITY:
+                db_path = str(self.bot.cog_data_path(self) / "community.db")
+                self.community_manager = CommunityManager(db_path)
+                logger.info("✅ Community features loaded")
+            
+            if HAS_EMBEDS:
+                theme = await self.config.embed_theme() or "gaming"
+                self.embed_builder = EnhancedEmbedBuilder(self.champion_data, theme)
+                logger.info("✅ Enhanced embeds loaded")
             
             logger.info("Advanced LoL cog loaded successfully")
             
@@ -158,12 +203,13 @@ class AdvancedLoLv2(commands.Cog):
     
     async def _try_lcu_connection(self):
         """Attempt to connect to League Client"""
+        if not self.lcu_client:
+            return
+            
         try:
             await asyncio.sleep(2)  # Wait for cog to fully load
             if await self.lcu_client.connect():
                 logger.info("✅ Connected to League Client!")
-                # Start LCU event monitoring
-                asyncio.create_task(self._monitor_lcu_auto_features())
             else:
                 logger.info("❌ League Client not found or not running")
         except Exception as e:
@@ -171,6 +217,9 @@ class AdvancedLoLv2(commands.Cog):
     
     async def load_champion_data(self):
         """Load champion data for ID to name mapping"""
+        if not HAS_AIOHTTP or not self.session:
+            return
+            
         try:
             # Try to load from config first
             cached_data = await self.config.champion_data()
@@ -204,6 +253,9 @@ class AdvancedLoLv2(commands.Cog):
     
     async def make_riot_request(self, endpoint: str, region: str = "na1") -> Optional[Dict]:
         """Make a rate-limited request to Riot API"""
+        if not HAS_AIOHTTP or not self.session:
+            return None
+            
         api_key = await self.config.riot_api_key()
         if not api_key:
             return None
@@ -245,45 +297,70 @@ class AdvancedLoLv2(commands.Cog):
     
     @commands.group(name="lol", invoke_without_command=True)
     async def lol_commands(self, ctx):
-        """Enhanced League of Legends commands with advanced analytics"""
+        """Enhanced League of Legends commands"""
         embed = discord.Embed(
             title="🎮 Advanced League of Legends Bot",
-            description="Professional-grade LoL integration with analytics, community features, and LCU support",
+            description="League of Legends integration with analytics and community features",
             color=0x00ff88
         )
         
-        embed.add_field(
-            name="📊 Core Commands",
-            value="`profile` - Detailed summoner profiles\n"
-                  "`live` - Advanced live game analysis\n"
-                  "`matches` - Enhanced match history\n"
-                  "`rank` - Ranked statistics",
-            inline=True
-        )
+        # Feature status
+        features = []
+        if HAS_AIOHTTP:
+            features.append("✅ Core API functionality")
+        else:
+            features.append("❌ Core API (install aiohttp)")
+            
+        if HAS_ANALYTICS:
+            features.append("✅ Advanced analytics")
+        else:
+            features.append("❌ Analytics (module error)")
+            
+        if HAS_COMMUNITY:
+            features.append("✅ Community features")
+        else:
+            features.append("❌ Community (module error)")
+            
+        if HAS_LCU:
+            features.append("✅ League Client integration")
+        else:
+            features.append("❌ LCU integration (module error)")
+            
+        if HAS_EMBEDS:
+            features.append("✅ Enhanced embeds")
+        else:
+            features.append("❌ Enhanced embeds (module error)")
         
         embed.add_field(
-            name="🏆 Community",
-            value="`community profile` - Your community stats\n"
-                  "`community leaderboard` - Server rankings\n"
-                  "`community achievements` - Achievement progress",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🔗 League Client",
-            value="`lcu connect` - Connect to League\n"
-                  "`lcu status` - Client status\n"
-                  "`lcu autoaccept` - Toggle auto-accept",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⚙️ Setup (Mods Only)",
-            value="`setup` - Configure live game channel\n"
-                  "`monitor` - Auto-monitor summoners\n"
-                  "`theme` - Change embed theme",
+            name="🔧 Feature Status",
+            value="\n".join(features),
             inline=False
         )
+        
+        embed.add_field(
+            name="📊 Available Commands",
+            value="`profile` - Summoner profiles\n"
+                  "`live` - Live game analysis\n"
+                  "`matches` - Match history\n"
+                  "`status` - Check bot status",
+            inline=True
+        )
+        
+        if HAS_COMMUNITY:
+            embed.add_field(
+                name="🏆 Community",
+                value="`community profile` - Your stats\n"
+                      "`community leaderboard` - Rankings",
+                inline=True
+            )
+        
+        if HAS_LCU:
+            embed.add_field(
+                name="🔗 League Client",
+                value="`lcu connect` - Connect to League\n"
+                      "`lcu status` - Connection status",
+                inline=True
+            )
         
         embed.set_footer(text="Use [p]help lol <command> for detailed information")
         
@@ -299,46 +376,63 @@ class AdvancedLoLv2(commands.Cog):
         """Set the Riot API key"""
         await self.config.riot_api_key.set(api_key)
         await ctx.send("✅ Riot API key has been set!")
-        await self.load_champion_data()
+        if HAS_AIOHTTP:
+            await self.load_champion_data()
     
-    @lol_commands.command(name="theme")
-    @checks.mod_or_permissions(manage_guild=True)
-    async def set_theme(self, ctx, theme: str = None):
-        """Set the embed theme for this server"""
-        available_themes = ["gaming", "dark", "light", "professional", "default"]
+    @lol_commands.command(name="status")
+    async def bot_status(self, ctx):
+        """Check bot status and available features"""
+        embed = discord.Embed(
+            title="🔧 Bot Status",
+            color=0x3498db
+        )
         
-        if not theme:
-            current_theme = await self.config.guild(ctx.guild).embed_theme()
-            embed = discord.Embed(
-                title="🎨 Embed Themes",
-                description=f"**Current theme:** {current_theme}\n\n"
-                           f"**Available themes:**\n" + 
-                           "\n".join([f"`{t}`" for t in available_themes]),
-                color=0x9b59b6
-            )
-            await ctx.send(embed=embed)
-            return
+        # API Key status
+        api_key = await self.config.riot_api_key()
+        embed.add_field(
+            name="🔑 API Configuration",
+            value="✅ API key configured" if api_key else "❌ No API key set",
+            inline=True
+        )
         
-        if theme not in available_themes:
-            await ctx.send(f"❌ Invalid theme. Available: {', '.join(available_themes)}")
-            return
+        # HTTP status
+        embed.add_field(
+            name="🌐 HTTP Client",
+            value="✅ Active" if (HAS_AIOHTTP and self.session) else "❌ Not available",
+            inline=True
+        )
         
-        await self.config.guild(ctx.guild).embed_theme.set(theme)
+        # Champion data
+        embed.add_field(
+            name="🎮 Champion Data",
+            value=f"✅ {len(self.champion_data)} champions loaded" if self.champion_data else "❌ Not loaded",
+            inline=True
+        )
         
-        # Reinitialize embed builder with new theme
-        self.embed_builder = EnhancedEmbedBuilder(self.champion_data, theme)
+        # Enhanced features
+        if self.analytics:
+            embed.add_field(name="📊 Analytics", value="✅ Active", inline=True)
+        if self.community_manager:
+            embed.add_field(name="🏆 Community", value="✅ Active", inline=True)
+        if self.lcu_client:
+            lcu_status = "✅ Connected" if self.lcu_client.connected else "⚠️ Available"
+            embed.add_field(name="🔗 LCU", value=lcu_status, inline=True)
         
-        await ctx.send(f"✅ Embed theme set to **{theme}**!")
+        await ctx.send(embed=embed)
     
     # =============================================================================
     # PROFILE COMMANDS  
     # =============================================================================
     
     @lol_commands.command(name="profile", aliases=["summoner", "p"])
-    async def get_profile_v2(self, ctx, summoner_name: str, region: str = "na"):
-        """Get detailed summoner profile with enhanced features"""
+    async def get_profile(self, ctx, summoner_name: str, region: str = "na"):
+        """Get summoner profile"""
         if region not in self.regions:
             await ctx.send(f"❌ Invalid region. Available: {', '.join(self.regions.keys())}")
+            return
+        
+        if not HAS_AIOHTTP:
+            await ctx.send("❌ Profile lookup requires aiohttp. Install with: `pip install aiohttp`")
             return
         
         async with ctx.typing():
@@ -376,62 +470,117 @@ class AdvancedLoLv2(commands.Cog):
                 region
             )
             
-            # Community integration
-            await self._update_user_profile_data(ctx.author.id, summoner_name, region)
-            
-            # Check for achievements
-            achievements = await self.community_manager.check_achievements(
-                str(ctx.author.id), 
-                "profile_linked" if not await self.config.user(ctx.author).profile_linked() else "profiles_checked"
-            )
-            
-            # Mark profile as linked
-            if not await self.config.user(ctx.author).profile_linked():
-                await self.config.user(ctx.author).profile_linked.set(True)
-            
-            # Update server stats
-            await self.community_manager.increment_server_stat(
-                str(ctx.guild.id), 
-                str(ctx.author.id), 
-                "profiles_checked"
-            )
-            
-            # Create enhanced embed
-            user_achievements = await self.community_manager.get_user_achievements(str(ctx.author.id))
-            recent_achievements = [a for a, _ in user_achievements[:3]]
-            
-            embed = await self.embed_builder.create_profile_embed_v2(
-                summoner_data, ranked_data or [], mastery_data or [], recent_achievements
-            )
+            # Create embed
+            if HAS_EMBEDS and self.embed_builder:
+                # Use enhanced embed builder
+                embed = await self.embed_builder.create_profile_embed_v2(
+                    summoner_data, ranked_data or [], mastery_data or []
+                )
+            else:
+                # Use basic embed
+                embed = await self._create_basic_profile_embed(summoner_data, ranked_data, mastery_data)
             
             await ctx.send(embed=embed)
             
-            # Award achievements if any
-            for achievement in achievements:
-                achievement_embed = await self.embed_builder.create_achievement_embed(
-                    achievement, 
-                    ctx.author.mention
-                )
-                await ctx.send(embed=achievement_embed)
+            # Community integration if available
+            if HAS_COMMUNITY and self.community_manager:
+                try:
+                    achievements = await self.community_manager.check_achievements(
+                        str(ctx.author.id), 
+                        "profile_linked" if not await self.config.user(ctx.author).profile_linked() else "profiles_checked"
+                    )
+                    
+                    if not await self.config.user(ctx.author).profile_linked():
+                        await self.config.user(ctx.author).profile_linked.set(True)
+                    
+                    # Award achievements if any
+                    for achievement in achievements:
+                        achievement_embed = discord.Embed(
+                            title="🎉 Achievement Unlocked!",
+                            description=f"{ctx.author.mention} earned **{achievement.name}**!\n{achievement.emoji} {achievement.description}",
+                            color=0xffd700
+                        )
+                        await ctx.send(embed=achievement_embed)
+                except Exception as e:
+                    logger.error(f"Community integration error: {e}")
     
-    async def _update_user_profile_data(self, discord_id: str, summoner_name: str, region: str):
-        """Update user profile data in community system"""
-        profile = await self.community_manager.get_or_create_user_profile(discord_id)
+    async def _create_basic_profile_embed(self, summoner_data: Dict, ranked_data: List[Dict], mastery_data: List[Dict]) -> discord.Embed:
+        """Create basic profile embed without enhanced features"""
+        summoner_name = summoner_data.get('name', 'Unknown')
+        summoner_level = summoner_data.get('summonerLevel', 0)
         
-        # Update summoner info if changed
-        if profile.summoner_name != summoner_name or profile.region != region:
-            await self.community_manager.update_user_stat(discord_id, "summoner_name", summoner_name)
-            await self.community_manager.update_user_stat(discord_id, "region", region)
+        embed = discord.Embed(
+            title=f"🎮 {summoner_name}",
+            color=0x0596aa
+        )
+        
+        embed.add_field(
+            name="📊 Profile Info",
+            value=f"**Level:** {summoner_level}\n"
+                  f"**Account:** {summoner_data.get('accountId', 'Unknown')[:8]}...",
+            inline=True
+        )
+        
+        # Ranked information
+        if ranked_data:
+            ranked_text = ""
+            for queue in ranked_data:
+                queue_type = queue.get('queueType', 'RANKED_SOLO_5x5').replace('_', ' ')
+                tier = queue.get('tier', 'Unranked')
+                rank = queue.get('rank', '')
+                lp = queue.get('leaguePoints', 0)
+                wins = queue.get('wins', 0)
+                losses = queue.get('losses', 0)
+                
+                total_games = wins + losses
+                win_rate = (wins / total_games * 100) if total_games > 0 else 0
+                
+                ranked_text += f"**{queue_type.replace('RANKED', '').strip()}**\n"
+                if tier != "Unranked":
+                    ranked_text += f"{tier.title()} {rank} ({lp} LP)\n"
+                    ranked_text += f"{wins}W / {losses}L ({win_rate:.1f}%)\n\n"
+                else:
+                    ranked_text += "Unranked\n\n"
+            
+            embed.add_field(
+                name="🏆 Ranked Status",
+                value=ranked_text.strip(),
+                inline=True
+            )
+        
+        # Champion mastery
+        if mastery_data:
+            mastery_text = ""
+            for i, mastery in enumerate(mastery_data[:3], 1):
+                champion_id = mastery.get('championId', 0)
+                champion_name = self.champion_data.get(champion_id, {}).get('name', f'Champion {champion_id}')
+                level = mastery.get('championLevel', 0)
+                points = mastery.get('championPoints', 0)
+                
+                mastery_text += f"**{i}. {champion_name}**\n"
+                mastery_text += f"Level {level} ({points:,} pts)\n\n"
+            
+            embed.add_field(
+                name="⭐ Top Champions",
+                value=mastery_text.strip(),
+                inline=False
+            )
+        
+        return embed
     
     # =============================================================================
     # LIVE GAME COMMANDS
     # =============================================================================
     
     @lol_commands.command(name="live", aliases=["current", "spectate", "l"])
-    async def get_live_game_v2(self, ctx, summoner_name: str, region: str = "na"):
-        """Get enhanced live game information with advanced analytics"""
+    async def get_live_game(self, ctx, summoner_name: str, region: str = "na"):
+        """Get live game information"""
         if region not in self.regions:
             await ctx.send(f"❌ Invalid region. Available: {', '.join(self.regions.keys())}")
+            return
+        
+        if not HAS_AIOHTTP:
+            await ctx.send("❌ Live game lookup requires aiohttp. Install with: `pip install aiohttp`")
             return
         
         async with ctx.typing():
@@ -457,82 +606,99 @@ class AdvancedLoLv2(commands.Cog):
                 await ctx.send("❌ No active game found for this summoner!")
                 return
             
-            # Enhanced analytics
-            win_prob = await self.analytics.calculate_win_probability(live_game)
-            win_prob_dict = {
-                "100": win_prob.blue_team_prob,
-                "200": win_prob.red_team_prob
-            }
-            
-            # Create enhanced embeds with analytics
-            embeds = await self.embed_builder.create_live_game_embed_v2(
-                live_game, 
-                self.analytics, 
-                win_prob_dict
-            )
-            
-            # Community integration
-            await self.community_manager.increment_server_stat(
-                str(ctx.guild.id), 
-                str(ctx.author.id), 
-                "live_games_checked"
-            )
-            
-            # Check for special achievements
-            achievements = await self._check_live_game_achievements(ctx.author.id, live_game)
-            
-            # Send enhanced embeds with menu navigation
-            await menu(ctx, embeds, DEFAULT_CONTROLS)
-            
-            # Award achievements if any
-            for achievement in achievements:
-                achievement_embed = await self.embed_builder.create_achievement_embed(
-                    achievement, 
-                    ctx.author.mention
+            # Create embeds
+            if HAS_EMBEDS and self.embed_builder and HAS_ANALYTICS and self.analytics:
+                # Use enhanced features
+                win_prob = await self.analytics.calculate_win_probability(live_game)
+                win_prob_dict = {
+                    "100": win_prob.blue_team_prob,
+                    "200": win_prob.red_team_prob
+                }
+                
+                embeds = await self.embed_builder.create_live_game_embed_v2(
+                    live_game, 
+                    self.analytics, 
+                    win_prob_dict
                 )
-                await ctx.send(embed=achievement_embed)
+                
+                await menu(ctx, embeds, DEFAULT_CONTROLS)
+            else:
+                # Use basic embed
+                embed = await self._create_basic_live_game_embed(live_game)
+                await ctx.send(embed=embed)
+            
+            # Community integration if available
+            if HAS_COMMUNITY and self.community_manager:
+                try:
+                    achievements = await self.community_manager.check_achievements(
+                        str(ctx.author.id), 
+                        "live_games_checked"
+                    )
+                    
+                    for achievement in achievements:
+                        achievement_embed = discord.Embed(
+                            title="🎉 Achievement Unlocked!",
+                            description=f"{ctx.author.mention} earned **{achievement.name}**!",
+                            color=0xffd700
+                        )
+                        await ctx.send(embed=achievement_embed)
+                except Exception as e:
+                    logger.error(f"Community integration error: {e}")
     
-    async def _check_live_game_achievements(self, discord_id: str, live_game: Dict) -> List:
-        """Check for live game specific achievements"""
-        achievements = []
+    async def _create_basic_live_game_embed(self, game_data: Dict) -> discord.Embed:
+        """Create basic live game embed"""
+        game_mode = game_data.get('gameMode', 'Unknown')
+        game_length = game_data.get('gameLength', 0)
         
-        # Check for challenger players
-        for participant in live_game.get('participants', []):
-            # This would check cached rank data
-            # For now, simplified logic
-            if 'CHALLENGER' in str(participant).upper():
-                challenger_achievements = await self.community_manager.check_achievements(
-                    str(discord_id), 
-                    "challenger_found"
-                )
-                achievements.extend(challenger_achievements)
-                break
-        
-        # Check game mode specific achievements
-        game_mode = live_game.get('gameMode', '')
-        if 'ARAM' in game_mode:
-            aram_achievements = await self.community_manager.check_achievements(
-                str(discord_id), 
-                "aram_games_found"
-            )
-            achievements.extend(aram_achievements)
-        
-        # Regular live game achievement
-        live_achievements = await self.community_manager.check_achievements(
-            str(discord_id), 
-            "live_games_checked"
+        embed = discord.Embed(
+            title=f"🔴 Live Game - {game_mode}",
+            description=f"**Duration:** {game_length // 60}m {game_length % 60}s",
+            color=0xff6b6b
         )
-        achievements.extend(live_achievements)
         
-        return achievements
+        # Organize teams
+        blue_team = []
+        red_team = []
+        
+        for participant in game_data.get('participants', []):
+            if participant.get('teamId') == 100:
+                blue_team.append(participant)
+            else:
+                red_team.append(participant)
+        
+        # Team displays
+        for team_name, team_players, color in [
+            ("🔵 Blue Team", blue_team, 0x4ecdc4),
+            ("🔴 Red Team", red_team, 0xff6b6b)
+        ]:
+            if team_players:
+                team_text = ""
+                for player in team_players:
+                    champion_id = player.get('championId', 0)
+                    champion_name = self.champion_data.get(champion_id, {}).get('name', f'Champion {champion_id}')
+                    summoner_name = player.get('summonerName', 'Unknown')
+                    
+                    team_text += f"**{champion_name}** - {summoner_name}\n"
+                
+                embed.add_field(
+                    name=team_name,
+                    value=team_text.strip(),
+                    inline=True
+                )
+        
+        return embed
     
     # =============================================================================
-    # COMMUNITY COMMANDS
+    # COMMUNITY COMMANDS (if available)
     # =============================================================================
     
     @lol_commands.group(name="community", aliases=["comm", "c"], invoke_without_command=True)
     async def community_commands(self, ctx):
         """Community features and leaderboards"""
+        if not HAS_COMMUNITY:
+            await ctx.send("❌ Community features are not available. Check bot status with `[p]lol status`")
+            return
+        
         embed = discord.Embed(
             title="🏆 Community Features",
             description="Track your progress and compete with other server members!",
@@ -540,27 +706,10 @@ class AdvancedLoLv2(commands.Cog):
         )
         
         embed.add_field(
-            name="📊 Your Stats",
+            name="📊 Available Commands",
             value="`profile` - View your community profile\n"
-                  "`achievements` - Achievement progress\n"
-                  "`stats` - Detailed statistics",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🏆 Leaderboards", 
-            value="`leaderboard` - Server rankings\n"
-                  "`top` - Top performers\n"
-                  "`weekly` - Weekly leaders",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🎯 Features",
-            value="• Achievement system with rarities\n"
-                  "• Server-wide competition\n" 
-                  "• Progress tracking\n"
-                  "• Exclusive rewards",
+                  "`leaderboard` - Server rankings\n"
+                  "`achievements` - Achievement progress",
             inline=False
         )
         
@@ -569,220 +718,103 @@ class AdvancedLoLv2(commands.Cog):
     @community_commands.command(name="profile", aliases=["me"])
     async def community_profile(self, ctx, user: discord.Member = None):
         """View your or another user's community profile"""
+        if not HAS_COMMUNITY:
+            await ctx.send("❌ Community features are not available.")
+            return
+        
         target_user = user or ctx.author
         
-        profile = await self.community_manager.get_user_profile(str(target_user.id))
-        
-        if not profile:
-            if target_user == ctx.author:
-                # Create profile for first-time user
-                profile = await self.community_manager.create_user_profile(str(target_user.id))
-                await ctx.send("🎉 Welcome! Your community profile has been created!")
-            else:
-                await ctx.send(f"❌ {target_user.display_name} hasn't used the bot yet!")
-                return
-        
-        # Get achievements
-        user_achievements = await self.community_manager.get_user_achievements(str(target_user.id))
-        
-        embed = discord.Embed(
-            title=f"🎮 {target_user.display_name}'s Community Profile",
-            color=target_user.color if target_user.color != discord.Color.default() else 0x00ff88
-        )
-        
-        # Basic stats
-        embed.add_field(
-            name="📊 Progress",
-            value=f"**Level:** {profile.level}\n"
-                  f"**Total Points:** {profile.total_points:,}\n"
-                  f"**Achievements:** {profile.achievements_count}",
-            inline=True
-        )
-        
-        # League info
-        league_info = f"**Summoner:** {profile.summoner_name or 'Not linked'}\n"
-        if profile.region:
-            league_info += f"**Region:** {profile.region.upper()}\n"
-        if profile.favorite_champion:
-            league_info += f"**Main:** {profile.favorite_champion}"
-        
-        embed.add_field(
-            name="🎯 League Info",
-            value=league_info,
-            inline=True
-        )
-        
-        # Recent achievements
-        if user_achievements:
-            achievement_text = ""
-            for achievement, earned_at in user_achievements[:5]:
-                days_ago = (datetime.utcnow() - earned_at).days
-                time_text = f"{days_ago}d ago" if days_ago > 0 else "Today"
-                achievement_text += f"{achievement.emoji} {achievement.name} *({time_text})*\n"
+        try:
+            profile = await self.community_manager.get_user_profile(str(target_user.id))
             
-            embed.add_field(
-                name="🏅 Recent Achievements",
-                value=achievement_text,
-                inline=False
-            )
-        
-        # Activity timeline
-        activity_text = f"**Joined:** {profile.created_at.strftime('%b %d, %Y')}\n"
-        activity_text += f"**Last Active:** {profile.last_active.strftime('%b %d, %Y')}"
-        
-        embed.add_field(
-            name="📅 Activity",
-            value=activity_text,
-            inline=True
-        )
-        
-        embed.set_thumbnail(url=target_user.avatar.url if target_user.avatar else None)
-        
-        await ctx.send(embed=embed)
-    
-    @community_commands.command(name="leaderboard", aliases=["lb", "top"])
-    async def server_leaderboard(self, ctx, stat_type: str = "total_points"):
-        """View server leaderboards for different statistics"""
-        available_stats = [
-            "total_points", "live_games_checked", "matches_analyzed", 
-            "profiles_checked", "achievements_count"
-        ]
-        
-        if stat_type not in available_stats:
+            if not profile:
+                if target_user == ctx.author:
+                    profile = await self.community_manager.create_user_profile(str(target_user.id))
+                    await ctx.send("🎉 Welcome! Your community profile has been created!")
+                else:
+                    await ctx.send(f"❌ {target_user.display_name} hasn't used the bot yet!")
+                    return
+            
             embed = discord.Embed(
-                title="📊 Available Leaderboards",
-                description="Choose from the following leaderboard types:",
-                color=0x3498db
-            )
-            
-            stats_text = ""
-            for stat in available_stats:
-                display_name = stat.replace('_', ' ').title()
-                stats_text += f"`{stat}` - {display_name}\n"
-            
-            embed.add_field(
-                name="📈 Statistics",
-                value=stats_text,
-                inline=False
+                title=f"🎮 {target_user.display_name}'s Community Profile",
+                color=target_user.color if target_user.color != discord.Color.default() else 0x00ff88
             )
             
             embed.add_field(
-                name="Usage",
-                value=f"`{ctx.prefix}lol community leaderboard <stat_type>`",
-                inline=False
+                name="📊 Progress",
+                value=f"**Level:** {profile.level}\n"
+                      f"**Total Points:** {profile.total_points:,}\n"
+                      f"**Achievements:** {profile.achievements_count}",
+                inline=True
             )
+            
+            if profile.summoner_name:
+                embed.add_field(
+                    name="🎯 League Info",
+                    value=f"**Summoner:** {profile.summoner_name}\n"
+                          f"**Region:** {profile.region.upper() if profile.region else 'Unknown'}",
+                    inline=True
+                )
+            
+            embed.set_thumbnail(url=target_user.avatar.url if target_user.avatar else None)
             
             await ctx.send(embed=embed)
-            return
-        
-        # Get leaderboard data
-        leaderboard_data = await self.community_manager.get_server_leaderboard(
-            str(ctx.guild.id), 
-            stat_type,
-            limit=15
-        )
-        
-        # Create enhanced leaderboard embed
-        embed = await self.embed_builder.create_leaderboard_embed(
-            ctx.guild, 
-            leaderboard_data, 
-            stat_type
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @community_commands.command(name="achievements", aliases=["achieve", "progress"])
-    async def achievement_progress(self, ctx, user: discord.Member = None):
-        """View achievement progress"""
-        target_user = user or ctx.author
-        
-        # Get achievement progress
-        progress = await self.community_manager.get_achievement_progress(str(target_user.id))
-        
-        if not progress:
-            await ctx.send(f"❌ No achievement data found for {target_user.display_name}")
-            return
-        
-        # Organize achievements by category and completion
-        completed = []
-        in_progress = []
-        not_started = []
-        
-        for achievement in self.community_manager.achievement_manager.achievements:
-            if achievement.hidden:
-                continue
-                
-            prog_data = progress.get(achievement.id, {})
             
-            if prog_data.get('completed', False):
-                completed.append((achievement, prog_data))
-            elif prog_data.get('current', 0) > 0:
-                in_progress.append((achievement, prog_data))
-            else:
-                not_started.append((achievement, prog_data))
+        except Exception as e:
+            logger.error(f"Error in community profile: {e}")
+            await ctx.send("❌ Error retrieving community profile.")
+    
+    @community_commands.command(name="leaderboard", aliases=["lb"])
+    async def server_leaderboard(self, ctx, stat_type: str = "total_points"):
+        """View server leaderboards"""
+        if not HAS_COMMUNITY:
+            await ctx.send("❌ Community features are not available.")
+            return
         
-        # Create embeds (paginated if needed)
-        embeds = []
-        
-        # Completed achievements embed
-        if completed:
+        try:
+            leaderboard_data = await self.community_manager.get_server_leaderboard(
+                str(ctx.guild.id), 
+                stat_type,
+                limit=10
+            )
+            
             embed = discord.Embed(
-                title=f"🏆 {target_user.display_name}'s Achievements - Completed",
+                title=f"🏆 {ctx.guild.name} - {stat_type.replace('_', ' ').title()} Leaderboard",
                 color=0xffd700
             )
             
-            completed_text = ""
-            for achievement, prog_data in completed[:10]:  # Limit to prevent overflow
-                rarity_emoji = self.community_manager.get_rarity_emoji(achievement.rarity)
-                completed_text += f"{rarity_emoji} {achievement.emoji} **{achievement.name}**\n"
-                completed_text += f"*{achievement.description}*\n\n"
+            if not leaderboard_data:
+                embed.description = "No data available yet. Start using the bot to appear on the leaderboard!"
+                await ctx.send(embed=embed)
+                return
             
-            embed.description = completed_text
-            embed.set_footer(text=f"Completed {len(completed)} out of {len(self.community_manager.achievement_manager.achievements)} achievements")
-            embeds.append(embed)
-        
-        # In progress achievements embed  
-        if in_progress:
-            embed = discord.Embed(
-                title=f"⚡ {target_user.display_name}'s Achievements - In Progress",
-                color=0x3498db
-            )
-            
-            progress_text = ""
-            for achievement, prog_data in in_progress[:8]:
-                current = prog_data.get('current', 0)
-                requirement = prog_data.get('requirement', 1)
-                percentage = prog_data.get('progress', 0)
+            leaderboard_text = ""
+            for i, entry in enumerate(leaderboard_data, 1):
+                discord_id, summoner_name, stat_value = entry[:3]
+                user = ctx.guild.get_member(int(discord_id))
+                display_name = user.display_name if user else (summoner_name or "Unknown User")
                 
-                progress_bar = self.embed_builder._create_progress_bar(percentage, 10)
-                
-                progress_text += f"{achievement.emoji} **{achievement.name}**\n"
-                progress_text += f"Progress: {current}/{requirement} {progress_bar}\n\n"
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                leaderboard_text += f"{medal} **{display_name}** - {stat_value:,.0f}\n"
             
-            embed.description = progress_text
-            embeds.append(embed)
-        
-        if not embeds:
-            embed = discord.Embed(
-                title=f"🎯 {target_user.display_name}'s Achievements",
-                description="Start using the bot to unlock achievements!",
-                color=0x95a5a6
-            )
-            embeds.append(embed)
-        
-        # Send with navigation if multiple embeds
-        if len(embeds) > 1:
-            await menu(ctx, embeds, DEFAULT_CONTROLS)
-        else:
-            await ctx.send(embed=embeds[0])
+            embed.description = leaderboard_text
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in leaderboard: {e}")
+            await ctx.send("❌ Error retrieving leaderboard.")
     
     # =============================================================================
-    # LCU INTEGRATION COMMANDS
+    # LCU INTEGRATION COMMANDS (if available)
     # =============================================================================
     
     @lol_commands.group(name="lcu", invoke_without_command=True)
     async def lcu_commands(self, ctx):
         """League Client integration commands"""
+        if not HAS_LCU:
+            await ctx.send("❌ LCU integration is not available. Check bot status with `[p]lol status`")
+            return
+        
         if not self.lcu_client.connected:
             embed = discord.Embed(
                 title="🔗 League Client Integration",
@@ -792,20 +824,7 @@ class AdvancedLoLv2(commands.Cog):
             
             embed.add_field(
                 name="❌ Not Connected",
-                value="League Client not detected or connection failed.\n\n"
-                      "**To connect:**\n"
-                      "1. Start League of Legends\n"
-                      "2. Use `[p]lol lcu connect`\n"
-                      "3. Keep League running for features",
-                inline=False
-            )
-            
-            embed.add_field(
-                name="🚀 Features",
-                value="• Auto-accept matchmaking queue\n"
-                      "• Real-time game state monitoring\n"
-                      "• Champion select integration\n" 
-                      "• Automatic notifications",
+                value="Use `[p]lol lcu connect` to connect to League Client",
                 inline=False
             )
             
@@ -817,16 +836,18 @@ class AdvancedLoLv2(commands.Cog):
     @lcu_commands.command(name="connect")
     async def lcu_connect(self, ctx):
         """Connect to League Client"""
+        if not HAS_LCU:
+            await ctx.send("❌ LCU integration is not available.")
+            return
+        
         async with ctx.typing():
             if await self.lcu_client.connect():
-                current_summoner = await self.lcu_client.get_current_summoner()
-                
                 embed = discord.Embed(
                     title="✅ Connected to League Client!",
-                    color=0x00ff00,
-                    timestamp=datetime.utcnow()
+                    color=0x00ff00
                 )
                 
+                current_summoner = await self.lcu_client.get_current_summoner()
                 if current_summoner:
                     embed.add_field(
                         name="👤 Logged in as",
@@ -834,302 +855,37 @@ class AdvancedLoLv2(commands.Cog):
                         inline=True
                     )
                 
-                # Get game state
-                gameflow_phase = await self.lcu_client.get_gameflow_phase()
-                if gameflow_phase:
-                    embed.add_field(
-                        name="🎮 Game State",
-                        value=gameflow_phase.replace('"', ''),
-                        inline=True
-                    )
-                
-                embed.add_field(
-                    name="🎯 Available Features",
-                    value="• Auto-accept queue\n• Real-time notifications\n• Champion select info",
-                    inline=False
-                )
-                
-                embed.set_footer(text="Use 'lol lcu autoaccept' to enable auto-accept")
-                
                 await ctx.send(embed=embed)
-                
-                # Start monitoring task if not already running
-                if not hasattr(self, '_lcu_monitoring_task') or self._lcu_monitoring_task.done():
-                    self._lcu_monitoring_task = asyncio.create_task(self._monitor_lcu_auto_features())
-                    
             else:
-                embed = discord.Embed(
-                    title="❌ Failed to connect to League Client",
-                    description="Make sure League of Legends is running and try again.\n\n"
-                               "**Troubleshooting:**\n"
-                               "• Restart League of Legends\n"
-                               "• Run as administrator (Windows)\n"
-                               "• Check firewall settings",
-                    color=0xff6b6b
-                )
-                await ctx.send(embed=embed)
+                await ctx.send("❌ Failed to connect to League Client. Make sure League is running!")
     
     @lcu_commands.command(name="status")
     async def lcu_status(self, ctx):
         """Check League Client connection status"""
-        status = self.lcu_client.get_connection_status()
-        
-        if not status['connected']:
-            embed = discord.Embed(
-                title="❌ League Client - Disconnected",
-                color=0xff6b6b
-            )
-            embed.add_field(
-                name="Connection Status",
-                value="Not connected to League Client",
-                inline=False
-            )
-            await ctx.send(embed=embed)
+        if not HAS_LCU:
+            await ctx.send("❌ LCU integration is not available.")
             return
+        
+        status = self.lcu_client.get_connection_status()
         
         embed = discord.Embed(
             title="🔗 League Client Status",
-            color=0x00ff00,
-            timestamp=datetime.utcnow()
+            color=0x00ff00 if status['connected'] else 0xff6b6b
         )
         
-        # Get current summoner info
-        current_summoner = await self.lcu_client.get_current_summoner()
-        if current_summoner:
-            embed.add_field(
-                name="👤 Current Summoner",
-                value=f"**{current_summoner.display_name}**\nLevel {current_summoner.summoner_level}",
-                inline=True
-            )
-        
-        # Get game state
-        gameflow_phase = await self.lcu_client.get_gameflow_phase()
-        champion_select = await self.lcu_client.get_champion_select_state()
-        
-        if champion_select:
-            embed.add_field(
-                name="🎯 Champion Select",
-                value="Currently in champion select",
-                inline=True
-            )
-        elif gameflow_phase:
-            phase_clean = gameflow_phase.replace('"', '')
-            embed.add_field(
-                name="🎮 Game State",
-                value=phase_clean,
-                inline=True
-            )
-        
-        # Auto-accept status
-        user_auto_accept = self.lcu_client.is_auto_accept_enabled(str(ctx.author.id))
         embed.add_field(
-            name="⚡ Auto-Accept",
-            value="Enabled" if user_auto_accept else "Disabled",
+            name="Connection",
+            value="✅ Connected" if status['connected'] else "❌ Disconnected",
             inline=True
         )
         
-        # Connection details
-        embed.add_field(
-            name="🔧 Connection Details",
-            value=f"WebSocket: {'✅' if status['has_websocket'] else '❌'}\n"
-                  f"Active Users: {status['auto_accept_users']}\n"
-                  f"Reconnects: {status['reconnect_attempts']}",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @lcu_commands.command(name="autoaccept", aliases=["auto"])
-    async def toggle_auto_accept(self, ctx):
-        """Toggle automatic queue acceptance"""
-        if not self.lcu_client.connected:
-            await ctx.send("❌ Not connected to League Client! Use `[p]lol lcu connect` first.")
-            return
-        
-        current = await self.config.user(ctx.author).auto_accept()
-        new_value = not current
-        await self.config.user(ctx.author).auto_accept.set(new_value)
-        
-        # Update LCU client
-        if new_value:
-            self.lcu_client.enable_auto_accept(str(ctx.author.id))
-        else:
-            self.lcu_client.disable_auto_accept(str(ctx.author.id))
-        
-        status = "enabled" if new_value else "disabled"
-        emoji = "✅" if new_value else "❌"
-        
-        embed = discord.Embed(
-            title=f"{emoji} Auto-Accept {status.title()}",
-            description=f"Queue auto-accept has been **{status}** for you.",
-            color=0x00ff00 if new_value else 0xff6b6b
-        )
-        
-        if new_value:
-            embed.add_field(
-                name="ℹ️ How it works",
-                value="• Keep League running\n"
-                      "• Bot will auto-accept when queue pops\n"
-                      "• You'll get a DM notification\n"
-                      "• Only works when bot is connected",
-                inline=False
-            )
-        
-        await ctx.send(embed=embed)
-    
-    async def _monitor_lcu_auto_features(self):
-        """Monitor LCU events for auto-features"""
-        logger.info("Started LCU auto-features monitoring")
-        
-        while self.lcu_client.connected:
-            try:
-                await asyncio.sleep(5)  # Check every 5 seconds
-                
-                # This is a simplified monitoring loop
-                # In a full implementation, you'd use the WebSocket events
-                # from the LCU client to trigger auto-accept
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in LCU monitoring: {e}")
-                await asyncio.sleep(10)
-        
-        logger.info("LCU auto-features monitoring stopped")
-    
-    # =============================================================================
-    # SETUP AND MONITORING COMMANDS
-    # =============================================================================
-    
-    @lol_commands.command(name="setup")
-    @checks.mod_or_permissions(manage_guild=True)
-    async def setup_live_channel(self, ctx, channel: discord.TextChannel = None):
-        """Set up automatic live game monitoring for a channel"""
-        if not channel:
-            channel = ctx.channel
-        
-        await self.config.guild(ctx.guild).live_game_channel.set(channel.id)
-        
-        embed = discord.Embed(
-            title="✅ Live Game Monitoring Setup",
-            description=f"Automatic live game notifications will be posted in {channel.mention}",
-            color=0x00ff00
-        )
-        
-        embed.add_field(
-            name="📋 Next Steps",
-            value=f"Use `{ctx.prefix}lol monitor <summoner> <region>` to start monitoring specific players",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @lol_commands.command(name="monitor")
-    @checks.mod_or_permissions(manage_guild=True)
-    async def monitor_summoner(self, ctx, summoner_name: str, region: str = "na"):
-        """Start monitoring a summoner for live games"""
-        if region not in self.regions:
-            await ctx.send(f"❌ Invalid region. Available: {', '.join(self.regions.keys())}")
-            return
-        
-        guild_id = ctx.guild.id
-        
-        # Cancel existing task if any
-        if guild_id in self.live_game_tasks:
-            self.live_game_tasks[guild_id].cancel()
-            try:
-                await self.live_game_tasks[guild_id]
-            except asyncio.CancelledError:
-                pass
-        
-        # Start new monitoring task
-        task = asyncio.create_task(
-            self._monitor_live_games(ctx, summoner_name, region)
-        )
-        self.live_game_tasks[guild_id] = task
-        
-        embed = discord.Embed(
-            title="🔄 Live Game Monitoring Started",
-            description=f"Now monitoring **{summoner_name}** ({region.upper()}) for live games!",
-            color=0x00ff88
-        )
-        
-        embed.add_field(
-            name="ℹ️ Monitoring Details",
-            value="• Checks every 30 seconds\n"
-                  "• Posts when new games start\n"
-                  "• Includes advanced analytics\n"
-                  "• Automatic until manually stopped",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-    
-    async def _monitor_live_games(self, ctx, summoner_name: str, region: str):
-        """Background task to monitor live games"""
-        channel_id = await self.config.guild(ctx.guild).live_game_channel()
-        if not channel_id:
-            return
-        
-        channel = self.bot.get_channel(channel_id)
-        if not channel:
-            return
-        
-        last_game_id = None
-        error_count = 0
-        
-        logger.info(f"Starting live game monitoring for {summoner_name} in {ctx.guild.name}")
-        
-        while True:
-            try:
-                # Get account info
-                account_data = await self.make_riot_request(
-                    f"/riot/account/v1/accounts/by-riot-id/{summoner_name.replace('#', '/')}", 
-                    region
+        if status['connected']:
+            current_summoner = await self.lcu_client.get_current_summoner()
+            if current_summoner:
+                embed.add_field(
+                    name="👤 Summoner",
+                    value=f"{current_summoner.display_name}\nLevel {current_summoner.summoner_level}",
+                    inline=True
                 )
-                
-                if account_data:
-                    puuid = account_data['puuid']
-                    live_game = await self.make_riot_request(
-                        f"/lol/spectator/v5/active-games/by-summoner/{puuid}", 
-                        region
-                    )
-                    
-                    if live_game and live_game.get('gameId') != last_game_id:
-                        last_game_id = live_game.get('gameId')
-                        
-                        # Create notification with analytics
-                        win_prob = await self.analytics.calculate_win_probability(live_game)
-                        win_prob_dict = {
-                            "100": win_prob.blue_team_prob,
-                            "200": win_prob.red_team_prob
-                        }
-                        
-                        embeds = await self.embed_builder.create_live_game_embed_v2(
-                            live_game, 
-                            self.analytics, 
-                            win_prob_dict
-                        )
-                        
-                        # Send notification
-                        await channel.send(f"🔴 **{summoner_name}** just started a live game!")
-                        await menu(channel, embeds, DEFAULT_CONTROLS)
-                        
-                        logger.info(f"Posted live game notification for {summoner_name}")
-                
-                error_count = 0  # Reset error count on success
-                await asyncio.sleep(30)  # Check every 30 seconds
-                
-            except asyncio.CancelledError:
-                logger.info(f"Live game monitoring cancelled for {summoner_name}")
-                break
-            except Exception as e:
-                error_count += 1
-                logger.error(f"Monitor error for {summoner_name}: {e}")
-                
-                if error_count >= 5:
-                    # Stop monitoring after 5 consecutive errors
-                    await channel.send(f"❌ Stopped monitoring {summoner_name} due to repeated errors.")
-                    break
-                    
-                await asyncio.sleep(60)  # Wait longer on error
+        
+        await ctx.send(embed=embed)
