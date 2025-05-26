@@ -1,15 +1,11 @@
 {
     "author": ["UltPanda"],
-    "name": "LoL",
-    "description": "Comprehensive League of Legends integration using Riot Games API v5. Features include summoner lookup, match analysis, live game notifications, champion information, account linking, and performance statistics with intelligent rate limiting.",
-    "install_msg": "Thanks for installing the League of Legends cog! 🎮\n\n**Setup Instructions:**\n1. Get your Riot API key from https://developer.riotgames.com/\n2. Set it with `[p]lolset apikey <your_key>`\n3. Set a default region with `[p]lolset region <region>`\n4. Test with `[p]lolset testapi`\n\nUse `[p]help lol` to see all available commands!",
-    "short": "Complete League of Legends integration with enhanced features",
-    "tags": ["lol", "league", "riot", "games", "stats", "mastery", "matches", "notifications", "esports"],
-    "requirements": ["aiohttp", "aiosqlite"],
-    "min_bot_version": "3.5.0",
-    "min_python_version": [3, 8, 0],
-    "hidden": false,
-    "disabled": false,
-    "type": "COG",
-    "end_user_data_statement": "This cog stores user Discord IDs linked to League of Legends accounts, summoner lookup history, and notification preferences. Users can delete their data using Red's data deletion commands."
+    "name": "AdvancedLoL", 
+    "short": "Advanced League of Legends integration with live games and detailed stats",
+    "description": "A comprehensive League of Legends cog that provides live game monitoring, detailed summoner profiles, match history analysis, and champion mastery tracking. Features include real-time game updates, automatic live game notifications, advanced statistics, and champion icon integration.",
+    "install_msg": "Thanks for installing AdvancedLoL! Use `[p]lol setkey <your_riot_api_key>` to get started. Get your API key from https://developer.riotgames.com/",
+    "requirements": ["aiohttp"],
+    "tags": ["league of legends", "riot api", "gaming", "live games", "esports"],
+    "min_bot_version": "3.4.0",
+    "end_user_data_statement": "This cog stores Riot API keys and guild configuration settings. No user data is permanently stored."
 }
