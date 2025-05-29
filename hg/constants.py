@@ -32,7 +32,7 @@ EMOJIS = {
 }
 
 # Death Events - Mixed Themes with Discord Markdown
-EXTENDED_DEATH_EVENTS = [
+DEATH_EVENTS = [
     "💀 | **{killer}** the Bloodthirsty fed ~~**{player}**~~ the Helpless to their pet dragon!",
     "💀 | ~~**{player}**~~ the Overconfident got electrocuted trying to hack the mainframe.",
     "💀 | **{killer}** the Assassin slipped a blade between ~~**{player}**~~ the Unaware's ribs in the crowded marketplace!",
