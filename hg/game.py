@@ -7,9 +7,9 @@ import random
 from typing import Dict, List, Optional, Tuple
 from redbot.core import bank
 from .constants import (
-    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, 
+    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
     REVIVAL_MESSAGES, GAME_PHASES, FINALE_MESSAGES, VICTORY_TITLE_ART,
-    PLACEMENT_MEDALS, GAME_ERAS
+    PLACEMENT_MEDALS
 )
 
 
@@ -98,21 +98,25 @@ class GameEngine:
         
         print(f"Chosen victim: {victim_name_with_title}")
         
-        # Fallback death events in case imports fail
+        # Enhanced fallback death events with more variety
         fallback_murder_events = [
-            "💀 | **{killer}** the Ruthless eliminated ~~**{player}**~~ the Unfortunate in combat!",
-            "💀 | **{killer}** the Deadly defeated ~~**{player}**~~ the Brave in a fierce battle!",
-            "💀 | **{killer}** the Merciless overpowered ~~**{player}**~~ the Weak!"
+            "💀 | **{killer}** the Ruthless eliminated ~~**{player}**~~ the Unfortunate in brutal combat!",
+            "💀 | **{killer}** the Deadly outmaneuvered ~~**{player}**~~ the Brave in a fierce duel!",
+            "💀 | **{killer}** the Merciless overwhelmed ~~**{player}**~~ the Weak with superior tactics!",
+            "💀 | **{killer}** the Savage ambushed ~~**{player}**~~ the Unsuspecting from the shadows!",
+            "💀 | **{killer}** the Cunning trapped ~~**{player}**~~ the Naive with a clever ruse!"
         ]
         
         fallback_accident_events = [
-            "💀 | ~~**{player}**~~ the Unlucky met their demise in the arena.",
-            "💀 | ~~**{player}**~~ the Careless made a fatal mistake.",
-            "💀 | ~~**{player}**~~ the Doomed was eliminated by the arena itself."
+            "💀 | ~~**{player}**~~ the Unlucky met their demise in the treacherous arena.",
+            "💀 | ~~**{player}**~~ the Careless made a fatal mistake while exploring.",
+            "💀 | ~~**{player}**~~ the Doomed was eliminated by the arena's deadly traps.",
+            "💀 | ~~**{player}**~~ the Unfortunate fell victim to the harsh environment.",
+            "💀 | ~~**{player}**~~ the Reckless pushed their luck too far."
         ]
         
-        # 60% chance for murder, 40% chance for accident
-        if random.random() < 0.6 and len(alive_players) > 2:
+        # 70% chance for murder, 30% chance for accident (more action-focused)
+        if random.random() < 0.7 and len(alive_players) > 2:
             # Murder - choose a killer
             potential_killers = [p for p in alive_players if p != victim_id]
             killer_id = random.choice(potential_killers)
@@ -188,14 +192,55 @@ class GameEngine:
         player_data = game["players"][player_id]
         player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
-        if not SURVIVAL_EVENTS:
-            print("No survival events found!")
-            return f"🌿 | **{player_name_with_title}** survived another day in the arena."
-        
-        event = random.choice(SURVIVAL_EVENTS)
-        message = event.format(player=player_name_with_title)
+        try:
+            if not SURVIVAL_EVENTS:
+                print("No survival events found!")
+                return f"🌿 | **{player_name_with_title}** survived another day in the arena."
+            
+            event = random.choice(SURVIVAL_EVENTS)
+            message = event.format(player=player_name_with_title)
+        except (NameError, AttributeError):
+            message = f"🌿 | **{player_name_with_title}** survived another day in the arena."
         
         print(f"Survival event message: {message}")
+        return message
+    
+    async def execute_crate_event(self, game: Dict) -> Optional[str]:
+        """Execute a crate discovery event"""
+        alive_players = self.get_alive_players(game)
+        
+        print(f"Crate event: {len(alive_players)} alive players")
+        
+        if not alive_players:
+            return None
+            
+        player_id = random.choice(alive_players)
+        player_data = game["players"][player_id]
+        player_name_with_title = f"{player_data['name']} {player_data['title']}"
+        
+        # Fallback crate events if constants not available
+        fallback_crate_events = [
+            "📦 | **{player}** the Lucky discovered a __*weapon cache*__ hidden in the ruins!",
+            "📦 | **{player}** the Scavenger found __*survival gear*__ in an abandoned supply crate!",
+            "📦 | **{player}** the Resourceful uncovered __*medical supplies*__ in a hidden stash!",
+            "📦 | **{player}** the Explorer located a __*food cache*__ buried underground!",
+            "📦 | **{player}** the Clever cracked open a __*mystery crate*__ with useful tools!"
+        ]
+        
+        try:
+            if not CRATE_EVENTS:
+                print("No crate events found, using fallback!")
+                crate_events = fallback_crate_events
+            else:
+                crate_events = CRATE_EVENTS
+        except (NameError, AttributeError):
+            print("CRATE_EVENTS not available, using fallback")
+            crate_events = fallback_crate_events
+        
+        event = random.choice(crate_events)
+        message = event.format(player=player_name_with_title)
+        
+        print(f"Crate event message: {message}")
         return message
     
     async def execute_sponsor_event(self, game: Dict) -> Optional[str]:
@@ -211,12 +256,15 @@ class GameEngine:
         player_data = game["players"][player_id]
         player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
-        if not SPONSOR_EVENTS:
-            print("No sponsor events found!")
-            return f"🎁 | **SPONSOR GIFT!** **{player_name_with_title}** received a mysterious package."
-        
-        event = random.choice(SPONSOR_EVENTS)
-        message = event.format(player=player_name_with_title)
+        try:
+            if not SPONSOR_EVENTS:
+                print("No sponsor events found!")
+                return f"🎁 | **SPONSOR GIFT!** **{player_name_with_title}** received a mysterious package."
+            
+            event = random.choice(SPONSOR_EVENTS)
+            message = event.format(player=player_name_with_title)
+        except (NameError, AttributeError):
+            message = f"🎁 | **SPONSOR GIFT!** **{player_name_with_title}** received a mysterious package."
         
         print(f"Sponsor event message: {message}")
         return message
@@ -243,13 +291,15 @@ class GameEngine:
         
         print(f"Formatted names: {player1_name_with_title}, {player2_name_with_title}")
         
-        # Fallback alliance events in case imports fail
+        # Enhanced fallback alliance events
         fallback_alliance_events = [
             "🤝 | **{player1}** the Diplomatic and **{player2}** the Trustworthy __*formed an alliance*__!",
-            "💔 | **{player1}** the Treacherous __*betrayed*__ **{player2}** the Naive!",
+            "💔 | **{player1}** the Treacherous __*betrayed*__ **{player2}** the Naive for supplies!",
             "🛡️ | **{player1}** the Loyal protected **{player2}** the Vulnerable from danger!",
             "🔥 | **{player1}** the Kind and **{player2}** the Grateful __*shared resources*__!",
-            "⚔️ | **{player1}** the Fierce and **{player2}** the Brave __*teamed up*__ for battle!"
+            "⚔️ | **{player1}** the Fierce and **{player2}** the Brave __*teamed up*__ for battle!",
+            "🗣️ | **{player1}** the Strategist and **{player2}** the Follower __*planned their strategy*__!",
+            "🏥 | **{player1}** the Medic treated **{player2}** the Injured's wounds!"
         ]
         
         try:
@@ -291,7 +341,10 @@ class GameEngine:
         
         # Phase indicator
         phase_index = min(game["round"] // 3, len(GAME_PHASES) - 1)
-        embed.description = GAME_PHASES[phase_index]
+        try:
+            embed.description = GAME_PHASES[phase_index]
+        except (NameError, AttributeError, IndexError):
+            embed.description = f"Round {game['round']} - {alive_count} tributes remaining"
         
         # Players remaining
         embed.add_field(
@@ -300,7 +353,7 @@ class GameEngine:
             inline=True
         )
         
-        # Current era/phase
+        # Current phase
         if alive_count <= 5:
             embed.add_field(
                 name="⚔️ **Status**",
@@ -340,16 +393,23 @@ class GameEngine:
         return embed
     
     async def check_game_end(self, game: Dict, channel: discord.TextChannel) -> bool:
-        """Check if game should end and handle victory"""
+        """Check if game should end and handle victory - with spam prevention"""
         alive_players = self.get_alive_players(game)
+        alive_count = len(alive_players)
         
-        if len(alive_players) <= 1:
+        # Initialize milestone tracking if not present
+        if "milestones_shown" not in game:
+            game["milestones_shown"] = set()
+        
+        if alive_count <= 1:
             await self.handle_victory(game, channel)
             return True
-        elif len(alive_players) == 3 and game["round"] > 2:
-            # Only show final warning if we've had some rounds of gameplay
-            # and there are exactly 3 players (not starting with 2-3)
-            message = random.choice(FINALE_MESSAGES).format(count=3)
+        elif alive_count == 3 and "final_three" not in game["milestones_shown"] and game["round"] > 2:
+            # Show final three message only once
+            try:
+                message = random.choice(FINALE_MESSAGES).format(count=3)
+            except (NameError, AttributeError):
+                message = "🔥 **THE END APPROACHES!** Only 3 tributes remain!"
             
             embed = discord.Embed(
                 title="⚔️ **FINAL THREE** ⚔️",
@@ -358,8 +418,10 @@ class GameEngine:
             )
             
             await channel.send(embed=embed)
-        elif len(alive_players) == 2 and game["round"] > 3:
-            # Final duel announcement
+            game["milestones_shown"].add("final_three")
+            
+        elif alive_count == 2 and "final_duel" not in game["milestones_shown"] and game["round"] > 3:
+            # Show final duel message only once
             embed = discord.Embed(
                 title="💀 **FINAL DUEL** 💀", 
                 description="🔥 **THE END APPROACHES!** Only 2 tributes remain in the ultimate showdown!",
@@ -367,6 +429,7 @@ class GameEngine:
             )
             
             await channel.send(embed=embed)
+            game["milestones_shown"].add("final_duel")
             
         return False
     
@@ -442,13 +505,20 @@ class GameEngine:
             inline=False
         )
         
-        # Stylized game title
-        title_art = random.choice(VICTORY_TITLE_ART)
-        embed.add_field(
-            name="",
-            value=title_art,
-            inline=False
-        )
+        # Stylized game title (removed era references)
+        try:
+            title_art = random.choice(VICTORY_TITLE_ART)
+            embed.add_field(
+                name="",
+                value=title_art,
+                inline=False
+            )
+        except (NameError, AttributeError):
+            embed.add_field(
+                name="🏹 **THE HUNGER GAMES** 🏹",
+                value="```\n╔═══════════════════════════╗\n║     BATTLE ROYALE         ║\n╚═══════════════════════════╝\n```",
+                inline=False
+            )
         
         # Total players with emphasis
         embed.add_field(
@@ -457,13 +527,10 @@ class GameEngine:
             inline=False
         )
         
-        # Add a colored strip effect
-        embed.set_thumbnail(url="https://i.imgur.com/winner_badge.png")  # Optional winner badge
-        
         await channel.send(embed=embed)
         
-        # Second embed with detailed rankings
-        stats_embed = discord.Embed(color=0x36393F)  # Dark theme like the screenshot
+        # Second embed with detailed rankings (district themed)
+        stats_embed = discord.Embed(color=0x36393F)
         
         # Calculate rankings
         runner_ups = self.calculate_runner_ups(game)
@@ -477,7 +544,10 @@ class GameEngine:
         if runner_ups:
             runner_text = ""
             for i, (player_id, player_data) in enumerate(runner_ups, 2):
-                medal = PLACEMENT_MEDALS.get(i, f"{i}.")
+                try:
+                    medal = PLACEMENT_MEDALS.get(i, f"{i}.")
+                except (NameError, AttributeError):
+                    medal = f"{i}."
                 runner_text += f"{medal} {player_data['name']}\n"
             
             stats_embed.add_field(
@@ -519,10 +589,9 @@ class GameEngine:
             for _ in range(3 - (fields_added % 3)):
                 stats_embed.add_field(name="\u200b", value="\u200b", inline=True)
         
-        # Game info footer
-        era = random.choice(GAME_ERAS)
+        # District-themed footer (removed era references)
         stats_embed.set_footer(
-            text=f"🎮 Era: {era} • Battle Royale",
+            text="🏹 The 75th Annual Hunger Games • District Battle Royale",
             icon_url="https://i.imgur.com/game_icon.png"
         )
         
