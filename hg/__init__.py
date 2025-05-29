@@ -186,15 +186,15 @@ class HungerGames(commands.Cog):
         game["task"] = asyncio.create_task(self.game_loop(guild_id))
     
     async def game_loop(self, guild_id: int):
-        """Main game loop that handles events and progression"""
+        """Main game loop that handles events and progression - FASTER PACE"""
         game = self.active_games[guild_id]
         channel = game["channel"]
         
         try:
             event_interval = await self.config.guild(channel.guild).event_interval()
             
-            # Give a brief pause before starting events
-            await asyncio.sleep(5)
+            # Give shorter pause before starting events
+            await asyncio.sleep(3)
             
             # Debug message to confirm loop started
             print(f"Game loop started for guild {guild_id} with {len(game['players'])} players")
@@ -205,48 +205,45 @@ class HungerGames(commands.Cog):
                 
                 print(f"Round {game['round']}: {len(alive_players)} players alive")
                 
-                # Always try to execute an event first (unless game is over)
+                # Execute MULTIPLE events per round for faster pace
                 if len(alive_players) > 1:
-                    # Force events to happen more frequently with small player counts
-                    should_have_event = should_execute_event(len(alive_players), game["round"]) or len(alive_players) <= 5
-                    print(f"Should execute event: {should_have_event}")
-                    
-                    if should_have_event:
-                        try:
-                            await self.execute_random_event(game, channel)
-                        except Exception as e:
-                            print(f"Error executing event: {e}")
-                            # Send a fallback message so something happens
-                            embed = discord.Embed(
-                                description="⚠️ Something mysterious happened in the arena...",
-                                color=0xFFFF00
-                            )
-                            await channel.send(embed=embed)
+                    try:
+                        await self.execute_combined_events(game, channel)
+                    except Exception as e:
+                        print(f"Error executing combined events: {e}")
+                        # Send a fallback message so something happens
+                        embed = discord.Embed(
+                            description="⚠️ Something mysterious happened in the arena...",
+                            color=0xFFFF00
+                        )
+                        await channel.send(embed=embed)
                 
-                # Small delay between event and end check
-                await asyncio.sleep(2)
+                # Shorter delay between event and end check
+                await asyncio.sleep(1)
                 
-                # Re-check alive players after potential event
+                # Re-check alive players after potential events
                 alive_players = self.game_engine.get_alive_players(game)
                 
                 # Check if game should end AFTER events
                 if await self.game_engine.check_game_end(game, channel):
                     break
                 
-                # Send status update every few rounds (but not too often with small groups)
-                if game["round"] % 4 == 0 and len(alive_players) > 5:
+                # Send status update less frequently to reduce spam
+                if game["round"] % 6 == 0 and len(alive_players) > 8:
                     embed = self.game_engine.create_status_embed(game, channel.guild)
                     await channel.send(embed=embed)
                 
-                # Dynamic event interval based on player count
-                if len(alive_players) <= 3:
-                    sleep_time = max(8, event_interval // 3)  # Very fast with 2-3 players
+                # MUCH faster event intervals
+                if len(alive_players) <= 2:
+                    sleep_time = max(4, event_interval // 6)   # Super fast final duel
+                elif len(alive_players) <= 3:
+                    sleep_time = max(5, event_interval // 5)   # Very fast with 2-3 players
                 elif len(alive_players) <= 5:
-                    sleep_time = max(12, event_interval // 2)  # Faster with 4-5 players
+                    sleep_time = max(7, event_interval // 4)   # Fast with 4-5 players
                 elif len(alive_players) <= 10:
-                    sleep_time = max(15, event_interval - 5)   # Slightly faster
+                    sleep_time = max(10, event_interval // 3)  # Faster mid-game
                 else:
-                    sleep_time = event_interval  # Normal speed
+                    sleep_time = max(12, event_interval // 2)  # Faster early game
                 
                 print(f"Sleeping for {sleep_time} seconds")
                 await asyncio.sleep(sleep_time)
@@ -372,10 +369,204 @@ class HungerGames(commands.Cog):
         else:
             print("No message generated from event")
     
+    async def execute_combined_events(self, game: Dict, channel: discord.TextChannel):
+        """Execute multiple events in one round and combine them into a single embed"""
+        alive_count = len(self.game_engine.get_alive_players(game))
+        
+        print(f"Executing combined events with {alive_count} alive players")
+        
+        # Determine how many events to execute based on player count
+        if alive_count <= 3:
+            num_events = random.randint(1, 2)  # 1-2 events for final players
+        elif alive_count <= 6:
+            num_events = random.randint(2, 3)  # 2-3 events for small groups
+        elif alive_count <= 12:
+            num_events = random.randint(2, 4)  # 2-4 events for medium groups
+        else:
+            num_events = random.randint(3, 5)  # 3-5 events for large groups
+        
+        print(f"Executing {num_events} events this round")
+        
+        # Get event type weights
+        weights = get_event_weights()
+        
+        # Adjust weights based on game state
+        if alive_count <= 2:
+            weights["death"] = 70
+            weights["survival"] = 10  
+            weights["sponsor"] = 10
+            weights["alliance"] = 5
+            weights["crate"] = 5
+        elif alive_count <= 3:
+            weights["death"] = 55
+            weights["survival"] = 15
+            weights["sponsor"] = 15
+            weights["alliance"] = 5
+            weights["crate"] = 10
+        elif alive_count <= 5:
+            weights["death"] = 45  
+            weights["survival"] = 20
+            weights["sponsor"] = 15
+            weights["alliance"] = 10
+            weights["crate"] = 10
+        elif alive_count <= 10:
+            weights["death"] = 35
+            weights["survival"] = 25
+            weights["sponsor"] = 15
+            weights["alliance"] = 15
+            weights["crate"] = 10
+        
+        # Execute multiple events
+        event_messages = []
+        event_types_used = []
+        
+        for i in range(num_events):
+            # Re-check if game should continue
+            if len(self.game_engine.get_alive_players(game)) <= 1:
+                break
+            
+            # Choose event type
+            event_types = list(weights.keys())
+            event_weights = list(weights.values())
+            event_type = random.choices(event_types, weights=event_weights)[0]
+            
+            print(f"Event {i+1}: {event_type}")
+            
+            message = None
+            try:
+                if event_type == "death":
+                    message = await self.game_engine.execute_death_event(game, channel)
+                elif event_type == "survival":
+                    message = await self.game_engine.execute_survival_event(game)
+                elif event_type == "sponsor":
+                    message = await self.game_engine.execute_sponsor_event(game)
+                elif event_type == "alliance":
+                    message = await self.game_engine.execute_alliance_event(game)
+                elif event_type == "crate":
+                    message = await self.game_engine.execute_crate_event(game)
+                
+                if message:
+                    event_messages.append(message)
+                    event_types_used.append(event_type)
+                    print(f"Event {i+1} successful: {event_type}")
+                
+            except Exception as e:
+                print(f"Error in event {i+1} execution ({event_type}): {e}")
+                continue
+            
+            # Small delay between events in the same round
+            await asyncio.sleep(0.5)
+        
+        # Combine all events into one embed
+        if event_messages:
+            try:
+                # Create combined embed
+                embed = discord.Embed(
+                    title=f"🏹 **ROUND {game['round']} EVENTS** 🏹",
+                    description="\n\n".join(event_messages),
+                    color=0xFF6B35  # Orange color for combined events
+                )
+                
+                # Add round info and player count
+                alive_after_events = len(self.game_engine.get_alive_players(game))
+                phase_desc = get_game_phase_description(game['round'], alive_after_events)
+                embed.set_footer(text=f"{phase_desc} • {alive_after_events} tributes remaining")
+                
+                # Add event type indicators
+                event_icons = {
+                    "death": "💀",
+                    "survival": "🌿", 
+                    "crate": "📦",
+                    "sponsor": "🎁",
+                    "alliance": "🤝"
+                }
+                
+                icons_used = [event_icons.get(event_type, "⚡") for event_type in event_types_used]
+                if icons_used:
+                    embed.set_author(name=f"Events: {' '.join(icons_used)}")
+                
+                await channel.send(embed=embed)
+                print(f"Combined events message sent successfully with {len(event_messages)} events")
+                
+            except Exception as e:
+                print(f"Error sending combined events message: {e}")
+                # Try sending individual messages as fallback
+                for i, message in enumerate(event_messages):
+                    try:
+                        await channel.send(f"**Round {game['round']}.{i+1}**: {message}")
+                        await asyncio.sleep(0.5)
+                    except:
+                        print(f"Failed to send even individual message {i+1}")
+        else:
+            print("No event messages generated")
+    
     @commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
         """Hunger Games battle royale commands"""
         await ctx.send_help()
+    
+    @hungergames.command(name="alive")
+    async def hg_alive(self, ctx):
+        """Show current alive players in the active game"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active Hunger Games in this server.")
+        
+        game = self.active_games[guild_id]
+        alive_players = self.game_engine.get_alive_players(game)
+        
+        if not alive_players:
+            return await ctx.send("💀 No survivors remain!")
+        
+        embed = discord.Embed(
+            title="❤️ **ALIVE TRIBUTES** ❤️",
+            color=0x00FF00
+        )
+        
+        # Create list of alive players with their stats
+        alive_list = []
+        for player_id in alive_players:
+            player_data = game["players"][player_id]
+            line = f"**{player_data['name']}** {player_data['title']}"
+            
+            # Add district info
+            district_name = DISTRICTS.get(player_data['district'], f"District {player_data['district']}")
+            line += f" - {district_name}"
+            
+            # Add kill count if any
+            if player_data['kills'] > 0:
+                line += f" ⚔️ {player_data['kills']} kills"
+            
+            # Add revive count if any
+            if player_data.get('revives', 0) > 0:
+                line += f" ✨ {player_data['revives']} revives"
+            
+            alive_list.append(line)
+        
+        embed.description = "\n".join(alive_list)
+        
+        embed.add_field(
+            name="📊 **Stats**",
+            value=f"**Round:** {game['round']}\n**Survivors:** {len(alive_players)}/{len(game['players'])}",
+            inline=True
+        )
+        
+        # Show most dangerous player
+        killers = [(pid, pdata) for pid, pdata in game["players"].items() 
+                  if pdata["kills"] > 0 and pdata["alive"]]
+        
+        if killers:
+            killers.sort(key=lambda x: x[1]["kills"], reverse=True)
+            top_killer = killers[0][1]
+            embed.add_field(
+                name="⚔️ **Most Dangerous**",
+                value=f"**{top_killer['name']}** ({top_killer['kills']} kills)",
+                inline=True
+            )
+        
+        embed.set_footer(text=f"Use `.hungergames status` for more details")
+        await ctx.send(embed=embed)
     
     @hungergames.command(name="stats")
     async def hg_stats(self, ctx, member: discord.Member = None):
@@ -400,7 +591,7 @@ class HungerGames(commands.Cog):
         if game["status"] != "active":
             return await ctx.send("❌ Game is not active!")
         
-        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random"]
+        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random", "combined"]
         if event_type.lower() not in valid_types:
             return await ctx.send(f"❌ Invalid event type! Use: {', '.join(valid_types)}")
         
@@ -408,6 +599,8 @@ class HungerGames(commands.Cog):
         try:
             if event_type.lower() == "random":
                 await self.execute_random_event(game, ctx.channel)
+            elif event_type.lower() == "combined":
+                await self.execute_combined_events(game, ctx.channel)
             else:
                 # Execute specific event type
                 message = None
@@ -646,6 +839,14 @@ class HungerGames(commands.Cog):
                     "kills": 0,
                     "revives": 0,
                     "district": 2
+                },
+                "987654321": {
+                    "name": "TestBot2", 
+                    "title": "the Mock",
+                    "alive": True,
+                    "kills": 0,
+                    "revives": 0,
+                    "district": 3
                 }
             },
             "round": 1,
@@ -661,8 +862,18 @@ class HungerGames(commands.Cog):
         
         test_msg = await ctx.send(embed=embed)
         
-        # Test each event type
+        # Test combined events first
+        try:
+            await ctx.send("**Testing Combined Events:**")
+            await self.execute_combined_events(test_game, ctx.channel)
+            await asyncio.sleep(2)
+        except Exception as e:
+            await ctx.send(f"❌ **COMBINED EVENTS ERROR**: {str(e)}")
+        
+        # Test each individual event type
         event_types = ["death", "survival", "sponsor", "alliance", "crate"]
+        
+        await ctx.send("**Testing Individual Events:**")
         
         for event_type in event_types:
             try:
