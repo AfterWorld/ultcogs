@@ -366,6 +366,53 @@ class HungerGames(commands.Cog):
         embed = create_player_stats_embed(member_data, member)
         await ctx.send(embed=embed)
     
+    @hungergames.command(name="force")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_force_event(self, ctx, event_type: str = "random"):
+        """Force a single event in active game (Admin only)"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active game to force event in!")
+        
+        game = self.active_games[guild_id]
+        if game["status"] != "active":
+            return await ctx.send("❌ Game is not active!")
+        
+        valid_types = ["death", "survival", "sponsor", "alliance", "random"]
+        if event_type.lower() not in valid_types:
+            return await ctx.send(f"❌ Invalid event type! Use: {', '.join(valid_types)}")
+        
+        # Force execute an event
+        try:
+            if event_type.lower() == "random":
+                await self.execute_random_event(game, ctx.channel)
+            else:
+                # Execute specific event type
+                message = None
+                if event_type.lower() == "death":
+                    message = await self.game_engine.execute_death_event(game, ctx.channel) 
+                elif event_type.lower() == "survival":
+                    message = await self.game_engine.execute_survival_event(game)
+                elif event_type.lower() == "sponsor":
+                    message = await self.game_engine.execute_sponsor_event(game)
+                elif event_type.lower() == "alliance":
+                    message = await self.game_engine.execute_alliance_event(game)
+                
+                if message:
+                    embed = discord.Embed(
+                        description=message,
+                        color=0xFF4500 if event_type.lower() == "death" else 0x32CD32
+                    )
+                    embed.set_footer(text=f"Forced {event_type.title()} Event")
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send(f"❌ Failed to generate {event_type} event")
+                    
+        except Exception as e:
+            await ctx.send(f"❌ Error forcing event: {str(e)}")
+            print(f"Error in force event: {e}")
+    
     @hungergames.command(name="leaderboard", aliases=["lb", "top"])
     async def hg_leaderboard(self, ctx, stat: str = "wins"):
         """View the Hunger Games leaderboard
@@ -487,6 +534,115 @@ class HungerGames(commands.Cog):
         
         await self.config.guild(ctx.guild).event_interval.set(seconds)
         await ctx.send(f"✅ Event interval set to {seconds} seconds!")
+    
+    @hungergames.command(name="test")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_test(self, ctx):
+        """Test game events (Admin only)"""
+        # Create a fake game for testing
+        test_game = {
+            "players": {
+                str(ctx.author.id): {
+                    "name": ctx.author.display_name,
+                    "title": "the Tester",
+                    "alive": True,
+                    "kills": 0,
+                    "revives": 0,
+                    "district": 1
+                },
+                "123456789": {
+                    "name": "TestBot",
+                    "title": "the Dummy",
+                    "alive": True,
+                    "kills": 0,
+                    "revives": 0,
+                    "district": 2
+                }
+            },
+            "round": 1,
+            "eliminated": [],
+            "sponsor_used": []
+        }
+        
+        embed = discord.Embed(
+            title="🧪 **EVENT TESTING**",
+            description="Testing game events...",
+            color=0x00CED1
+        )
+        
+        test_msg = await ctx.send(embed=embed)
+        
+        # Test each event type
+        event_types = ["death", "survival", "sponsor", "alliance"]
+        
+        for event_type in event_types:
+            try:
+                if event_type == "death":
+                    message = await self.game_engine.execute_death_event(test_game, ctx.channel)
+                elif event_type == "survival":
+                    message = await self.game_engine.execute_survival_event(test_game)
+                elif event_type == "sponsor":
+                    message = await self.game_engine.execute_sponsor_event(test_game)
+                elif event_type == "alliance":
+                    message = await self.game_engine.execute_alliance_event(test_game)
+                
+                if message:
+                    embed = discord.Embed(
+                        title=f"✅ **{event_type.upper()} EVENT TEST**",
+                        description=message,
+                        color=0x00FF00
+                    )
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send(f"❌ **{event_type.upper()} EVENT**: No message generated")
+                    
+                await asyncio.sleep(1)  # Brief pause between tests
+                
+            except Exception as e:
+                await ctx.send(f"❌ **{event_type.upper()} EVENT ERROR**: {str(e)}")
+        
+    @hungergames.command(name="status")
+    async def hg_status(self, ctx):
+        """Check the status of current Hunger Games"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active Hunger Games in this server.")
+        
+        game = self.active_games[guild_id]
+        alive_players = self.game_engine.get_alive_players(game)
+        
+        embed = discord.Embed(
+            title="📊 **GAME STATUS**",
+            color=0x4169E1
+        )
+        
+        embed.add_field(
+            name="🎮 **Status**",
+            value=game["status"].capitalize(),
+            inline=True
+        )
+        
+        embed.add_field(
+            name="👥 **Players Alive**",
+            value=f"{len(alive_players)}/{len(game['players'])}",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🔄 **Current Round**",
+            value=str(game["round"]),
+            inline=True
+        )
+        
+        if game["status"] == "active":
+            embed.add_field(
+                name="⏰ **Task Status**",
+                value="Running" if "task" in game and not game["task"].done() else "Stopped",
+                inline=True
+            )
+        
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):
