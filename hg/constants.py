@@ -254,6 +254,35 @@ SURVIVAL_EVENTS = [
     "🧪 | **{player}** the Chemist brewed a __*stamina potion*__ from local plants!"
 ]
 
+# NEW: Crate Events - Equipment and Gear Discovery
+CRATE_EVENTS = [
+    "📦 | **{player}** the Lucky discovered a __*weapon cache*__ hidden in the ruins of District 8!",
+    "📦 | **{player}** the Scavenger found __*advanced combat gear*__ in an abandoned military crate!",
+    "📦 | **{player}** the Resourceful uncovered __*medical supplies*__ in a Capitol emergency drop!",
+    "📦 | **{player}** the Explorer located a __*food cache*__ buried near the Cornucopia!",
+    "📦 | **{player}** the Clever cracked open a __*mystery crate*__ containing high-tech equipment!",
+    "📦 | **{player}** the Opportunist stumbled upon a __*supply drop*__ meant for another tribute!",
+    "📦 | **{player}** the Prepared found a __*survival kit*__ stashed in District 12's mines!",
+    "📦 | **{player}** the Tactical discovered __*explosive devices*__ in a hidden weapons depot!",
+    "📦 | **{player}** the Observant spotted a __*camouflaged crate*__ containing stealth gear!",
+    "📦 | **{player}** the Determined broke into a __*locked container*__ filled with rare items!",
+    "📦 | **{player}** the Sharp-eyed found a __*night vision kit*__ in District 3's tech ruins!",
+    "📦 | **{player}** the Persistent excavated a __*buried arsenal*__ from the old rebellion!",
+    "📦 | **{player}** the Intuitive located a __*first aid crate*__ hidden by previous tributes!",
+    "📦 | **{player}** the Cunning discovered a __*trap-making kit*__ in the abandoned warehouses!",
+    "📦 | **{player}** the Bold raided a __*sponsor cache*__ dropped for eliminated tributes!",
+    "📦 | **{player}** the Methodical found __*communication equipment*__ in District 1's luxury bunker!",
+    "📦 | **{player}** the Vigilant uncovered a __*defensive gear set*__ in the training center ruins!",
+    "📦 | **{player}** the Relentless broke open a __*power source crate*__ from District 5!",
+    "📦 | **{player}** the Calculating located a __*precision tools kit*__ in the Victor's Village!",
+    "📦 | **{player}** the Adaptive found a __*multi-tool cache*__ in the underground tunnels!",
+    "📦 | **{player}** the Strategic discovered a __*smoke grenade stash*__ near the force field!",
+    "📦 | **{player}** the Perceptive spotted a __*climbing gear crate*__ in the mountain district!",
+    "📦 | **{player}** the Ambitious raided a __*sponsor gift*__ intended for the final tributes!",
+    "📦 | **{player}** the Focused found a __*hunting equipment set*__ in District 11's farmlands!",
+    "📦 | **{player}** the Resilient uncovered a __*energy drink cache*__ hidden by the Gamemakers!"
+]
+
 # Alliance Events - Mixed Themes with Discord Markdown
 ALLIANCE_EVENTS = [
     "🤝 | **{player1}** the Diplomatic and **{player2}** the Trustworthy __*formed an alliance*__ by the campfire!",
@@ -377,15 +406,3 @@ PLACEMENT_MEDALS = {
     4: "4️⃣",
     5: "5️⃣"
 }
-
-# Era themes for variety
-GAME_ERAS = [
-    "Futuristic",
-    "Medieval", 
-    "Post-Apocalyptic",
-    "Steampunk",
-    "Cyberpunk",
-    "Wild West",
-    "Ancient Rome",
-    "Dystopian"
-]
