@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 
 from .constants import (
     DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG, EMOJIS,
-    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS
+    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS
 )
 from .game import GameEngine
 from .utils import *
@@ -60,7 +60,8 @@ class HungerGames(commands.Cog):
             "round": 0,
             "eliminated": [],
             "sponsor_used": [],
-            "reactions": set()
+            "reactions": set(),
+            "milestones_shown": set()  # Track which milestone messages have been shown
         }
         
         # Send recruitment embed
@@ -283,27 +284,31 @@ class HungerGames(commands.Cog):
         if alive_count <= 2:
             # Final duel - mostly death events with some drama
             weights["death"] = 70
-            weights["survival"] = 15  
+            weights["survival"] = 10  
             weights["sponsor"] = 10
             weights["alliance"] = 5
+            weights["crate"] = 5
         elif alive_count <= 3:
             # Final three - more action
-            weights["death"] = 60
-            weights["survival"] = 20
+            weights["death"] = 55
+            weights["survival"] = 15
             weights["sponsor"] = 15
             weights["alliance"] = 5
+            weights["crate"] = 10
         elif alive_count <= 5:
             # Top 5 - intense action
-            weights["death"] = 50  
-            weights["survival"] = 25
+            weights["death"] = 45  
+            weights["survival"] = 20
             weights["sponsor"] = 15
             weights["alliance"] = 10
+            weights["crate"] = 10
         elif alive_count <= 10:
             # Standard late game
-            weights["death"] = 40
-            weights["survival"] = 30
+            weights["death"] = 35
+            weights["survival"] = 25
             weights["sponsor"] = 15
             weights["alliance"] = 15
+            weights["crate"] = 10
         
         # Choose event type
         event_types = list(weights.keys())
@@ -323,6 +328,8 @@ class HungerGames(commands.Cog):
                 message = await self.game_engine.execute_sponsor_event(game)
             elif event_type == "alliance":
                 message = await self.game_engine.execute_alliance_event(game)
+            elif event_type == "crate":
+                message = await self.game_engine.execute_crate_event(game)
         except Exception as e:
             print(f"Error in event execution ({event_type}): {e}")
             # Fallback message if event fails
@@ -332,10 +339,21 @@ class HungerGames(commands.Cog):
         
         if message:
             try:
-                # Create event embed with no title for cleaner look
+                # Create event embed with appropriate color
+                if event_type == "death":
+                    color = 0xFF4500  # Red-orange for death
+                elif event_type == "crate":
+                    color = 0x8B4513  # Brown for crates
+                elif event_type == "sponsor":
+                    color = 0xFFD700  # Gold for sponsors
+                elif event_type == "alliance":
+                    color = 0x4169E1  # Blue for alliances
+                else:
+                    color = 0x32CD32  # Green for survival
+                
                 embed = discord.Embed(
                     description=message,
-                    color=0xFF4500 if event_type == "death" else 0x32CD32
+                    color=color
                 )
                 
                 # Add round number and phase
@@ -382,7 +400,7 @@ class HungerGames(commands.Cog):
         if game["status"] != "active":
             return await ctx.send("❌ Game is not active!")
         
-        valid_types = ["death", "survival", "sponsor", "alliance", "random"]
+        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random"]
         if event_type.lower() not in valid_types:
             return await ctx.send(f"❌ Invalid event type! Use: {', '.join(valid_types)}")
         
@@ -401,11 +419,25 @@ class HungerGames(commands.Cog):
                     message = await self.game_engine.execute_sponsor_event(game)
                 elif event_type.lower() == "alliance":
                     message = await self.game_engine.execute_alliance_event(game)
+                elif event_type.lower() == "crate":
+                    message = await self.game_engine.execute_crate_event(game)
                 
                 if message:
+                    # Choose appropriate color
+                    if event_type.lower() == "death":
+                        color = 0xFF4500
+                    elif event_type.lower() == "crate":
+                        color = 0x8B4513
+                    elif event_type.lower() == "sponsor":
+                        color = 0xFFD700
+                    elif event_type.lower() == "alliance":
+                        color = 0x4169E1
+                    else:
+                        color = 0x32CD32
+                    
                     embed = discord.Embed(
                         description=message,
-                        color=0xFF4500 if event_type.lower() == "death" else 0x32CD32
+                        color=color
                     )
                     embed.set_footer(text=f"Forced {event_type.title()} Event")
                     await ctx.send(embed=embed)
@@ -414,6 +446,7 @@ class HungerGames(commands.Cog):
                     
         except Exception as e:
             await ctx.send(f"❌ Error forcing event: {str(e)}")
+    
     @hungergames.command(name="debug")
     @commands.has_permissions(manage_guild=True)
     async def hg_debug(self, ctx):
@@ -425,13 +458,14 @@ class HungerGames(commands.Cog):
         
         # Check constants
         try:
-            from .constants import DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS
+            from .constants import DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS
             embed.add_field(
                 name="📊 **Constants Loaded**",
                 value=f"Death Events: {len(DEATH_EVENTS)}\n"
                       f"Survival Events: {len(SURVIVAL_EVENTS)}\n"
                       f"Sponsor Events: {len(SPONSOR_EVENTS)}\n"
-                      f"Alliance Events: {len(ALLIANCE_EVENTS)}",
+                      f"Alliance Events: {len(ALLIANCE_EVENTS)}\n"
+                      f"Crate Events: {len(CRATE_EVENTS)}",
                 inline=True
             )
         except Exception as e:
@@ -441,19 +475,27 @@ class HungerGames(commands.Cog):
                 inline=False
             )
         
-        # Show sample death event
+        # Show sample events
         try:
-            from .constants import DEATH_EVENTS
+            from .constants import DEATH_EVENTS, CRATE_EVENTS
             if DEATH_EVENTS:
-                sample = DEATH_EVENTS[0]
+                sample_death = DEATH_EVENTS[0]
                 embed.add_field(
                     name="🎭 **Sample Death Event**",
-                    value=f"```{sample}```",
+                    value=f"```{sample_death}```",
+                    inline=False
+                )
+            
+            if CRATE_EVENTS:
+                sample_crate = CRATE_EVENTS[0]
+                embed.add_field(
+                    name="📦 **Sample Crate Event**",
+                    value=f"```{sample_crate}```",
                     inline=False
                 )
         except Exception as e:
             embed.add_field(
-                name="❌ **Death Events Error**",
+                name="❌ **Sample Events Error**",
                 value=str(e),
                 inline=False
             )
@@ -620,7 +662,7 @@ class HungerGames(commands.Cog):
         test_msg = await ctx.send(embed=embed)
         
         # Test each event type
-        event_types = ["death", "survival", "sponsor", "alliance"]
+        event_types = ["death", "survival", "sponsor", "alliance", "crate"]
         
         for event_type in event_types:
             try:
@@ -632,12 +674,26 @@ class HungerGames(commands.Cog):
                     message = await self.game_engine.execute_sponsor_event(test_game)
                 elif event_type == "alliance":
                     message = await self.game_engine.execute_alliance_event(test_game)
+                elif event_type == "crate":
+                    message = await self.game_engine.execute_crate_event(test_game)
                 
                 if message:
+                    # Choose appropriate color
+                    if event_type == "death":
+                        color = 0xFF4500
+                    elif event_type == "crate":
+                        color = 0x8B4513
+                    elif event_type == "sponsor":
+                        color = 0xFFD700
+                    elif event_type == "alliance":
+                        color = 0x4169E1
+                    else:
+                        color = 0x32CD32
+                    
                     embed = discord.Embed(
                         title=f"✅ **{event_type.upper()} EVENT TEST**",
                         description=message,
-                        color=0x00FF00
+                        color=color
                     )
                     await ctx.send(embed=embed)
                 else:
