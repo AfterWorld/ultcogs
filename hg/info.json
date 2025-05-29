@@ -1,0 +1,23 @@
+{
+    "name": "HungerGames",
+    "short": "Battle royale game for Discord",
+    "description": "A comprehensive Hunger Games style battle royale game where players fight to be the last survivor. Features automatic events, sponsor revivals, dynamic rewards based on participation, and detailed player statistics.",
+    "end_user_data_statement": "This cog stores user game statistics including wins, deaths, and kills. Data is stored per guild and can be reset by server administrators.",
+    "install_msg": "Thank you for installing HungerGames! Use `.he` to start a battle royale. Configure settings with `.hungergames set`. Type `.help hungergames` for all commands.",
+    "author": ["UltPanda"],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [
+        "game",
+        "fun",
+        "battle",
+        "royale",
+        "hunger games",
+        "pvp",
+        "entertainment"
+    ],
+    "min_bot_version": "3.4.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
