@@ -249,14 +249,23 @@ class GameEngine:
         if len(alive_players) <= 1:
             await self.handle_victory(game, channel)
             return True
-        elif len(alive_players) <= 3:
-            # Final warning
-            count = len(alive_players)
-            message = random.choice(FINALE_MESSAGES).format(count=count)
+        elif len(alive_players) == 3 and game["round"] > 2:
+            # Only show final warning if we've had some rounds of gameplay
+            # and there are exactly 3 players (not starting with 2-3)
+            message = random.choice(FINALE_MESSAGES).format(count=3)
             
             embed = discord.Embed(
-                title="⚔️ **FINAL MOMENTS** ⚔️",
+                title="⚔️ **FINAL THREE** ⚔️",
                 description=message,
+                color=0xFF0000
+            )
+            
+            await channel.send(embed=embed)
+        elif len(alive_players) == 2 and game["round"] > 3:
+            # Final duel announcement
+            embed = discord.Embed(
+                title="💀 **FINAL DUEL** 💀", 
+                description="🔥 **THE END APPROACHES!** Only 2 tributes remain in the ultimate showdown!",
                 color=0xFF0000
             )
             
