@@ -81,13 +81,18 @@ class GameEngine:
         """Execute a death event"""
         alive_players = self.get_alive_players(game)
         
+        print(f"Death event: {len(alive_players)} alive players")
+        
         if len(alive_players) <= 1:
+            print("Not enough players for death event")
             return None
             
         # Choose victim
         victim_id = random.choice(alive_players)
         victim_data = game["players"][victim_id]
         victim_name_with_title = f"{victim_data['name']} {victim_data['title']}"
+        
+        print(f"Chosen victim: {victim_name_with_title}")
         
         # 60% chance for murder, 40% chance for accident
         if random.random() < 0.6 and len(alive_players) > 2:
@@ -99,16 +104,28 @@ class GameEngine:
             
             # Choose murder event
             murder_events = [e for e in DEATH_EVENTS if "{killer}" in e]
+            if not murder_events:
+                print("No murder events found!")
+                return None
+            
             event = random.choice(murder_events)
             message = event.format(player=victim_name_with_title, killer=killer_name_with_title)
             
+            print(f"Murder event: {killer_name_with_title} kills {victim_name_with_title}")
             self.kill_player(game, victim_id, killer_id)
         else:
             # Accident
             accident_events = [e for e in DEATH_EVENTS if "{killer}" not in e]
-            event = random.choice(accident_events)
+            if not accident_events:
+                print("No accident events found!")
+                # Fallback to murder event but modify it
+                event = "💀 | ~~**{player}**~~ the Unlucky met their demise in the arena."
+            else:
+                event = random.choice(accident_events)
+            
             message = event.format(player=victim_name_with_title)
             
+            print(f"Accident event: {victim_name_with_title} dies accidentally")
             self.kill_player(game, victim_id)
         
         # Check for sponsor revival
@@ -125,13 +142,17 @@ class GameEngine:
                     revive_name_with_title = f"{revive_data['name']} {revive_data['title']}"
                     revival_msg = random.choice(REVIVAL_MESSAGES).format(player=revive_name_with_title)
                     message += f"\n\n{revival_msg}"
+                    print(f"Revival: {revive_name_with_title} was revived")
         
+        print(f"Final death event message: {message}")
         return message
     
     async def execute_survival_event(self, game: Dict) -> Optional[str]:
         """Execute a survival event"""
         alive_players = self.get_alive_players(game)
         
+        print(f"Survival event: {len(alive_players)} alive players")
+        
         if not alive_players:
             return None
             
@@ -139,13 +160,22 @@ class GameEngine:
         player_data = game["players"][player_id]
         player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
+        if not SURVIVAL_EVENTS:
+            print("No survival events found!")
+            return f"🌿 | **{player_name_with_title}** survived another day in the arena."
+        
         event = random.choice(SURVIVAL_EVENTS)
-        return event.format(player=player_name_with_title)
+        message = event.format(player=player_name_with_title)
+        
+        print(f"Survival event message: {message}")
+        return message
     
     async def execute_sponsor_event(self, game: Dict) -> Optional[str]:
         """Execute a sponsor gift event"""
         alive_players = self.get_alive_players(game)
         
+        print(f"Sponsor event: {len(alive_players)} alive players")
+        
         if not alive_players:
             return None
             
@@ -153,12 +183,21 @@ class GameEngine:
         player_data = game["players"][player_id]
         player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
+        if not SPONSOR_EVENTS:
+            print("No sponsor events found!")
+            return f"🎁 | **SPONSOR GIFT!** **{player_name_with_title}** received a mysterious package."
+        
         event = random.choice(SPONSOR_EVENTS)
-        return event.format(player=player_name_with_title)
+        message = event.format(player=player_name_with_title)
+        
+        print(f"Sponsor event message: {message}")
+        return message
     
     async def execute_alliance_event(self, game: Dict) -> Optional[str]:
         """Execute an alliance event"""
         alive_players = self.get_alive_players(game)
+        
+        print(f"Alliance event: {len(alive_players)} alive players")
         
         if len(alive_players) < 2:
             return None
@@ -169,8 +208,15 @@ class GameEngine:
         player1_name_with_title = f"{player1_data['name']} {player1_data['title']}"
         player2_name_with_title = f"{player2_data['name']} {player2_data['title']}"
         
+        if not ALLIANCE_EVENTS:
+            print("No alliance events found!")
+            return f"🤝 | **{player1_name_with_title}** and **{player2_name_with_title}** formed an unlikely partnership."
+        
         event = random.choice(ALLIANCE_EVENTS)
-        return event.format(player1=player1_name_with_title, player2=player2_name_with_title)
+        message = event.format(player1=player1_name_with_title, player2=player2_name_with_title)
+        
+        print(f"Alliance event message: {message}")
+        return message
     
     def create_status_embed(self, game: Dict, guild: discord.Guild) -> discord.Embed:
         """Create status embed showing current game state"""
