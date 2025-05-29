@@ -6,7 +6,11 @@ import asyncio
 import random
 from typing import Dict, List, Optional, Tuple
 from redbot.core import bank
-from .constants import *
+from .constants import (
+    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, 
+    REVIVAL_MESSAGES, GAME_PHASES, FINALE_MESSAGES, VICTORY_TITLE_ART,
+    PLACEMENT_MEDALS, GAME_ERAS
+)
 
 
 class GameEngine:
@@ -94,6 +98,19 @@ class GameEngine:
         
         print(f"Chosen victim: {victim_name_with_title}")
         
+        # Fallback death events in case imports fail
+        fallback_murder_events = [
+            "💀 | **{killer}** the Ruthless eliminated ~~**{player}**~~ the Unfortunate in combat!",
+            "💀 | **{killer}** the Deadly defeated ~~**{player}**~~ the Brave in a fierce battle!",
+            "💀 | **{killer}** the Merciless overpowered ~~**{player}**~~ the Weak!"
+        ]
+        
+        fallback_accident_events = [
+            "💀 | ~~**{player}**~~ the Unlucky met their demise in the arena.",
+            "💀 | ~~**{player}**~~ the Careless made a fatal mistake.",
+            "💀 | ~~**{player}**~~ the Doomed was eliminated by the arena itself."
+        ]
+        
         # 60% chance for murder, 40% chance for accident
         if random.random() < 0.6 and len(alive_players) > 2:
             # Murder - choose a killer
@@ -103,10 +120,14 @@ class GameEngine:
             killer_name_with_title = f"{killer_data['name']} {killer_data['title']}"
             
             # Choose murder event
-            murder_events = [e for e in DEATH_EVENTS if "{killer}" in e]
-            if not murder_events:
-                print("No murder events found!")
-                return None
+            try:
+                murder_events = [e for e in DEATH_EVENTS if "{killer}" in e]
+                if not murder_events:
+                    print("No murder events found in constants, using fallback")
+                    murder_events = fallback_murder_events
+            except (NameError, AttributeError):
+                print("DEATH_EVENTS not available, using fallback")
+                murder_events = fallback_murder_events
             
             event = random.choice(murder_events)
             message = event.format(player=victim_name_with_title, killer=killer_name_with_title)
@@ -115,14 +136,16 @@ class GameEngine:
             self.kill_player(game, victim_id, killer_id)
         else:
             # Accident
-            accident_events = [e for e in DEATH_EVENTS if "{killer}" not in e]
-            if not accident_events:
-                print("No accident events found!")
-                # Fallback to murder event but modify it
-                event = "💀 | ~~**{player}**~~ the Unlucky met their demise in the arena."
-            else:
-                event = random.choice(accident_events)
+            try:
+                accident_events = [e for e in DEATH_EVENTS if "{killer}" not in e]
+                if not accident_events:
+                    print("No accident events found in constants, using fallback")
+                    accident_events = fallback_accident_events
+            except (NameError, AttributeError):
+                print("DEATH_EVENTS not available, using fallback")
+                accident_events = fallback_accident_events
             
+            event = random.choice(accident_events)
             message = event.format(player=victim_name_with_title)
             
             print(f"Accident event: {victim_name_with_title} dies accidentally")
@@ -140,7 +163,12 @@ class GameEngine:
                 if self.revive_player(game, revive_id):
                     revive_data = game["players"][revive_id]
                     revive_name_with_title = f"{revive_data['name']} {revive_data['title']}"
-                    revival_msg = random.choice(REVIVAL_MESSAGES).format(player=revive_name_with_title)
+                    
+                    try:
+                        revival_msg = random.choice(REVIVAL_MESSAGES).format(player=revive_name_with_title)
+                    except (NameError, AttributeError):
+                        revival_msg = f"✨ | **MIRACLE!** ~~**{revive_name_with_title}**~~ was __*revived by a generous sponsor*__!"
+                    
                     message += f"\n\n{revival_msg}"
                     print(f"Revival: {revive_name_with_title} was revived")
         
