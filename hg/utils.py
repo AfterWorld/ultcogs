@@ -230,15 +230,17 @@ def get_event_weights() -> Dict[str, int]:
 
 def should_execute_event(alive_count: int, round_num: int) -> bool:
     """Determine if an event should happen this round"""
-    # More events early game, fewer late game
-    if alive_count > 15:
-        return random.random() < 0.8  # 80% chance
-    elif alive_count > 10:
-        return random.random() < 0.7  # 70% chance
-    elif alive_count > 5:
-        return random.random() < 0.6  # 60% chance
+    # With small player counts, always have events to make it interesting
+    if alive_count <= 3:
+        return True  # Always have events with 2-3 players
+    elif alive_count <= 5:
+        return random.random() < 0.95  # 95% chance with 4-5 players
+    elif alive_count <= 10:
+        return random.random() < 0.8   # 80% chance with 6-10 players
+    elif alive_count <= 15:
+        return random.random() < 0.7   # 70% chance with 11-15 players
     else:
-        return random.random() < 0.9  # 90% chance in final rounds
+        return random.random() < 0.6   # 60% chance with 16+ players
 
 
 def get_game_phase_description(round_num: int, alive_count: int) -> str:
