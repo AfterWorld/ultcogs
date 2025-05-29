@@ -1,0 +1,400 @@
+# __init__.py
+"""
+Hunger Games Battle Royale Cog for Red-DiscordBot
+
+A comprehensive battle royale game where players fight to be the last survivor.
+Features automatic events, sponsor revivals, dynamic rewards, and detailed statistics.
+"""
+
+import discord
+from redbot.core import commands, Config, bank
+import asyncio
+import random
+from typing import Dict, List, Optional
+
+from .constants import *
+from .game import GameEngine
+from .utils import *
+
+
+class HungerGames(commands.Cog):
+    """A Hunger Games style battle royale game for Discord"""
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.config = Config.get_conf(self, identifier=1234567890)
+        
+        self.config.register_guild(**DEFAULT_GUILD_CONFIG)
+        self.config.register_member(**DEFAULT_MEMBER_CONFIG)
+        
+        self.active_games: Dict[int, Dict] = {}
+        self.game_engine = GameEngine(bot, self.config)
+        
+    def cog_unload(self):
+        """Cancel all running games when cog is unloaded"""
+        for guild_id in list(self.active_games.keys()):
+            if "task" in self.active_games[guild_id]:
+                self.active_games[guild_id]["task"].cancel()
+    
+    @commands.command(name="he")
+    async def hunger_games_event(self, ctx, countdown: int = 60):
+        """Start a Hunger Games battle royale! React to join!"""
+        guild_id = ctx.guild.id
+        
+        # Validate countdown
+        valid, error_msg = validate_countdown(countdown)
+        if not valid:
+            return await ctx.send(f"❌ {error_msg}")
+        
+        if guild_id in self.active_games:
+            return await ctx.send("❌ A Hunger Games battle is already active!")
+        
+        # Create the game instance
+        self.active_games[guild_id] = {
+            "channel": ctx.channel,
+            "players": {},
+            "status": "recruiting",
+            "round": 0,
+            "eliminated": [],
+            "sponsor_used": [],
+            "reactions": set()
+        }
+        
+        # Send recruitment embed
+        embed = create_recruitment_embed(countdown)
+        message = await ctx.send(embed=embed)
+        await message.add_reaction(EMOJIS["bow"])
+        
+        self.active_games[guild_id]["message"] = message
+        
+        # Start recruitment countdown
+        await self.recruitment_countdown(guild_id, countdown)
+    
+    async def recruitment_countdown(self, guild_id: int, countdown: int):
+        """Handle the recruitment countdown and reaction monitoring"""
+        game = self.active_games[guild_id]
+        message = game["message"]
+        channel = game["channel"]
+        
+        # Monitor reactions for the countdown period
+        end_time = asyncio.get_event_loop().time() + countdown
+        
+        while asyncio.get_event_loop().time() < end_time:
+            remaining = int(end_time - asyncio.get_event_loop().time())
+            
+            # Update embed every 10 seconds or at key intervals
+            if remaining % 10 == 0 or remaining <= 5:
+                try:
+                    # Get current reactions
+                    fresh_message = await channel.fetch_message(message.id)
+                    bow_reaction = None
+                    
+                    for reaction in fresh_message.reactions:
+                        if str(reaction.emoji) == EMOJIS["bow"]:
+                            bow_reaction = reaction
+                            break
+                    
+                    if bow_reaction:
+                        # Get users who reacted (excluding bot)
+                        users = []
+                        async for user in bow_reaction.users():
+                            if not user.bot and user.id not in game["reactions"]:
+                                game["reactions"].add(user.id)
+                                game["players"][str(user.id)] = {
+                                    "name": user.display_name,
+                                    "alive": True,
+                                    "kills": 0,
+                                    "revives": 0,
+                                    "district": get_random_district()
+                                }
+                    
+                    # Update embed with current player count
+                    current_players = len(game["players"])
+                    embed = create_recruitment_embed(remaining, current_players)
+                    await message.edit(embed=embed)
+                    
+                except discord.NotFound:
+                    # Message was deleted, cancel game
+                    del self.active_games[guild_id]
+                    return
+                except discord.Forbidden:
+                    pass  # Can't edit, continue anyway
+            
+            await asyncio.sleep(1)
+        
+        # Recruitment ended, start the game
+        await self.start_battle_royale(guild_id)
+    
+    async def start_battle_royale(self, guild_id: int):
+        """Start the actual battle royale game"""
+        game = self.active_games[guild_id]
+        channel = game["channel"]
+        
+        # Check if we have enough players
+        if len(game["players"]) < 2:
+            embed = discord.Embed(
+                title="❌ **INSUFFICIENT TRIBUTES**",
+                description="Need at least 2 brave souls to enter the arena!",
+                color=0xFF0000
+            )
+            await channel.send(embed=embed)
+            del self.active_games[guild_id]
+            return
+        
+        game["status"] = "active"
+        
+        # Send game start message
+        embed = create_game_start_embed(len(game["players"]))
+        await channel.send(embed=embed)
+        
+        # Show initial tributes
+        await asyncio.sleep(3)
+        
+        embed = discord.Embed(
+            title="👥 **THE TRIBUTES**",
+            description="Meet this year's brave competitors:",
+            color=0x4169E1
+        )
+        
+        player_list = format_player_list(game["players"], show_status=False)
+        embed.add_field(
+            name="🏹 **Entered the Arena**",
+            value=player_list,
+            inline=False
+        )
+        
+        await channel.send(embed=embed)
+        
+        # Start the main game loop
+        game["task"] = asyncio.create_task(self.game_loop(guild_id))
+    
+    async def game_loop(self, guild_id: int):
+        """Main game loop that handles events and progression"""
+        game = self.active_games[guild_id]
+        channel = game["channel"]
+        
+        try:
+            event_interval = await self.config.guild(channel.guild).event_interval()
+            
+            while game["status"] == "active":
+                await asyncio.sleep(event_interval)
+                
+                game["round"] += 1
+                alive_players = self.game_engine.get_alive_players(game)
+                
+                # Check if game should end
+                if await self.game_engine.check_game_end(game, channel):
+                    break
+                
+                # Determine if an event should happen
+                if should_execute_event(len(alive_players), game["round"]):
+                    await self.execute_random_event(game, channel)
+                
+                # Send status update every few rounds
+                if game["round"] % 3 == 0:
+                    embed = self.game_engine.create_status_embed(game, channel.guild)
+                    await channel.send(embed=embed)
+                
+                # Increase pace as game progresses
+                if len(alive_players) <= 10:
+                    event_interval = max(15, event_interval - 2)
+                elif len(alive_players) <= 5:
+                    event_interval = max(10, event_interval - 3)
+        
+        except asyncio.CancelledError:
+            # Game was cancelled
+            pass
+        except Exception as e:
+            # Log error and end game gracefully
+            print(f"Error in game loop: {e}")
+        finally:
+            # Clean up
+            if guild_id in self.active_games:
+                del self.active_games[guild_id]
+    
+    async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
+        """Execute a random game event"""
+        alive_count = len(self.game_engine.get_alive_players(game))
+        
+        # Get event type weights
+        weights = get_event_weights()
+        
+        # Adjust weights based on game state
+        if alive_count <= 5:
+            weights["death"] = 50  # More deaths in final rounds
+            weights["alliance"] = 5   # Fewer alliances
+        elif alive_count <= 2:
+            weights["death"] = 70
+            weights["survival"] = 20
+            weights["sponsor"] = 5
+            weights["alliance"] = 5
+        
+        # Choose event type
+        event_types = list(weights.keys())
+        event_weights = list(weights.values())
+        event_type = random.choices(event_types, weights=event_weights)[0]
+        
+        message = None
+        
+        if event_type == "death":
+            message = await self.game_engine.execute_death_event(game, channel)
+        elif event_type == "survival":
+            message = await self.game_engine.execute_survival_event(game)
+        elif event_type == "sponsor":
+            message = await self.game_engine.execute_sponsor_event(game)
+        elif event_type == "alliance":
+            message = await self.game_engine.execute_alliance_event(game)
+        
+        if message:
+            # Create event embed
+            embed = discord.Embed(
+                description=message,
+                color=0xFF4500 if event_type == "death" else 0x32CD32
+            )
+            
+            # Add round number
+            embed.set_footer(text=f"Round {game['round']} • {get_game_phase_description(game['round'], alive_count)}")
+            
+            await channel.send(embed=embed)
+    
+    @commands.group(invoke_without_command=True)
+    async def hungergames(self, ctx):
+        """Hunger Games battle royale commands"""
+        await ctx.send_help()
+    
+    @hungergames.command(name="stats")
+    async def hg_stats(self, ctx, member: discord.Member = None):
+        """View Hunger Games statistics for yourself or another player"""
+        if member is None:
+            member = ctx.author
+        
+        member_data = await self.config.member(member).all()
+        embed = create_player_stats_embed(member_data, member)
+        await ctx.send(embed=embed)
+    
+    @hungergames.command(name="leaderboard", aliases=["lb", "top"])
+    async def hg_leaderboard(self, ctx, stat: str = "wins"):
+        """View the Hunger Games leaderboard
+        
+        Available stats: wins, kills, deaths, revives"""
+        
+        if stat.lower() not in ["wins", "kills", "deaths", "revives"]:
+            return await ctx.send("❌ Invalid stat! Use: `wins`, `kills`, `deaths`, or `revives`")
+        
+        stat = stat.lower()
+        
+        # Get all member data
+        all_members = await self.config.all_members(ctx.guild)
+        
+        # Filter and sort
+        filtered_members = []
+        for member_id, data in all_members.items():
+            stat_value = data.get(stat, 0)
+            if stat_value > 0:
+                filtered_members.append((member_id, data))
+        
+        filtered_members.sort(key=lambda x: x[1].get(stat, 0), reverse=True)
+        
+        embed = create_leaderboard_embed(ctx.guild, filtered_members, stat)
+        await ctx.send(embed=embed)
+    
+    @hungergames.command(name="stop")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_stop(self, ctx):
+        """Stop the current Hunger Games"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active game to stop!")
+        
+        game = self.active_games[guild_id]
+        
+        # Cancel the game task
+        if "task" in game:
+            game["task"].cancel()
+        
+        # Clean up
+        del self.active_games[guild_id]
+        
+        embed = discord.Embed(
+            title="🛑 **GAME TERMINATED**",
+            description="The Hunger Games have been forcibly ended by the Capitol.",
+            color=0x000000
+        )
+        
+        await ctx.send(embed=embed)
+    
+    @hungergames.command(name="config")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_config(self, ctx):
+        """View current Hunger Games configuration"""
+        config_data = await self.config.guild(ctx.guild).all()
+        
+        embed = discord.Embed(
+            title="⚙️ **Hunger Games Configuration**",
+            color=0x4169E1
+        )
+        
+        embed.add_field(
+            name="💰 **Base Reward**",
+            value=f"{config_data['base_reward']:,} credits",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🎁 **Sponsor Chance**",
+            value=f"{config_data['sponsor_chance']}%",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏱️ **Event Interval**",
+            value=f"{config_data['event_interval']} seconds",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏰ **Recruitment Time**",
+            value=f"{config_data['recruitment_time']} seconds",
+            inline=True
+        )
+        
+        await ctx.send(embed=embed)
+    
+    @hungergames.group(name="set", invoke_without_command=True)
+    @commands.has_permissions(manage_guild=True)
+    async def hg_set(self, ctx):
+        """Configure Hunger Games settings"""
+        await ctx.send_help()
+    
+    @hg_set.command(name="reward")
+    async def hg_set_reward(self, ctx, amount: int):
+        """Set the base reward amount"""
+        if amount < 100:
+            return await ctx.send("❌ Base reward must be at least 100 credits!")
+        
+        await self.config.guild(ctx.guild).base_reward.set(amount)
+        await ctx.send(f"✅ Base reward set to {amount:,} credits!")
+    
+    @hg_set.command(name="sponsor")
+    async def hg_set_sponsor(self, ctx, chance: int):
+        """Set the sponsor revival chance (1-50%)"""
+        if not 1 <= chance <= 50:
+            return await ctx.send("❌ Sponsor chance must be between 1-50%!")
+        
+        await self.config.guild(ctx.guild).sponsor_chance.set(chance)
+        await ctx.send(f"✅ Sponsor revival chance set to {chance}%!")
+    
+    @hg_set.command(name="interval")
+    async def hg_set_interval(self, ctx, seconds: int):
+        """Set the event interval (10-120 seconds)"""
+        if not 10 <= seconds <= 120:
+            return await ctx.send("❌ Event interval must be between 10-120 seconds!")
+        
+        await self.config.guild(ctx.guild).event_interval.set(seconds)
+        await ctx.send(f"✅ Event interval set to {seconds} seconds!")
+
+
+async def setup(bot):
+    """Required function for loading the cog"""
+    await bot.add_cog(HungerGames(bot))
