@@ -192,15 +192,32 @@ class HungerGames(commands.Cog):
             # Give a brief pause before starting events
             await asyncio.sleep(5)
             
+            # Debug message to confirm loop started
+            print(f"Game loop started for guild {guild_id} with {len(game['players'])} players")
+            
             while game["status"] == "active":
                 game["round"] += 1
                 alive_players = self.game_engine.get_alive_players(game)
                 
+                print(f"Round {game['round']}: {len(alive_players)} players alive")
+                
                 # Always try to execute an event first (unless game is over)
                 if len(alive_players) > 1:
                     # Force events to happen more frequently with small player counts
-                    if should_execute_event(len(alive_players), game["round"]) or len(alive_players) <= 5:
-                        await self.execute_random_event(game, channel)
+                    should_have_event = should_execute_event(len(alive_players), game["round"]) or len(alive_players) <= 5
+                    print(f"Should execute event: {should_have_event}")
+                    
+                    if should_have_event:
+                        try:
+                            await self.execute_random_event(game, channel)
+                        except Exception as e:
+                            print(f"Error executing event: {e}")
+                            # Send a fallback message so something happens
+                            embed = discord.Embed(
+                                description="⚠️ Something mysterious happened in the arena...",
+                                color=0xFFFF00
+                            )
+                            await channel.send(embed=embed)
                 
                 # Small delay between event and end check
                 await asyncio.sleep(2)
@@ -219,28 +236,42 @@ class HungerGames(commands.Cog):
                 
                 # Dynamic event interval based on player count
                 if len(alive_players) <= 3:
-                    await asyncio.sleep(max(8, event_interval // 3))  # Very fast with 2-3 players
+                    sleep_time = max(8, event_interval // 3)  # Very fast with 2-3 players
                 elif len(alive_players) <= 5:
-                    await asyncio.sleep(max(12, event_interval // 2))  # Faster with 4-5 players
+                    sleep_time = max(12, event_interval // 2)  # Faster with 4-5 players
                 elif len(alive_players) <= 10:
-                    await asyncio.sleep(max(15, event_interval - 5))   # Slightly faster
+                    sleep_time = max(15, event_interval - 5)   # Slightly faster
                 else:
-                    await asyncio.sleep(event_interval)  # Normal speed
+                    sleep_time = event_interval  # Normal speed
+                
+                print(f"Sleeping for {sleep_time} seconds")
+                await asyncio.sleep(sleep_time)
         
         except asyncio.CancelledError:
-            # Game was cancelled
-            pass
+            print(f"Game {guild_id} was cancelled")
         except Exception as e:
-            # Log error and end game gracefully
-            print(f"Error in game loop: {e}")
+            print(f"Error in game loop for guild {guild_id}: {e}")
+            # Send error message to channel
+            try:
+                embed = discord.Embed(
+                    title="❌ **ARENA MALFUNCTION**",
+                    description="The arena experienced technical difficulties. Game ended.",
+                    color=0xFF0000
+                )
+                await channel.send(embed=embed)
+            except:
+                pass
         finally:
             # Clean up
+            print(f"Cleaning up game for guild {guild_id}")
             if guild_id in self.active_games:
                 del self.active_games[guild_id]
     
     async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
         """Execute a random game event"""
         alive_count = len(self.game_engine.get_alive_players(game))
+        
+        print(f"Executing random event with {alive_count} alive players")
         
         # Get event type weights
         weights = get_event_weights()
@@ -276,29 +307,49 @@ class HungerGames(commands.Cog):
         event_weights = list(weights.values())
         event_type = random.choices(event_types, weights=event_weights)[0]
         
+        print(f"Chosen event type: {event_type}")
+        
         message = None
         
-        if event_type == "death":
-            message = await self.game_engine.execute_death_event(game, channel)
-        elif event_type == "survival":
-            message = await self.game_engine.execute_survival_event(game)
-        elif event_type == "sponsor":
-            message = await self.game_engine.execute_sponsor_event(game)
-        elif event_type == "alliance":
-            message = await self.game_engine.execute_alliance_event(game)
+        try:
+            if event_type == "death":
+                message = await self.game_engine.execute_death_event(game, channel)
+            elif event_type == "survival":
+                message = await self.game_engine.execute_survival_event(game)
+            elif event_type == "sponsor":
+                message = await self.game_engine.execute_sponsor_event(game)
+            elif event_type == "alliance":
+                message = await self.game_engine.execute_alliance_event(game)
+        except Exception as e:
+            print(f"Error in event execution ({event_type}): {e}")
+            # Fallback message if event fails
+            message = f"⚠️ | Something unexpected happened in the arena during round {game['round']}!"
+        
+        print(f"Generated message: {message}")
         
         if message:
-            # Create event embed with no title for cleaner look
-            embed = discord.Embed(
-                description=message,
-                color=0xFF4500 if event_type == "death" else 0x32CD32
-            )
-            
-            # Add round number and phase
-            alive_after_event = len(self.game_engine.get_alive_players(game))
-            embed.set_footer(text=f"Round {game['round']} • {get_game_phase_description(game['round'], alive_after_event)}")
-            
-            await channel.send(embed=embed)
+            try:
+                # Create event embed with no title for cleaner look
+                embed = discord.Embed(
+                    description=message,
+                    color=0xFF4500 if event_type == "death" else 0x32CD32
+                )
+                
+                # Add round number and phase
+                alive_after_event = len(self.game_engine.get_alive_players(game))
+                embed.set_footer(text=f"Round {game['round']} • {get_game_phase_description(game['round'], alive_after_event)}")
+                
+                await channel.send(embed=embed)
+                print(f"Event message sent successfully")
+            except Exception as e:
+                print(f"Error sending event message: {e}")
+                # Try sending a plain message as fallback
+                try:
+                    await channel.send(f"**Round {game['round']}**: {message}")
+                except:
+                    print("Failed to send even plain message")
+        else:
+            print("No message generated from event")
     
     @commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
