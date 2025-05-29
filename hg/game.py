@@ -228,13 +228,20 @@ class GameEngine:
         print(f"Alliance event: {len(alive_players)} alive players")
         
         if len(alive_players) < 2:
+            print("Not enough players for alliance event")
             return None
             
         player1_id, player2_id = random.sample(alive_players, 2)
         player1_data = game["players"][player1_id]
         player2_data = game["players"][player2_id]
-        player1_name_with_title = f"{player1_data['name']} {player1_data['title']}"
-        player2_name_with_title = f"{player2_data['name']} {player2_data['title']}"
+        
+        print(f"Player 1: {player1_data}")
+        print(f"Player 2: {player2_data}")
+        
+        player1_name_with_title = f"{player1_data['name']} {player1_data.get('title', 'the Nameless')}"
+        player2_name_with_title = f"{player2_data['name']} {player2_data.get('title', 'the Nameless')}"
+        
+        print(f"Formatted names: {player1_name_with_title}, {player2_name_with_title}")
         
         if not ALLIANCE_EVENTS:
             print("No alliance events found!")
