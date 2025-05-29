@@ -102,6 +102,7 @@ class HungerGames(commands.Cog):
                                 game["reactions"].add(user.id)
                                 game["players"][str(user.id)] = {
                                     "name": user.display_name,
+                                    "title": get_random_player_title(),
                                     "alive": True,
                                     "kills": 0,
                                     "revives": 0,
