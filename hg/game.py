@@ -86,26 +86,28 @@ class GameEngine:
             
         # Choose victim
         victim_id = random.choice(alive_players)
-        victim_name = game["players"][victim_id]["name"]
+        victim_data = game["players"][victim_id]
+        victim_name_with_title = f"{victim_data['name']} {victim_data['title']}"
         
         # 60% chance for murder, 40% chance for accident
         if random.random() < 0.6 and len(alive_players) > 2:
             # Murder - choose a killer
             potential_killers = [p for p in alive_players if p != victim_id]
             killer_id = random.choice(potential_killers)
-            killer_name = game["players"][killer_id]["name"]
+            killer_data = game["players"][killer_id]
+            killer_name_with_title = f"{killer_data['name']} {killer_data['title']}"
             
             # Choose murder event
             murder_events = [e for e in DEATH_EVENTS if "{killer}" in e]
             event = random.choice(murder_events)
-            message = event.format(player=victim_name, killer=killer_name)
+            message = event.format(player=victim_name_with_title, killer=killer_name_with_title)
             
             self.kill_player(game, victim_id, killer_id)
         else:
             # Accident
             accident_events = [e for e in DEATH_EVENTS if "{killer}" not in e]
             event = random.choice(accident_events)
-            message = event.format(player=victim_name)
+            message = event.format(player=victim_name_with_title)
             
             self.kill_player(game, victim_id)
         
@@ -119,8 +121,9 @@ class GameEngine:
             if eligible_for_revival:
                 revive_id = random.choice(eligible_for_revival)
                 if self.revive_player(game, revive_id):
-                    revive_name = game["players"][revive_id]["name"]
-                    revival_msg = random.choice(REVIVAL_MESSAGES).format(player=revive_name)
+                    revive_data = game["players"][revive_id]
+                    revive_name_with_title = f"{revive_data['name']} {revive_data['title']}"
+                    revival_msg = random.choice(REVIVAL_MESSAGES).format(player=revive_name_with_title)
                     message += f"\n\n{revival_msg}"
         
         return message
@@ -133,10 +136,11 @@ class GameEngine:
             return None
             
         player_id = random.choice(alive_players)
-        player_name = game["players"][player_id]["name"]
+        player_data = game["players"][player_id]
+        player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
         event = random.choice(SURVIVAL_EVENTS)
-        return event.format(player=player_name)
+        return event.format(player=player_name_with_title)
     
     async def execute_sponsor_event(self, game: Dict) -> Optional[str]:
         """Execute a sponsor gift event"""
@@ -146,10 +150,11 @@ class GameEngine:
             return None
             
         player_id = random.choice(alive_players)
-        player_name = game["players"][player_id]["name"]
+        player_data = game["players"][player_id]
+        player_name_with_title = f"{player_data['name']} {player_data['title']}"
         
         event = random.choice(SPONSOR_EVENTS)
-        return event.format(player=player_name)
+        return event.format(player=player_name_with_title)
     
     async def execute_alliance_event(self, game: Dict) -> Optional[str]:
         """Execute an alliance event"""
@@ -159,11 +164,13 @@ class GameEngine:
             return None
             
         player1_id, player2_id = random.sample(alive_players, 2)
-        player1_name = game["players"][player1_id]["name"]
-        player2_name = game["players"][player2_id]["name"]
+        player1_data = game["players"][player1_id]
+        player2_data = game["players"][player2_id]
+        player1_name_with_title = f"{player1_data['name']} {player1_data['title']}"
+        player2_name_with_title = f"{player2_data['name']} {player2_data['title']}"
         
         event = random.choice(ALLIANCE_EVENTS)
-        return event.format(player1=player1_name, player2=player2_name)
+        return event.format(player1=player1_name_with_title, player2=player2_name_with_title)
     
     def create_status_embed(self, game: Dict, guild: discord.Guild) -> discord.Embed:
         """Create status embed showing current game state"""
