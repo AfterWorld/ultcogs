@@ -4,7 +4,7 @@
 import discord
 import random
 from typing import Dict, List, Optional
-from .constants import DISTRICTS, EMOJIS, PLACEMENT_MEDALS, VICTORY_TITLE_ART, GAME_ERAS, PLAYER_TITLES
+from .constants import DISTRICTS, EMOJIS, PLACEMENT_MEDALS, VICTORY_TITLE_ART, PLAYER_TITLES
 
 
 def format_player_list(players: Dict, show_districts: bool = True, show_status: bool = True) -> str:
@@ -219,12 +219,13 @@ def validate_countdown(countdown: int) -> tuple[bool, str]:
 
 
 def get_event_weights() -> Dict[str, int]:
-    """Get event type weights based on game state"""
+    """Get event type weights based on game state - now includes crate events"""
     return {
-        "death": 35,      # 35% chance
-        "survival": 30,   # 30% chance  
+        "death": 30,      # 30% chance (reduced to make room for crates)
+        "survival": 25,   # 25% chance  
         "sponsor": 15,    # 15% chance
-        "alliance": 20    # 20% chance
+        "alliance": 15,   # 15% chance
+        "crate": 15       # 15% chance (NEW!)
     }
 
 
