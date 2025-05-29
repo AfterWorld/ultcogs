@@ -132,7 +132,8 @@ class HungerGames(commands.Cog):
         channel = game["channel"]
         
         # Check if we have enough players
-        if len(game["players"]) < 2:
+        player_count = len(game["players"])
+        if player_count < 2:
             embed = discord.Embed(
                 title="❌ **INSUFFICIENT TRIBUTES**",
                 description="Need at least 2 brave souls to enter the arena!",
@@ -145,7 +146,7 @@ class HungerGames(commands.Cog):
         game["status"] = "active"
         
         # Send game start message
-        embed = create_game_start_embed(len(game["players"]))
+        embed = create_game_start_embed(player_count)
         await channel.send(embed=embed)
         
         # Show initial tributes
@@ -166,6 +167,17 @@ class HungerGames(commands.Cog):
         
         await channel.send(embed=embed)
         
+        # Add extra dramatic pause for small games
+        if player_count <= 4:
+            await asyncio.sleep(2)
+            embed = discord.Embed(
+                title="⚡ **INTENSE SHOWDOWN INCOMING** ⚡",
+                description=f"With only **{player_count} tributes**, this will be a lightning-fast battle!\n"
+                           f"Every second counts... every move matters...",
+                color=0xFF6B35
+            )
+            await channel.send(embed=embed)
+        
         # Start the main game loop
         game["task"] = asyncio.create_task(self.game_loop(guild_id))
     
@@ -177,30 +189,43 @@ class HungerGames(commands.Cog):
         try:
             event_interval = await self.config.guild(channel.guild).event_interval()
             
+            # Give a brief pause before starting events
+            await asyncio.sleep(5)
+            
             while game["status"] == "active":
-                await asyncio.sleep(event_interval)
-                
                 game["round"] += 1
                 alive_players = self.game_engine.get_alive_players(game)
                 
-                # Check if game should end
+                # Always try to execute an event first (unless game is over)
+                if len(alive_players) > 1:
+                    # Force events to happen more frequently with small player counts
+                    if should_execute_event(len(alive_players), game["round"]) or len(alive_players) <= 5:
+                        await self.execute_random_event(game, channel)
+                
+                # Small delay between event and end check
+                await asyncio.sleep(2)
+                
+                # Re-check alive players after potential event
+                alive_players = self.game_engine.get_alive_players(game)
+                
+                # Check if game should end AFTER events
                 if await self.game_engine.check_game_end(game, channel):
                     break
                 
-                # Determine if an event should happen
-                if should_execute_event(len(alive_players), game["round"]):
-                    await self.execute_random_event(game, channel)
-                
-                # Send status update every few rounds
-                if game["round"] % 3 == 0:
+                # Send status update every few rounds (but not too often with small groups)
+                if game["round"] % 4 == 0 and len(alive_players) > 5:
                     embed = self.game_engine.create_status_embed(game, channel.guild)
                     await channel.send(embed=embed)
                 
-                # Increase pace as game progresses
-                if len(alive_players) <= 10:
-                    event_interval = max(15, event_interval - 2)
+                # Dynamic event interval based on player count
+                if len(alive_players) <= 3:
+                    await asyncio.sleep(max(8, event_interval // 3))  # Very fast with 2-3 players
                 elif len(alive_players) <= 5:
-                    event_interval = max(10, event_interval - 3)
+                    await asyncio.sleep(max(12, event_interval // 2))  # Faster with 4-5 players
+                elif len(alive_players) <= 10:
+                    await asyncio.sleep(max(15, event_interval - 5))   # Slightly faster
+                else:
+                    await asyncio.sleep(event_interval)  # Normal speed
         
         except asyncio.CancelledError:
             # Game was cancelled
@@ -221,14 +246,30 @@ class HungerGames(commands.Cog):
         weights = get_event_weights()
         
         # Adjust weights based on game state
-        if alive_count <= 5:
-            weights["death"] = 50  # More deaths in final rounds
-            weights["alliance"] = 5   # Fewer alliances
-        elif alive_count <= 2:
+        if alive_count <= 2:
+            # Final duel - mostly death events with some drama
             weights["death"] = 70
-            weights["survival"] = 20
-            weights["sponsor"] = 5
+            weights["survival"] = 15  
+            weights["sponsor"] = 10
             weights["alliance"] = 5
+        elif alive_count <= 3:
+            # Final three - more action
+            weights["death"] = 60
+            weights["survival"] = 20
+            weights["sponsor"] = 15
+            weights["alliance"] = 5
+        elif alive_count <= 5:
+            # Top 5 - intense action
+            weights["death"] = 50  
+            weights["survival"] = 25
+            weights["sponsor"] = 15
+            weights["alliance"] = 10
+        elif alive_count <= 10:
+            # Standard late game
+            weights["death"] = 40
+            weights["survival"] = 30
+            weights["sponsor"] = 15
+            weights["alliance"] = 15
         
         # Choose event type
         event_types = list(weights.keys())
@@ -247,14 +288,15 @@ class HungerGames(commands.Cog):
             message = await self.game_engine.execute_alliance_event(game)
         
         if message:
-            # Create event embed
+            # Create event embed with no title for cleaner look
             embed = discord.Embed(
                 description=message,
                 color=0xFF4500 if event_type == "death" else 0x32CD32
             )
             
-            # Add round number
-            embed.set_footer(text=f"Round {game['round']} • {get_game_phase_description(game['round'], alive_count)}")
+            # Add round number and phase
+            alive_after_event = len(self.game_engine.get_alive_players(game))
+            embed.set_footer(text=f"Round {game['round']} • {get_game_phase_description(game['round'], alive_after_event)}")
             
             await channel.send(embed=embed)
     
