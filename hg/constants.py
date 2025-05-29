@@ -225,90 +225,90 @@ DEATH_EVENTS = [
     "💀 | **{killer}** the Ancient Weapon obliterated ~~**{player}**~~ the Insignificant and their entire island!"
 ]
 
-# Survival Events - Mixed Themes with Discord Markdown  
+# Survival Events - Mixed Themes with Discord Markdown (Fixed titles)
 SURVIVAL_EVENTS = [
-    "🌿 | **{player}** the Resourceful found a hidden cache of supplies in an abandoned bunker!",
-    "💊 | **{player}** the Lucky discovered medical supplies and __*healed their wounds*__!",
-    "🍖 | **{player}** the Hunter successfully trapped a wild boar for a hearty meal!",
-    "💧 | **{player}** the Survivor located a clean water source in the desert oasis!",
-    "🏠 | **{player}** the Smart discovered a safe shelter in the ruined castle!",
-    "🔥 | **{player}** the Prepared started a fire to keep warm during the cold night!",
-    "🍄 | **{player}** the Wise found edible mushrooms (and they weren't poisonous)!",
-    "🎒 | **{player}** the Scavenger salvaged useful gear from a fallen tribute's backpack!",
-    "🗡️ | **{player}** the Crafty forged a makeshift weapon from scrap metal!",
-    "🌙 | **{player}** the Stealthy successfully hid from other tributes in the shadows!",
-    "⚡ | **{player}** the Alert avoided a deadly trap by pure instinct!",
-    "🦋 | **{player}** the Peaceful made friends with some harmless butterflies!",
-    "🌳 | **{player}** the Agile climbed a massive tree to scout the surrounding area!",
-    "🏃 | **{player}** the Fast outran a pack of radioactive wolves!",
-    "🍯 | **{player}** the Forager found honey and __*gained energy*__ for the trials ahead!",
-    "🛡️ | **{player}** the Engineer crafted armor from salvaged vehicle parts!",
-    "🎯 | **{player}** the Marksman practiced their aim with makeshift targets!",
-    "🌺 | **{player}** the Herbalist discovered healing herbs in the jungle!",
-    "💤 | **{player}** the Tired got a good night's sleep in their hidden cave!",
-    "🦎 | **{player}** the Survivor caught and cooked a lizard over their campfire!",
-    "🔧 | **{player}** the Mechanic __*repaired their equipment*__ using spare parts!",
-    "🎵 | **{player}** the Musician played a tune that __*boosted their morale*__!",
-    "💎 | **{player}** the Explorer discovered valuable gems in the crystal caves!",
-    "🗺️ | **{player}** the Navigator found an ancient map showing secret passages!",
-    "🧪 | **{player}** the Chemist brewed a __*stamina potion*__ from local plants!"
+    "🌿 | **{player}** found a hidden cache of supplies in an abandoned bunker!",
+    "💊 | **{player}** discovered medical supplies and __*healed their wounds*__!",
+    "🍖 | **{player}** successfully trapped a wild boar for a hearty meal!",
+    "💧 | **{player}** located a clean water source in the desert oasis!",
+    "🏠 | **{player}** discovered a safe shelter in the ruined castle!",
+    "🔥 | **{player}** started a fire to keep warm during the cold night!",
+    "🍄 | **{player}** found edible mushrooms (and they weren't poisonous)!",
+    "🎒 | **{player}** salvaged useful gear from a fallen tribute's backpack!",
+    "🗡️ | **{player}** forged a makeshift weapon from scrap metal!",
+    "🌙 | **{player}** successfully hid from other tributes in the shadows!",
+    "⚡ | **{player}** avoided a deadly trap by pure instinct!",
+    "🦋 | **{player}** made friends with some harmless butterflies!",
+    "🌳 | **{player}** climbed a massive tree to scout the surrounding area!",
+    "🏃 | **{player}** outran a pack of radioactive wolves!",
+    "🍯 | **{player}** found honey and __*gained energy*__ for the trials ahead!",
+    "🛡️ | **{player}** crafted armor from salvaged vehicle parts!",
+    "🎯 | **{player}** practiced their aim with makeshift targets!",
+    "🌺 | **{player}** discovered healing herbs in the jungle!",
+    "💤 | **{player}** got a good night's sleep in their hidden cave!",
+    "🦎 | **{player}** caught and cooked a lizard over their campfire!",
+    "🔧 | **{player}** __*repaired their equipment*__ using spare parts!",
+    "🎵 | **{player}** played a tune that __*boosted their morale*__!",
+    "💎 | **{player}** discovered valuable gems in the crystal caves!",
+    "🗺️ | **{player}** found an ancient map showing secret passages!",
+    "🧪 | **{player}** brewed a __*stamina potion*__ from local plants!"
 ]
 
-# NEW: Crate Events - Equipment and Gear Discovery
+# NEW: Crate Events - Equipment and Gear Discovery (Fixed titles)
 CRATE_EVENTS = [
-    "📦 | **{player}** the Lucky discovered a __*weapon cache*__ hidden in the ruins of District 8!",
-    "📦 | **{player}** the Scavenger found __*advanced combat gear*__ in an abandoned military crate!",
-    "📦 | **{player}** the Resourceful uncovered __*medical supplies*__ in a Capitol emergency drop!",
-    "📦 | **{player}** the Explorer located a __*food cache*__ buried near the Cornucopia!",
-    "📦 | **{player}** the Clever cracked open a __*mystery crate*__ containing high-tech equipment!",
-    "📦 | **{player}** the Opportunist stumbled upon a __*supply drop*__ meant for another tribute!",
-    "📦 | **{player}** the Prepared found a __*survival kit*__ stashed in District 12's mines!",
-    "📦 | **{player}** the Tactical discovered __*explosive devices*__ in a hidden weapons depot!",
-    "📦 | **{player}** the Observant spotted a __*camouflaged crate*__ containing stealth gear!",
-    "📦 | **{player}** the Determined broke into a __*locked container*__ filled with rare items!",
-    "📦 | **{player}** the Sharp-eyed found a __*night vision kit*__ in District 3's tech ruins!",
-    "📦 | **{player}** the Persistent excavated a __*buried arsenal*__ from the old rebellion!",
-    "📦 | **{player}** the Intuitive located a __*first aid crate*__ hidden by previous tributes!",
-    "📦 | **{player}** the Cunning discovered a __*trap-making kit*__ in the abandoned warehouses!",
-    "📦 | **{player}** the Bold raided a __*sponsor cache*__ dropped for eliminated tributes!",
-    "📦 | **{player}** the Methodical found __*communication equipment*__ in District 1's luxury bunker!",
-    "📦 | **{player}** the Vigilant uncovered a __*defensive gear set*__ in the training center ruins!",
-    "📦 | **{player}** the Relentless broke open a __*power source crate*__ from District 5!",
-    "📦 | **{player}** the Calculating located a __*precision tools kit*__ in the Victor's Village!",
-    "📦 | **{player}** the Adaptive found a __*multi-tool cache*__ in the underground tunnels!",
-    "📦 | **{player}** the Strategic discovered a __*smoke grenade stash*__ near the force field!",
-    "📦 | **{player}** the Perceptive spotted a __*climbing gear crate*__ in the mountain district!",
-    "📦 | **{player}** the Ambitious raided a __*sponsor gift*__ intended for the final tributes!",
-    "📦 | **{player}** the Focused found a __*hunting equipment set*__ in District 11's farmlands!",
-    "📦 | **{player}** the Resilient uncovered a __*energy drink cache*__ hidden by the Gamemakers!"
+    "📦 | **{player}** discovered a __*weapon cache*__ hidden in the ruins of District 8!",
+    "📦 | **{player}** found __*advanced combat gear*__ in an abandoned military crate!",
+    "📦 | **{player}** uncovered __*medical supplies*__ in a Capitol emergency drop!",
+    "📦 | **{player}** located a __*food cache*__ buried near the Cornucopia!",
+    "📦 | **{player}** cracked open a __*mystery crate*__ containing high-tech equipment!",
+    "📦 | **{player}** stumbled upon a __*supply drop*__ meant for another tribute!",
+    "📦 | **{player}** found a __*survival kit*__ stashed in District 12's mines!",
+    "📦 | **{player}** discovered __*explosive devices*__ in a hidden weapons depot!",
+    "📦 | **{player}** spotted a __*camouflaged crate*__ containing stealth gear!",
+    "📦 | **{player}** broke into a __*locked container*__ filled with rare items!",
+    "📦 | **{player}** found a __*night vision kit*__ in District 3's tech ruins!",
+    "📦 | **{player}** excavated a __*buried arsenal*__ from the old rebellion!",
+    "📦 | **{player}** located a __*first aid crate*__ hidden by previous tributes!",
+    "📦 | **{player}** discovered a __*trap-making kit*__ in the abandoned warehouses!",
+    "📦 | **{player}** raided a __*sponsor cache*__ dropped for eliminated tributes!",
+    "📦 | **{player}** found __*communication equipment*__ in District 1's luxury bunker!",
+    "📦 | **{player}** uncovered a __*defensive gear set*__ in the training center ruins!",
+    "📦 | **{player}** broke open a __*power source crate*__ from District 5!",
+    "📦 | **{player}** located a __*precision tools kit*__ in the Victor's Village!",
+    "📦 | **{player}** found a __*multi-tool cache*__ in the underground tunnels!",
+    "📦 | **{player}** discovered a __*smoke grenade stash*__ near the force field!",
+    "📦 | **{player}** spotted a __*climbing gear crate*__ in the mountain district!",
+    "📦 | **{player}** raided a __*sponsor gift*__ intended for the final tributes!",
+    "📦 | **{player}** found a __*hunting equipment set*__ in District 11's farmlands!",
+    "📦 | **{player}** uncovered a __*energy drink cache*__ hidden by the Gamemakers!"
 ]
 
-# Alliance Events - Mixed Themes with Discord Markdown
+# Alliance Events - Mixed Themes with Discord Markdown (Fixed titles)
 ALLIANCE_EVENTS = [
-    "🤝 | **{player1}** the Diplomatic and **{player2}** the Trustworthy __*formed an alliance*__ by the campfire!",
-    "💔 | **{player1}** the Treacherous __*betrayed their ally*__ ~~**{player2}**~~ the Naive for their supplies!",
-    "🛡️ | **{player1}** the Loyal protected **{player2}** the Vulnerable from a sneak attack!",
-    "🔥 | **{player1}** the Kind and **{player2}** the Grateful __*shared a campfire*__ during the cold night!",
-    "🍖 | **{player1}** the Generous shared their last meal with **{player2}** the Starving!",
-    "⚔️ | **{player1}** the Fierce and **{player2}** the Brave __*teamed up*__ to raid the supply depot!",
-    "🗣️ | **{player1}** the Strategist and **{player2}** the Follower __*planned their next move*__ together!",
-    "💰 | **{player1}** the Collector and **{player2}** the Partner __*agreed to split*__ any treasure they find!",
-    "🏥 | **{player1}** the Medic tended to **{player2}** the Injured's wounds with __*makeshift bandages*__!",
-    "🎯 | **{player1}** the Mentor taught **{player2}** the Student how to __*use their weapon*__ properly!"
+    "🤝 | **{player1}** and **{player2}** __*formed an alliance*__ by the campfire!",
+    "💔 | **{player1}** __*betrayed their ally*__ ~~**{player2}**~~ for their supplies!",
+    "🛡️ | **{player1}** protected **{player2}** from a sneak attack!",
+    "🔥 | **{player1}** and **{player2}** __*shared a campfire*__ during the cold night!",
+    "🍖 | **{player1}** shared their last meal with **{player2}**!",
+    "⚔️ | **{player1}** and **{player2}** __*teamed up*__ to raid the supply depot!",
+    "🗣️ | **{player1}** and **{player2}** __*planned their next move*__ together!",
+    "💰 | **{player1}** and **{player2}** __*agreed to split*__ any treasure they find!",
+    "🏥 | **{player1}** tended to **{player2}**'s wounds with __*makeshift bandages*__!",
+    "🎯 | **{player1}** taught **{player2}** how to __*use their weapon*__ properly!"
 ]
 
-# Sponsor Events - Mixed Themes with Discord Markdown
+# Sponsor Events - Mixed Themes with Discord Markdown (Fixed titles)
 SPONSOR_EVENTS = [
-    "🎁 | **SPONSOR GIFT!** **{player}** the Favored __*received a care package*__ dropped from the sky!",
-    "💊 | **SPONSOR GIFT!** **{player}** the Lucky was given __*life-saving medicine*__ by mysterious benefactor!",
-    "🗡️ | **SPONSOR GIFT!** **{player}** the Warrior __*received a weapon upgrade*__ from their sponsor!",
-    "🍖 | **SPONSOR GIFT!** **{player}** the Hungry was sent a __*feast fit for a king*__!",
-    "🛡️ | **SPONSOR GIFT!** **{player}** the Survivor __*received protective gear*__ just in time!",
-    "🔋 | **SPONSOR GIFT!** **{player}** the Tech-Savvy got __*high-tech equipment*__ from their sponsor!",
-    "🧪 | **SPONSOR GIFT!** **{player}** the Alchemist received __*experimental enhancement serum*__!",
-    "🎒 | **SPONSOR GIFT!** **{player}** the Prepared was given a __*fully stocked survival kit*__!",
-    "💰 | **SPONSOR GIFT!** **{player}** the Wealthy received __*valuable currency*__ from their patron!",
-    "🗺️ | **SPONSOR GIFT!** **{player}** the Navigator was sent __*detailed maps*__ of the arena!"
+    "🎁 | **SPONSOR GIFT!** **{player}** __*received a care package*__ dropped from the sky!",
+    "💊 | **SPONSOR GIFT!** **{player}** was given __*life-saving medicine*__ by mysterious benefactor!",
+    "🗡️ | **SPONSOR GIFT!** **{player}** __*received a weapon upgrade*__ from their sponsor!",
+    "🍖 | **SPONSOR GIFT!** **{player}** was sent a __*feast fit for a king*__!",
+    "🛡️ | **SPONSOR GIFT!** **{player}** __*received protective gear*__ just in time!",
+    "🔋 | **SPONSOR GIFT!** **{player}** got __*high-tech equipment*__ from their sponsor!",
+    "🧪 | **SPONSOR GIFT!** **{player}** received __*experimental enhancement serum*__!",
+    "🎒 | **SPONSOR GIFT!** **{player}** was given a __*fully stocked survival kit*__!",
+    "💰 | **SPONSOR GIFT!** **{player}** received __*valuable currency*__ from their patron!",
+    "🗺️ | **SPONSOR GIFT!** **{player}** was sent __*detailed maps*__ of the arena!"
 ]
 
 # Revival Messages - Enhanced with Discord Markdown
