@@ -243,11 +243,27 @@ class GameEngine:
         
         print(f"Formatted names: {player1_name_with_title}, {player2_name_with_title}")
         
-        if not ALLIANCE_EVENTS:
-            print("No alliance events found!")
-            return f"🤝 | **{player1_name_with_title}** and **{player2_name_with_title}** formed an unlikely partnership."
+        # Fallback alliance events in case imports fail
+        fallback_alliance_events = [
+            "🤝 | **{player1}** the Diplomatic and **{player2}** the Trustworthy __*formed an alliance*__!",
+            "💔 | **{player1}** the Treacherous __*betrayed*__ **{player2}** the Naive!",
+            "🛡️ | **{player1}** the Loyal protected **{player2}** the Vulnerable from danger!",
+            "🔥 | **{player1}** the Kind and **{player2}** the Grateful __*shared resources*__!",
+            "⚔️ | **{player1}** the Fierce and **{player2}** the Brave __*teamed up*__ for battle!"
+        ]
         
-        event = random.choice(ALLIANCE_EVENTS)
+        try:
+            if not ALLIANCE_EVENTS:
+                print("ALLIANCE_EVENTS is empty, using fallback")
+                alliance_events = fallback_alliance_events
+            else:
+                alliance_events = ALLIANCE_EVENTS
+                print(f"Using {len(alliance_events)} alliance events from constants")
+        except (NameError, AttributeError):
+            print("ALLIANCE_EVENTS not available, using fallback")
+            alliance_events = fallback_alliance_events
+        
+        event = random.choice(alliance_events)
         message = event.format(player1=player1_name_with_title, player2=player2_name_with_title)
         
         print(f"Alliance event message: {message}")
