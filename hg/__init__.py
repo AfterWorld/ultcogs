@@ -12,7 +12,10 @@ import asyncio
 import random
 from typing import Dict, List, Optional
 
-from .constants import *
+from .constants import (
+    DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG, EMOJIS,
+    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS
+)
 from .game import GameEngine
 from .utils import *
 
@@ -411,7 +414,51 @@ class HungerGames(commands.Cog):
                     
         except Exception as e:
             await ctx.send(f"❌ Error forcing event: {str(e)}")
-            print(f"Error in force event: {e}")
+    @hungergames.command(name="debug")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_debug(self, ctx):
+        """Debug constants and imports (Admin only)"""
+        embed = discord.Embed(
+            title="🔍 **DEBUG INFO**",
+            color=0x00CED1
+        )
+        
+        # Check constants
+        try:
+            from .constants import DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS
+            embed.add_field(
+                name="📊 **Constants Loaded**",
+                value=f"Death Events: {len(DEATH_EVENTS)}\n"
+                      f"Survival Events: {len(SURVIVAL_EVENTS)}\n"
+                      f"Sponsor Events: {len(SPONSOR_EVENTS)}\n"
+                      f"Alliance Events: {len(ALLIANCE_EVENTS)}",
+                inline=True
+            )
+        except Exception as e:
+            embed.add_field(
+                name="❌ **Import Error**",
+                value=str(e),
+                inline=False
+            )
+        
+        # Show sample death event
+        try:
+            from .constants import DEATH_EVENTS
+            if DEATH_EVENTS:
+                sample = DEATH_EVENTS[0]
+                embed.add_field(
+                    name="🎭 **Sample Death Event**",
+                    value=f"```{sample}```",
+                    inline=False
+                )
+        except Exception as e:
+            embed.add_field(
+                name="❌ **Death Events Error**",
+                value=str(e),
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
     
     @hungergames.command(name="leaderboard", aliases=["lb", "top"])
     async def hg_leaderboard(self, ctx, stat: str = "wins"):
