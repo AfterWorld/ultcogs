@@ -4,7 +4,7 @@
 import discord
 import random
 from typing import Dict, List, Optional
-from .constants import DISTRICTS, EMOJIS, PLACEMENT_MEDALS, VICTORY_TITLE_ART, GAME_ERAS
+from .constants import DISTRICTS, EMOJIS, PLACEMENT_MEDALS, VICTORY_TITLE_ART, GAME_ERAS, PLAYER_TITLES
 
 
 def format_player_list(players: Dict, show_districts: bool = True, show_status: bool = True) -> str:
@@ -14,7 +14,7 @@ def format_player_list(players: Dict, show_districts: bool = True, show_status: 
     
     lines = []
     for player_id, player_data in players.items():
-        line = f"**{player_data['name']}**"
+        line = f"**{player_data['name']}** {player_data.get('title', 'the Nameless')}"
         
         if show_districts:
             district_name = DISTRICTS.get(player_data['district'], f"District {player_data['district']}")
@@ -36,6 +36,11 @@ def format_player_list(players: Dict, show_districts: bool = True, show_status: 
 def get_random_district() -> int:
     """Get a random district number"""
     return random.randint(1, 12)
+
+
+def get_random_player_title() -> str:
+    """Get a random player title/epithet"""
+    return random.choice(PLAYER_TITLES)
 
 
 def format_time_remaining(seconds: int) -> str:
@@ -98,6 +103,7 @@ def create_player_stats_embed(member_data: Dict, member: discord.Member) -> disc
     wins = member_data.get("wins", 0)
     deaths = member_data.get("deaths", 0)
     kills = member_data.get("kills", 0)
+    revives = member_data.get("revives", 0)
     
     total_games = wins + deaths
     win_rate = (wins / total_games * 100) if total_games > 0 else 0
@@ -117,6 +123,12 @@ def create_player_stats_embed(member_data: Dict, member: discord.Member) -> disc
     embed.add_field(
         name="⚔️ **Total Kills**",
         value=str(kills),
+        inline=True
+    )
+    
+    embed.add_field(
+        name="✨ **Revives**",
+        value=str(revives),
         inline=True
     )
     
