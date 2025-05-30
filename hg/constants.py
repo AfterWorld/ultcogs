@@ -31,6 +31,126 @@ EMOJIS = {
     "trophy": "🏆"
 }
 
+VICTORY_PHRASES = [
+    "🏆 **WINNER!**",
+    "👑 **CHAMPION!**", 
+    "🎯 **VICTOR!**",
+    "⚔️ **SURVIVOR!**",
+    "🔥 **DOMINATION!**",
+    "💀 **LAST STANDING!**",
+    "🌟 **LEGENDARY!**",
+    "⚡ **ULTIMATE VICTOR!**",
+    "🎭 **TRIUMPHANT!**",
+    "💎 **SUPREME VICTOR!**",
+    "🏹 **ARENA MASTER!**",
+    "🎪 **SPECTACULAR VICTORY!**"
+]
+
+GIF_CATEGORIES = {
+    "victory": {
+        "general": [],  # General victory GIFs
+        "high_kill": [],  # For winners with 3+ kills
+        "underdog": [],  # For winners with 0 kills
+        "final_duel": [],  # For 2-player games
+        "bloodbath": []  # For very high kill games
+    },
+    "death": [],
+    "sponsor": [],
+    "revival": []
+}
+
+# Placeholder for future GIF functionality
+ENABLE_GIFS = False  # Set to True when GIF system is implemented
+GIF_FOLDER_PATH = "gifs/"  # Folder path for GIF files
+
+# Player Emoji Mappings based on titles and performance
+TITLE_EMOJIS = {
+    # Temperature/Element based
+    "cold": "❄️", "ice": "❄️", "frozen": "❄️", "winter": "❄️",
+    "fire": "🔥", "flame": "🔥", "burning": "🔥", "hot": "🔥",
+    "storm": "⛈️", "thunder": "⚡", "lightning": "⚡",
+    
+    # Color/Light based
+    "shadow": "🌙", "dark": "🌑", "night": "🌙", "black": "⚫",
+    "light": "☀️", "bright": "☀️", "golden": "🌟", "white": "⚪",
+    "red": "🔴", "blood": "🩸", "crimson": "🔴",
+    "blue": "🔵", "azure": "💙", "sapphire": "💎",
+    "green": "🟢", "emerald": "💚", "jade": "💚",
+    
+    # Nature based
+    "wild": "🐺", "savage": "🐺", "beast": "🐺", "wolf": "🐺",
+    "eagle": "🦅", "hawk": "🦅", "falcon": "🦅",
+    "lion": "🦁", "tiger": "🐅", "bear": "🐻",
+    "snake": "🐍", "viper": "🐍", "serpent": "🐍",
+    
+    # Status/Personality based
+    "noble": "👑", "royal": "👑", "king": "👑", "queen": "👑",
+    "wise": "🧠", "sage": "🧠", "clever": "🧠", "smart": "🧠",
+    "swift": "⚡", "quick": "⚡", "fast": "💨", "speedy": "💨",
+    "strong": "💪", "mighty": "💪", "powerful": "💪",
+    "silent": "🤫", "quiet": "🤫", "stealth": "👤",
+    "lucky": "🍀", "fortunate": "🍀", "blessed": "✨",
+    "cursed": "💀", "doomed": "💀", "damned": "💀",
+    "broken": "💔", "shattered": "💔", "wounded": "🩹",
+    
+    # Combat based
+    "deadly": "💀", "killer": "💀", "death": "💀", "reaper": "💀",
+    "warrior": "⚔️", "fighter": "⚔️", "soldier": "⚔️",
+    "hunter": "🏹", "archer": "🏹", "marksman": "🎯",
+    "blade": "🗡️", "sword": "🗡️", "knife": "🔪",
+    
+    # Mystical/Fantasy based
+    "mystic": "🔮", "magic": "🔮", "wizard": "🧙", "witch": "🧙‍♀️",
+    "dragon": "🐉", "phoenix": "🔥", "angel": "😇", "demon": "😈",
+    "ghost": "👻", "spirit": "👻", "soul": "👻",
+    
+    # Default fallbacks for kill counts
+    "default_high_kill": "💀",  # 5+ kills
+    "default_medium_kill": "⚔️",  # 3-4 kills  
+    "default_low_kill": "🗡️",  # 1-2 kills
+    "default_no_kill": "🏹"  # 0 kills
+}
+
+# Victory messages based on different scenarios
+VICTORY_SCENARIOS = {
+    "high_kill": [  # 5+ kills
+        "🔥 **ABSOLUTE DOMINATION!**",
+        "💀 **MERCILESS CHAMPION!**",
+        "⚔️ **ARENA DESTROYER!**",
+        "🩸 **BLOODTHIRSTY VICTOR!**"
+    ],
+    "medium_kill": [  # 3-4 kills
+        "⚔️ **SKILLED WARRIOR!**",
+        "🎯 **TACTICAL VICTOR!**",
+        "🔥 **BATTLE MASTER!**",
+        "🏹 **DEADLY CHAMPION!**"
+    ],
+    "low_kill": [  # 1-2 kills
+        "🛡️ **STRATEGIC SURVIVOR!**",
+        "🎭 **CUNNING CHAMPION!**",
+        "🌟 **CLEVER VICTOR!**",
+        "🦉 **WISE WINNER!**"
+    ],
+    "no_kill": [  # 0 kills (pure survival)
+        "🕊️ **PEACEFUL CHAMPION!**",
+        "🦋 **SURVIVAL MASTER!**",
+        "🌿 **NATURE'S CHOSEN!**",
+        "✨ **MIRACLE SURVIVOR!**"
+    ],
+    "underdog": [  # Small games or came from behind
+        "⚡ **UNDERDOG TRIUMPH!**",
+        "🌟 **AGAINST ALL ODDS!**",
+        "🎪 **SPECTACULAR UPSET!**",
+        "💫 **MIRACLE VICTORY!**"
+    ],
+    "final_duel": [  # 2 player games
+        "⚔️ **FINAL DUEL VICTOR!**",
+        "🥊 **ONE-ON-ONE CHAMPION!**",
+        "🎯 **ULTIMATE SHOWDOWN WINNER!**",
+        "💀 **LAST TRIBUTE STANDING!**"
+    ]
+}
+
 # Death Events - Mixed Themes with Discord Markdown (Fixed titles)
 DEATH_EVENTS = [
     "💀 | **{killer}** fed ~~**{player}**~~ to their pet dragon!",
