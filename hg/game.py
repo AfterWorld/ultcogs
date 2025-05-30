@@ -1,5 +1,5 @@
-# game.py - IMPROVED VERSION
-"""Core game logic for Hunger Games with enhanced error handling and performance"""
+# game.py - IMPROVED VERSION WITH MIDGAME EVENTS
+"""Core game logic for Hunger Games with enhanced error handling and midgame events"""
 
 import discord
 import asyncio
@@ -12,7 +12,15 @@ from dataclasses import dataclass
 from .constants import (
     DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
     REVIVAL_MESSAGES, GAME_PHASES, FINALE_MESSAGES, VICTORY_TITLE_ART,
-    PLACEMENT_MEDALS
+    PLACEMENT_MEDALS, MIDGAME_ATMOSPHERIC_EVENTS, CANNON_DEATH_EVENTS,
+    CANNON_SCARE_EVENTS, TOXIC_FOG_SINGLE_DEATH, TOXIC_FOG_MULTI_DEATH,
+    TOXIC_FOG_SURVIVAL, TRACKER_JACKER_DEATHS, TRACKER_JACKER_HALLUCINATION,
+    TRACKER_JACKER_AVOIDANCE, ARENA_TRAP_TYPES, ARENA_TRAP_DEATH,
+    ARENA_TRAP_ESCAPE, MUTTATION_TYPES, MUTTATION_DEATH, MUTTATION_ESCAPE,
+    ENVIRONMENTAL_HAZARDS, ENVIRONMENTAL_SINGLE_DEATH, ENVIRONMENTAL_MULTI_DEATH,
+    ENVIRONMENTAL_SURVIVAL, ENVIRONMENTAL_PARTIAL_SURVIVAL, GAMEMAKER_COURAGE_DEATH,
+    GAMEMAKER_COURAGE_SURVIVAL, GAMEMAKER_TEST_ANNOUNCEMENT, GAMEMAKER_LOYALTY_TEST,
+    MIDGAME_DEADLY_EVENT_TYPES
 )
 
 # Set up logging
@@ -245,6 +253,258 @@ class GameEngine:
         except Exception as e:
             logger.error(f"Error reviving player {player_id}: {e}")
             return False
+    
+    # ===================================================================
+    # MIDGAME EVENTS SYSTEM
+    # ===================================================================
+    
+    async def check_special_events(self, game: Dict, channel: discord.TextChannel, alive_players: List[str]) -> Optional[str]:
+        """Check for and generate special situational events"""
+        
+        # Bloodbath - Opening rounds
+        if game["round"] == 1:
+            return await self._generate_bloodbath_event(game)
+        
+        # Finale events - Final 2-3 players
+        elif len(alive_players) <= 3 and game["round"] > 5:
+            if random.random() < 0.4:  # 40% chance for finale event
+                return await self._generate_finale_event(game)
+        
+        # Midgame dramatic events - 4-8 players
+        elif 4 <= len(alive_players) <= 8 and game["round"] > 3:
+            if random.random() < 0.3:  # 30% chance
+                return await self._generate_midgame_event(game)
+        
+        # Arena feast - Rare special event
+        elif len(alive_players) >= 6 and random.random() < 0.05:  # 5% chance
+            return await self._generate_feast_event(game)
+        
+        return None
+    
+    async def _generate_bloodbath_event(self, game: Dict) -> str:
+        """Opening Cornucopia bloodbath"""
+        player_count = len(game["players"])
+        
+        if player_count <= 6:
+            events = [
+                "⚔️ | The small group of tributes eyes each other warily as the gong sounds!",
+                "🏃 | With so few tributes, every move at the Cornucopia matters!",
+                "💎 | The golden horn gleams with precious few supplies for the taking!"
+            ]
+        else:
+            events = [
+                "⚔️ | The tributes sprint toward the Cornucopia as the gong sounds!",
+                "🏹 | Weapons gleam in the sun as tributes clash at the golden horn!",
+                "💨 | Some tributes flee immediately while others dive into the bloodbath!",
+                "🔥 | The initial chaos at the Cornucopia will determine everything!",
+                "💀 | The Career pack immediately begins forming at the center!"
+            ]
+        
+        return random.choice(events)
+    
+    async def _generate_finale_event(self, game: Dict) -> str:
+        """High-intensity finale events"""
+        alive_count = len(self.get_alive_players(game))
+        
+        if alive_count == 2:
+            events = [
+                "🌋 | The arena floor splits open, forcing the final two toward each other!",
+                "⚡ | Lightning crashes down, there's nowhere left to hide!",
+                "🐺 | Muttations howl in the distance, driving the tributes together!",
+                "💥 | The Gamemakers detonate charges, collapsing escape routes!",
+                "🔥 | Walls of fire close in - only the center remains safe!",
+                "❄️ | A blizzard engulfs the arena, visibility drops to mere feet!"
+            ]
+        else:  # 3 players
+            events = [
+                "🌪️ | A tornado forms at the arena's edge, shrinking the battlefield!",
+                "🌊 | Massive waves crash over the outer zones!",
+                "⚡ | The sky splits with thunder - the finale approaches!",
+                "🐺 | Tracker jackers are released to force the final confrontation!"
+            ]
+        
+        return random.choice(events)
+    
+    async def _generate_feast_event(self, game: Dict) -> str:
+        """Special feast announcement"""
+        events = [
+            "🍖 | **ATTENTION TRIBUTES:** A feast has been prepared at the Cornucopia!",
+            "📦 | **GAMEMAKER ANNOUNCEMENT:** Essential supplies await at the center!",
+            "🎁 | **SPECIAL EVENT:** The items you desperately need are at the Cornucopia...",
+            "⏰ | **LIMITED TIME:** A feast begins at dawn - but beware of traps!"
+        ]
+        return random.choice(events)
+    
+    async def _generate_midgame_event(self, game: Dict) -> Optional[str]:
+        """Tension-building midgame events that can have real consequences"""
+        alive_players = self.get_alive_players(game)
+        
+        if len(alive_players) < 2:
+            return None
+        
+        # 60% deadly events, 40% atmospheric
+        if random.random() < 0.6:
+            return await self._generate_deadly_midgame_event(game, alive_players)
+        else:
+            return random.choice(MIDGAME_ATMOSPHERIC_EVENTS)
+
+    async def _generate_deadly_midgame_event(self, game: Dict, alive_players: List[str]) -> str:
+        """Midgame events that can kill or affect players"""
+        event_type = random.choice(MIDGAME_DEADLY_EVENT_TYPES)
+        
+        handler_map = {
+            "cannon_malfunction": self._handle_cannon_malfunction,
+            "toxic_fog": self._handle_toxic_fog,
+            "tracker_jackers": self._handle_tracker_jackers,
+            "arena_trap": self._handle_arena_trap,
+            "muttation_attack": self._handle_muttation_attack,
+            "environmental_hazard": self._handle_environmental_hazard,
+            "gamemaker_test": self._handle_gamemaker_test
+        }
+        
+        handler = handler_map[event_type]
+        return await handler(game, alive_players)
+
+    async def _handle_cannon_malfunction(self, game: Dict, alive_players: List[str]) -> str:
+        """Cannon fires randomly, might hit someone"""
+        if random.random() < 0.7 and len(alive_players) > 2:
+            victim_id = random.choice(alive_players)
+            victim_data = game["players"][victim_id]
+            victim_name = f"{victim_data['name']} {victim_data['title']}"
+            
+            self.kill_player(game, victim_id)
+            return random.choice(CANNON_DEATH_EVENTS).format(player=victim_name)
+        else:
+            return random.choice(CANNON_SCARE_EVENTS)
+
+    async def _handle_toxic_fog(self, game: Dict, alive_players: List[str]) -> str:
+        """Toxic fog rolls in - players must be lucky to survive"""
+        casualties = []
+        
+        for player_id in alive_players:
+            if random.random() < 0.25:  # 25% chance to die
+                casualties.append(player_id)
+                self.kill_player(game, player_id)
+        
+        if not casualties:
+            return TOXIC_FOG_SURVIVAL
+        elif len(casualties) == 1:
+            victim_data = game["players"][casualties[0]]
+            victim_name = f"{victim_data['name']} {victim_data['title']}"
+            return random.choice(TOXIC_FOG_SINGLE_DEATH).format(player=victim_name)
+        else:
+            victim_names = [f"~~**{game['players'][pid]['name']}**~~" for pid in casualties]
+            return TOXIC_FOG_MULTI_DEATH.format(players=', '.join(victim_names))
+
+    async def _handle_tracker_jackers(self, game: Dict, alive_players: List[str]) -> str:
+        """Tracker jacker attack"""
+        if len(alive_players) <= 2:
+            return TRACKER_JACKER_AVOIDANCE
+        
+        victim_id = random.choice(alive_players)
+        victim_data = game["players"][victim_id]
+        victim_name = f"{victim_data['name']} {victim_data['title']}"
+        
+        self.kill_player(game, victim_id)
+        base_message = random.choice(TRACKER_JACKER_DEATHS).format(player=victim_name)
+        
+        # Add hallucination effect
+        remaining_alive = [p for p in alive_players if p != victim_id]
+        if remaining_alive and random.random() < 0.5:
+            affected_player = random.choice(remaining_alive)
+            affected_name = game["players"][affected_player]["name"]
+            base_message += f"\n{TRACKER_JACKER_HALLUCINATION.format(player=affected_name)}"
+        
+        return base_message
+
+    async def _handle_arena_trap(self, game: Dict, alive_players: List[str]) -> str:
+        """Hidden arena traps activate"""
+        trap_name, emoji, description = random.choice(ARENA_TRAP_TYPES)
+        
+        if random.random() < 0.5 and len(alive_players) > 2:
+            victim_id = random.choice(alive_players)
+            victim_data = game["players"][victim_id]
+            victim_name = f"{victim_data['name']} {victim_data['title']}"
+            
+            self.kill_player(game, victim_id)
+            return ARENA_TRAP_DEATH.format(emoji=emoji, player=victim_name, description=description)
+        else:
+            lucky_player = random.choice(alive_players)
+            lucky_name = game["players"][lucky_player]["name"]
+            return ARENA_TRAP_ESCAPE.format(emoji=emoji, player=lucky_name, trap_name=trap_name)
+
+    async def _handle_muttation_attack(self, game: Dict, alive_players: List[str]) -> str:
+        """Muttation creatures attack"""
+        mutt_name, emoji, death_verb = random.choice(MUTTATION_TYPES)
+        death_chance = 0.4 if len(alive_players) > 4 else 0.2
+        
+        if random.random() < death_chance:
+            victim_id = random.choice(alive_players)
+            victim_data = game["players"][victim_id]
+            victim_name = f"{victim_data['name']} {victim_data['title']}"
+            
+            self.kill_player(game, victim_id)
+            return MUTTATION_DEATH.format(emoji=emoji, player=victim_name, death_verb=death_verb, mutt_name=mutt_name)
+        else:
+            return MUTTATION_ESCAPE.format(emoji=emoji, mutt_name=mutt_name.title())
+
+    async def _handle_environmental_hazard(self, game: Dict, alive_players: List[str]) -> str:
+        """Natural disasters and environmental dangers"""
+        hazard_name, emoji, death_description = random.choice(ENVIRONMENTAL_HAZARDS)
+        affected_players = random.sample(alive_players, min(2, len(alive_players)))
+        
+        casualties = []
+        survivors = []
+        
+        for player_id in affected_players:
+            if random.random() < 0.3:  # 30% death chance
+                casualties.append(player_id)
+                self.kill_player(game, player_id)
+            else:
+                survivors.append(player_id)
+        
+        if not casualties:
+            return ENVIRONMENTAL_SURVIVAL.format(emoji=emoji, hazard_name=hazard_name)
+        elif len(casualties) == 1:
+            victim_data = game["players"][casualties[0]]
+            victim_name = f"{victim_data['name']} {victim_data['title']}"
+            message = ENVIRONMENTAL_SINGLE_DEATH.format(
+                emoji=emoji, player=victim_name, death_description=death_description, hazard_name=hazard_name
+            )
+        else:
+            victim_names = [f"~~**{game['players'][pid]['name']}**~~" for pid in casualties]
+            message = ENVIRONMENTAL_MULTI_DEATH.format(
+                emoji=emoji, players=', '.join(victim_names), hazard_name=hazard_name
+            )
+        
+        if survivors:
+            survivor_names = [game["players"][pid]["name"] for pid in survivors]
+            message += f"\n{ENVIRONMENTAL_PARTIAL_SURVIVAL.format(emoji=emoji, survivors=', '.join(survivor_names))}"
+        
+        return message
+
+    async def _handle_gamemaker_test(self, game: Dict, alive_players: List[str]) -> str:
+        """Gamemaker experiments and tests"""
+        test_types = ["loyalty", "courage", "announcement"]
+        test_type = random.choice(test_types)
+        
+        if test_type == "loyalty":
+            return GAMEMAKER_LOYALTY_TEST
+        elif test_type == "courage":
+            brave_player = random.choice(alive_players)
+            brave_name = game["players"][brave_player]["name"]
+            
+            if random.random() < 0.3:  # 30% death chance
+                self.kill_player(game, brave_player)
+                return GAMEMAKER_COURAGE_DEATH.format(player=brave_name)
+            else:
+                return GAMEMAKER_COURAGE_SURVIVAL.format(player=brave_name)
+        else:
+            return GAMEMAKER_TEST_ANNOUNCEMENT
+    
+    # ===================================================================
+    # EXISTING EVENTS SYSTEM
+    # ===================================================================
     
     async def execute_death_event(self, game: GameState, channel: discord.TextChannel) -> Optional[str]:
         """Execute a death event with comprehensive error handling"""
