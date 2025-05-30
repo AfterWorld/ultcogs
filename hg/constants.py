@@ -10,11 +10,13 @@ DEFAULT_GUILD_CONFIG = {
     "recruitment_time": 60,
 }
 
-DEFAULT_MEMBER_CONFIG = {
-    "wins": 0,
-    "deaths": 0,
-    "kills": 0,
-    "revives": 0
+DEFAULT_GUILD_CONFIG = {
+    "games": {},
+    "base_reward": 500,
+    "sponsor_chance": 15,
+    "event_interval": 30,
+    "recruitment_time": 60,
+    "enable_gifs": False,  # Add this line
 }
 
 # Emojis
@@ -59,9 +61,11 @@ GIF_CATEGORIES = {
     "revival": []
 }
 
-# Placeholder for future GIF functionality
-ENABLE_GIFS = False  # Set to True when GIF system is implemented
-GIF_FOLDER_PATH = "gifs/"  # Folder path for GIF files
+# GIF Integration Settings
+ENABLE_GIFS = False  # Set to True once GIFs are added
+GIF_BASE_PATH = "gifs"
+GIF_CACHE_TIMEOUT = 300  # 5 minutes
+SUPPORTED_GIF_FORMATS = ['.gif', '.webp', '.mp4', '.mov']
 
 # Player Emoji Mappings based on titles and performance
 TITLE_EMOJIS = {
