@@ -1,7 +1,7 @@
 # config.py - NEW FILE
 """Configuration management for Hunger Games with centralized settings"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Tuple, Union
 import random
 
@@ -38,39 +38,39 @@ class GameConfig:
     STATUS_UPDATE_INTERVAL: int = 6  # Every 6 rounds
     MILESTONE_MIN_ROUND: int = 2     # Don't show milestones too early
     
-    # Event Weights (percentages)
-    DEFAULT_EVENT_WEIGHTS: Dict[str, int] = {
+    # Event Weights (percentages) - Using default_factory for mutable defaults
+    DEFAULT_EVENT_WEIGHTS: Dict[str, int] = field(default_factory=lambda: {
         "death": 30,
         "survival": 25,
         "sponsor": 15,
         "alliance": 15,
         "crate": 15
-    }
+    })
     
     # Endgame Event Weights
-    FINAL_DUEL_WEIGHTS: Dict[str, int] = {
+    FINAL_DUEL_WEIGHTS: Dict[str, int] = field(default_factory=lambda: {
         "death": 70,
         "survival": 10,
         "sponsor": 10,
         "alliance": 5,
         "crate": 5
-    }
+    })
     
-    FINAL_THREE_WEIGHTS: Dict[str, int] = {
+    FINAL_THREE_WEIGHTS: Dict[str, int] = field(default_factory=lambda: {
         "death": 55,
         "survival": 15,
         "sponsor": 15,
         "alliance": 5,
         "crate": 10
-    }
+    })
     
-    ENDGAME_WEIGHTS: Dict[str, int] = {
+    ENDGAME_WEIGHTS: Dict[str, int] = field(default_factory=lambda: {
         "death": 45,
         "survival": 20,
         "sponsor": 15,
         "alliance": 10,
         "crate": 10
-    }
+    })
     
     # Prize Configuration
     SMALL_GAME_MULTIPLIER: float = 1.0     # < 5 players
@@ -97,7 +97,7 @@ class GameConfig:
 class ValidationConfig:
     """Validation rules and error messages"""
     
-    ERROR_MESSAGES: Dict[str, str] = {
+    ERROR_MESSAGES: Dict[str, str] = field(default_factory=lambda: {
         "countdown_too_short": "Countdown must be at least {min} seconds!",
         "countdown_too_long": "Countdown cannot exceed {max} seconds!",
         "countdown_not_number": "Countdown must be a number!",
@@ -112,12 +112,12 @@ class ValidationConfig:
         "game_error": "The arena experienced technical difficulties. Game ended.",
         "player_not_found": "Player not found in the current game.",
         "invalid_game_state": "Game state is corrupted. Please restart the game."
-    }
+    })
     
-    VALID_EVENT_TYPES: list = ["death", "survival", "sponsor", "alliance", "crate", "random", "combined"]
+    VALID_EVENT_TYPES: list = field(default_factory=lambda: ["death", "survival", "sponsor", "alliance", "crate", "random", "combined"])
     
-    REQUIRED_GAME_KEYS: list = ["players", "round", "status", "eliminated", "sponsor_used"]
-    REQUIRED_PLAYER_KEYS: list = ["name", "alive", "kills", "title", "district"]
+    REQUIRED_GAME_KEYS: list = field(default_factory=lambda: ["players", "round", "status", "eliminated", "sponsor_used"])
+    REQUIRED_PLAYER_KEYS: list = field(default_factory=lambda: ["name", "alive", "kills", "title", "district"])
 
 
 class GameConfigManager:
