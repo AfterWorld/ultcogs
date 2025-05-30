@@ -1,4 +1,4 @@
-# __init__.py - IMPROVED VERSION
+# __init__.py - IMPROVED VERSION WITH FIXES
 """
 Hunger Games Battle Royale Cog for Red-DiscordBot
 
@@ -20,7 +20,12 @@ from .constants import (
 )
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
-from .config import GameConfig
+
+# Try to import config, but don't fail if it has issues
+try:
+    from .config import game_config_manager
+except ImportError:
+    game_config_manager = None
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -51,6 +56,27 @@ class InputValidator:
         if countdown > 300:
             return False, "Countdown cannot exceed 5 minutes!"
         
+        return True, ""
+    
+    @staticmethod
+    def validate_base_reward(amount: int) -> tuple[bool, str]:
+        """Validate base reward amount"""
+        if amount < 100:
+            return False, "Base reward must be at least 100 credits!"
+        return True, ""
+    
+    @staticmethod
+    def validate_sponsor_chance(chance: int) -> tuple[bool, str]:
+        """Validate sponsor chance"""
+        if not 1 <= chance <= 50:
+            return False, "Sponsor chance must be between 1-50%!"
+        return True, ""
+    
+    @staticmethod
+    def validate_event_interval(seconds: int) -> tuple[bool, str]:
+        """Validate event interval"""
+        if not 10 <= seconds <= 120:
+            return False, "Event interval must be between 10-120 seconds!"
         return True, ""
     
     @staticmethod
@@ -711,6 +737,8 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Error getting status: {e}")
             await ctx.send("❌ Error retrieving game status.")
+    
+    @hungergames.command(name="test")
     @commands.has_permissions(manage_guild=True)
     async def hg_test(self, ctx):
         """Test game events (Admin only)"""
@@ -756,15 +784,7 @@ class HungerGames(commands.Cog):
                 color=0x00CED1
             )
             
-            test_msg = await ctx.send(embed=embed)
-            
-            # Test combined events first
-            try:
-                await ctx.send("**Testing Combined Events:**")
-                await self.execute_combined_events(test_game, ctx.channel)
-                await asyncio.sleep(2)
-            except Exception as e:
-                await ctx.send(f"❌ **COMBINED EVENTS ERROR**: {str(e)}")
+            await ctx.send(embed=embed)
             
             # Test each individual event type
             event_types = ["death", "survival", "sponsor", "alliance", "crate"]
@@ -796,10 +816,18 @@ class HungerGames(commands.Cog):
                     else:
                         await ctx.send(f"❌ **{event_type.upper()} EVENT**: No message generated")
                         
-                    await asyncio.sleep(1)  # Brief pause between tests
+                    await asyncio.sleep(1)
                     
                 except Exception as e:
                     await ctx.send(f"❌ **{event_type.upper()} EVENT ERROR**: {str(e)}")
+            
+            # Test combined events
+            try:
+                await ctx.send("\n**Testing Combined Events:**")
+                await self.execute_combined_events(test_game, ctx.channel)
+                await asyncio.sleep(2)
+            except Exception as e:
+                await ctx.send(f"❌ **COMBINED EVENTS ERROR**: {str(e)}")
             
             await ctx.send("🎉 **Testing Complete!**")
             
@@ -858,27 +886,6 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Error forcing event: {e}")
             await ctx.send(f"❌ Error forcing event: {str(e)}")
-    
-    async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
-        """Execute a random game event (for backwards compatibility)"""
-        alive_count = len(self.game_engine.get_alive_players(game))
-        
-        # Choose random event type
-        weights = self.timing.get_event_weights(alive_count) if hasattr(self.timing, 'get_event_weights') else get_event_weights()
-        event_types = list(weights.keys())
-        event_weights = list(weights.values())
-        event_type = random.choices(event_types, weights=event_weights)[0]
-        
-        # Execute the chosen event
-        message = await self.event_handler.execute_event(event_type, game, channel)
-        
-        if message:
-            # Send as Rumble-style embed
-            embed = discord.Embed(
-                description=f"**Round {game['round']}**\n{message}\n\n**Players Left: {len(self.game_engine.get_alive_players(game))}**",
-                color=0x2F3136
-            )
-            await channel.send(embed=embed)
     
     @hungergames.command(name="debug")
     @commands.has_permissions(manage_guild=True)
