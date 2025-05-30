@@ -1,9 +1,9 @@
-# __init__.py - IMPROVED VERSION WITH FIXES
+# __init__.py - IMPROVED VERSION WITH SPECIAL EVENTS
 """
 Hunger Games Battle Royale Cog for Red-DiscordBot
 
 A comprehensive battle royale game where players fight to be the last survivor.
-Features automatic events, sponsor revivals, dynamic rewards, and detailed statistics.
+Features automatic events, sponsor revivals, dynamic rewards, detailed statistics, and special arena events.
 """
 
 import discord
@@ -416,7 +416,7 @@ class HungerGames(commands.Cog):
         await asyncio.sleep(3)  # Initial pause
     
     async def _process_game_round(self, game: Dict, channel: discord.TextChannel):
-        """Process a single game round"""
+        """Process a single game round with special events"""
         game["round"] += 1
         alive_players = self.game_engine.get_alive_players(game)
         
@@ -426,12 +426,56 @@ class HungerGames(commands.Cog):
         if not self.validator.validate_game_state(game):
             raise InvalidGameStateError(f"Game state corrupted in round {game['round']}")
         
-        # Execute events if players remain
+        # Check for special events FIRST
+        special_event = await self.game_engine.check_special_events(game, channel, alive_players)
+        if special_event:
+            await self._send_special_event(special_event, channel)
+            await asyncio.sleep(2)  # Dramatic pause
+        
+        # Execute normal events if players remain
         if len(alive_players) > 1:
             await self._execute_round_events(game, channel)
         
         # Send status update periodically
         await self._maybe_send_status_update(game, channel)
+    
+    async def _send_special_event(self, event_message: str, channel: discord.TextChannel):
+        """Send special event with dramatic formatting"""
+        
+        # Determine event type for color coding
+        if "ATTENTION TRIBUTES" in event_message or "GAMEMAKER" in event_message:
+            color = 0xFFD700  # Gold for announcements
+            title = "📢 **GAMEMAKER ANNOUNCEMENT**"
+        elif any(word in event_message for word in ["finale", "final", "lightning", "lava", "tornado", "blizzard"]):
+            color = 0xFF0000  # Red for finale
+            title = "🔥 **ARENA EVENT**"
+        elif "bloodbath" in event_message.lower() or "Cornucopia" in event_message:
+            color = 0x8B0000  # Dark red for bloodbath
+            title = "⚔️ **THE BLOODBATH**"
+        elif any(word in event_message for word in ["cannon", "fog", "tracker jacker", "trap", "muttation", "earthquake", "test"]):
+            color = 0xFF4500  # Orange-red for deadly events
+            title = "💀 **DEADLY EVENT**"
+        else:
+            color = 0xFF6B35  # Orange for general drama
+            title = "⚡ **ARENA EVENT**"
+        
+        embed = discord.Embed(
+            title=title,
+            description=event_message,
+            color=color
+        )
+        
+        # Add footer based on event type
+        if "feast" in event_message.lower():
+            embed.set_footer(text="⚠️ High risk, high reward...")
+        elif any(word in event_message for word in ["final", "finale"]):
+            embed.set_footer(text="🏆 The end is near...")
+        elif any(word in event_message for word in ["cannon", "fog", "trap", "muttation"]):
+            embed.set_footer(text="💀 Danger lurks in every shadow...")
+        elif "bloodbath" in event_message.lower():
+            embed.set_footer(text="⚔️ Let the Games begin...")
+        
+        await channel.send(embed=embed)
     
     async def _execute_round_events(self, game: Dict, channel: discord.TextChannel):
         """Execute events for the current round"""
@@ -821,13 +865,22 @@ class HungerGames(commands.Cog):
                 except Exception as e:
                     await ctx.send(f"❌ **{event_type.upper()} EVENT ERROR**: {str(e)}")
             
-            # Test combined events
+            # Test special events
             try:
-                await ctx.send("\n**Testing Combined Events:**")
+                await ctx.send("\n**Testing Special Events:**")
+                
+                # Test midgame event
+                special_event = await self.game_engine._generate_midgame_event(test_game)
+                if special_event:
+                    await self._send_special_event(special_event, ctx.channel)
+                    await asyncio.sleep(2)
+                
+                # Test combined events
+                await ctx.send("**Testing Combined Events:**")
                 await self.execute_combined_events(test_game, ctx.channel)
                 await asyncio.sleep(2)
             except Exception as e:
-                await ctx.send(f"❌ **COMBINED EVENTS ERROR**: {str(e)}")
+                await ctx.send(f"❌ **SPECIAL EVENTS ERROR**: {str(e)}")
             
             await ctx.send("🎉 **Testing Complete!**")
             
@@ -848,7 +901,7 @@ class HungerGames(commands.Cog):
         if game["status"] != "active":
             return await ctx.send("❌ Game is not active!")
         
-        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random", "combined"]
+        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random", "combined", "special"]
         if event_type.lower() not in valid_types:
             return await ctx.send(f"❌ Invalid event type! Use: {', '.join(valid_types)}")
         
@@ -858,6 +911,13 @@ class HungerGames(commands.Cog):
                 await self.execute_random_event(game, ctx.channel)
             elif event_type.lower() == "combined":
                 await self.execute_combined_events(game, ctx.channel)
+            elif event_type.lower() == "special":
+                alive_players = self.game_engine.get_alive_players(game)
+                special_event = await self.game_engine._generate_midgame_event(game)
+                if special_event:
+                    await self._send_special_event(special_event, ctx.channel)
+                else:
+                    await ctx.send("❌ No special event triggered")
             else:
                 # Execute specific event type
                 message = await self.event_handler.execute_event(event_type, game, ctx.channel)
