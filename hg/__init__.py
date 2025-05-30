@@ -20,6 +20,7 @@ from .constants import (
 )
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
+from .gif_manager import GifManager, HungerGamesGifCommands
 
 # Try to import config, but don't fail if it has issues
 try:
@@ -106,6 +107,28 @@ class InputValidator:
         except Exception:
             return False
 
+
+class HungerGames(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.config = Config.get_conf(self, identifier=1234567890)
+        
+        self.config.register_guild(**DEFAULT_GUILD_CONFIG)
+        self.config.register_member(**DEFAULT_MEMBER_CONFIG)
+        
+        self.active_games: Dict[int, Dict] = {}
+        self.game_engine = GameEngine(bot, self.config)
+        self.event_handler = EventHandler(self.game_engine)
+        self.validator = InputValidator()
+        self.timing = GameTiming()
+        
+        # Add GIF integration
+        self.gif_manager = GifManager(bot, self.config)
+        self.gif_commands = HungerGamesGifCommands(self)
+        
+        # Performance optimization - cache alive players
+        self._alive_cache = {}
+        self._cache_round = {}
 
 class EventHandler:
     """Handles event execution with proper error handling"""
@@ -1117,6 +1140,42 @@ class HungerGames(commands.Cog):
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
         await ctx.send_help()
+
+    @hungergames.group(name="gif", invoke_without_command=True)
+    @commands.has_permissions(manage_guild=True)
+    async def gif_commands(self, ctx):
+        """GIF management for Hunger Games"""
+        return await self.gif_commands.gif_commands(ctx)
+    
+    @gif_commands.command(name="enable")
+    async def gif_enable(self, ctx):
+        """Enable GIF integration"""
+        return await self.gif_commands.gif_enable(ctx)
+    
+    @gif_commands.command(name="disable") 
+    async def gif_disable(self, ctx):
+        """Disable GIF integration"""
+        return await self.gif_commands.gif_disable(ctx)
+    
+    @gif_commands.command(name="stats")
+    async def gif_stats(self, ctx):
+        """Show GIF statistics"""
+        return await self.gif_commands.gif_stats(ctx)
+    
+    @gif_commands.command(name="structure")
+    async def gif_structure(self, ctx):
+        """Show GIF directory structure"""
+        return await self.gif_commands.gif_structure(ctx)
+    
+    @gif_commands.command(name="test")
+    async def gif_test(self, ctx, category: str = "victory", subcategory: str = "general"):
+        """Test GIF selection"""
+        return await self.gif_commands.gif_test(ctx, category, subcategory)
+    
+    @gif_commands.command(name="reload")
+    async def gif_reload(self, ctx):
+        """Reload GIF cache"""
+        return await self.gif_commands.gif_reload(ctx)
     
     @hg_set.command(name="reward")
     async def hg_set_reward(self, ctx, amount: int):
