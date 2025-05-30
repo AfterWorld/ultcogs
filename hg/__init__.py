@@ -235,15 +235,15 @@ class HungerGames(commands.Cog):
                 
                 # MUCH faster event intervals
                 if len(alive_players) <= 2:
-                    sleep_time = max(4, event_interval // 6)   # Super fast final duel
+                    sleep_time = max(8, event_interval // 3)   # Slower final duel
                 elif len(alive_players) <= 3:
-                    sleep_time = max(5, event_interval // 5)   # Very fast with 2-3 players
+                    sleep_time = max(10, event_interval // 3)  # Slower with 2-3 players
                 elif len(alive_players) <= 5:
-                    sleep_time = max(7, event_interval // 4)   # Fast with 4-5 players
+                    sleep_time = max(12, event_interval // 2)  # Slower with 4-5 players
                 elif len(alive_players) <= 10:
-                    sleep_time = max(10, event_interval // 3)  # Faster mid-game
+                    sleep_time = max(15, event_interval // 2)  # Slower mid-game
                 else:
-                    sleep_time = max(12, event_interval // 2)  # Faster early game
+                    sleep_time = max(20, event_interval) # Normal early game pace
                 
                 print(f"Sleeping for {sleep_time} seconds")
                 await asyncio.sleep(sleep_time)
@@ -377,13 +377,13 @@ class HungerGames(commands.Cog):
         
         # Determine how many events to execute based on player count
         if alive_count <= 3:
-            num_events = random.randint(1, 2)
+            num_events = random.randint(1, 1)  # Always 1 event
         elif alive_count <= 6:
-            num_events = random.randint(2, 3)
+            num_events = random.randint(1, 2)  # 1-2 events
         elif alive_count <= 12:
-            num_events = random.randint(2, 4)
+            num_events = random.randint(1, 3)  # 1-3 events
         else:
-            num_events = random.randint(3, 5)
+            num_events = random.randint(2, 3)  # 2-3 events
         
         # Get event weights and execute events (same logic as before)
         weights = get_event_weights()
