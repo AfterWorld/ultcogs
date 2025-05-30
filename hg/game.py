@@ -20,7 +20,8 @@ from .constants import (
     ENVIRONMENTAL_HAZARDS, ENVIRONMENTAL_SINGLE_DEATH, ENVIRONMENTAL_MULTI_DEATH,
     ENVIRONMENTAL_SURVIVAL, ENVIRONMENTAL_PARTIAL_SURVIVAL, GAMEMAKER_COURAGE_DEATH,
     GAMEMAKER_COURAGE_SURVIVAL, GAMEMAKER_TEST_ANNOUNCEMENT, GAMEMAKER_LOYALTY_TEST,
-    MIDGAME_DEADLY_EVENT_TYPES
+    MIDGAME_DEADLY_EVENT_TYPES, VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS,
+    ENABLE_GIFS, GIF_CATEGORIES
 )
 
 VICTORY_PHRASES = [
@@ -306,6 +307,61 @@ class GameEngine:
         except Exception as e:
             logger.error(f"Error getting player emoji: {e}")
             return '🏆'
+
+    def _get_player_emoji(self, player_data: PlayerData) -> str:
+        """Get appropriate emoji for player based on their title and performance"""
+        try:
+            kills = player_data.get('kills', 0)
+            title = player_data.get('title', '').lower()
+            
+            # Check title-based emojis first
+            for keyword, emoji in TITLE_EMOJIS.items():
+                if keyword in title and keyword not in ['default_high_kill', 'default_medium_kill', 'default_low_kill', 'default_no_kill']:
+                    return emoji
+            
+            # Fall back to kill-based emojis
+            if kills >= 5:
+                return TITLE_EMOJIS.get('default_high_kill', '💀')
+            elif kills >= 3:
+                return TITLE_EMOJIS.get('default_medium_kill', '⚔️')
+            elif kills >= 1:
+                return TITLE_EMOJIS.get('default_low_kill', '🗡️')
+            else:
+                return TITLE_EMOJIS.get('default_no_kill', '🏹')
+                
+        except Exception as e:
+            logger.error(f"Error getting player emoji: {e}")
+            return '🏆'
+    
+    def _get_victory_phrase(self, game: GameState, winner: PlayerData) -> str:
+        """Get appropriate victory phrase based on game context"""
+        try:
+            total_players = len(game["players"])
+            kills = winner.get('kills', 0)
+            
+            # Determine victory scenario
+            if total_players == 2:
+                scenario = "final_duel"
+            elif kills >= 5:
+                scenario = "high_kill"
+            elif kills >= 3:
+                scenario = "medium_kill"
+            elif kills >= 1:
+                scenario = "low_kill"
+            elif kills == 0:
+                scenario = "no_kill"
+            elif total_players <= 5:
+                scenario = "underdog"
+            else:
+                scenario = "medium_kill"  # default
+            
+            # Get appropriate phrases
+            scenario_phrases = VICTORY_SCENARIOS.get(scenario, VICTORY_PHRASES)
+            return random.choice(scenario_phrases)
+            
+        except Exception as e:
+            logger.error(f"Error getting victory phrase: {e}")
+            return random.choice(VICTORY_PHRASES)
     
     # ===================================================================
     # MIDGAME EVENTS SYSTEM
@@ -1076,8 +1132,8 @@ class GameEngine:
         try:
             total_players = len(game["players"])
             
-            # Get customizable victory phrase
-            victory_phrase = random.choice(VICTORY_PHRASES)
+            # Get contextual victory phrase
+            victory_phrase = self._get_victory_phrase(game, winner)
             
             # Get appropriate emoji for the winner
             winner_emoji = self._get_player_emoji(winner)
@@ -1085,12 +1141,15 @@ class GameEngine:
             # Main victory embed matching screenshot format
             embed = discord.Embed(color=0xFFD700)
             
-            # Title with customizable phrase
+            # Title with contextual phrase
             embed.title = victory_phrase
             
-            # TODO: Future GIF integration would go here
-            # For now, we'll add a placeholder comment where the GIF would be
-            # embed.set_image(url="gif_url_here")  # Future GIF integration
+            # Future GIF integration placeholder
+            if ENABLE_GIFS:
+                # TODO: Add GIF selection logic here
+                # gif_url = self._select_victory_gif(game, winner)
+                # embed.set_image(url=gif_url)
+                pass
             
             # Winner name with title and emoji (matching screenshot format)
             winner_display = f"**{winner['name']}** {winner['title']} {winner_emoji}"
@@ -1113,6 +1172,11 @@ class GameEngine:
             
         except Exception as e:
             logger.error(f"Error sending victory display: {e}")
+            # Fallback to basic victory message
+            try:
+                await channel.send(f"🏆 **{winner['name']}** {winner['title']} wins the Hunger Games!")
+            except Exception:
+                pass
     
     async def _send_rankings_embed_updated(self, game: GameState, channel: discord.TextChannel):
         """Send detailed rankings embed matching screenshot layout"""
@@ -1129,19 +1193,7 @@ class GameEngine:
                 runner_text = ""
                 for i, (player_id, player_data) in enumerate(runner_ups[:5], 2):
                     try:
-                        # Get placement number or medal
-                        if i == 2:
-                            place = "2."
-                        elif i == 3:
-                            place = "3."
-                        elif i == 4:
-                            place = "4."
-                        elif i == 5:
-                            place = "5."
-                        else:
-                            place = f"{i}."
-                        
-                        runner_text += f"{place} {player_data['name']}\n"
+                        runner_text += f"{i}. {player_data['name']}\n"
                     except Exception:
                         continue
                 
@@ -1150,8 +1202,10 @@ class GameEngine:
                     value=runner_text.strip() if runner_text.strip() else "None",
                     inline=True
                 )
+            else:
+                stats_embed.add_field(name="🏃 **Runners-up**", value="None", inline=True)
             
-            # Most Kills section (matching screenshot)
+            # Most Kills section (matching screenshot format: "X player_name")
             if kill_leaders:
                 kills_text = ""
                 for player_id, player_data in kill_leaders[:5]:
@@ -1167,7 +1221,7 @@ class GameEngine:
             else:
                 stats_embed.add_field(name="⚔️ **Most Kills**", value="None", inline=True)
             
-            # Most Revives section (matching screenshot)
+            # Most Revives section (matching screenshot format: "X player_name")
             if revive_leaders:
                 revives_text = ""
                 for player_id, player_data in revive_leaders[:5]:
