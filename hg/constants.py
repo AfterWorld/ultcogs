@@ -373,6 +373,116 @@ FINALE_MESSAGES = [
     "👑 **CROWNING MOMENT!** {count} contenders for the crown!",
 ]
 
+# Midgame Event Categories
+MIDGAME_ATMOSPHERIC_EVENTS = [
+    "🌙 | An eerie silence falls over the arena as night approaches...",
+    "🦅 | Mockingjays begin singing a haunting melody throughout the arena...",
+    "🔊 | The fallen tributes' faces appear in the sky, a grim reminder...",
+    "⭐ | The arena's artificial stars flicker ominously overhead...",
+    "🌿 | Strange sounds echo from the depths of the arena...",
+    "💨 | A gentle breeze carries the scent of distant flowers... and death...",
+    "🌫️ | Mist rolls through the arena, creating ghostly shapes...",
+    "🎵 | The wind carries whispers of the fallen tributes..."
+]
+
+# Cannon Malfunction Events
+CANNON_DEATH_EVENTS = [
+    "📯💥 | A cannon misfires and the blast catches ~~**{player}**~~ in the explosion!",
+    "📯⚡ | ~~**{player}**~~ was struck by debris from a malfunctioning cannon!",
+    "📯🔥 | ~~**{player}**~~ couldn't escape the cannon's unexpected blast radius!",
+    "📯💀 | ~~**{player}**~~ was caught in the shockwave of an exploding cannon!"
+]
+
+CANNON_SCARE_EVENTS = [
+    "📯💨 | A cannon fires in the distance, the blast barely missing the tributes!",
+    "📯⚠️ | A cannon misfires, sending debris flying but harming no one!",
+    "📯😰 | The sound of a cannon echoes through the arena, making everyone jump!",
+    "📯🌪️ | A cannon blast creates a shockwave, but all tributes take cover in time!"
+]
+
+# Toxic Fog Events
+TOXIC_FOG_SINGLE_DEATH = [
+    "☠️💨 | Toxic fog engulfs the arena! ~~**{player}**~~ couldn't escape in time!",
+    "☠️🌫️ | ~~**{player}**~~ was overwhelmed by the deadly green fog!",
+    "☠️💚 | ~~**{player}**~~ succumbed to the poisonous mist!",
+    "☠️🏃 | ~~**{player}**~~ couldn't outrun the spreading toxic cloud!"
+]
+
+TOXIC_FOG_MULTI_DEATH = "☠️💨 | Deadly fog sweeps through the arena, claiming {players}!"
+TOXIC_FOG_SURVIVAL = "💨😅 | Toxic fog rolls through the arena, but all tributes find shelter in time!"
+
+# Tracker Jacker Events
+TRACKER_JACKER_DEATHS = [
+    "🐝💀 | ~~**{player}**~~ was swarmed by tracker jackers and stung to death!",
+    "🐝😵 | ~~**{player}**~~ succumbed to tracker jacker venom!",
+    "🐝🌪️ | ~~**{player}**~~ couldn't outrun the deadly tracker jacker nest!",
+    "🐝⚡ | ~~**{player}**~~ was overwhelmed by the aggressive swarm!"
+]
+
+TRACKER_JACKER_HALLUCINATION = "🌀 | **{player}** hallucinates from tracker jacker venom!"
+TRACKER_JACKER_AVOIDANCE = "🐝⚠️ | Tracker jackers swarm overhead but seem to ignore the final tributes..."
+
+# Arena Trap Types and Events
+ARENA_TRAP_TYPES = [
+    ("landmine", "💥", "stepped on a hidden landmine"),
+    ("pitfall", "🕳️", "fell into a concealed pit trap"),
+    ("spikes", "⬆️", "was impaled by rising spike trap"),
+    ("net", "🕸️", "was caught in a net trap and couldn't escape"),
+    ("gas", "☠️", "triggered a poison gas trap"),
+    ("blade", "⚔️", "was sliced by hidden blade traps"),
+    ("electrical", "⚡", "was electrocuted by a hidden shock trap")
+]
+
+ARENA_TRAP_DEATH = "{emoji}💀 | ~~**{player}**~~ {description}!"
+ARENA_TRAP_ESCAPE = "{emoji}😅 | **{player}** narrowly avoids a {trap_name} trap!"
+
+# Muttation Types and Events
+MUTTATION_TYPES = [
+    ("wolf mutts", "🐺", "torn apart by"),
+    ("tracker jackers", "🐝", "stung to death by"),
+    ("lizard mutts", "🦎", "devoured by"),
+    ("bird mutts", "🦅", "carried off by"),
+    ("spider mutts", "🕷️", "poisoned by"),
+    ("snake mutts", "🐍", "strangled by"),
+    ("bear mutts", "🐻", "mauled by")
+]
+
+MUTTATION_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_verb} {mutt_name}!"
+MUTTATION_ESCAPE = "{emoji}⚠️ | {mutt_name} prowl the arena, but the tributes manage to avoid them!"
+
+# Environmental Hazard Types
+ENVIRONMENTAL_HAZARDS = [
+    ("earthquake", "🌍", "crushed by falling rocks during"),
+    ("flash flood", "🌊", "swept away by"),
+    ("lightning storm", "⚡", "struck by lightning during"),
+    ("avalanche", "❄️", "buried alive in"),
+    ("forest fire", "🔥", "consumed by"),
+    ("tornado", "🌪️", "swept away by"),
+    ("volcanic eruption", "🌋", "incinerated by")
+]
+
+ENVIRONMENTAL_SINGLE_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_description} the {hazard_name}!"
+ENVIRONMENTAL_MULTI_DEATH = "{emoji}💀 | {players} were caught in the deadly {hazard_name}!"
+ENVIRONMENTAL_SURVIVAL = "{emoji}⚠️ | A {hazard_name} rocks the arena, but all tributes find safety!"
+ENVIRONMENTAL_PARTIAL_SURVIVAL = "{emoji}😅 | **{survivors}** managed to escape!"
+
+# Gamemaker Test Events
+GAMEMAKER_COURAGE_DEATH = "🎭💀 | The Gamemakers test **{player}**'s courage - ~~**they failed fatally**~~!"
+GAMEMAKER_COURAGE_SURVIVAL = "🎭⚡ | **{player}** faces the Gamemakers' courage test and survives!"
+GAMEMAKER_TEST_ANNOUNCEMENT = "🎭⚠️ | The Gamemakers announce a test is coming for the remaining tributes..."
+GAMEMAKER_LOYALTY_TEST = "🎭⚡ | The Gamemakers test the tributes' loyalties with a mysterious announcement..."
+
+# Event Type Categories for Midgame
+MIDGAME_DEADLY_EVENT_TYPES = [
+    "cannon_malfunction",
+    "toxic_fog", 
+    "tracker_jackers",
+    "arena_trap",
+    "muttation_attack",
+    "environmental_hazard",
+    "gamemaker_test"
+]
+
 # Victory display constants
 VICTORY_TITLE_ART = [
     """
