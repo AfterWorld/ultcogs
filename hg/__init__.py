@@ -377,13 +377,13 @@ class HungerGames(commands.Cog):
         
         # Determine how many events to execute based on player count
         if alive_count <= 3:
-            num_events = random.randint(1, 1)  # Always 1 event
+            num_events = random.randint(1, 2)
         elif alive_count <= 6:
-            num_events = random.randint(1, 2)  # 1-2 events
+            num_events = random.randint(2, 3)
         elif alive_count <= 12:
-            num_events = random.randint(1, 3)  # 1-3 events
+            num_events = random.randint(2, 4)
         else:
-            num_events = random.randint(2, 3)  # 2-3 events
+            num_events = random.randint(3, 5)
         
         # Get event weights and execute events (same logic as before)
         weights = get_event_weights()
