@@ -554,7 +554,163 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Failed to send Rumble-style events: {e}")
     
-    @hungergames.command(name="test")
+    async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
+        """Execute a random game event (for backwards compatibility)"""
+        alive_count = len(self.game_engine.get_alive_players(game))
+        
+        # Choose random event type
+        weights = get_event_weights()
+        weights = self._adjust_weights_for_game_state(weights, alive_count)
+        
+        event_types = list(weights.keys())
+        event_weights = list(weights.values())
+        event_type = random.choices(event_types, weights=event_weights)[0]
+        
+        # Execute the chosen event
+        message = await self.event_handler.execute_event(event_type, game, channel)
+        
+        if message:
+            # Send as Rumble-style embed
+            embed = discord.Embed(
+                description=f"**Round {game['round']}**\n{message}\n\n**Players Left: {len(self.game_engine.get_alive_players(game))}**",
+                color=0x2F3136
+            )
+            await channel.send(embed=embed)
+    
+    # =====================================================
+    # COMMAND DEFINITIONS (hungergames group defined first)
+    # =====================================================
+    
+    @commands.group(invoke_without_command=True)
+    async def hungergames(self, ctx):
+        """Hunger Games battle royale commands"""
+        await ctx.send_help()
+    
+    @hungergames.command(name="alive")
+    async def hg_alive(self, ctx):
+        """Show current alive players in the active game"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active Hunger Games in this server.")
+        
+        try:
+            game = self.active_games[guild_id]
+            alive_players = self.game_engine.get_alive_players(game)
+            
+            if not alive_players:
+                return await ctx.send("💀 No survivors remain!")
+            
+            embed = create_alive_players_embed(game, alive_players)
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error showing alive players: {e}")
+            await ctx.send("❌ Error retrieving player information.")
+    
+    @hungergames.command(name="stats")
+    async def hg_stats(self, ctx, member: discord.Member = None):
+        """View Hunger Games statistics for yourself or another player"""
+        try:
+            if member is None:
+                member = ctx.author
+            
+            member_data = await self.config.member(member).all()
+            embed = create_player_stats_embed(member_data, member)
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving stats: {e}")
+            await ctx.send("❌ Error retrieving statistics.")
+    
+    @hungergames.command(name="stop")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_stop(self, ctx):
+        """Stop the current Hunger Games"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active game to stop!")
+        
+        try:
+            game = self.active_games[guild_id]
+            
+            # Cancel the game task
+            if "task" in game:
+                game["task"].cancel()
+            
+            # Clean up
+            await self._cleanup_game(guild_id)
+            
+            embed = discord.Embed(
+                title="🛑 **GAME TERMINATED**",
+                description="The Hunger Games have been forcibly ended by the Capitol.",
+                color=0x000000
+            )
+            
+            await ctx.send(embed=embed)
+            logger.info(f"Game manually stopped in guild {guild_id}")
+            
+        except Exception as e:
+            logger.error(f"Error stopping game: {e}")
+            await ctx.send("❌ Error stopping the game.")
+    
+    @hungergames.command(name="status")
+    async def hg_status(self, ctx):
+        """Check the status of current Hunger Games"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.active_games:
+            return await ctx.send("❌ No active Hunger Games in this server.")
+        
+        try:
+            game = self.active_games[guild_id]
+            alive_players = self.game_engine.get_alive_players(game)
+            
+            embed = discord.Embed(
+                title="📊 **GAME STATUS**",
+                color=0x4169E1
+            )
+            
+            embed.add_field(
+                name="🎮 **Status**",
+                value=game["status"].capitalize(),
+                inline=True
+            )
+            
+            embed.add_field(
+                name="👥 **Players Alive**",
+                value=f"{len(alive_players)}/{len(game['players'])}",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="🔄 **Current Round**",
+                value=str(game["round"]),
+                inline=True
+            )
+            
+            if game["status"] == "active":
+                task_status = "Unknown"
+                if "task" in game:
+                    if game["task"].done():
+                        task_status = "Completed"
+                    elif game["task"].cancelled():
+                        task_status = "Cancelled"
+                    else:
+                        task_status = "Running"
+                
+                embed.add_field(
+                    name="⏰ **Task Status**",
+                    value=task_status,
+                    inline=True
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting status: {e}")
+            await ctx.send("❌ Error retrieving game status.")
     @commands.has_permissions(manage_guild=True)
     async def hg_test(self, ctx):
         """Test game events (Admin only)"""
