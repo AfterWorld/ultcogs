@@ -440,9 +440,8 @@ class HungerGames(commands.Cog):
                     message = await self.game_engine.execute_crate_event(game)
                 
                 if message:
-                    # Convert to Rumble compact format
-                    compact_message = self.convert_to_rumble_format(message, event_type)
-                    event_messages.append(compact_message)
+                    # Keep the original message format from your constants
+                    event_messages.append(message)
                 
             except Exception as e:
                 print(f"Error in event {i+1} execution ({event_type}): {e}")
@@ -450,7 +449,7 @@ class HungerGames(commands.Cog):
             
             await asyncio.sleep(0.5)
         
-        # Create RUMBLE-STYLE message
+        # Create RUMBLE-STYLE message format
         if event_messages:
             try:
                 alive_after_events = len(self.game_engine.get_alive_players(game))
@@ -468,31 +467,6 @@ class HungerGames(commands.Cog):
                 print(f"Error sending rumble-style message: {e}")
         else:
             print("No event messages generated")
-    
-    def convert_to_rumble_format(self, message: str, event_type: str) -> str:
-        """Convert event messages to Rumble's compact format"""
-        
-        # Event type icons (simple like Rumble)
-        event_icons = {
-            "death": "💀",
-            "survival": "🌿", 
-            "crate": "📦",
-            "sponsor": "🎁",
-            "alliance": "🤝"
-        }
-        
-        # Remove existing prefixes if any
-        prefixes_to_remove = ["💀 | ", "🌿 | ", "📦 | ", "🎁 | ", "🤝 | ", "💔 | "]
-        clean_message = message
-        
-        for prefix in prefixes_to_remove:
-            if clean_message.startswith(prefix):
-                clean_message = clean_message[len(prefix):]
-                break
-        
-        # Add Rumble-style prefix
-        icon = event_icons.get(event_type, "⚡")
-        return f"{icon} | {clean_message}"
     
     @commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
