@@ -1128,51 +1128,59 @@ class GameEngine:
     
     async def _send_victory_display(self, game: GameState, channel: discord.TextChannel, 
                               winner_id: str, winner: PlayerData, prize: int):
-        """Send the comprehensive victory display matching the screenshot format"""
+        """Send the comprehensive victory display with GIF integration"""
         try:
+            # Check if GIFs are enabled for this guild
+            gifs_enabled = await self.config.guild(channel.guild).enable_gifs()
+            
             total_players = len(game["players"])
-            
-            # Get contextual victory phrase
             victory_phrase = self._get_victory_phrase(game, winner)
-            
-            # Get appropriate emoji for the winner
             winner_emoji = self._get_player_emoji(winner)
             
-            # Main victory embed matching screenshot format
+            # Main victory embed
             embed = discord.Embed(color=0xFFD700)
-            
-            # Title with contextual phrase
             embed.title = victory_phrase
             
-            # Future GIF integration placeholder
-            if ENABLE_GIFS:
-                # TODO: Add GIF selection logic here
-                # gif_url = self._select_victory_gif(game, winner)
-                # embed.set_image(url=gif_url)
-                pass
+            # Try to add GIF if enabled and available
+            gif_file = None
+            if gifs_enabled:
+                try:
+                    # Get GIF manager from parent cog
+                    gif_manager = getattr(self.bot.get_cog("HungerGames"), 'gif_manager', None)
+                    if gif_manager:
+                        gif_path = gif_manager.get_victory_gif(game, winner)
+                        if gif_path and os.path.exists(gif_path):
+                            gif_file = discord.File(gif_path, filename=os.path.basename(gif_path))
+                            embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
+                except Exception as e:
+                    logger.debug(f"Could not load victory GIF: {e}")
             
-            # Winner name with title and emoji (matching screenshot format)
+            # Winner display (matching screenshot format)
             winner_display = f"**{winner['name']}** {winner['title']} {winner_emoji}"
             embed.add_field(name="", value=winner_display, inline=False)
             
-            # Reward section
+            # Reward
             reward_text = f"**Reward:** {prize:,} 💰"
             embed.add_field(name="", value=reward_text, inline=False)
             
-            # "Winner" section header (matching screenshot)
+            # Winner section header
             embed.add_field(name="**Winner**", value="", inline=False)
             
-            # Total players (matching screenshot format)
+            # Total players
             embed.add_field(name="", value=f"**Total Players: {total_players}**", inline=False)
             
-            await channel.send(embed=embed)
+            # Send with or without GIF
+            if gif_file:
+                await channel.send(embed=embed, file=gif_file)
+            else:
+                await channel.send(embed=embed)
             
-            # Second embed with detailed rankings (matching screenshot layout)
+            # Rankings embed
             await self._send_rankings_embed_updated(game, channel)
             
         except Exception as e:
             logger.error(f"Error sending victory display: {e}")
-            # Fallback to basic victory message
+            # Fallback to basic message
             try:
                 await channel.send(f"🏆 **{winner['name']}** {winner['title']} wins the Hunger Games!")
             except Exception:
