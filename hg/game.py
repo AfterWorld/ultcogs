@@ -23,6 +23,17 @@ from .constants import (
     MIDGAME_DEADLY_EVENT_TYPES
 )
 
+VICTORY_PHRASES = [
+    "🏆 **WINNER!**",
+    "👑 **CHAMPION!**", 
+    "🎯 **VICTOR!**",
+    "⚔️ **SURVIVOR!**",
+    "🔥 **DOMINATION!**",
+    "💀 **LAST STANDING!**",
+    "🌟 **LEGENDARY!**",
+    "⚡ **ULTIMATE VICTOR!**"
+]
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -253,6 +264,48 @@ class GameEngine:
         except Exception as e:
             logger.error(f"Error reviving player {player_id}: {e}")
             return False
+
+    def _get_player_emoji(self, player_data: PlayerData) -> str:
+        """Get appropriate emoji for player based on their performance"""
+        try:
+            kills = player_data.get('kills', 0)
+            title = player_data.get('title', '').lower()
+            
+            # Title-based emojis
+            if 'cold' in title or 'ice' in title or 'frozen' in title:
+                return '❄️'
+            elif 'fire' in title or 'flame' in title or 'burning' in title:
+                return '🔥'
+            elif 'shadow' in title or 'dark' in title:
+                return '🌙'
+            elif 'light' in title or 'bright' in title or 'golden' in title:
+                return '☀️'
+            elif 'blood' in title or 'red' in title:
+                return '🩸'
+            elif 'death' in title or 'deadly' in title:
+                return '💀'
+            elif 'swift' in title or 'quick' in title:
+                return '⚡'
+            elif 'wise' in title or 'sage' in title:
+                return '🧠'
+            elif 'wild' in title or 'savage' in title:
+                return '🐺'
+            elif 'noble' in title or 'royal' in title:
+                return '👑'
+            
+            # Kill-based emojis
+            elif kills >= 5:
+                return '💀'
+            elif kills >= 3:
+                return '⚔️'
+            elif kills >= 1:
+                return '🗡️'
+            else:
+                return '🏹'
+                
+        except Exception as e:
+            logger.error(f"Error getting player emoji: {e}")
+            return '🏆'
     
     # ===================================================================
     # MIDGAME EVENTS SYSTEM
@@ -1018,44 +1071,51 @@ class GameEngine:
             logger.error(f"Error updating player stats: {e}")
     
     async def _send_victory_display(self, game: GameState, channel: discord.TextChannel, 
-                                  winner_id: str, winner: PlayerData, prize: int):
-        """Send the comprehensive victory display"""
+                              winner_id: str, winner: PlayerData, prize: int):
+        """Send the comprehensive victory display matching the screenshot format"""
         try:
             total_players = len(game["players"])
             
-            # Main victory embed
+            # Get customizable victory phrase
+            victory_phrase = random.choice(VICTORY_PHRASES)
+            
+            # Get appropriate emoji for the winner
+            winner_emoji = self._get_player_emoji(winner)
+            
+            # Main victory embed matching screenshot format
             embed = discord.Embed(color=0xFFD700)
-            embed.set_author(name="🏆 WINNER!")
             
-            # Winner section
-            winner_text = f"👑 **{winner['name']}** the Champion\n"
-            winner_text += f"**Reward:** {prize:,} 💰"
+            # Title with customizable phrase
+            embed.title = victory_phrase
             
-            embed.add_field(name="", value=winner_text, inline=False)
+            # TODO: Future GIF integration would go here
+            # For now, we'll add a placeholder comment where the GIF would be
+            # embed.set_image(url="gif_url_here")  # Future GIF integration
             
-            # Stylized game title
-            try:
-                title_art = random.choice(VICTORY_TITLE_ART)
-                embed.add_field(name="", value=title_art, inline=False)
-            except (NameError, AttributeError):
-                embed.add_field(
-                    name="🏹 **THE HUNGER GAMES** 🏹",
-                    value="```\n╔═══════════════════════════╗\n║     BATTLE ROYALE         ║\n╚═══════════════════════════╝\n```",
-                    inline=False
-                )
+            # Winner name with title and emoji (matching screenshot format)
+            winner_display = f"**{winner['name']}** {winner['title']} {winner_emoji}"
+            embed.add_field(name="", value=winner_display, inline=False)
             
-            embed.add_field(name="", value=f"**Total Players:** {total_players}", inline=False)
+            # Reward section
+            reward_text = f"**Reward:** {prize:,} 💰"
+            embed.add_field(name="", value=reward_text, inline=False)
+            
+            # "Winner" section header (matching screenshot)
+            embed.add_field(name="**Winner**", value="", inline=False)
+            
+            # Total players (matching screenshot format)
+            embed.add_field(name="", value=f"**Total Players: {total_players}**", inline=False)
             
             await channel.send(embed=embed)
             
-            # Second embed with detailed rankings
-            await self._send_rankings_embed(game, channel)
+            # Second embed with detailed rankings (matching screenshot layout)
+            await self._send_rankings_embed_updated(game, channel)
             
         except Exception as e:
             logger.error(f"Error sending victory display: {e}")
     
-    async def _send_rankings_embed(self, game: GameState, channel: discord.TextChannel):
-        """Send detailed rankings embed"""
+    async def _send_rankings_embed_updated(self, game: GameState, channel: discord.TextChannel):
+        """Send detailed rankings embed matching screenshot layout"""
         try:
             stats_embed = discord.Embed(color=0x36393F)
             
@@ -1064,8 +1124,64 @@ class GameEngine:
             kill_leaders = self._calculate_kill_leaders(game)
             revive_leaders = self._calculate_revive_leaders(game)
             
-            # Add ranking fields
-            self._add_ranking_fields(stats_embed, runner_ups, kill_leaders, revive_leaders)
+            # Runners-up section (matching screenshot)
+            if runner_ups:
+                runner_text = ""
+                for i, (player_id, player_data) in enumerate(runner_ups[:5], 2):
+                    try:
+                        # Get placement number or medal
+                        if i == 2:
+                            place = "2."
+                        elif i == 3:
+                            place = "3."
+                        elif i == 4:
+                            place = "4."
+                        elif i == 5:
+                            place = "5."
+                        else:
+                            place = f"{i}."
+                        
+                        runner_text += f"{place} {player_data['name']}\n"
+                    except Exception:
+                        continue
+                
+                stats_embed.add_field(
+                    name="🏃 **Runners-up**",
+                    value=runner_text.strip() if runner_text.strip() else "None",
+                    inline=True
+                )
+            
+            # Most Kills section (matching screenshot)
+            if kill_leaders:
+                kills_text = ""
+                for player_id, player_data in kill_leaders[:5]:
+                    kills_count = player_data.get('kills', 0)
+                    if kills_count > 0:
+                        kills_text += f"{kills_count} {player_data['name']}\n"
+                
+                stats_embed.add_field(
+                    name="⚔️ **Most Kills**",
+                    value=kills_text.strip() if kills_text.strip() else "None",
+                    inline=True
+                )
+            else:
+                stats_embed.add_field(name="⚔️ **Most Kills**", value="None", inline=True)
+            
+            # Most Revives section (matching screenshot)
+            if revive_leaders:
+                revives_text = ""
+                for player_id, player_data in revive_leaders[:5]:
+                    revive_count = player_data.get('revives', 0)
+                    if revive_count > 0:
+                        revives_text += f"{revive_count} {player_data['name']}\n"
+                
+                stats_embed.add_field(
+                    name="✨ **Most Revives**",
+                    value=revives_text.strip() if revives_text.strip() else "None",
+                    inline=True
+                )
+            else:
+                stats_embed.add_field(name="✨ **Most Revives**", value="None", inline=True)
             
             # Footer
             stats_embed.set_footer(
