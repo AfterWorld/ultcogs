@@ -370,24 +370,22 @@ class HungerGames(commands.Cog):
             print("No message generated from event")
     
     async def execute_combined_events(self, game: Dict, channel: discord.TextChannel):
-        """Execute multiple events in one round and combine them into a single embed"""
+        """Execute multiple events in one round - RUMBLE COMPACT STYLE"""
         alive_count = len(self.game_engine.get_alive_players(game))
         
         print(f"Executing combined events with {alive_count} alive players")
         
         # Determine how many events to execute based on player count
         if alive_count <= 3:
-            num_events = random.randint(1, 2)  # 1-2 events for final players
+            num_events = random.randint(1, 2)
         elif alive_count <= 6:
-            num_events = random.randint(2, 3)  # 2-3 events for small groups
+            num_events = random.randint(2, 3)
         elif alive_count <= 12:
-            num_events = random.randint(2, 4)  # 2-4 events for medium groups
+            num_events = random.randint(2, 4)
         else:
-            num_events = random.randint(3, 5)  # 3-5 events for large groups
+            num_events = random.randint(3, 5)
         
-        print(f"Executing {num_events} events this round")
-        
-        # Get event type weights
+        # Get event weights and execute events (same logic as before)
         weights = get_event_weights()
         
         # Adjust weights based on game state
@@ -418,10 +416,8 @@ class HungerGames(commands.Cog):
         
         # Execute multiple events
         event_messages = []
-        event_types_used = []
         
         for i in range(num_events):
-            # Re-check if game should continue
             if len(self.game_engine.get_alive_players(game)) <= 1:
                 break
             
@@ -429,8 +425,6 @@ class HungerGames(commands.Cog):
             event_types = list(weights.keys())
             event_weights = list(weights.values())
             event_type = random.choices(event_types, weights=event_weights)[0]
-            
-            print(f"Event {i+1}: {event_type}")
             
             message = None
             try:
@@ -446,59 +440,59 @@ class HungerGames(commands.Cog):
                     message = await self.game_engine.execute_crate_event(game)
                 
                 if message:
-                    event_messages.append(message)
-                    event_types_used.append(event_type)
-                    print(f"Event {i+1} successful: {event_type}")
+                    # Convert to Rumble compact format
+                    compact_message = self.convert_to_rumble_format(message, event_type)
+                    event_messages.append(compact_message)
                 
             except Exception as e:
                 print(f"Error in event {i+1} execution ({event_type}): {e}")
                 continue
             
-            # Small delay between events in the same round
             await asyncio.sleep(0.5)
         
-        # Combine all events into one embed
+        # Create RUMBLE-STYLE message
         if event_messages:
             try:
-                # Create combined embed
-                embed = discord.Embed(
-                    title=f"🏹 **ROUND {game['round']} EVENTS** 🏹",
-                    description="\n\n".join(event_messages),
-                    color=0xFF6B35  # Orange color for combined events
-                )
-                
-                # Add round info and player count
                 alive_after_events = len(self.game_engine.get_alive_players(game))
-                phase_desc = get_game_phase_description(game['round'], alive_after_events)
-                embed.set_footer(text=f"{phase_desc} • {alive_after_events} tributes remaining")
                 
-                # Add event type indicators
-                event_icons = {
-                    "death": "💀",
-                    "survival": "🌿", 
-                    "crate": "📦",
-                    "sponsor": "🎁",
-                    "alliance": "🤝"
-                }
+                # Build the exact Rumble format
+                rumble_message = f"**Round {game['round']}**\n"
+                rumble_message += "\n".join(event_messages)
+                rumble_message += f"\n\n**Players Left: {alive_after_events}**"
                 
-                icons_used = [event_icons.get(event_type, "⚡") for event_type in event_types_used]
-                if icons_used:
-                    embed.set_author(name=f"Events: {' '.join(icons_used)}")
-                
-                await channel.send(embed=embed)
-                print(f"Combined events message sent successfully with {len(event_messages)} events")
+                # Send as a simple message (no embed for true Rumble style)
+                await channel.send(rumble_message)
+                print(f"Rumble-style events message sent with {len(event_messages)} events")
                 
             except Exception as e:
-                print(f"Error sending combined events message: {e}")
-                # Try sending individual messages as fallback
-                for i, message in enumerate(event_messages):
-                    try:
-                        await channel.send(f"**Round {game['round']}.{i+1}**: {message}")
-                        await asyncio.sleep(0.5)
-                    except:
-                        print(f"Failed to send even individual message {i+1}")
+                print(f"Error sending rumble-style message: {e}")
         else:
             print("No event messages generated")
+    
+    def convert_to_rumble_format(self, message: str, event_type: str) -> str:
+        """Convert event messages to Rumble's compact format"""
+        
+        # Event type icons (simple like Rumble)
+        event_icons = {
+            "death": "💀",
+            "survival": "🌿", 
+            "crate": "📦",
+            "sponsor": "🎁",
+            "alliance": "🤝"
+        }
+        
+        # Remove existing prefixes if any
+        prefixes_to_remove = ["💀 | ", "🌿 | ", "📦 | ", "🎁 | ", "🤝 | ", "💔 | "]
+        clean_message = message
+        
+        for prefix in prefixes_to_remove:
+            if clean_message.startswith(prefix):
+                clean_message = clean_message[len(prefix):]
+                break
+        
+        # Add Rumble-style prefix
+        icon = event_icons.get(event_type, "⚡")
+        return f"{icon} | {clean_message}"
     
     @commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
