@@ -8,15 +8,14 @@ DEFAULT_GUILD_CONFIG = {
     "sponsor_chance": 15,
     "event_interval": 30,
     "recruitment_time": 60,
+    "enable_gifs": False,  # Added for GIF integration
 }
 
-DEFAULT_GUILD_CONFIG = {
-    "games": {},
-    "base_reward": 500,
-    "sponsor_chance": 15,
-    "event_interval": 30,
-    "recruitment_time": 60,
-    "enable_gifs": False,  # Add this line
+DEFAULT_MEMBER_CONFIG = {
+    "wins": 0,
+    "deaths": 0,
+    "kills": 0,
+    "revives": 0
 }
 
 # Emojis
@@ -31,128 +30,6 @@ EMOJIS = {
     "heart": "❤️",
     "sponsor": "🎁",
     "trophy": "🏆"
-}
-
-VICTORY_PHRASES = [
-    "🏆 **WINNER!**",
-    "👑 **CHAMPION!**", 
-    "🎯 **VICTOR!**",
-    "⚔️ **SURVIVOR!**",
-    "🔥 **DOMINATION!**",
-    "💀 **LAST STANDING!**",
-    "🌟 **LEGENDARY!**",
-    "⚡ **ULTIMATE VICTOR!**",
-    "🎭 **TRIUMPHANT!**",
-    "💎 **SUPREME VICTOR!**",
-    "🏹 **ARENA MASTER!**",
-    "🎪 **SPECTACULAR VICTORY!**"
-]
-
-GIF_CATEGORIES = {
-    "victory": {
-        "general": [],  # General victory GIFs
-        "high_kill": [],  # For winners with 3+ kills
-        "underdog": [],  # For winners with 0 kills
-        "final_duel": [],  # For 2-player games
-        "bloodbath": []  # For very high kill games
-    },
-    "death": [],
-    "sponsor": [],
-    "revival": []
-}
-
-# GIF Integration Settings
-ENABLE_GIFS = False  # Set to True once GIFs are added
-GIF_BASE_PATH = "gifs"
-GIF_CACHE_TIMEOUT = 300  # 5 minutes
-SUPPORTED_GIF_FORMATS = ['.gif', '.webp', '.mp4', '.mov']
-
-# Player Emoji Mappings based on titles and performance
-TITLE_EMOJIS = {
-    # Temperature/Element based
-    "cold": "❄️", "ice": "❄️", "frozen": "❄️", "winter": "❄️",
-    "fire": "🔥", "flame": "🔥", "burning": "🔥", "hot": "🔥",
-    "storm": "⛈️", "thunder": "⚡", "lightning": "⚡",
-    
-    # Color/Light based
-    "shadow": "🌙", "dark": "🌑", "night": "🌙", "black": "⚫",
-    "light": "☀️", "bright": "☀️", "golden": "🌟", "white": "⚪",
-    "red": "🔴", "blood": "🩸", "crimson": "🔴",
-    "blue": "🔵", "azure": "💙", "sapphire": "💎",
-    "green": "🟢", "emerald": "💚", "jade": "💚",
-    
-    # Nature based
-    "wild": "🐺", "savage": "🐺", "beast": "🐺", "wolf": "🐺",
-    "eagle": "🦅", "hawk": "🦅", "falcon": "🦅",
-    "lion": "🦁", "tiger": "🐅", "bear": "🐻",
-    "snake": "🐍", "viper": "🐍", "serpent": "🐍",
-    
-    # Status/Personality based
-    "noble": "👑", "royal": "👑", "king": "👑", "queen": "👑",
-    "wise": "🧠", "sage": "🧠", "clever": "🧠", "smart": "🧠",
-    "swift": "⚡", "quick": "⚡", "fast": "💨", "speedy": "💨",
-    "strong": "💪", "mighty": "💪", "powerful": "💪",
-    "silent": "🤫", "quiet": "🤫", "stealth": "👤",
-    "lucky": "🍀", "fortunate": "🍀", "blessed": "✨",
-    "cursed": "💀", "doomed": "💀", "damned": "💀",
-    "broken": "💔", "shattered": "💔", "wounded": "🩹",
-    
-    # Combat based
-    "deadly": "💀", "killer": "💀", "death": "💀", "reaper": "💀",
-    "warrior": "⚔️", "fighter": "⚔️", "soldier": "⚔️",
-    "hunter": "🏹", "archer": "🏹", "marksman": "🎯",
-    "blade": "🗡️", "sword": "🗡️", "knife": "🔪",
-    
-    # Mystical/Fantasy based
-    "mystic": "🔮", "magic": "🔮", "wizard": "🧙", "witch": "🧙‍♀️",
-    "dragon": "🐉", "phoenix": "🔥", "angel": "😇", "demon": "😈",
-    "ghost": "👻", "spirit": "👻", "soul": "👻",
-    
-    # Default fallbacks for kill counts
-    "default_high_kill": "💀",  # 5+ kills
-    "default_medium_kill": "⚔️",  # 3-4 kills  
-    "default_low_kill": "🗡️",  # 1-2 kills
-    "default_no_kill": "🏹"  # 0 kills
-}
-
-# Victory messages based on different scenarios
-VICTORY_SCENARIOS = {
-    "high_kill": [  # 5+ kills
-        "🔥 **ABSOLUTE DOMINATION!**",
-        "💀 **MERCILESS CHAMPION!**",
-        "⚔️ **ARENA DESTROYER!**",
-        "🩸 **BLOODTHIRSTY VICTOR!**"
-    ],
-    "medium_kill": [  # 3-4 kills
-        "⚔️ **SKILLED WARRIOR!**",
-        "🎯 **TACTICAL VICTOR!**",
-        "🔥 **BATTLE MASTER!**",
-        "🏹 **DEADLY CHAMPION!**"
-    ],
-    "low_kill": [  # 1-2 kills
-        "🛡️ **STRATEGIC SURVIVOR!**",
-        "🎭 **CUNNING CHAMPION!**",
-        "🌟 **CLEVER VICTOR!**",
-        "🦉 **WISE WINNER!**"
-    ],
-    "no_kill": [  # 0 kills (pure survival)
-        "🕊️ **PEACEFUL CHAMPION!**",
-        "🦋 **SURVIVAL MASTER!**",
-        "🌿 **NATURE'S CHOSEN!**",
-        "✨ **MIRACLE SURVIVOR!**"
-    ],
-    "underdog": [  # Small games or came from behind
-        "⚡ **UNDERDOG TRIUMPH!**",
-        "🌟 **AGAINST ALL ODDS!**",
-        "🎪 **SPECTACULAR UPSET!**",
-        "💫 **MIRACLE VICTORY!**"
-    ],
-    "final_duel": [  # 2 player games
-        "⚔️ **FINAL DUEL VICTOR!**",
-        "🥊 **ONE-ON-ONE CHAMPION!**",
-        "🎯 **ULTIMATE SHOWDOWN WINNER!**",
-        "💀 **LAST TRIBUTE STANDING!**"
-    ]
 }
 
 # Death Events - Mixed Themes with Discord Markdown (Fixed titles)
@@ -474,7 +351,8 @@ PLAYER_TITLES = [
     "the Lost", "the Found", "the First", "the Last", "the Chosen",
     "the Banished", "the Returned", "the Seeker", "the Guardian", "the Destroyer",
     "the Creator", "the Wanderer", "the Settler", "the Rebel", "the Loyal",
-    "the Mad", "the Sane", "the Dreamer", "the Realist", "the Optimist"
+    "the Mad", "the Sane", "the Dreamer", "the Realist", "the Optimist",
+    "the Cold Hearted", "the Flame Bearer", "the Shadow Walker", "the Storm Bringer"
 ]
 
 # Game Phases
@@ -639,4 +517,128 @@ PLACEMENT_MEDALS = {
     3: "🥉",
     4: "4️⃣",
     5: "5️⃣"
+}
+
+# GIF Integration Constants
+ENABLE_GIFS = False  # Set to True once GIFs are added
+GIF_BASE_PATH = "gifs"
+GIF_CACHE_TIMEOUT = 300  # 5 minutes
+SUPPORTED_GIF_FORMATS = ['.gif', '.webp', '.mp4', '.mov']
+
+# Victory Customization
+VICTORY_PHRASES = [
+    "🏆 **WINNER!**",
+    "👑 **CHAMPION!**", 
+    "🎯 **VICTOR!**",
+    "⚔️ **SURVIVOR!**",
+    "🔥 **DOMINATION!**",
+    "💀 **LAST STANDING!**",
+    "🌟 **LEGENDARY!**",
+    "⚡ **ULTIMATE VICTOR!**",
+    "🎭 **TRIUMPHANT!**",
+    "💎 **SUPREME VICTOR!**",
+    "🏹 **ARENA MASTER!**",
+    "🎪 **SPECTACULAR VICTORY!**"
+]
+
+# Victory messages based on different scenarios
+VICTORY_SCENARIOS = {
+    "high_kill": [  # 5+ kills
+        "🔥 **ABSOLUTE DOMINATION!**",
+        "💀 **MERCILESS CHAMPION!**",
+        "⚔️ **ARENA DESTROYER!**",
+        "🩸 **BLOODTHIRSTY VICTOR!**"
+    ],
+    "medium_kill": [  # 3-4 kills
+        "⚔️ **SKILLED WARRIOR!**",
+        "🎯 **TACTICAL VICTOR!**",
+        "🔥 **BATTLE MASTER!**",
+        "🏹 **DEADLY CHAMPION!**"
+    ],
+    "low_kill": [  # 1-2 kills
+        "🛡️ **STRATEGIC SURVIVOR!**",
+        "🎭 **CUNNING CHAMPION!**",
+        "🌟 **CLEVER VICTOR!**",
+        "🦉 **WISE WINNER!**"
+    ],
+    "no_kill": [  # 0 kills (pure survival)
+        "🕊️ **PEACEFUL CHAMPION!**",
+        "🦋 **SURVIVAL MASTER!**",
+        "🌿 **NATURE'S CHOSEN!**",
+        "✨ **MIRACLE SURVIVOR!**"
+    ],
+    "underdog": [  # Small games or came from behind
+        "⚡ **UNDERDOG TRIUMPH!**",
+        "🌟 **AGAINST ALL ODDS!**",
+        "🎪 **SPECTACULAR UPSET!**",
+        "💫 **MIRACLE VICTORY!**"
+    ],
+    "final_duel": [  # 2 player games
+        "⚔️ **FINAL DUEL VICTOR!**",
+        "🥊 **ONE-ON-ONE CHAMPION!**",
+        "🎯 **ULTIMATE SHOWDOWN WINNER!**",
+        "💀 **LAST TRIBUTE STANDING!**"
+    ]
+}
+
+# Player Emoji Mappings based on titles and performance
+TITLE_EMOJIS = {
+    # Temperature/Element based
+    "cold": "❄️", "ice": "❄️", "frozen": "❄️", "winter": "❄️",
+    "fire": "🔥", "flame": "🔥", "burning": "🔥", "hot": "🔥",
+    "storm": "⛈️", "thunder": "⚡", "lightning": "⚡",
+    
+    # Color/Light based
+    "shadow": "🌙", "dark": "🌑", "night": "🌙", "black": "⚫",
+    "light": "☀️", "bright": "☀️", "golden": "🌟", "white": "⚪",
+    "red": "🔴", "blood": "🩸", "crimson": "🔴",
+    "blue": "🔵", "azure": "💙", "sapphire": "💎",
+    "green": "🟢", "emerald": "💚", "jade": "💚",
+    
+    # Nature based
+    "wild": "🐺", "savage": "🐺", "beast": "🐺", "wolf": "🐺",
+    "eagle": "🦅", "hawk": "🦅", "falcon": "🦅",
+    "lion": "🦁", "tiger": "🐅", "bear": "🐻",
+    "snake": "🐍", "viper": "🐍", "serpent": "🐍",
+    
+    # Status/Personality based
+    "noble": "👑", "royal": "👑", "king": "👑", "queen": "👑",
+    "wise": "🧠", "sage": "🧠", "clever": "🧠", "smart": "🧠",
+    "swift": "⚡", "quick": "⚡", "fast": "💨", "speedy": "💨",
+    "strong": "💪", "mighty": "💪", "powerful": "💪",
+    "silent": "🤫", "quiet": "🤫", "stealth": "👤",
+    "lucky": "🍀", "fortunate": "🍀", "blessed": "✨",
+    "cursed": "💀", "doomed": "💀", "damned": "💀",
+    "broken": "💔", "shattered": "💔", "wounded": "🩹",
+    
+    # Combat based
+    "deadly": "💀", "killer": "💀", "death": "💀", "reaper": "💀",
+    "warrior": "⚔️", "fighter": "⚔️", "soldier": "⚔️",
+    "hunter": "🏹", "archer": "🏹", "marksman": "🎯",
+    "blade": "🗡️", "sword": "🗡️", "knife": "🔪",
+    
+    # Mystical/Fantasy based
+    "mystic": "🔮", "magic": "🔮", "wizard": "🧙", "witch": "🧙‍♀️",
+    "dragon": "🐉", "phoenix": "🔥", "angel": "😇", "demon": "😈",
+    "ghost": "👻", "spirit": "👻", "soul": "👻",
+    
+    # Default fallbacks for kill counts
+    "default_high_kill": "💀",  # 5+ kills
+    "default_medium_kill": "⚔️",  # 3-4 kills  
+    "default_low_kill": "🗡️",  # 1-2 kills
+    "default_no_kill": "🏹"  # 0 kills
+}
+
+# Future GIF Integration Structure
+GIF_CATEGORIES = {
+    "victory": {
+        "general": [],  # General victory GIFs
+        "high_kill": [],  # For winners with 3+ kills
+        "underdog": [],  # For winners with 0 kills
+        "final_duel": [],  # For 2-player games
+        "bloodbath": []  # For very high kill games
+    },
+    "death": [],
+    "sponsor": [],
+    "revival": []
 }
