@@ -16,17 +16,25 @@ from dataclasses import dataclass
 
 from .constants import (
     DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG, EMOJIS,
-    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS
+    DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
+    VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS  # Add these new imports
 )
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
-from .gif_manager import GifManager, HungerGamesGifCommands
 
 # Try to import config, but don't fail if it has issues
 try:
     from .config import game_config_manager
 except ImportError:
     game_config_manager = None
+
+# Try to import GIF system, but don't fail if it has issues
+try:
+    from .gif_manager import GifManager, HungerGamesGifCommands
+    GIF_SYSTEM_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"GIF system not available: {e}")
+    GIF_SYSTEM_AVAILABLE = False
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -109,6 +117,8 @@ class InputValidator:
 
 
 class HungerGames(commands.Cog):
+    """A Hunger Games style battle royale game for Discord"""
+    
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
@@ -122,9 +132,19 @@ class HungerGames(commands.Cog):
         self.validator = InputValidator()
         self.timing = GameTiming()
         
-        # Add GIF integration
-        self.gif_manager = GifManager(bot, self.config)
-        self.gif_commands = HungerGamesGifCommands(self)
+        # Add GIF integration if available
+        if GIF_SYSTEM_AVAILABLE:
+            try:
+                self.gif_manager = GifManager(bot, self.config)
+                self.gif_commands = HungerGamesGifCommands(self)
+                logger.info("GIF system initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize GIF system: {e}")
+                self.gif_manager = None
+                self.gif_commands = None
+        else:
+            self.gif_manager = None
+            self.gif_commands = None
         
         # Performance optimization - cache alive players
         self._alive_cache = {}
