@@ -5,6 +5,7 @@ import discord
 import asyncio
 import random
 import logging
+import os
 from typing import Dict, List, Optional, Tuple, Union, TypedDict
 from redbot.core import bank
 from dataclasses import dataclass
