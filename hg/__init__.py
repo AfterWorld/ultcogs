@@ -115,41 +115,6 @@ class InputValidator:
         except Exception:
             return False
 
-
-class HungerGames(commands.Cog):
-    """A Hunger Games style battle royale game for Discord"""
-    
-    def __init__(self, bot):
-        self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
-        
-        self.config.register_guild(**DEFAULT_GUILD_CONFIG)
-        self.config.register_member(**DEFAULT_MEMBER_CONFIG)
-        
-        self.active_games: Dict[int, Dict] = {}
-        self.game_engine = GameEngine(bot, self.config)
-        self.event_handler = EventHandler(self.game_engine)
-        self.validator = InputValidator()
-        self.timing = GameTiming()
-        
-        # Add GIF integration if available
-        if GIF_SYSTEM_AVAILABLE:
-            try:
-                self.gif_manager = GifManager(bot, self.config)
-                self.gif_commands = HungerGamesGifCommands(self)
-                logger.info("GIF system initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize GIF system: {e}")
-                self.gif_manager = None
-                self.gif_commands = None
-        else:
-            self.gif_manager = None
-            self.gif_commands = None
-        
-        # Performance optimization - cache alive players
-        self._alive_cache = {}
-        self._cache_round = {}
-
 class EventHandler:
     """Handles event execution with proper error handling"""
     
@@ -222,6 +187,20 @@ class HungerGames(commands.Cog):
         self.event_handler = EventHandler(self.game_engine)
         self.validator = InputValidator()
         self.timing = GameTiming()
+        
+        # Add GIF integration if available - RENAME to avoid conflict
+        if GIF_SYSTEM_AVAILABLE:
+            try:
+                self.gif_manager = GifManager(bot, self.config)
+                self.gif_handler = HungerGamesGifCommands(self)  # Changed name here
+                logger.info("GIF system initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize GIF system: {e}")
+                self.gif_manager = None
+                self.gif_handler = None  # Changed name here
+        else:
+            self.gif_manager = None
+            self.gif_handler = None  # Changed name here
         
         # Performance optimization - cache alive players
         self._alive_cache = {}
@@ -1163,39 +1142,53 @@ class HungerGames(commands.Cog):
 
     @hungergames.group(name="gif", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
-    async def gif_commands(self, ctx):
+    async def gif_main(self, ctx):
         """GIF management for Hunger Games"""
-        return await self.gif_commands.gif_commands(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available. Check bot logs for details.")
+        return await self.gif_handler.gif_commands(ctx) 
     
-    @gif_commands.command(name="enable")
+    @gif_main.command(name="enable")
     async def gif_enable(self, ctx):
         """Enable GIF integration"""
-        return await self.gif_commands.gif_enable(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_enable(ctx)  
     
-    @gif_commands.command(name="disable") 
+    @gif_main.command(name="disable") 
     async def gif_disable(self, ctx):
         """Disable GIF integration"""
-        return await self.gif_commands.gif_disable(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_disable(ctx)  
     
-    @gif_commands.command(name="stats")
+    @gif_main.command(name="stats")
     async def gif_stats(self, ctx):
         """Show GIF statistics"""
-        return await self.gif_commands.gif_stats(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_stats(ctx)  
     
-    @gif_commands.command(name="structure")
+    @gif_main.command(name="structure")
     async def gif_structure(self, ctx):
         """Show GIF directory structure"""
-        return await self.gif_commands.gif_structure(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_structure(ctx)  
     
-    @gif_commands.command(name="test")
+    @gif_main.command(name="test")
     async def gif_test(self, ctx, category: str = "victory", subcategory: str = "general"):
         """Test GIF selection"""
-        return await self.gif_commands.gif_test(ctx, category, subcategory)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_test(ctx, category, subcategory)  
     
-    @gif_commands.command(name="reload")
+    @gif_main.command(name="reload")
     async def gif_reload(self, ctx):
         """Reload GIF cache"""
-        return await self.gif_commands.gif_reload(ctx)
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+            return await ctx.send("❌ GIF system is not available.")
+        return await self.gif_handler.gif_reload(ctx)  
     
     @hg_set.command(name="reward")
     async def hg_set_reward(self, ctx, amount: int):
