@@ -306,8 +306,6 @@ class GifManager:
             return False
 
 
-# Add these methods to the existing HungerGames class in __init__.py
-
 class HungerGamesGifCommands:
     """GIF management commands for HungerGames"""
     
@@ -485,57 +483,3 @@ class HungerGamesGifCommands:
             
         except Exception as e:
             await ctx.send(f"❌ Error reloading GIFs: {str(e)}")
-
-
-# Integration with game.py - Update the victory display method
-
-async def _send_victory_display_with_gif(self, game: GameState, channel: discord.TextChannel, 
-                                       winner_id: str, winner: PlayerData, prize: int):
-    """Enhanced victory display with GIF integration"""
-    try:
-        # Check if GIFs are enabled for this guild
-        gifs_enabled = await self.config.guild(channel.guild).enable_gifs()
-        
-        total_players = len(game["players"])
-        victory_phrase = self._get_victory_phrase(game, winner)
-        winner_emoji = self._get_player_emoji(winner)
-        
-        # Main victory embed
-        embed = discord.Embed(color=0xFFD700)
-        embed.title = victory_phrase
-        
-        # Try to add GIF if enabled
-        gif_file = None
-        if gifs_enabled and hasattr(self, 'gif_manager'):
-            gif_path = self.gif_manager.get_victory_gif(game, winner)
-            if gif_path and os.path.exists(gif_path):
-                gif_file = discord.File(gif_path, filename=os.path.basename(gif_path))
-                embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
-        
-        # Winner display
-        winner_display = f"**{winner['name']}** {winner['title']} {winner_emoji}"
-        embed.add_field(name="", value=winner_display, inline=False)
-        
-        # Reward
-        reward_text = f"**Reward:** {prize:,} 💰"
-        embed.add_field(name="", value=reward_text, inline=False)
-        
-        # Winner section header
-        embed.add_field(name="**Winner**", value="", inline=False)
-        
-        # Total players
-        embed.add_field(name="", value=f"**Total Players: {total_players}**", inline=False)
-        
-        # Send with or without GIF
-        if gif_file:
-            await channel.send(embed=embed, file=gif_file)
-        else:
-            await channel.send(embed=embed)
-        
-        # Rankings embed
-        await self._send_rankings_embed_updated(game, channel)
-        
-    except Exception as e:
-        logger.error(f"Error sending victory display with GIF: {e}")
-        # Fallback to original method
-        await self._send_victory_display(game, channel, winner_id, winner, prize)
