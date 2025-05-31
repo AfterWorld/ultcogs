@@ -1,9 +1,10 @@
-# __init__.py - FIXED VERSION WITH PROPER GIF INTEGRATION
+# __init__.py - UPDATED VERSION WITH IMAGE INTEGRATION
 """
 Hunger Games Battle Royale Cog for Red-DiscordBot
 
 A comprehensive battle royale game where players fight to be the last survivor.
-Features automatic events, sponsor revivals, dynamic rewards, detailed statistics, and special arena events.
+Features automatic events, sponsor revivals, dynamic rewards, detailed statistics, 
+special arena events, and custom round image displays.
 """
 
 import discord
@@ -36,6 +37,15 @@ except ImportError as e:
     logger = logging.getLogger(__name__)
     logger.warning(f"GIF system not available: {e}")
     GIF_SYSTEM_AVAILABLE = False
+
+# Try to import Image system, but don't fail if it has issues
+try:
+    from .image_handler import ImageRoundHandler
+    IMAGE_SYSTEM_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Image system not available: {e}")
+    IMAGE_SYSTEM_AVAILABLE = False
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -116,6 +126,7 @@ class InputValidator:
         except Exception:
             return False
 
+
 class EventHandler:
     """Handles event execution with proper error handling"""
     
@@ -188,6 +199,19 @@ class HungerGames(commands.Cog):
         self.event_handler = EventHandler(self.game_engine)
         self.validator = InputValidator()
         self.timing = GameTiming()
+        
+        # Add Image Handler integration
+        if IMAGE_SYSTEM_AVAILABLE:
+            try:
+                # Use the specific path structure provided
+                image_base_path = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/CogManager/cogs/hg/Images"
+                self.image_handler = ImageRoundHandler(self.bot, image_base_path)
+                logger.info("Image handler initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize image handler: {e}")
+                self.image_handler = None
+        else:
+            self.image_handler = None
         
         # Add GIF integration if available
         if GIF_SYSTEM_AVAILABLE:
@@ -587,7 +611,7 @@ class HungerGames(commands.Cog):
             
             await asyncio.sleep(0.5)
         
-        # Send combined events in Rumble format
+        # Send combined events in custom image or Rumble format
         await self._send_rumble_style_events(game, channel, event_messages)
     
     def _calculate_event_count(self, alive_count: int) -> int:
@@ -622,7 +646,7 @@ class HungerGames(commands.Cog):
     
     async def _send_rumble_style_events(self, game: Dict, channel: discord.TextChannel, 
                                       event_messages: List[str]):
-        """Send events in Rumble style format"""
+        """Send events using custom round image or fallback to embed"""
         if not event_messages:
             logger.warning("No event messages to send")
             return
@@ -630,22 +654,40 @@ class HungerGames(commands.Cog):
         try:
             alive_after_events = len(self.game_engine.get_alive_players(game))
             
-            # Build Rumble format content
+            # Try to use custom image if available
+            if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                # Combine event messages
+                combined_events = "\n".join(event_messages)
+                
+                # Create custom image
+                image_file = self.image_handler.create_round_image(
+                    round_num=game['round'],
+                    event_text=combined_events,
+                    remaining_players=alive_after_events
+                )
+                
+                if image_file:
+                    await channel.send(file=image_file)
+                    logger.debug(f"Sent custom round image for round {game['round']}")
+                    return
+                else:
+                    logger.warning("Failed to create custom round image, falling back to embed")
+            
+            # Fallback to embed system
             rumble_content = f"**Round {game['round']}**\n"
             rumble_content += "\n".join(event_messages)
             rumble_content += f"\n\n**Players Left: {alive_after_events}**"
             
-            # Create embed with Rumble styling
             embed = discord.Embed(
                 description=rumble_content,
                 color=0x2F3136
             )
             
             await channel.send(embed=embed)
-            logger.debug(f"Sent Rumble-style embed with {len(event_messages)} events")
+            logger.debug(f"Sent fallback embed for round {game['round']}")
             
         except Exception as e:
-            logger.error(f"Failed to send Rumble-style events: {e}")
+            logger.error(f"Failed to send round events: {e}")
     
     async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
         """Execute a random game event (for backwards compatibility)"""
@@ -663,12 +705,8 @@ class HungerGames(commands.Cog):
         message = await self.event_handler.execute_event(event_type, game, channel)
         
         if message:
-            # Send as Rumble-style embed
-            embed = discord.Embed(
-                description=f"**Round {game['round']}**\n{message}\n\n**Players Left: {len(self.game_engine.get_alive_players(game))}**",
-                color=0x2F3136
-            )
-            await channel.send(embed=embed)
+            # Send as custom image or Rumble-style embed
+            await self._send_rumble_style_events(game, channel, [message])
     
     # =====================================================
     # COMMAND DEFINITIONS (hungergames group defined first)
@@ -911,6 +949,231 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in test command: {e}")
             await ctx.send(f"❌ Error running tests: {str(e)}")
     
+    # =====================================================
+    # IMAGE MANAGEMENT COMMANDS - NEW SECTION
+    # =====================================================
+    
+    @hungergames.group(name="image", invoke_without_command=True)
+    @commands.has_permissions(manage_guild=True)
+    async def image_main(self, ctx):
+        """Custom round image management"""
+        embed = discord.Embed(
+            title="🖼️ **Round Image Management**",
+            description="Manage custom round display images",
+            color=0x00CED1
+        )
+        
+        embed.add_field(
+            name="📋 **Available Commands**",
+            value=(
+                "• `.hungergames image upload` - Upload template image\n"
+                "• `.hungergames image test` - Test current template\n"
+                "• `.hungergames image status` - Check system status\n"
+                "• `.hungergames image info` - Show template information"
+            ),
+            inline=False
+        )
+        
+        # Show current status
+        if hasattr(self, 'image_handler') and self.image_handler:
+            if self.image_handler.is_available():
+                status = "✅ **Template Available**"
+            else:
+                status = "❌ **No Template Found**"
+        else:
+            status = "❌ **System Not Available**"
+        
+        embed.add_field(
+            name="🖼️ **Current Status**",
+            value=status,
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+    
+    @image_main.command(name="upload")
+    async def image_upload(self, ctx):
+        """Upload a new round template image"""
+        if not ctx.message.attachments:
+            return await ctx.send("❌ Please attach an image file!")
+        
+        attachment = ctx.message.attachments[0]
+        
+        # Check file type
+        if not attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            return await ctx.send("❌ Please upload a PNG or JPG image!")
+        
+        try:
+            # Check if image handler is available
+            if not hasattr(self, 'image_handler') or not self.image_handler:
+                return await ctx.send("❌ Image system is not available!")
+            
+            # Download and save image
+            image_data = await attachment.read()
+            success = self.image_handler.save_template_image(image_data)
+            
+            if success:
+                embed = discord.Embed(
+                    title="✅ **Template Uploaded Successfully!**",
+                    description=f"Image saved as template: `{attachment.filename}`",
+                    color=0x00FF00
+                )
+                embed.add_field(
+                    name="📝 **Next Steps**",
+                    value="Use `.hungergames image test` to test the template!",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("❌ Failed to save template image!")
+                
+        except Exception as e:
+            logger.error(f"Error uploading template: {e}")
+            await ctx.send(f"❌ Error uploading image: {str(e)}")
+    
+    @image_main.command(name="test")
+    async def image_test(self, ctx, round_num: int = 5, remaining: int = 12):
+        """Test the current template with sample data"""
+        try:
+            if not hasattr(self, 'image_handler') or not self.image_handler:
+                return await ctx.send("❌ No image handler available!")
+            
+            if not self.image_handler.is_available():
+                return await ctx.send("❌ No template image available. Upload one first!")
+            
+            # Create test image
+            test_event = "Player1 the Brave eliminated Player2 the Swift in epic combat!"
+            image_file = self.image_handler.create_round_image(
+                round_num=round_num,
+                event_text=test_event,
+                remaining_players=remaining
+            )
+            
+            if image_file:
+                embed = discord.Embed(
+                    title="🧪 **Template Test**",
+                    description="Here's how your template looks with sample data:",
+                    color=0x00CED1
+                )
+                embed.set_image(url="attachment://round_display.png")
+                await ctx.send(embed=embed, file=image_file)
+            else:
+                await ctx.send("❌ Failed to generate test image!")
+                
+        except Exception as e:
+            logger.error(f"Error testing template: {e}")
+            await ctx.send(f"❌ Error testing template: {str(e)}")
+    
+    @image_main.command(name="status")
+    async def image_status(self, ctx):
+        """Check image system status"""
+        embed = discord.Embed(
+            title="🖼️ **Image System Status**",
+            color=0x00CED1
+        )
+        
+        try:
+            # Check if handler exists
+            has_handler = hasattr(self, 'image_handler') and self.image_handler is not None
+            embed.add_field(
+                name="🔧 **Handler Status**",
+                value="✅ Initialized" if has_handler else "❌ Not initialized",
+                inline=True
+            )
+            
+            if has_handler:
+                # Check template availability
+                template_available = self.image_handler.is_available()
+                embed.add_field(
+                    name="🖼️ **Template**",
+                    value="✅ Available" if template_available else "❌ Missing",
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="📁 **Template Path**",
+                    value=f"`{self.image_handler.get_template_path()}`",
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            embed.add_field(
+                name="❌ **Error**",
+                value=str(e),
+                inline=False
+            )
+            await ctx.send(embed=embed)
+    
+    @image_main.command(name="info")
+    async def image_info(self, ctx):
+        """Show detailed template information"""
+        try:
+            if not hasattr(self, 'image_handler') or not self.image_handler:
+                return await ctx.send("❌ Image system not available!")
+            
+            template_info = self.image_handler.get_template_info()
+            
+            embed = discord.Embed(
+                title="📋 **Template Information**",
+                color=0x00CED1
+            )
+            
+            if template_info.get("exists"):
+                embed.add_field(
+                    name="📏 **Dimensions**",
+                    value=f"{template_info['size'][0]} x {template_info['size'][1]} pixels",
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="🎨 **Format**",
+                    value=template_info.get('format', 'Unknown'),
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="🔧 **Mode**",
+                    value=template_info.get('mode', 'Unknown'),
+                    inline=True
+                )
+                
+                embed.add_field(
+                    name="📁 **Path**",
+                    value=f"`{template_info['path']}`",
+                    inline=False
+                )
+                
+                # Add positioning info
+                embed.add_field(
+                    name="📍 **Text Positions**",
+                    value=(
+                        f"Round Number: {self.image_handler.round_position}\n"
+                        f"Event Area: {self.image_handler.event_area}\n"
+                        f"Players Count: {self.image_handler.players_position}"
+                    ),
+                    inline=False
+                )
+            else:
+                embed.description = "❌ **No template found**"
+                if "error" in template_info:
+                    embed.add_field(
+                        name="❌ **Error**",
+                        value=template_info["error"],
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting template info: {e}")
+            await ctx.send(f"❌ Error retrieving template information: {str(e)}")
+    
+    # =====================================================
+    # EXISTING COMMANDS CONTINUE...
+    # =====================================================
+    
     @hungergames.command(name="force")
     @commands.has_permissions(manage_guild=True)
     async def hg_force_event(self, ctx, event_type: str = "random"):
@@ -946,23 +1209,8 @@ class HungerGames(commands.Cog):
                 message = await self.event_handler.execute_event(event_type, game, ctx.channel)
                 
                 if message:
-                    # Choose appropriate color
-                    colors = {
-                        "death": 0xFF4500,
-                        "crate": 0x8B4513,
-                        "sponsor": 0xFFD700,
-                        "alliance": 0x4169E1,
-                        "survival": 0x32CD32
-                    }
-                    
-                    color = colors.get(event_type.lower(), 0x32CD32)
-                    
-                    embed = discord.Embed(
-                        description=message,
-                        color=color
-                    )
-                    embed.set_footer(text=f"Forced {event_type.title()} Event")
-                    await ctx.send(embed=embed)
+                    # Send using custom image or embed
+                    await self._send_rumble_style_events(game, ctx.channel, [message])
                 else:
                     await ctx.send(f"❌ Failed to generate {event_type} event")
                     
@@ -1051,12 +1299,15 @@ class HungerGames(commands.Cog):
             )
         
         # System info
+        system_info = f"Active Games: {len(self.active_games)}\n"
+        system_info += f"Cache Entries: {len(getattr(self, '_alive_cache', {}))}\n"
+        system_info += f"Event Handler: {'✅' if hasattr(self, 'event_handler') else '❌'}\n"
+        system_info += f"GIF System: {'✅' if getattr(self, 'gif_manager', None) else '❌'}\n"
+        system_info += f"Image System: {'✅' if getattr(self, 'image_handler', None) else '❌'}"
+        
         embed.add_field(
             name="🖥️ **System**",
-            value=f"Active Games: {len(self.active_games)}\n"
-                  f"Cache Entries: {len(getattr(self, '_alive_cache', {}))}\n"
-                  f"Event Handler: {'✅' if hasattr(self, 'event_handler') else '❌'}\n"
-                  f"GIF System: {'✅' if self.gif_manager else '❌'}",
+            value=system_info,
             inline=True
         )
         
@@ -1135,6 +1386,17 @@ class HungerGames(commands.Cog):
                 inline=True
             )
             
+            # Add image system status
+            image_status = "❌ No"
+            if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                image_status = "✅ Yes"
+            
+            embed.add_field(
+                name="🖼️ **Custom Images**",
+                value=image_status,
+                inline=True
+            )
+            
             await ctx.send(embed=embed)
             
         except Exception as e:
@@ -1148,7 +1410,7 @@ class HungerGames(commands.Cog):
         await ctx.send_help()
 
     # =====================================================
-    # GIF COMMANDS - FIXED IMPLEMENTATION
+    # GIF COMMANDS - EXISTING (KEPT FOR COMPATIBILITY)
     # =====================================================
     
     @hungergames.group(name="gif", invoke_without_command=True)
@@ -1264,106 +1526,6 @@ class HungerGames(commands.Cog):
             
         except Exception as e:
             await ctx.send(f"❌ Error getting GIF stats: {str(e)}")
-    
-    @gif_main.command(name="structure")
-    async def gif_structure(self, ctx):
-        """Show the GIF directory structure and descriptions"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            embed = discord.Embed(
-                title="📁 **GIF Directory Structure**",
-                description="Organize your GIFs in these folders for automatic selection:",
-                color=0x4169E1
-            )
-            
-            for category, subcategories in self.gif_manager.gif_structure.items():
-                structure_text = "\n".join([
-                    f"• `{subcat}/` - {desc}"
-                    for subcat, desc in subcategories.items()
-                ])
-                
-                embed.add_field(
-                    name=f"📂 **{category}//**",
-                    value=structure_text,
-                    inline=False
-                )
-            
-            embed.add_field(
-                name="📋 **Instructions**",
-                value="1. Place GIF files in the appropriate folders\n"
-                      "2. Supported formats: `.gif`, `.webp`, `.mp4`, `.mov`\n"
-                      "3. Use `.hungergames gif stats` to verify files are detected\n"
-                      "4. GIFs are automatically selected based on game context",
-                inline=False
-            )
-            
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            await ctx.send(f"❌ Error showing structure: {str(e)}")
-    
-    @gif_main.command(name="test")
-    async def gif_test(self, ctx, category: str = "victory", subcategory: str = "general"):
-        """Test GIF selection from a specific category"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            import os
-            
-            # Test different GIF types
-            if category == "victory":
-                test_game = {"players": {"123": {"kills": 2}}}
-                test_winner = {"kills": 2, "name": "TestPlayer"}
-                gif_path = self.gif_manager.get_victory_gif(test_game, test_winner)
-            elif category == "death":
-                gif_path = self.gif_manager.get_death_gif(subcategory)
-            elif category == "sponsor":
-                gif_path = self.gif_manager.get_sponsor_gif(subcategory)
-            elif category == "special":
-                gif_path = self.gif_manager.get_special_gif(subcategory)
-            else:
-                return await ctx.send("❌ Invalid category! Use: victory, death, sponsor, special")
-            
-            if gif_path:
-                embed = discord.Embed(
-                    title=f"🎬 **GIF Test: {category}/{subcategory}**",
-                    color=0x00FF00
-                )
-                embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
-                
-                with open(gif_path, 'rb') as f:
-                    file = discord.File(f, filename=os.path.basename(gif_path))
-                    await ctx.send(embed=embed, file=file)
-            else:
-                await ctx.send(f"❌ No GIFs found for {category}/{subcategory}")
-                
-        except Exception as e:
-            await ctx.send(f"❌ Error testing GIF: {str(e)}")
-    
-    @gif_main.command(name="reload")
-    async def gif_reload(self, ctx):
-        """Reload the GIF cache"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            self.gif_manager.clear_cache()
-            stats = self.gif_manager.get_gif_stats()
-            total_gifs = sum(sum(subcats.values()) for subcats in stats.values())
-            
-            embed = discord.Embed(
-                title="🔄 **GIF Cache Reloaded**",
-                description=f"Found {total_gifs} GIFs across all categories.",
-                color=0x00FF00
-            )
-            
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            await ctx.send(f"❌ Error reloading GIFs: {str(e)}")
     
     # =====================================================
     # SETTINGS COMMANDS
