@@ -20,8 +20,7 @@ from .constants import (
     ENVIRONMENTAL_HAZARDS, ENVIRONMENTAL_SINGLE_DEATH, ENVIRONMENTAL_MULTI_DEATH,
     ENVIRONMENTAL_SURVIVAL, ENVIRONMENTAL_PARTIAL_SURVIVAL, GAMEMAKER_COURAGE_DEATH,
     GAMEMAKER_COURAGE_SURVIVAL, GAMEMAKER_TEST_ANNOUNCEMENT, GAMEMAKER_LOYALTY_TEST,
-    MIDGAME_DEADLY_EVENT_TYPES, VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS,
-    ENABLE_GIFS, GIF_CATEGORIES
+    MIDGAME_DEADLY_EVENT_TYPES, VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS
 )
 
 VICTORY_PHRASES = [
@@ -1128,32 +1127,32 @@ class GameEngine:
     
     async def _send_victory_display(self, game: GameState, channel: discord.TextChannel, 
                               winner_id: str, winner: PlayerData, prize: int):
-        """Send the comprehensive victory display with GIF integration"""
+        """Send the comprehensive victory display with optional GIF integration"""
         try:
-            # Check if GIFs are enabled for this guild
-            gifs_enabled = await self.config.guild(channel.guild).enable_gifs()
-            
             total_players = len(game["players"])
+            
+            # Get contextual victory phrase and emoji
             victory_phrase = self._get_victory_phrase(game, winner)
             winner_emoji = self._get_player_emoji(winner)
             
-            # Main victory embed
+            # Main victory embed matching screenshot format
             embed = discord.Embed(color=0xFFD700)
             embed.title = victory_phrase
             
-            # Try to add GIF if enabled and available
+            # Try to add GIF if system is available and enabled
             gif_file = None
-            if gifs_enabled:
-                try:
-                    # Get GIF manager from parent cog
-                    gif_manager = getattr(self.bot.get_cog("HungerGames"), 'gif_manager', None)
-                    if gif_manager:
-                        gif_path = gif_manager.get_victory_gif(game, winner)
+            try:
+                gifs_enabled = await self.config.guild(channel.guild).enable_gifs()
+                if gifs_enabled:
+                    # Get GIF manager from the cog
+                    hunger_games_cog = self.bot.get_cog("HungerGames")
+                    if hunger_games_cog and hasattr(hunger_games_cog, 'gif_manager') and hunger_games_cog.gif_manager:
+                        gif_path = hunger_games_cog.gif_manager.get_victory_gif(game, winner)
                         if gif_path and os.path.exists(gif_path):
                             gif_file = discord.File(gif_path, filename=os.path.basename(gif_path))
                             embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
-                except Exception as e:
-                    logger.debug(f"Could not load victory GIF: {e}")
+            except Exception as e:
+                logger.debug(f"Could not load victory GIF: {e}")
             
             # Winner display (matching screenshot format)
             winner_display = f"**{winner['name']}** {winner['title']} {winner_emoji}"
@@ -1163,10 +1162,10 @@ class GameEngine:
             reward_text = f"**Reward:** {prize:,} 💰"
             embed.add_field(name="", value=reward_text, inline=False)
             
-            # Winner section header
+            # Winner section header (matching screenshot)
             embed.add_field(name="**Winner**", value="", inline=False)
             
-            # Total players
+            # Total players (matching screenshot format)
             embed.add_field(name="", value=f"**Total Players: {total_players}**", inline=False)
             
             # Send with or without GIF
@@ -1175,7 +1174,7 @@ class GameEngine:
             else:
                 await channel.send(embed=embed)
             
-            # Rankings embed
+            # Rankings embed (using existing method)
             await self._send_rankings_embed_updated(game, channel)
             
         except Exception as e:
@@ -1196,7 +1195,7 @@ class GameEngine:
             kill_leaders = self._calculate_kill_leaders(game)
             revive_leaders = self._calculate_revive_leaders(game)
             
-            # Runners-up section (matching screenshot)
+            # Runners-up section (matching screenshot format)
             if runner_ups:
                 runner_text = ""
                 for i, (player_id, player_data) in enumerate(runner_ups[:5], 2):
@@ -1254,6 +1253,11 @@ class GameEngine:
             
         except Exception as e:
             logger.error(f"Error sending rankings embed: {e}")
+            # Send a basic fallback
+            try:
+                await channel.send("🏆 **Game Complete!** Check the results above.")
+            except Exception:
+                pass
     
     def _add_ranking_fields(self, embed: discord.Embed, runner_ups: List[tuple], 
                           kill_leaders: List[tuple], revive_leaders: List[tuple]):
