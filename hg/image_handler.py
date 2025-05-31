@@ -1,4 +1,4 @@
-# image_handler.py - NEW FILE
+# image_handler.py - COMPLETE VERSION WITH CORRECT PATHS
 """
 Custom Image Round Display System for Hunger Games
 Overlays round info, events, and player count onto custom background image
@@ -21,43 +21,49 @@ class ImageRoundHandler:
     def __init__(self, bot, base_path: str = None):
         self.bot = bot
         
-        # Set up paths
+        # Set up paths - use the specific path provided
         if base_path:
             self.base_path = Path(base_path)
         else:
-            self.base_path = Path("data") / "hunger_games_images"
+            # Default to the user's specific path structure
+            self.base_path = Path("/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/CogManager/cogs/hg/Images")
         
         self.base_path.mkdir(parents=True, exist_ok=True)
         
         # Image settings
-        self.template_path = self.base_path / "round_template.png"
+        self.template_path = self.base_path / "eventsmockup.png"
         self.font_path = self.base_path / "fonts"
         self.font_path.mkdir(exist_ok=True)
         
-        # Text positioning (adjust these based on your image dimensions)
-        self.round_position = (400, 80)  # Round number position
-        self.event_area = (50, 150, 750, 350)  # Event text area (x1, y1, x2, y2)
-        self.players_position = (400, 450)  # Remaining players position
+        # Text positioning (adjusted for your specific image)
+        # You may need to fine-tune these coordinates
+        self.round_position = (470, 210)  # Round number position (top section)
+        self.event_area = (80, 300, 720, 420)  # Event text area in orange bar (x1, y1, x2, y2)
+        self.players_position = (550, 485)  # Remaining players position (bottom section)
         
         # Text settings
-        self.round_font_size = 48
-        self.event_font_size = 24
-        self.players_font_size = 32
+        self.round_font_size = 36
+        self.event_font_size = 20
+        self.players_font_size = 28
         
-        # Colors (adjust to match your design)
+        # Colors (white text with dark outline for visibility)
         self.round_color = (255, 255, 255)  # White
         self.event_color = (255, 255, 255)  # White
         self.players_color = (255, 255, 255)  # White
+        self.outline_color = (0, 0, 0)  # Black outline
         
         self._setup_fonts()
+        
+        # Log initialization
+        logger.info(f"ImageRoundHandler initialized with template path: {self.template_path}")
     
     def _setup_fonts(self):
         """Set up fonts with fallbacks"""
         try:
             # Try to load custom fonts, fall back to default
-            self.round_font = self._load_font(self.round_font_size)
+            self.round_font = self._load_font(self.round_font_size, bold=True)
             self.event_font = self._load_font(self.event_font_size)
-            self.players_font = self._load_font(self.players_font_size)
+            self.players_font = self._load_font(self.players_font_size, bold=True)
         except Exception as e:
             logger.warning(f"Font setup error: {e}")
             # Use PIL's default font as fallback
@@ -65,14 +71,17 @@ class ImageRoundHandler:
             self.event_font = ImageFont.load_default()
             self.players_font = ImageFont.load_default()
     
-    def _load_font(self, size: int) -> ImageFont.FreeTypeFont:
+    def _load_font(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         """Load font with fallbacks"""
         font_options = [
-            self.font_path / "arial.ttf",
-            self.font_path / "arial-bold.ttf",
+            # Custom fonts in the fonts directory
+            self.font_path / "arial-bold.ttf" if bold else self.font_path / "arial.ttf",
+            self.font_path / "DejaVuSans-Bold.ttf" if bold else self.font_path / "DejaVuSans.ttf",
+            # System fonts
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "arial.ttf",
             "DejaVuSans.ttf",
-            "DejaVuSans-Bold.ttf",
         ]
         
         for font_path in font_options:
@@ -83,6 +92,7 @@ class ImageRoundHandler:
                 continue
         
         # Final fallback to default font
+        logger.warning(f"Could not load custom font, using default for size {size}")
         return ImageFont.load_default()
     
     def save_template_image(self, image_data: bytes) -> bool:
@@ -102,11 +112,12 @@ class ImageRoundHandler:
         try:
             # Check if template exists
             if not self.template_path.exists():
-                logger.warning("Template image not found")
+                logger.warning(f"Template image not found at {self.template_path}")
                 return None
             
             # Load template image
             template = Image.open(self.template_path).convert("RGBA")
+            logger.debug(f"Loaded template image: {template.size}")
             
             # Create drawing context
             draw = ImageDraw.Draw(template)
@@ -117,12 +128,15 @@ class ImageRoundHandler:
                 draw, round_text, self.round_position, 
                 self.round_font, self.round_color
             )
+            logger.debug(f"Drew round number: {round_text}")
             
             # Draw event text (with word wrapping)
+            clean_event_text = self._clean_event_text(event_text)
             self._draw_wrapped_text(
-                draw, event_text, self.event_area, 
+                draw, clean_event_text, self.event_area, 
                 self.event_font, self.event_color
             )
+            logger.debug(f"Drew event text: {clean_event_text[:50]}...")
             
             # Draw remaining players
             players_text = str(remaining_players)
@@ -130,6 +144,7 @@ class ImageRoundHandler:
                 draw, players_text, self.players_position,
                 self.players_font, self.players_color
             )
+            logger.debug(f"Drew players count: {players_text}")
             
             # Convert to Discord file
             img_buffer = io.BytesIO()
@@ -173,26 +188,40 @@ class ImageRoundHandler:
             area_width = x2 - x1
             area_height = y2 - y1
             
-            # Clean and prepare text
-            clean_text = self._clean_event_text(text)
-            
             # Calculate approximate characters per line
             avg_char_width = self._get_average_char_width(font)
-            chars_per_line = int(area_width / avg_char_width)
+            chars_per_line = max(10, int(area_width / avg_char_width))
             
             # Wrap text
-            wrapped_lines = textwrap.fill(clean_text, width=chars_per_line).split('\n')
+            wrapped_lines = textwrap.fill(text, width=chars_per_line).split('\n')
             
             # Calculate line height
-            line_height = font.getsize("Ay")[1] + 4  # Add some padding
+            line_height = self._get_line_height(font)
             total_text_height = len(wrapped_lines) * line_height
             
             # Center text vertically in area
-            start_y = y1 + (area_height - total_text_height) // 2
+            start_y = y1 + max(0, (area_height - total_text_height) // 2)
             
             # Draw each line
             for i, line in enumerate(wrapped_lines):
                 line_y = start_y + (i * line_height)
+                
+                # Stop if we're running out of space
+                if line_y + line_height > y2:
+                    # Add ellipsis if text is cut off
+                    if i > 0:
+                        ellipsis_line = wrapped_lines[i-1][:-3] + "..."
+                        line_y = start_y + ((i-1) * line_height)
+                        
+                        # Redraw previous line with ellipsis
+                        line_bbox = draw.textbbox((0, 0), ellipsis_line, font=font)
+                        line_width = line_bbox[2] - line_bbox[0]
+                        line_x = x1 + (area_width - line_width) // 2
+                        
+                        # Clear previous line area
+                        draw.rectangle([x1, line_y-2, x2, line_y + line_height + 2], fill=(0,0,0,0))
+                        self._draw_text_with_outline(draw, (line_x, line_y), ellipsis_line, font, color)
+                    break
                 
                 # Center line horizontally
                 line_bbox = draw.textbbox((0, 0), line, font=font)
@@ -201,55 +230,71 @@ class ImageRoundHandler:
                 
                 # Draw with outline
                 self._draw_text_with_outline(draw, (line_x, line_y), line, font, color)
-                
-                # Stop if we're running out of space
-                if line_y + line_height > y2:
-                    break
                     
         except Exception as e:
             logger.error(f"Error drawing wrapped text: {e}")
             # Fallback to simple text
-            draw.text((area[0], area[1]), text[:100], font=font, fill=color)
+            truncated_text = text[:80] + "..." if len(text) > 80 else text
+            draw.text((area[0] + 10, area[1] + 10), truncated_text, font=font, fill=color)
     
     def _draw_text_with_outline(self, draw: ImageDraw.Draw, position: Tuple[int, int],
                                text: str, font: ImageFont.ImageFont, 
-                               color: Tuple[int, int, int], outline_color: Tuple[int, int, int] = (0, 0, 0)):
+                               color: Tuple[int, int, int]):
         """Draw text with outline for better visibility"""
         x, y = position
         
         # Draw outline (offset in 8 directions)
-        for dx in [-2, -1, 0, 1, 2]:
-            for dy in [-2, -1, 0, 1, 2]:
+        outline_width = 2
+        for dx in range(-outline_width, outline_width + 1):
+            for dy in range(-outline_width, outline_width + 1):
                 if dx != 0 or dy != 0:
-                    draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
+                    draw.text((x + dx, y + dy), text, font=font, fill=self.outline_color)
         
         # Draw main text
         draw.text((x, y), text, font=font, fill=color)
     
     def _clean_event_text(self, text: str) -> str:
         """Clean event text for display"""
-        # Remove markdown formatting
-        text = text.replace("**", "").replace("__", "").replace("~~", "")
-        
-        # Remove emojis at the start
-        if "|" in text:
-            text = text.split("|", 1)[1].strip()
-        
-        # Remove extra whitespace
-        text = " ".join(text.split())
-        
-        return text
+        try:
+            # Remove markdown formatting
+            text = text.replace("**", "").replace("__", "").replace("~~", "")
+            
+            # Remove emojis at the start and pipe separators
+            if "|" in text:
+                parts = text.split("|", 1)
+                if len(parts) > 1:
+                    text = parts[1].strip()
+            
+            # Remove extra whitespace
+            text = " ".join(text.split())
+            
+            # Limit length for display
+            if len(text) > 200:
+                text = text[:197] + "..."
+            
+            return text
+        except Exception as e:
+            logger.error(f"Error cleaning event text: {e}")
+            return text[:100]  # Safe fallback
     
     def _get_average_char_width(self, font: ImageFont.ImageFont) -> float:
         """Get average character width for the font"""
         try:
             # Sample text to measure
-            sample = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+            sample = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 "
             bbox = font.getbbox(sample)
             width = bbox[2] - bbox[0]
-            return width / len(sample)
+            return max(1, width / len(sample))
         except Exception:
-            return 10  # Fallback value
+            return 8  # Fallback value
+    
+    def _get_line_height(self, font: ImageFont.ImageFont) -> int:
+        """Get line height for the font"""
+        try:
+            bbox = font.getbbox("Ay")
+            return (bbox[3] - bbox[1]) + 4  # Add some padding
+        except Exception:
+            return 20  # Fallback value
     
     def is_available(self) -> bool:
         """Check if the image system is available"""
@@ -258,3 +303,21 @@ class ImageRoundHandler:
     def get_template_path(self) -> str:
         """Get the template image path for admin commands"""
         return str(self.template_path)
+    
+    def get_template_info(self) -> dict:
+        """Get information about the current template"""
+        try:
+            if not self.is_available():
+                return {"exists": False}
+            
+            template = Image.open(self.template_path)
+            return {
+                "exists": True,
+                "size": template.size,
+                "mode": template.mode,
+                "format": template.format,
+                "path": str(self.template_path)
+            }
+        except Exception as e:
+            logger.error(f"Error getting template info: {e}")
+            return {"exists": False, "error": str(e)}
