@@ -1,4 +1,4 @@
-# __init__.py - IMPROVED VERSION WITH SPECIAL EVENTS
+# __init__.py - FIXED VERSION WITH PROPER GIF INTEGRATION
 """
 Hunger Games Battle Royale Cog for Red-DiscordBot
 
@@ -7,7 +7,7 @@ Features automatic events, sponsor revivals, dynamic rewards, detailed statistic
 """
 
 import discord
-from redbot.core import commands, Config, bank
+from redbot.core import commands, Config, bank, data_manager
 import asyncio
 import random
 import logging
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from .constants import (
     DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG, EMOJIS,
     DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
-    VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS  # Add these new imports
+    VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS
 )
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
@@ -30,9 +30,10 @@ except ImportError:
 
 # Try to import GIF system, but don't fail if it has issues
 try:
-    from .gif_manager import GifManager, HungerGamesGifCommands
+    from .gif_manager import GifManager
     GIF_SYSTEM_AVAILABLE = True
 except ImportError as e:
+    logger = logging.getLogger(__name__)
     logger.warning(f"GIF system not available: {e}")
     GIF_SYSTEM_AVAILABLE = False
 
@@ -188,19 +189,19 @@ class HungerGames(commands.Cog):
         self.validator = InputValidator()
         self.timing = GameTiming()
         
-        # Add GIF integration if available - RENAME to avoid conflict
+        # Add GIF integration if available
         if GIF_SYSTEM_AVAILABLE:
             try:
-                self.gif_manager = GifManager(bot, self.config)
-                self.gif_handler = HungerGamesGifCommands(self)  # Changed name here
+                # Create GIF directory in bot's data directory
+                cog_data_path = data_manager.cog_data_path(self)
+                gif_base_path = cog_data_path / "gifs"
+                self.gif_manager = GifManager(bot, self.config, str(gif_base_path))
                 logger.info("GIF system initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize GIF system: {e}")
                 self.gif_manager = None
-                self.gif_handler = None  # Changed name here
         else:
             self.gif_manager = None
-            self.gif_handler = None  # Changed name here
         
         # Performance optimization - cache alive players
         self._alive_cache = {}
@@ -1055,7 +1056,7 @@ class HungerGames(commands.Cog):
             value=f"Active Games: {len(self.active_games)}\n"
                   f"Cache Entries: {len(getattr(self, '_alive_cache', {}))}\n"
                   f"Event Handler: {'✅' if hasattr(self, 'event_handler') else '❌'}\n"
-                  f"Config Manager: {'✅' if hasattr(self, 'validator') else '❌'}",
+                  f"GIF System: {'✅' if self.gif_manager else '❌'}",
             inline=True
         )
         
@@ -1128,6 +1129,12 @@ class HungerGames(commands.Cog):
                 inline=True
             )
             
+            embed.add_field(
+                name="🎬 **GIFs Enabled**",
+                value="✅ Yes" if config_data.get('enable_gifs', False) else "❌ No",
+                inline=True
+            )
+            
             await ctx.send(embed=embed)
             
         except Exception as e:
@@ -1140,55 +1147,227 @@ class HungerGames(commands.Cog):
         """Configure Hunger Games settings"""
         await ctx.send_help()
 
+    # =====================================================
+    # GIF COMMANDS - FIXED IMPLEMENTATION
+    # =====================================================
+    
     @hungergames.group(name="gif", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def gif_main(self, ctx):
         """GIF management for Hunger Games"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available. Check bot logs for details.")
-        return await self.gif_handler.gif_commands(ctx) 
+        
+        # Show help for gif commands
+        embed = discord.Embed(
+            title="🎬 **GIF Management Commands**",
+            description="Manage GIF integration for Hunger Games",
+            color=0x00CED1
+        )
+        
+        embed.add_field(
+            name="📋 **Available Commands**",
+            value=(
+                "• `.hungergames gif enable` - Enable GIF integration\n"
+                "• `.hungergames gif disable` - Disable GIF integration\n"
+                "• `.hungergames gif stats` - Show GIF collection statistics\n"
+                "• `.hungergames gif structure` - Show directory structure\n"
+                "• `.hungergames gif test [category] [subcategory]` - Test GIF selection\n"
+                "• `.hungergames gif reload` - Reload GIF cache"
+            ),
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
     
     @gif_main.command(name="enable")
     async def gif_enable(self, ctx):
         """Enable GIF integration"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_enable(ctx)  
+        
+        try:
+            await self.config.guild(ctx.guild).enable_gifs.set(True)
+            
+            embed = discord.Embed(
+                title="🎬 **GIF Integration Enabled!**",
+                description="GIFs will now be displayed during games when available.",
+                color=0x00FF00
+            )
+            
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Error enabling GIFs: {str(e)}")
     
     @gif_main.command(name="disable") 
     async def gif_disable(self, ctx):
         """Disable GIF integration"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_disable(ctx)  
+        
+        try:
+            await self.config.guild(ctx.guild).enable_gifs.set(False)
+            
+            embed = discord.Embed(
+                title="🚫 **GIF Integration Disabled**",
+                description="GIFs will no longer be displayed during games.",
+                color=0xFF0000
+            )
+            
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Error disabling GIFs: {str(e)}")
     
     @gif_main.command(name="stats")
     async def gif_stats(self, ctx):
-        """Show GIF statistics"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        """Show GIF collection statistics"""
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_stats(ctx)  
+        
+        try:
+            stats = self.gif_manager.get_gif_stats()
+            
+            embed = discord.Embed(
+                title="📊 **GIF Collection Statistics**",
+                color=0x00CED1
+            )
+            
+            total_gifs = 0
+            
+            for category, subcategories in stats.items():
+                category_total = sum(subcategories.values())
+                total_gifs += category_total
+                
+                if category_total > 0:
+                    subcategory_text = "\n".join([
+                        f"• {subcat}: {count}" 
+                        for subcat, count in subcategories.items() 
+                        if count > 0
+                    ])
+                    
+                    embed.add_field(
+                        name=f"🎬 **{category.title()}** ({category_total})",
+                        value=subcategory_text if subcategory_text else "None",
+                        inline=True
+                    )
+            
+            embed.description = f"**Total GIFs:** {total_gifs}"
+            
+            if total_gifs == 0:
+                embed.add_field(
+                    name="📁 **No GIFs Found**",
+                    value="Add GIF files to the `gifs/` directory to get started!",
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error getting GIF stats: {str(e)}")
     
     @gif_main.command(name="structure")
     async def gif_structure(self, ctx):
-        """Show GIF directory structure"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        """Show the GIF directory structure and descriptions"""
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_structure(ctx)  
+        
+        try:
+            embed = discord.Embed(
+                title="📁 **GIF Directory Structure**",
+                description="Organize your GIFs in these folders for automatic selection:",
+                color=0x4169E1
+            )
+            
+            for category, subcategories in self.gif_manager.gif_structure.items():
+                structure_text = "\n".join([
+                    f"• `{subcat}/` - {desc}"
+                    for subcat, desc in subcategories.items()
+                ])
+                
+                embed.add_field(
+                    name=f"📂 **{category}//**",
+                    value=structure_text,
+                    inline=False
+                )
+            
+            embed.add_field(
+                name="📋 **Instructions**",
+                value="1. Place GIF files in the appropriate folders\n"
+                      "2. Supported formats: `.gif`, `.webp`, `.mp4`, `.mov`\n"
+                      "3. Use `.hungergames gif stats` to verify files are detected\n"
+                      "4. GIFs are automatically selected based on game context",
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error showing structure: {str(e)}")
     
     @gif_main.command(name="test")
     async def gif_test(self, ctx, category: str = "victory", subcategory: str = "general"):
-        """Test GIF selection"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        """Test GIF selection from a specific category"""
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_test(ctx, category, subcategory)  
+        
+        try:
+            import os
+            
+            # Test different GIF types
+            if category == "victory":
+                test_game = {"players": {"123": {"kills": 2}}}
+                test_winner = {"kills": 2, "name": "TestPlayer"}
+                gif_path = self.gif_manager.get_victory_gif(test_game, test_winner)
+            elif category == "death":
+                gif_path = self.gif_manager.get_death_gif(subcategory)
+            elif category == "sponsor":
+                gif_path = self.gif_manager.get_sponsor_gif(subcategory)
+            elif category == "special":
+                gif_path = self.gif_manager.get_special_gif(subcategory)
+            else:
+                return await ctx.send("❌ Invalid category! Use: victory, death, sponsor, special")
+            
+            if gif_path:
+                embed = discord.Embed(
+                    title=f"🎬 **GIF Test: {category}/{subcategory}**",
+                    color=0x00FF00
+                )
+                embed.set_image(url=f"attachment://{os.path.basename(gif_path)}")
+                
+                with open(gif_path, 'rb') as f:
+                    file = discord.File(f, filename=os.path.basename(gif_path))
+                    await ctx.send(embed=embed, file=file)
+            else:
+                await ctx.send(f"❌ No GIFs found for {category}/{subcategory}")
+                
+        except Exception as e:
+            await ctx.send(f"❌ Error testing GIF: {str(e)}")
     
     @gif_main.command(name="reload")
     async def gif_reload(self, ctx):
-        """Reload GIF cache"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_handler:
+        """Reload the GIF cache"""
+        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
             return await ctx.send("❌ GIF system is not available.")
-        return await self.gif_handler.gif_reload(ctx)  
+        
+        try:
+            self.gif_manager.clear_cache()
+            stats = self.gif_manager.get_gif_stats()
+            total_gifs = sum(sum(subcats.values()) for subcats in stats.values())
+            
+            embed = discord.Embed(
+                title="🔄 **GIF Cache Reloaded**",
+                description=f"Found {total_gifs} GIFs across all categories.",
+                color=0x00FF00
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await ctx.send(f"❌ Error reloading GIFs: {str(e)}")
+    
+    # =====================================================
+    # SETTINGS COMMANDS
+    # =====================================================
     
     @hg_set.command(name="reward")
     async def hg_set_reward(self, ctx, amount: int):
