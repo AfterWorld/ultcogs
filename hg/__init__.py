@@ -278,7 +278,7 @@ class HungerGames(commands.Cog):
     
     @commands.max_concurrency(1, per=commands.BucketType.guild)
     @commands.cooldown(1, 3600, type=commands.BucketType.guild)
-    @commands.command(name="poll")
+    @commands.command(name="poll", aliases=["hg"])
     async def hunger_games_poll(self, ctx, threshold: int = None):
         """Start a poll to gather players for a Hunger Games battle!
         
@@ -328,7 +328,9 @@ class HungerGames(commands.Cog):
             
         except Exception as e:
             logger.error(f"Error in poll command: {e}")
-            await ctx.send("❌ Failed to start poll. Please try again.")
+            await ctx.send(f"❌ Failed to start poll. Error: {str(e)}")
+            # Also send a fallback message
+            await ctx.send("You can try using `.he` for a regular battle royale instead.")
     
     async def _validate_poll_starter(self, user: discord.Member) -> Optional[str]:
         """Validate if user can start a poll"""
@@ -1533,7 +1535,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @hungergames.group(name="set", invoke_without_command=True)
+    @hungergames.group(name="hgset", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
