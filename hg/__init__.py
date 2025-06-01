@@ -25,6 +25,7 @@ from .constants import (
 DEFAULT_GUILD_CONFIG["enable_custom_images"] = True
 DEFAULT_GUILD_CONFIG["poll_threshold"] = None
 DEFAULT_GUILD_CONFIG["blacklisted_roles"] = []
+DEFAULT_GUILD_CONFIG["poll_ping_role"] = None
 
 # Update member config to include temp ban
 DEFAULT_MEMBER_CONFIG["temp_banned_until"] = None
@@ -311,9 +312,21 @@ class HungerGames(commands.Cog):
         if error_message:
             return await ctx.send(error_message)
         
+        # Get role to ping
+        poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
+        role_mention = ""
+        if poll_ping_role_id:
+            role = ctx.guild.get_role(poll_ping_role_id)
+            if role:
+                role_mention = f"{role.mention} "
+        
         # Check if advanced poll system is available
         if POLL_SYSTEM_AVAILABLE:
             try:
+                # Send ping message first
+                if role_mention:
+                    await ctx.send(f"{role_mention}🗳️ **Hunger Games Poll Starting!**")
+                
                 # Use advanced button-based poll
                 poll_view = PollView(self, threshold, timeout=600)
                 await poll_view.start(ctx)
@@ -324,10 +337,11 @@ class HungerGames(commands.Cog):
                 # Fall through to simple poll
         
         # Fallback to simple poll
-        await ctx.send(f"🗳️ **Hunger Games Poll Started!**\n"
-                      f"Need **{threshold}** players - react with 🏹 to join!\n"
-                      f"Game will start in 60 seconds...")
+        poll_message = f"{role_mention}🗳️ **Hunger Games Poll Started!**\n"
+        poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
+        poll_message += f"Game will start in 60 seconds..."
         
+        await ctx.send(poll_message)
         await self._initialize_new_game(ctx, 60)
     
     @commands.command(name="hg")
@@ -376,10 +390,20 @@ class HungerGames(commands.Cog):
         if threshold > 50:
             return await ctx.send("❌ Threshold cannot exceed 50 players!")
         
+        # Get role to ping
+        poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
+        role_mention = ""
+        if poll_ping_role_id:
+            role = ctx.guild.get_role(poll_ping_role_id)
+            if role:
+                role_mention = f"{role.mention} "
+        
         # Start a game with poll messaging
-        await ctx.send(f"🗳️ **Starting Hunger Games Poll!**\n"
-                      f"Need **{threshold}** players - react with 🏹 to join!\n"
-                      f"Game will start in 60 seconds...")
+        poll_message = f"{role_mention}🗳️ **Starting Hunger Games Poll!**\n"
+        poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
+        poll_message += f"Game will start in 60 seconds..."
+        
+        await ctx.send(poll_message)
         
         # Use the existing recruitment system
         await self._initialize_new_game(ctx, 60)
@@ -957,12 +981,13 @@ class HungerGames(commands.Cog):
         embed.add_field(
             name="⚙️ **Configuration (Admin)**",
             value=(
-                "• `.hungergames hgset reward <amount>` - Set base reward\n"
-                "• `.hungergames hgset sponsor <chance>` - Set sponsor chance\n"
-                "• `.hungergames hgset interval <seconds>` - Set event interval\n"
-                "• `.hungergames hgset pollthreshold <number>` - Set poll threshold\n"
-                "• `.hungergames hgset blacklistrole <role> <add/remove>` - Manage role blacklist\n"
-                "• `.hungergames hgset tempban <member> <duration>` - Temporary ban"
+                "• `.hungergames set reward <amount>` - Set base reward\n"
+                "• `.hungergames set sponsor <chance>` - Set sponsor chance\n"
+                "• `.hungergames set interval <seconds>` - Set event interval\n"
+                "• `.hungergames set pollthreshold <number>` - Set poll threshold\n"
+                "• `.hungergames set pollpingrole <role>` - Set role to ping for polls\n"
+                "• `.hungergames set blacklistrole <role> <add/remove>` - Manage role blacklist\n"
+                "• `.hungergames set tempban <member> <duration>` - Temporary ban"
             ),
             inline=False
         )
@@ -1589,6 +1614,29 @@ class HungerGames(commands.Cog):
                     inline=True
                 )
             
+            # Poll ping role
+            poll_ping_role_id = config_data.get('poll_ping_role')
+            if poll_ping_role_id:
+                ping_role = ctx.guild.get_role(poll_ping_role_id)
+                if ping_role:
+                    embed.add_field(
+                        name="📢 **Poll Ping Role**",
+                        value=ping_role.mention,
+                        inline=True
+                    )
+                else:
+                    embed.add_field(
+                        name="📢 **Poll Ping Role**",
+                        value="❌ Invalid role",
+                        inline=True
+                    )
+            else:
+                embed.add_field(
+                    name="📢 **Poll Ping Role**",
+                    value="❌ Not set",
+                    inline=True
+                )
+            
             embed.add_field(
                 name="🎬 **GIFs Enabled**",
                 value="✅ Yes" if config_data.get('enable_gifs', False) else "❌ No",
@@ -1638,7 +1686,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @hungergames.group(name="hgset", invoke_without_command=True)
+    @hungergames.group(name="set", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
@@ -1700,6 +1748,23 @@ class HungerGames(commands.Cog):
             logger.error(f"Error managing blacklist role: {e}")
             await ctx.send("❌ Error updating role blacklist.")
     
+    @hg_set.command(name="pollpingrole")
+    async def hg_set_poll_ping_role(self, ctx, role: discord.Role = None):
+        """Set the role to ping when polls start
+        
+        Use without a role to disable pinging."""
+        try:
+            if role is None:
+                await self.config.guild(ctx.guild).poll_ping_role.set(None)
+                await ctx.send("✅ Poll ping role disabled! No role will be pinged for polls.")
+            else:
+                await self.config.guild(ctx.guild).poll_ping_role.set(role.id)
+                await ctx.send(f"✅ Poll ping role set to {role.mention}!")
+                
+        except Exception as e:
+            logger.error(f"Error setting poll ping role: {e}")
+            await ctx.send("❌ Error updating poll ping role.")
+
     @hg_set.command(name="tempban")
     async def hg_set_temp_ban(self, ctx, member: discord.Member, duration: str = None):
         """Temporarily ban a member from Hunger Games
