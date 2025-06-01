@@ -964,6 +964,134 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Error in test command: {e}")
             await ctx.send(f"❌ Error running tests: {str(e)}")
+
+    @hungergames.command(name="imagemode")
+    @commands.has_permissions(manage_guild=True)
+    async def hg_imagemode(self, ctx, mode: str = None):
+        """Toggle image display mode: custom, embed, or toggle
+        
+        Usage:
+        .hungergames imagemode toggle   - Switch between modes
+        .hungergames imagemode custom   - Use custom images
+        .hungergames imagemode embed    - Use classic embeds
+        .hungergames imagemode          - Show current mode
+        """
+        try:
+            if not mode:
+                # Show current mode
+                current_setting = await self.config.guild(ctx.guild).enable_custom_images()
+                
+                if current_setting:
+                    if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                        status = "🖼️ **Custom Images** (Active)"
+                    else:
+                        status = "🖼️ **Custom Images** (Enabled, No Template)"
+                else:
+                    status = "📋 **Classic Embeds**"
+                
+                embed = discord.Embed(
+                    title="🎮 **Current Display Mode**",
+                    description=status,
+                    color=0x00CED1
+                )
+                
+                embed.add_field(
+                    name="💡 **Commands**",
+                    value=(
+                        "`.hungergames imagemode toggle` - Switch modes\n"
+                        "`.hungergames imagemode custom` - Use custom images\n"
+                        "`.hungergames imagemode embed` - Use classic embeds"
+                    ),
+                    inline=False
+                )
+                
+                await ctx.send(embed=embed)
+                return
+            
+            mode = mode.lower()
+            
+            if mode == "toggle":
+                # Toggle current setting
+                current_setting = await self.config.guild(ctx.guild).enable_custom_images()
+                new_setting = not current_setting
+                await self.config.guild(ctx.guild).enable_custom_images.set(new_setting)
+                
+                if new_setting:
+                    embed = discord.Embed(
+                        title="🖼️ **Switched to Custom Images**",
+                        description="Rounds will now use custom image displays.",
+                        color=0x00FF00
+                    )
+                    
+                    # Check if template is available
+                    if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                        embed.add_field(
+                            name="✅ **Ready**",
+                            value="Template found and ready to use!",
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name="⚠️ **Missing Template**",
+                            value="Upload a template with `.hungergames image upload` to use custom images.",
+                            inline=False
+                        )
+                else:
+                    embed = discord.Embed(
+                        title="📋 **Switched to Classic Embeds**",
+                        description="Rounds will now use the classic text embed format.",
+                        color=0xFF8C00
+                    )
+                
+            elif mode in ["custom", "image", "images"]:
+                # Enable custom images
+                await self.config.guild(ctx.guild).enable_custom_images.set(True)
+                
+                embed = discord.Embed(
+                    title="🖼️ **Custom Images Enabled!**",
+                    description="Rounds will now use custom images when available.",
+                    color=0x00FF00
+                )
+                
+                # Check if template is available
+                if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                    embed.add_field(
+                        name="✅ **Ready**",
+                        value="Template found and ready to use!",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="⚠️ **Missing Template**",
+                        value="Upload a template with `.hungergames image upload` to use custom images.",
+                        inline=False
+                    )
+            
+            elif mode in ["embed", "embeds", "classic", "text"]:
+                # Enable classic embeds
+                await self.config.guild(ctx.guild).enable_custom_images.set(False)
+                
+                embed = discord.Embed(
+                    title="📋 **Classic Embeds Enabled**",
+                    description="Rounds will now use the classic text embed format.",
+                    color=0xFF8C00
+                )
+                
+                embed.add_field(
+                    name="📝 **Note**",
+                    value="You can switch back anytime with `.hungergames imagemode custom`",
+                    inline=False
+                )
+            
+            else:
+                # Invalid mode
+                return await ctx.send("❌ Invalid mode! Use: `toggle`, `custom`, or `embed`")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in imagemode command: {e}")
+            await ctx.send(f"❌ Error changing display mode: {str(e)}")
     
     # =====================================================
     # IMAGE MANAGEMENT COMMANDS - NEW SECTION
