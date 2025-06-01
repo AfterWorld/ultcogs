@@ -1,4 +1,4 @@
-# constants.py
+# constants.py 
 """Constants and configuration for the Hunger Games cog"""
 
 # Game Configuration
@@ -8,17 +8,20 @@ DEFAULT_GUILD_CONFIG = {
     "sponsor_chance": 15,
     "event_interval": 30,
     "recruitment_time": 60,
-    "enable_gifs": False,  # Added for GIF integration
+    "enable_gifs": False,
+    "enable_custom_images": True,
+    "poll_threshold": None,  # Minimum players needed to start via poll
+    "blacklisted_roles": [],  # Roles that can't participate
 }
 
 DEFAULT_MEMBER_CONFIG = {
     "wins": 0,
     "deaths": 0,
     "kills": 0,
-    "revives": 0
+    "revives": 0,
+    "temp_banned_until": None,  # Temporary ban timestamp
 }
 
-# Emojis
 EMOJIS = {
     "bow": "🏹",
     "fire": "🔥",
@@ -30,6 +33,13 @@ EMOJIS = {
     "heart": "❤️",
     "sponsor": "🎁",
     "trophy": "🏆"
+}
+
+# Poll specific constants
+POLL_EMOJIS = {
+    "join": "✅",
+    "leave": "❌",
+    "start": "🎮"
 }
 
 DEATH_EVENTS = [
