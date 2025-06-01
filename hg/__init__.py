@@ -981,13 +981,13 @@ class HungerGames(commands.Cog):
         embed.add_field(
             name="⚙️ **Configuration (Admin)**",
             value=(
-                "• `.hungergames set reward <amount>` - Set base reward\n"
-                "• `.hungergames set sponsor <chance>` - Set sponsor chance\n"
-                "• `.hungergames set interval <seconds>` - Set event interval\n"
-                "• `.hungergames set pollthreshold <number>` - Set poll threshold\n"
-                "• `.hungergames set pollpingrole <role>` - Set role to ping for polls\n"
-                "• `.hungergames set blacklistrole <role> <add/remove>` - Manage role blacklist\n"
-                "• `.hungergames set tempban <member> <duration>` - Temporary ban"
+                "• `.hungergames hgset reward <amount>` - Set base reward\n"
+                "• `.hungergames hgset sponsor <chance>` - Set sponsor chance\n"
+                "• `.hungergames hgset interval <seconds>` - Set event interval\n"
+                "• `.hungergames hgset pollthreshold <number>` - Set poll threshold\n"
+                "• `.hungergames hgset pollpingrole <role>` - Set role to ping for polls\n"
+                "• `.hungergames hgset blacklistrole <role> <add/remove>` - Manage role blacklist\n"
+                "• `.hungergames hgset tempban <member> <duration>` - Temporary ban"
             ),
             inline=False
         )
@@ -1686,7 +1686,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @hungergames.group(name="set", invoke_without_command=True)
+    @hungergames.group(name="hgset", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
