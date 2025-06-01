@@ -1,4 +1,4 @@
-# image_handler.py - COMPLETE VERSION WITH CORRECT PATHS
+# image_handler.py - FIXED VERSION WITH CORRECT POSITIONING
 """
 Custom Image Round Display System for Hunger Games
 Overlays round info, events, and player count onto custom background image
@@ -35,22 +35,21 @@ class ImageRoundHandler:
         self.font_path = self.base_path / "fonts"
         self.font_path.mkdir(exist_ok=True)
         
-        # Text positioning (adjusted for your specific image)
-        # You may need to fine-tune these coordinates
-        self.round_position = (470, 210)  # Round number position (top section)
-        self.event_area = (80, 300, 720, 420)  # Event text area in orange bar (x1, y1, x2, y2)
-        self.players_position = (550, 485)  # Remaining players position (bottom section)
+        # CORRECTED TEXT POSITIONING based on your image layout
+        self.round_position = (350, 210)           # Round number - right after "Round :"
+        self.event_area = (60, 300, 940, 380)      # Event text area - in the orange horizontal bar
+        self.players_position = (550, 957)         # Remaining players - in the white box at bottom
         
-        # Text settings
-        self.round_font_size = 36
-        self.event_font_size = 20
-        self.players_font_size = 28
+        # Text settings - adjusted for better fit
+        self.round_font_size = 42                  # Slightly larger for round number
+        self.event_font_size = 18                  # Smaller for event text to fit in bar
+        self.players_font_size = 24                # Medium size for player count
         
         # Colors (white text with dark outline for visibility)
-        self.round_color = (255, 255, 255)  # White
-        self.event_color = (255, 255, 255)  # White
-        self.players_color = (255, 255, 255)  # White
-        self.outline_color = (0, 0, 0)  # Black outline
+        self.round_color = (255, 255, 255)        # White
+        self.event_color = (255, 255, 255)        # White  
+        self.players_color = (0, 0, 0)             # Black for the white box area
+        self.outline_color = (0, 0, 0)             # Black outline
         
         self._setup_fonts()
         
@@ -122,7 +121,7 @@ class ImageRoundHandler:
             # Create drawing context
             draw = ImageDraw.Draw(template)
             
-            # Draw round number
+            # Draw round number (positioned right after "Round :")
             round_text = str(round_num)
             self._draw_centered_text(
                 draw, round_text, self.round_position, 
@@ -130,7 +129,7 @@ class ImageRoundHandler:
             )
             logger.debug(f"Drew round number: {round_text}")
             
-            # Draw event text (with word wrapping)
+            # Draw event text (in the orange horizontal bar)
             clean_event_text = self._clean_event_text(event_text)
             self._draw_wrapped_text(
                 draw, clean_event_text, self.event_area, 
@@ -138,11 +137,11 @@ class ImageRoundHandler:
             )
             logger.debug(f"Drew event text: {clean_event_text[:50]}...")
             
-            # Draw remaining players
+            # Draw remaining players (in the white box at bottom)
             players_text = str(remaining_players)
             self._draw_centered_text(
                 draw, players_text, self.players_position,
-                self.players_font, self.players_color
+                self.players_font, self.players_color, use_outline=False  # No outline for black text on white
             )
             logger.debug(f"Drew players count: {players_text}")
             
@@ -159,7 +158,7 @@ class ImageRoundHandler:
     
     def _draw_centered_text(self, draw: ImageDraw.Draw, text: str, 
                            position: Tuple[int, int], font: ImageFont.ImageFont, 
-                           color: Tuple[int, int, int]):
+                           color: Tuple[int, int, int], use_outline: bool = True):
         """Draw text centered at position"""
         try:
             # Get text dimensions
@@ -171,8 +170,11 @@ class ImageRoundHandler:
             x = position[0] - (text_width // 2)
             y = position[1] - (text_height // 2)
             
-            # Draw text with outline for better visibility
-            self._draw_text_with_outline(draw, (x, y), text, font, color)
+            # Draw text with or without outline
+            if use_outline:
+                self._draw_text_with_outline(draw, (x, y), text, font, color)
+            else:
+                draw.text((x, y), text, font=font, fill=color)
             
         except Exception as e:
             logger.error(f"Error drawing centered text: {e}")
@@ -190,10 +192,21 @@ class ImageRoundHandler:
             
             # Calculate approximate characters per line
             avg_char_width = self._get_average_char_width(font)
-            chars_per_line = max(10, int(area_width / avg_char_width))
+            chars_per_line = max(20, int(area_width / avg_char_width))  # Increased minimum
             
-            # Wrap text
+            # Wrap text - try to fit in 2-3 lines max
             wrapped_lines = textwrap.fill(text, width=chars_per_line).split('\n')
+            
+            # If too many lines, try with more characters per line
+            if len(wrapped_lines) > 3:
+                chars_per_line = int(chars_per_line * 1.5)
+                wrapped_lines = textwrap.fill(text, width=chars_per_line).split('\n')
+            
+            # Limit to 3 lines maximum
+            if len(wrapped_lines) > 3:
+                wrapped_lines = wrapped_lines[:2]
+                if len(wrapped_lines) == 2:
+                    wrapped_lines[1] = wrapped_lines[1][:50] + "..."
             
             # Calculate line height
             line_height = self._get_line_height(font)
@@ -208,19 +221,6 @@ class ImageRoundHandler:
                 
                 # Stop if we're running out of space
                 if line_y + line_height > y2:
-                    # Add ellipsis if text is cut off
-                    if i > 0:
-                        ellipsis_line = wrapped_lines[i-1][:-3] + "..."
-                        line_y = start_y + ((i-1) * line_height)
-                        
-                        # Redraw previous line with ellipsis
-                        line_bbox = draw.textbbox((0, 0), ellipsis_line, font=font)
-                        line_width = line_bbox[2] - line_bbox[0]
-                        line_x = x1 + (area_width - line_width) // 2
-                        
-                        # Clear previous line area
-                        draw.rectangle([x1, line_y-2, x2, line_y + line_height + 2], fill=(0,0,0,0))
-                        self._draw_text_with_outline(draw, (line_x, line_y), ellipsis_line, font, color)
                     break
                 
                 # Center line horizontally
@@ -234,8 +234,11 @@ class ImageRoundHandler:
         except Exception as e:
             logger.error(f"Error drawing wrapped text: {e}")
             # Fallback to simple text
-            truncated_text = text[:80] + "..." if len(text) > 80 else text
-            draw.text((area[0] + 10, area[1] + 10), truncated_text, font=font, fill=color)
+            truncated_text = text[:60] + "..." if len(text) > 60 else text
+            # Center the fallback text
+            fallback_x = x1 + (area_width - len(truncated_text) * 8) // 2  # Rough estimate
+            fallback_y = y1 + (area_height // 2)
+            self._draw_text_with_outline(draw, (fallback_x, fallback_y), truncated_text, font, color)
     
     def _draw_text_with_outline(self, draw: ImageDraw.Draw, position: Tuple[int, int],
                                text: str, font: ImageFont.ImageFont, 
@@ -243,8 +246,8 @@ class ImageRoundHandler:
         """Draw text with outline for better visibility"""
         x, y = position
         
-        # Draw outline (offset in 8 directions)
-        outline_width = 2
+        # Draw outline (offset in 8 directions) - smaller outline for better look
+        outline_width = 1
         for dx in range(-outline_width, outline_width + 1):
             for dy in range(-outline_width, outline_width + 1):
                 if dx != 0 or dy != 0:
@@ -268,14 +271,14 @@ class ImageRoundHandler:
             # Remove extra whitespace
             text = " ".join(text.split())
             
-            # Limit length for display
-            if len(text) > 200:
-                text = text[:197] + "..."
+            # Limit length for display in the orange bar
+            if len(text) > 150:
+                text = text[:147] + "..."
             
             return text
         except Exception as e:
             logger.error(f"Error cleaning event text: {e}")
-            return text[:100]  # Safe fallback
+            return text[:80]  # Safe fallback
     
     def _get_average_char_width(self, font: ImageFont.ImageFont) -> float:
         """Get average character width for the font"""
@@ -286,15 +289,15 @@ class ImageRoundHandler:
             width = bbox[2] - bbox[0]
             return max(1, width / len(sample))
         except Exception:
-            return 8  # Fallback value
+            return 6  # Smaller fallback value for tighter text
     
     def _get_line_height(self, font: ImageFont.ImageFont) -> int:
         """Get line height for the font"""
         try:
             bbox = font.getbbox("Ay")
-            return (bbox[3] - bbox[1]) + 4  # Add some padding
+            return (bbox[3] - bbox[1]) + 2  # Less padding for tighter fit
         except Exception:
-            return 20  # Fallback value
+            return 18  # Smaller fallback value
     
     def is_available(self) -> bool:
         """Check if the image system is available"""
