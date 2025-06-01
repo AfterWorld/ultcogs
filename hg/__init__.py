@@ -968,6 +968,8 @@ class HungerGames(commands.Cog):
             value=(
                 "• `.hungergames image upload` - Upload template image\n"
                 "• `.hungergames image test` - Test current template\n"
+                "• `.hungergames image debug` - Show positioning guides\n"
+                "• `.hungergames image position` - Adjust text positions\n"
                 "• `.hungergames image status` - Check system status\n"
                 "• `.hungergames image info` - Show template information"
             ),
@@ -1105,6 +1107,82 @@ class HungerGames(commands.Cog):
                 inline=False
             )
             await ctx.send(embed=embed)
+    
+    @image_main.command(name="debug")
+    async def image_debug(self, ctx):
+        """Create debug image showing positioning guides"""
+        try:
+            if not hasattr(self, 'image_handler') or not self.image_handler:
+                return await ctx.send("❌ No image handler available!")
+            
+            if not self.image_handler.is_available():
+                return await ctx.send("❌ No template image available. Upload one first!")
+            
+            # Create debug image with positioning guides
+            debug_file = self.image_handler.create_debug_image()
+            
+            if debug_file:
+                embed = discord.Embed(
+                    title="🔍 **Debug Positioning**",
+                    description=(
+                        "**Red circle:** Round number position\n"
+                        "**Red rectangle:** Event text area\n"
+                        "**Blue circle:** Player count position\n\n"
+                        "Current coordinates are shown as labels."
+                    ),
+                    color=0xFF0000
+                )
+                embed.set_image(url="attachment://debug_round_display.png")
+                await ctx.send(embed=embed, file=debug_file)
+            else:
+                await ctx.send("❌ Failed to generate debug image!")
+                
+        except Exception as e:
+            logger.error(f"Error creating debug image: {e}")
+            await ctx.send(f"❌ Error creating debug image: {str(e)}")
+    
+    @image_main.command(name="position")
+    async def image_position(self, ctx, element: str, x: int = None, y: int = None, x2: int = None, y2: int = None):
+        """Adjust text positioning
+        
+        Usage:
+        .hungergames image position round 400 200  (for round number)
+        .hungergames image position players 680 950  (for player count)  
+        .hungergames image position event 60 320 940 380  (for event area - needs 4 coordinates)
+        """
+        try:
+            if not hasattr(self, 'image_handler') or not self.image_handler:
+                return await ctx.send("❌ No image handler available!")
+            
+            element = element.lower()
+            
+            if element == "round":
+                if x is None or y is None:
+                    return await ctx.send("❌ Round position needs X and Y coordinates!\nUsage: `.hungergames image position round 400 200`")
+                
+                self.image_handler.update_positions(round_pos=(x, y))
+                await ctx.send(f"✅ Round position updated to ({x}, {y})")
+                
+            elif element == "players":
+                if x is None or y is None:
+                    return await ctx.send("❌ Players position needs X and Y coordinates!\nUsage: `.hungergames image position players 680 950`")
+                
+                self.image_handler.update_positions(players_pos=(x, y))
+                await ctx.send(f"✅ Players position updated to ({x}, {y})")
+                
+            elif element == "event":
+                if None in [x, y, x2, y2]:
+                    return await ctx.send("❌ Event area needs X1, Y1, X2, Y2 coordinates!\nUsage: `.hungergames image position event 60 320 940 380`")
+                
+                self.image_handler.update_positions(event_area=(x, y, x2, y2))
+                await ctx.send(f"✅ Event area updated to ({x}, {y}, {x2}, {y2})")
+                
+            else:
+                await ctx.send("❌ Invalid element! Use: `round`, `players`, or `event`")
+                
+        except Exception as e:
+            logger.error(f"Error updating position: {e}")
+            await ctx.send(f"❌ Error updating position: {str(e)}")
     
     @image_main.command(name="info")
     async def image_info(self, ctx):
