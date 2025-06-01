@@ -30,6 +30,18 @@ class PollView(discord.ui.View):
         """Start the poll"""
         self.ctx = ctx
         
+        # Get role to ping
+        poll_ping_role_id = await self.cog.config.guild(ctx.guild).poll_ping_role()
+        role_mention = ""
+        if poll_ping_role_id:
+            role = ctx.guild.get_role(poll_ping_role_id)
+            if role:
+                role_mention = f"{role.mention} "
+        
+        # Send ping message if role is set
+        if role_mention:
+            await ctx.send(f"{role_mention}🗳️ **Hunger Games Poll Starting!**")
+        
         embed = self._create_poll_embed()
         self.message = await ctx.send(embed=embed, view=self)
         
