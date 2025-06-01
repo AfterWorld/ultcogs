@@ -408,7 +408,7 @@ class EmbedBuilder:
             )
     
     @staticmethod
-    def create_alive_players_embed(game: Dict, alive_players: List[str]) -> discord.Embed:
+    def create_alive_players_embed(game: Dict, alive_players: List[Dict]) -> discord.Embed:
         """Create embed showing current alive players with enhanced info"""
         try:
             embed = discord.Embed(
@@ -422,14 +422,14 @@ class EmbedBuilder:
             
             # Sort players by kills (most dangerous first)
             sorted_players = sorted(
-                [(pid, game["players"][pid]) for pid in alive_players],
-                key=lambda x: (x[1].get("kills", 0), x[1].get("name", "")),
+                alive_players,
+                key=lambda x: (x.get("kills", 0), x.get("name", "")),
                 reverse=True
             )
             
             # Create player list
             player_lines = []
-            for i, (player_id, player_data) in enumerate(sorted_players):
+            for i, player_data in enumerate(sorted_players):
                 name = player_data.get("name", "Unknown")
                 title = player_data.get("title", "the Nameless")
                 kills = player_data.get("kills", 0)
@@ -467,8 +467,8 @@ class EmbedBuilder:
             )
             
             # Most dangerous player
-            if sorted_players and sorted_players[0][1].get("kills", 0) > 0:
-                top_player = sorted_players[0][1]
+            if sorted_players and sorted_players[0].get("kills", 0) > 0:
+                top_player = sorted_players[0]
                 embed.add_field(
                     name="⚔️ **Most Dangerous**",
                     value=f"**{top_player['name']}** ({top_player['kills']} kills)",
@@ -602,6 +602,10 @@ def create_player_stats_embed(member_data: Dict, member: discord.Member) -> disc
 def create_leaderboard_embed(guild: discord.Guild, top_players: List, stat_type: str = "wins") -> discord.Embed:
     """Backwards compatible function"""
     return EmbedBuilder.create_leaderboard_embed(guild, top_players, stat_type)
+
+def create_alive_players_embed(game: Dict, alive_players: List[Dict]) -> discord.Embed:
+    """Backwards compatible function"""
+    return EmbedBuilder.create_alive_players_embed(game, alive_players)
 
 def validate_countdown(countdown: int) -> tuple[bool, str]:
     """Backwards compatible function"""
