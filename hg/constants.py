@@ -11,6 +11,7 @@ DEFAULT_GUILD_CONFIG = {
     "enable_gifs": False,
     "enable_custom_images": True,
     "poll_threshold": None,  # Minimum players needed to start via poll
+    "poll_ping_role": None,  # Role to ping when polls start
     "blacklisted_roles": [],  # Roles that can't participate
 }
 
@@ -19,6 +20,7 @@ DEFAULT_MEMBER_CONFIG = {
     "deaths": 0,
     "kills": 0,
     "revives": 0,
+    "games_played": 0,  # Added missing field
     "temp_banned_until": None,  # Temporary ban timestamp
 }
 
@@ -386,18 +388,6 @@ FINALE_MESSAGES = [
 
 
 # Midgame Event Categories
-MIDGAME_ATMOSPHERIC_EVENTS = [
-    "🌙 | An eerie silence falls over the arena as night approaches...",
-    "🦅 | Mockingjays begin singing a haunting melody throughout the arena...",
-    "🔊 | The fallen tributes' faces appear in the sky, a grim reminder...",
-    "⭐ | The arena's artificial stars flicker ominously overhead...",
-    "🌿 | Strange sounds echo from the depths of the arena...",
-    "💨 | A gentle breeze carries the scent of distant flowers... and death...",
-    "🌫️ | Mist rolls through the arena, creating ghostly shapes...",
-    "🎵 | The wind carries whispers of the fallen tributes..."
-]
-
-# Cannon Malfunction Events
 MIDGAME_ATMOSPHERIC_EVENTS = [
     "🌙 | An eerie calm falls over the Grand Line as night approaches...",
     "🦅 | News Coos circle overhead, broadcasting the chaos to the world...",
