@@ -468,3 +468,60 @@ class GameEngine:
         
         embed.set_footer(text="🎮 Game in progress...")
         return embed
+    
+    async def execute_combined_events(self, game: Dict, channel: discord.TextChannel, event_count: int = None):
+        """Execute multiple events in one round for variety"""
+        alive_count = len(self.get_alive_players(game))
+        
+        # Determine number of events if not specified
+        if event_count is None:
+            if alive_count <= 3:
+                event_count = random.randint(1, 2)
+            elif alive_count <= 6:
+                event_count = random.randint(2, 3)
+            elif alive_count <= 12:
+                event_count = random.randint(2, 4)
+            else:
+                event_count = random.randint(3, 5)
+        
+        # Execute events
+        event_messages = []
+        
+        from .constants import get_event_weights
+        base_weights = get_event_weights()
+        
+        for i in range(event_count):
+            if len(self.get_alive_players(game)) <= 1:
+                break
+            
+            # Adjust weights based on game state
+            weights = base_weights.copy()
+            if alive_count <= 2:
+                weights.update({"death": 70, "survival": 10, "sponsor": 10, "alliance": 5, "crate": 5})
+            elif alive_count <= 5:
+                weights.update({"death": 45, "survival": 20, "sponsor": 15, "alliance": 10, "crate": 10})
+            
+            # Choose event type
+            event_types = list(weights.keys())
+            event_weights = list(weights.values())
+            event_type = random.choices(event_types, weights=event_weights)[0]
+            
+            # Execute event
+            message = None
+            if event_type == "death":
+                message = await self.execute_death_event(game, channel)
+            elif event_type == "survival":
+                message = await self.execute_survival_event(game)
+            elif event_type == "sponsor":
+                message = await self.execute_sponsor_event(game)
+            elif event_type == "alliance":
+                message = await self.execute_alliance_event(game)
+            elif event_type == "crate":
+                message = await self.execute_crate_event(game)
+            
+            if message:
+                event_messages.append(message)
+            
+            await asyncio.sleep(0.5)
+        
+        return event_messages
