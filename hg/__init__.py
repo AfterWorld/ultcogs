@@ -121,12 +121,17 @@ class HungerGames(discord_commands.Cog):
                 try:
                     event_messages = await self.game_engine.execute_combined_events(game, channel)
                     
-                    # Send event messages
-                    for message in event_messages:
-                        if message:
-                            embed = discord.Embed(description=message, color=0xFF6B35)
+                    # Combine all events into a single embed
+                    if event_messages:
+                        combined_description = "\n\n".join(msg for msg in event_messages if msg)
+                        if combined_description:
+                            embed = discord.Embed(
+                                title=f"🎮 **ROUND {game['round']} EVENTS** 🎮",
+                                description=combined_description,
+                                color=0xFF6B35
+                            )
+                            embed.set_footer(text=f"Survivors remaining: {len(alive_players)}")
                             await channel.send(embed=embed)
-                            await asyncio.sleep(1)
                     
                     # Check for special events
                     special_message = await self.game_engine.check_special_events(game, channel, alive_players)
