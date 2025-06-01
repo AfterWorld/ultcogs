@@ -312,22 +312,10 @@ class HungerGames(commands.Cog):
         if error_message:
             return await ctx.send(error_message)
         
-        # Get role to ping
-        poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
-        role_mention = ""
-        if poll_ping_role_id:
-            role = ctx.guild.get_role(poll_ping_role_id)
-            if role:
-                role_mention = f"{role.mention} "
-        
         # Check if advanced poll system is available
         if POLL_SYSTEM_AVAILABLE:
             try:
-                # Send ping message first
-                if role_mention:
-                    await ctx.send(f"{role_mention}🗳️ **Hunger Games Poll Starting!**")
-                
-                # Use advanced button-based poll
+                # Use advanced button-based poll (it will handle the ping message)
                 poll_view = PollView(self, threshold, timeout=600)
                 await poll_view.start(ctx)
                 await poll_view.wait()
@@ -337,21 +325,33 @@ class HungerGames(commands.Cog):
                 # Fall through to simple poll
         
         # Fallback to simple poll
+        # Get role to ping for fallback
+        poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
+        role_mention = ""
+        if poll_ping_role_id:
+            role = ctx.guild.get_role(poll_ping_role_id)
+            if role:
+                role_mention = f"{role.mention} "
+        
         poll_message = f"{role_mention}🗳️ **Hunger Games Poll Started!**\n"
-        poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
+        poll_message += f"**Target:** {threshold} players\n"
+        poll_message += f"React with 🏹 to join!\n"
         poll_message += f"Game will start in 60 seconds..."
         
-        await ctx.send(poll_message)
-        await self._initialize_new_game(ctx, 60)
+        message = await ctx.send(poll_message)
+        await message.add_reaction("🏹")
+        
+        # Wait for reactions and start game when threshold is met
+        await self._run_simple_poll(ctx, message, threshold, 60)
     
     @commands.command(name="hg")
     async def simple_hg_poll(self, ctx, *, args=None):
         """Simple version - Start a Hunger Games poll
         
         Usage:
-        .hg - Use default threshold of 5
-        .hg poll - Use server's configured threshold
-        .hg 8 - Use specific threshold
+        .hg - Use default threshold of 5 with reactions
+        .hg poll - Use server's poll threshold with buttons
+        .hg 8 - Use specific threshold with reactions
         """
         guild_id = ctx.guild.id
         
@@ -361,16 +361,18 @@ class HungerGames(commands.Cog):
         
         # Parse arguments
         threshold = 5  # default
+        use_poll_system = False
         
         if args:
             if args.lower() == "poll":
-                # Use server's configured threshold
+                # Use server's configured threshold with poll system
                 threshold = await self.config.guild(ctx.guild).poll_threshold()
                 if threshold is None:
                     return await ctx.send(
                         "❌ No poll threshold is set for this server! "
                         "Use `.hungergames set pollthreshold <number>` to set one."
                     )
+                use_poll_system = True
             else:
                 # Try to parse as number
                 try:
@@ -378,9 +380,9 @@ class HungerGames(commands.Cog):
                 except ValueError:
                     return await ctx.send(
                         "❌ Invalid argument! Use:\n"
-                        "• `.hg` - Default threshold (5)\n"
-                        "• `.hg poll` - Use server threshold\n"
-                        "• `.hg 8` - Specific threshold"
+                        "• `.hg` - Default threshold (5) with reactions\n"
+                        "• `.hg poll` - Use server threshold with buttons\n"
+                        "• `.hg 8` - Specific threshold with reactions"
                     )
         
         # Validate threshold
@@ -398,8 +400,29 @@ class HungerGames(commands.Cog):
             if role:
                 role_mention = f"{role.mention} "
         
-        # Start a game with poll messaging
-        poll_message = f"{role_mention}🗳️ **Starting Hunger Games Poll!**\n"
+        # Use poll system if requested and available
+        if use_poll_system and POLL_SYSTEM_AVAILABLE:
+            # Validate user can start poll
+            error_message = await self._validate_poll_starter(ctx.author)
+            if error_message:
+                return await ctx.send(error_message)
+            
+            try:
+                # Send ping message if role is set
+                if role_mention:
+                    await ctx.send(f"{role_mention}🗳️ **Hunger Games Poll Starting!**")
+                
+                # Use advanced button-based poll
+                poll_view = PollView(self, threshold, timeout=600)
+                await poll_view.start(ctx)
+                await poll_view.wait()
+                return
+            except Exception as e:
+                logger.error(f"Poll system failed: {e}")
+                await ctx.send("❌ Poll system failed, falling back to regular recruitment...")
+        
+        # Fallback to regular recruitment system
+        poll_message = f"{role_mention}🗳️ **Starting Hunger Games!**\n"
         poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
         poll_message += f"Game will start in 60 seconds..."
         
@@ -459,6 +482,161 @@ class HungerGames(commands.Cog):
             # Also send a fallback message
             await ctx.send("You can try using `.he` for a regular battle royale instead.")
     
+    async def _run_simple_poll(self, ctx, message: discord.Message, threshold: int, timeout: int):
+        """Run a simple poll system that waits for reactions"""
+        guild_id = ctx.guild.id
+        players = set()
+        end_time = asyncio.get_event_loop().time() + timeout
+        
+        try:
+            while asyncio.get_event_loop().time() < end_time:
+                # Check reactions
+                try:
+                    fresh_message = await ctx.channel.fetch_message(message.id)
+                    bow_reaction = None
+                    
+                    for reaction in fresh_message.reactions:
+                        if str(reaction.emoji) == "🏹":
+                            bow_reaction = reaction
+                            break
+                    
+                    if bow_reaction:
+                        current_players = set()
+                        async for user in bow_reaction.users():
+                            if not user.bot:
+                                current_players.add(user.id)
+                        
+                        # Update players set
+                        new_players = current_players - players
+                        if new_players:
+                            players = current_players
+                            
+                            # Update message with current count
+                            remaining_time = int(end_time - asyncio.get_event_loop().time())
+                            
+                            embed = discord.Embed(
+                                title="🗳️ **HUNGER GAMES POLL** 🗳️",
+                                color=0x00FF00 if len(players) >= threshold else 0x4169E1
+                            )
+                            
+                            progress = len(players) / threshold
+                            filled_bars = int(progress * 10)
+                            empty_bars = 10 - filled_bars
+                            progress_bar = "█" * filled_bars + "░" * empty_bars
+                            
+                            description = (
+                                f"**A battle royale is being proposed!**\n\n"
+                                f"🎯 **Target:** {threshold} players\n"
+                                f"👥 **Current:** {len(players)} players\n"
+                                f"📊 **Progress:** `{progress_bar}` {len(players)}/{threshold}\n\n"
+                            )
+                            
+                            if len(players) >= threshold:
+                                description += "✅ **Threshold reached! Starting game...**"
+                            else:
+                                needed = threshold - len(players)
+                                description += f"⏳ **Need {needed} more player{'s' if needed != 1 else ''}**\n"
+                                description += f"⏰ **Time left:** {remaining_time}s"
+                            
+                            embed.description = description
+                            
+                            # Show joined players
+                            if players:
+                                player_names = []
+                                for user_id in list(players)[:8]:
+                                    member = ctx.guild.get_member(user_id)
+                                    if member:
+                                        player_names.append(f"🏹 {member.display_name}")
+                                
+                                if player_names:
+                                    players_text = "\n".join(player_names)
+                                    if len(players) > 8:
+                                        players_text += f"\n*... and {len(players) - 8} more*"
+                                    
+                                    embed.add_field(name="**Joined Tributes**", value=players_text, inline=False)
+                            
+                            await message.edit(embed=embed)
+                            
+                            # Check if threshold reached
+                            if len(players) >= threshold:
+                                await asyncio.sleep(2)
+                                await self._start_poll_game(ctx, players)
+                                return
+                
+                except discord.NotFound:
+                    await ctx.send("❌ Poll message was deleted!")
+                    return
+                except Exception as e:
+                    logger.error(f"Error in simple poll: {e}")
+                
+                await asyncio.sleep(2)  # Check every 2 seconds
+            
+            # Timeout - check if we have enough players
+            if len(players) >= 2:
+                await ctx.send(f"⏰ **Poll timed out** but we have {len(players)} players! Starting game...")
+                await self._start_poll_game(ctx, players)
+            else:
+                embed = discord.Embed(
+                    title="⏰ **POLL EXPIRED**",
+                    description=f"Only {len(players)} player{'s' if len(players) != 1 else ''} joined. Need at least 2 to start.",
+                    color=0xFF0000
+                )
+                await message.edit(embed=embed)
+                
+        except Exception as e:
+            logger.error(f"Error in simple poll: {e}")
+            await ctx.send("❌ Poll system encountered an error.")
+    
+    async def _start_poll_game(self, ctx, players: set):
+        """Start game with poll participants"""
+        try:
+            guild_id = ctx.guild.id
+            
+            # Create game instance
+            self.active_games[guild_id] = {
+                "channel": ctx.channel,
+                "players": {},
+                "status": "active",
+                "round": 0,
+                "eliminated": [],
+                "sponsor_used": [],
+                "reactions": set(),
+                "milestones_shown": set()
+            }
+            
+            game = self.active_games[guild_id]
+            
+            # Add poll participants as players
+            for user_id in players:
+                member = ctx.guild.get_member(user_id)
+                if member:
+                    game["players"][str(user_id)] = {
+                        "name": member.display_name,
+                        "title": get_random_player_title(),
+                        "alive": True,
+                        "kills": 0,
+                        "revives": 0,
+                        "district": get_random_district()
+                    }
+            
+            player_count = len(game["players"])
+            
+            # Send game start messages
+            await ctx.send(f"🎮 **Game starting with {player_count} tributes!**")
+            await asyncio.sleep(2)
+            await self._send_game_start_messages(game, player_count)
+            
+            # Start the main game loop
+            game["task"] = asyncio.create_task(self.game_loop(guild_id))
+            
+            logger.info(f"Started Hunger Games via poll with {player_count} players in guild {guild_id}")
+            
+        except Exception as e:
+            logger.error(f"Error starting poll game: {e}")
+            if guild_id in self.active_games:
+                del self.active_games[guild_id]
+            await ctx.send("❌ Failed to start the game.")
+
     async def _validate_poll_starter(self, user: discord.Member) -> Optional[str]:
         """Validate if user can start a poll"""
         try:
@@ -981,13 +1159,13 @@ class HungerGames(commands.Cog):
         embed.add_field(
             name="⚙️ **Configuration (Admin)**",
             value=(
-                "• `.hungergames hgset reward <amount>` - Set base reward\n"
-                "• `.hungergames hgset sponsor <chance>` - Set sponsor chance\n"
-                "• `.hungergames hgset interval <seconds>` - Set event interval\n"
-                "• `.hungergames hgset pollthreshold <number>` - Set poll threshold\n"
-                "• `.hungergames hgset pollpingrole <role>` - Set role to ping for polls\n"
-                "• `.hungergames hgset blacklistrole <role> <add/remove>` - Manage role blacklist\n"
-                "• `.hungergames hgset tempban <member> <duration>` - Temporary ban"
+                "• `.hungergames set reward <amount>` - Set base reward\n"
+                "• `.hungergames set sponsor <chance>` - Set sponsor chance\n"
+                "• `.hungergames set interval <seconds>` - Set event interval\n"
+                "• `.hungergames set pollthreshold <number>` - Set poll threshold\n"
+                "• `.hungergames set pollpingrole <role>` - Set role to ping for polls\n"
+                "• `.hungergames set blacklistrole <role> <add/remove>` - Manage role blacklist\n"
+                "• `.hungergames set tempban <member> <duration>` - Temporary ban"
             ),
             inline=False
         )
@@ -1686,7 +1864,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @hungergames.group(name="hgset", invoke_without_command=True)
+    @hungergames.group(name="set", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
