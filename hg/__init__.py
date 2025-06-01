@@ -278,8 +278,83 @@ class HungerGames(commands.Cog):
     
     @commands.max_concurrency(1, per=commands.BucketType.guild)
     @commands.cooldown(1, 3600, type=commands.BucketType.guild)
-    @commands.command(name="poll", aliases=["hg"])
+    @commands.command(name="poll")
     async def hunger_games_poll(self, ctx, threshold: int = None):
+        """Start a poll to gather players for a Hunger Games battle!
+        
+        If threshold is not provided, uses the server's configured poll threshold.
+        Admins can override the threshold by providing a number.
+        """
+        guild_id = ctx.guild.id
+        
+        # Check if game already running
+        if guild_id in self.active_games:
+            return await ctx.send("❌ A Hunger Games battle is already active!")
+        
+        # Get or validate threshold
+        if threshold is None:
+            threshold = await self.config.guild(ctx.guild).poll_threshold()
+            if threshold is None:
+                return await ctx.send(
+                    "❌ No poll threshold is set for this server! "
+                    "An admin needs to set it with `.hungergames set pollthreshold <number>` "
+                    "or you can provide a threshold: `.hg poll <number>`"
+                )
+        else:
+            # Validate provided threshold
+            if not ctx.author.guild_permissions.manage_guild:
+                return await ctx.send("❌ Only admins can override the poll threshold!")
+            
+            if threshold < 2:
+                return await ctx.send("❌ Threshold must be at least 2 players!")
+            
+            if threshold > 50:
+                return await ctx.send("❌ Threshold cannot exceed 50 players!")
+        
+        # Check if poll system is available
+        if not POLL_SYSTEM_AVAILABLE:
+            return await ctx.send("❌ Poll system is not available. Please try the regular `.he` command.")
+        
+        # Validate user can start poll
+        error_message = await self._validate_poll_starter(ctx.author)
+        if error_message:
+            return await ctx.send(error_message)
+        
+        try:
+            # Create and start poll
+            poll_view = PollView(self, threshold, timeout=600)  # 10 minute timeout
+            await poll_view.start(ctx)
+            await poll_view.wait()
+            
+        except Exception as e:
+            logger.error(f"Error in poll command: {e}")
+            await ctx.send(f"❌ Failed to start poll. Error: {str(e)}")
+            # Also send a fallback message
+            await ctx.send("You can try using `.he` for a regular battle royale instead.")
+    
+    @commands.command(name="hg")
+    async def simple_hg_poll(self, ctx, threshold: int = 5):
+        """Simple version - Start a Hunger Games poll with reaction-based joining"""
+        guild_id = ctx.guild.id
+        
+        # Check if game already running
+        if guild_id in self.active_games:
+            return await ctx.send("❌ A Hunger Games battle is already active!")
+        
+        # Validate threshold
+        if threshold < 2:
+            return await ctx.send("❌ Threshold must be at least 2 players!")
+        
+        if threshold > 50:
+            return await ctx.send("❌ Threshold cannot exceed 50 players!")
+        
+        # Start a regular game with message
+        await ctx.send(f"🗳️ **Starting Hunger Games Poll!**\n"
+                      f"Need **{threshold}** players - react with 🏹 to join!\n"
+                      f"Game will start in 60 seconds...")
+        
+        # Use the existing recruitment system
+        await self._initialize_new_game(ctx, 60)
         """Start a poll to gather players for a Hunger Games battle!
         
         If threshold is not provided, uses the server's configured poll threshold.
