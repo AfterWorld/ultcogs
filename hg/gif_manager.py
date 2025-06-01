@@ -1,4 +1,4 @@
-# gif_manager.py - FIXED VERSION WITH PROPER DIRECTORY HANDLING
+# gif_manager.py - 
 """
 Complete GIF Management System for Hunger Games
 Handles GIF selection, loading, and integration with Discord embeds
@@ -33,10 +33,7 @@ class GifManager:
         self.last_cache_update = 0
         self.cache_timeout = 300  # 5 minutes
         
-        # Create directory structure if it doesn't exist (with error handling)
-        self._create_directory_structure()
-        
-        # GIF categories and their subdirectories
+        # Initialize GIF categories and their subdirectories FIRST
         self.gif_structure = {
             "victory": {
                 "general": "General victory celebrations",
@@ -73,6 +70,9 @@ class GifManager:
                 "environmental": "Arena hazard events"
             }
         }
+        
+        # Create directory structure AFTER gif_structure is initialized
+        self._create_directory_structure()
     
     def _create_directory_structure(self):
         """Create the GIF directory structure with proper error handling"""
