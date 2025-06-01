@@ -20,6 +20,9 @@ from .constants import (
     DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
     VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS
 )
+
+# Update the default config to include custom images toggle
+DEFAULT_GUILD_CONFIG["enable_custom_images"] = True
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
 
@@ -646,7 +649,7 @@ class HungerGames(commands.Cog):
     
     async def _send_rumble_style_events(self, game: Dict, channel: discord.TextChannel, 
                                       event_messages: List[str]):
-        """Send events using custom round image or fallback to embed"""
+        """Send events using custom round image, embed, or fallback based on settings"""
         if not event_messages:
             logger.warning("No event messages to send")
             return
@@ -654,8 +657,15 @@ class HungerGames(commands.Cog):
         try:
             alive_after_events = len(self.game_engine.get_alive_players(game))
             
-            # Try to use custom image if available
-            if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+            # Check if custom images are enabled
+            images_enabled = await self.config.guild(channel.guild).enable_custom_images()
+            
+            # Try to use custom image if enabled and available
+            if (images_enabled and 
+                hasattr(self, 'image_handler') and 
+                self.image_handler and 
+                self.image_handler.is_available()):
+                
                 # Combine event messages
                 combined_events = "\n".join(event_messages)
                 
@@ -673,7 +683,7 @@ class HungerGames(commands.Cog):
                 else:
                     logger.warning("Failed to create custom round image, falling back to embed")
             
-            # Fallback to embed system
+            # Fallback to embed system (either disabled or failed)
             rumble_content = f"**Round {game['round']}**\n"
             rumble_content += "\n".join(event_messages)
             rumble_content += f"\n\n**Players Left: {alive_after_events}**"
@@ -684,10 +694,16 @@ class HungerGames(commands.Cog):
             )
             
             await channel.send(embed=embed)
-            logger.debug(f"Sent fallback embed for round {game['round']}")
+            logger.debug(f"Sent {'fallback' if images_enabled else 'standard'} embed for round {game['round']}")
             
         except Exception as e:
             logger.error(f"Failed to send round events: {e}")
+            # Ultimate fallback - plain text message
+            try:
+                fallback_msg = f"**Round {game['round']}** - {len(alive_after_events)} players remaining"
+                await channel.send(fallback_msg)
+            except Exception:
+                pass
     
     async def execute_random_event(self, game: Dict, channel: discord.TextChannel):
         """Execute a random game event (for backwards compatibility)"""
@@ -966,6 +982,9 @@ class HungerGames(commands.Cog):
         embed.add_field(
             name="📋 **Available Commands**",
             value=(
+                "• `.hungergames image enable` - Enable custom images\n"
+                "• `.hungergames image disable` - Use classic embeds\n"
+                "• `.hungergames image toggle` - Switch between modes\n"
                 "• `.hungergames image upload` - Upload template image\n"
                 "• `.hungergames image test` - Test current template\n"
                 "• `.hungergames image debug` - Show positioning guides\n"
@@ -978,8 +997,11 @@ class HungerGames(commands.Cog):
         
         # Show current status
         if hasattr(self, 'image_handler') and self.image_handler:
-            if self.image_handler.is_available():
-                status = "✅ **Template Available**"
+            images_enabled = await self.config.guild(ctx.guild).enable_custom_images()
+            if self.image_handler.is_available() and images_enabled:
+                status = "✅ **Custom Images Active**"
+            elif self.image_handler.is_available() and not images_enabled:
+                status = "🔄 **Custom Images Available (Disabled)**"
             else:
                 status = "❌ **No Template Found**"
         else:
@@ -988,6 +1010,16 @@ class HungerGames(commands.Cog):
         embed.add_field(
             name="🖼️ **Current Status**",
             value=status,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💡 **Quick Toggle**",
+            value=(
+                "• `.hungergames image toggle` - Switch modes instantly\n"
+                "• `.hungergames image enable` - Use custom images\n"
+                "• `.hungergames image disable` - Use classic embeds"
+            ),
             inline=False
         )
         
@@ -1084,12 +1116,34 @@ class HungerGames(commands.Cog):
             )
             
             if has_handler:
-                # Check template availability
+                # Check settings
+                images_enabled = await self.config.guild(ctx.guild).enable_custom_images()
                 template_available = self.image_handler.is_available()
+                
+                embed.add_field(
+                    name="⚙️ **Setting**",
+                    value="✅ Enabled" if images_enabled else "❌ Disabled",
+                    inline=True
+                )
+                
                 embed.add_field(
                     name="🖼️ **Template**",
                     value="✅ Available" if template_available else "❌ Missing",
                     inline=True
+                )
+                
+                # Overall status
+                if images_enabled and template_available:
+                    overall_status = "🎯 **Active** - Using custom images"
+                elif images_enabled and not template_available:
+                    overall_status = "⚠️ **Enabled but no template** - Using embeds"
+                else:
+                    overall_status = "📋 **Disabled** - Using classic embeds"
+                
+                embed.add_field(
+                    name="📊 **Overall Status**",
+                    value=overall_status,
+                    inline=False
                 )
                 
                 embed.add_field(
@@ -1465,9 +1519,13 @@ class HungerGames(commands.Cog):
             )
             
             # Add image system status
-            image_status = "❌ No"
-            if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
-                image_status = "✅ Yes"
+            images_enabled = config_data.get('enable_custom_images', True)
+            image_status = "❌ Disabled"
+            if images_enabled:
+                if hasattr(self, 'image_handler') and self.image_handler and self.image_handler.is_available():
+                    image_status = "✅ Active"
+                else:
+                    image_status = "⚠️ Enabled (No Template)"
             
             embed.add_field(
                 name="🖼️ **Custom Images**",
