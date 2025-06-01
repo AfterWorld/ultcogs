@@ -37,9 +37,9 @@ class ImageRoundHandler:
         self.font_path.mkdir(exist_ok=True)
         
         # CORRECTED TEXT POSITIONING based on your image layout
-        self.round_position = (350, 210)           # Round number - right after "Round :"
-        self.event_area = (60, 300, 940, 380)      # Event text area - in the orange horizontal bar
-        self.players_position = (550, 957)         # Remaining players - in the white box at bottom
+        self.round_position = (400, 210)           # Round number - right after "Round :"
+        self.event_area = (60, 320, 940, 380)      # Event text area - in the orange horizontal bar  
+        self.players_position = (680, 957)         # Remaining players - in the white box at bottom
         
         # Text settings - adjusted for better fit
         self.round_font_size = 42                  # Slightly larger for round number
@@ -73,14 +73,22 @@ class ImageRoundHandler:
             self.players_font = ImageFont.load_default()
     
     def _load_font(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-        """Load font with fallbacks"""
+        """Load font with fallbacks including emoji support"""
         font_options = [
+            # Try emoji-capable fonts first
+            "/System/Library/Fonts/Apple Color Emoji.ttc",  # macOS
+            "/usr/share/fonts/truetype/noto-color-emoji/NotoColorEmoji.ttf",  # Linux
+            "/Windows/Fonts/seguiemj.ttf",  # Windows emoji font
             # Custom fonts in the fonts directory
             self.font_path / "arial-bold.ttf" if bold else self.font_path / "arial.ttf",
             self.font_path / "DejaVuSans-Bold.ttf" if bold else self.font_path / "DejaVuSans.ttf",
             # System fonts
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            # Noto fonts (good emoji support)
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+            "/usr/share/fonts/opentype/noto/NotoColorEmoji.ttf",
+            # Standard fallbacks
             "arial.ttf",
             "DejaVuSans.ttf",
         ]
@@ -88,12 +96,14 @@ class ImageRoundHandler:
         for font_path in font_options:
             try:
                 if Path(font_path).exists() or isinstance(font_path, str):
-                    return ImageFont.truetype(str(font_path), size)
+                    font = ImageFont.truetype(str(font_path), size)
+                    logger.debug(f"Successfully loaded font: {font_path}")
+                    return font
             except Exception:
                 continue
         
         # Final fallback to default font
-        logger.warning(f"Could not load custom font, using default for size {size}")
+        logger.warning(f"Could not load any custom fonts, using default for size {size}")
         return ImageFont.load_default()
     
     def save_template_image(self, image_data: bytes) -> bool:
@@ -123,21 +133,24 @@ class ImageRoundHandler:
             # Create drawing context
             draw = ImageDraw.Draw(template)
             
+            # Clean event text first
+            clean_event_text = self._clean_event_text(event_text)
+            logger.debug(f"Cleaned event text: {clean_event_text}")
+            
             # Draw round number (positioned right after "Round :")
             round_text = str(round_num)
             self._draw_centered_text(
                 draw, round_text, self.round_position, 
                 self.round_font, self.round_color
             )
-            logger.debug(f"Drew round number: {round_text}")
+            logger.debug(f"Drew round number '{round_text}' at {self.round_position}")
             
             # Draw event text (in the orange horizontal bar)
-            clean_event_text = self._clean_event_text(event_text)
             self._draw_wrapped_text(
                 draw, clean_event_text, self.event_area, 
                 self.event_font, self.event_color
             )
-            logger.debug(f"Drew event text: {clean_event_text[:50]}...")
+            logger.debug(f"Drew event text in area {self.event_area}")
             
             # Draw remaining players (in the white box at bottom)
             players_text = str(remaining_players)
@@ -145,7 +158,7 @@ class ImageRoundHandler:
                 draw, players_text, self.players_position,
                 self.players_font, self.players_color, use_outline=False  # No outline for black text on white
             )
-            logger.debug(f"Drew players count: {players_text}")
+            logger.debug(f"Drew players count '{players_text}' at {self.players_position}")
             
             # Convert to Discord file
             img_buffer = io.BytesIO()
@@ -347,6 +360,59 @@ class ImageRoundHandler:
         """Get the template image path for admin commands"""
         return str(self.template_path)
     
+    def create_debug_image(self, round_num: int = 5, event_text: str = "Test event text", 
+                          remaining_players: int = 12) -> Optional[discord.File]:
+        """Create debug image showing positioning guides"""
+        try:
+            if not self.template_path.exists():
+                logger.warning(f"Template image not found at {self.template_path}")
+                return None
+            
+            template = Image.open(self.template_path).convert("RGBA")
+            draw = ImageDraw.Draw(template)
+            
+            # Draw positioning guides
+            # Round position marker (small red circle)
+            x, y = self.round_position
+            draw.ellipse([x-5, y-5, x+5, y+5], fill=(255, 0, 0, 128))
+            
+            # Event area marker (red rectangle outline)
+            x1, y1, x2, y2 = self.event_area
+            draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0, 128), width=2)
+            
+            # Players position marker (small blue circle)
+            x, y = self.players_position
+            draw.ellipse([x-5, y-5, x+5, y+5], fill=(0, 0, 255, 128))
+            
+            # Add coordinate labels
+            small_font = self._load_font(12)
+            draw.text((self.round_position[0]+10, self.round_position[1]), 
+                     f"Round: {self.round_position}", font=small_font, fill=(255, 0, 0))
+            draw.text((self.event_area[0], self.event_area[1]-15), 
+                     f"Event Area: {self.event_area}", font=small_font, fill=(255, 0, 0))
+            draw.text((self.players_position[0]+10, self.players_position[1]), 
+                     f"Players: {self.players_position}", font=small_font, fill=(0, 0, 255))
+            
+            # Now draw the actual text
+            clean_event_text = self._clean_event_text(event_text)
+            
+            # Round number
+            self._draw_centered_text(draw, str(round_num), self.round_position, 
+                                   self.round_font, self.round_color)
+            
+            # Event text
+            self._draw_wrapped_text(draw, clean_event_text, self.event_area, 
+                                  self.event_font, self.event_color)
+            
+            # Players count
+            self._draw_centered_text(draw, str(remaining_players), self.players_position,
+                                   self.players_font, self.players_color, use_outline=False)
+            
+            # Convert to Discord file
+            img_buffer = io.BytesIO()
+            template.save(img_buffer, format='PNG', optimize=True)
+            img_buffer.seek(0)
+            
     def get_template_info(self) -> dict:
         """Get information about the current template"""
         try:
@@ -364,3 +430,16 @@ class ImageRoundHandler:
         except Exception as e:
             logger.error(f"Error getting template info: {e}")
             return {"exists": False, "error": str(e)}
+    
+    def update_positions(self, round_pos: tuple = None, event_area: tuple = None, 
+                        players_pos: tuple = None):
+        """Update text positions for fine-tuning"""
+        if round_pos:
+            self.round_position = round_pos
+            logger.info(f"Updated round position to: {round_pos}")
+        if event_area:
+            self.event_area = event_area
+            logger.info(f"Updated event area to: {event_area}")
+        if players_pos:
+            self.players_position = players_pos
+            logger.info(f"Updated players position to: {players_pos}")
