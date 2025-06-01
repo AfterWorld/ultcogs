@@ -1,10 +1,10 @@
-# __init__.py - UPDATED VERSION WITH IMAGE INTEGRATION
+# __init__.py - COMPLETE VERSION WITH POLL SYSTEM
 """
 Hunger Games Battle Royale Cog for Red-DiscordBot
 
 A comprehensive battle royale game where players fight to be the last survivor.
 Features automatic events, sponsor revivals, dynamic rewards, detailed statistics, 
-special arena events, and custom round image displays.
+special arena events, custom round image displays, and poll-based game initiation.
 """
 
 import discord
@@ -21,8 +21,14 @@ from .constants import (
     VICTORY_PHRASES, VICTORY_SCENARIOS, TITLE_EMOJIS
 )
 
-# Update the default config to include custom images toggle
+# Update the default config to include poll settings and custom images toggle
 DEFAULT_GUILD_CONFIG["enable_custom_images"] = True
+DEFAULT_GUILD_CONFIG["poll_threshold"] = None
+DEFAULT_GUILD_CONFIG["blacklisted_roles"] = []
+
+# Update member config to include temp ban
+DEFAULT_MEMBER_CONFIG["temp_banned_until"] = None
+
 from .game import GameEngine, GameError, InvalidGameStateError
 from .utils import *
 
@@ -49,6 +55,15 @@ except ImportError as e:
     logger = logging.getLogger(__name__)
     logger.warning(f"Image system not available: {e}")
     IMAGE_SYSTEM_AVAILABLE = False
+
+# Try to import poll system, but don't fail if it has issues
+try:
+    from .poll_view import PollView
+    POLL_SYSTEM_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Poll system not available: {e}")
+    POLL_SYSTEM_AVAILABLE = False
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -260,6 +275,91 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Failed to initialize game in guild {guild_id}: {e}", exc_info=True)
             await ctx.send("❌ Failed to start the game. Please try again.")
+    
+    @commands.max_concurrency(1, per=commands.BucketType.guild)
+    @commands.cooldown(1, 3600, type=commands.BucketType.guild)
+    @commands.command(name="poll")
+    async def hunger_games_poll(self, ctx, threshold: int = None):
+        """Start a poll to gather players for a Hunger Games battle!
+        
+        If threshold is not provided, uses the server's configured poll threshold.
+        Admins can override the threshold by providing a number.
+        """
+        guild_id = ctx.guild.id
+        
+        # Check if game already running
+        if guild_id in self.active_games:
+            return await ctx.send("❌ A Hunger Games battle is already active!")
+        
+        # Get or validate threshold
+        if threshold is None:
+            threshold = await self.config.guild(ctx.guild).poll_threshold()
+            if threshold is None:
+                return await ctx.send(
+                    "❌ No poll threshold is set for this server! "
+                    "An admin needs to set it with `.hungergames set pollthreshold <number>` "
+                    "or you can provide a threshold: `.hg poll <number>`"
+                )
+        else:
+            # Validate provided threshold
+            if not ctx.author.guild_permissions.manage_guild:
+                return await ctx.send("❌ Only admins can override the poll threshold!")
+            
+            if threshold < 2:
+                return await ctx.send("❌ Threshold must be at least 2 players!")
+            
+            if threshold > 50:
+                return await ctx.send("❌ Threshold cannot exceed 50 players!")
+        
+        # Check if poll system is available
+        if not POLL_SYSTEM_AVAILABLE:
+            return await ctx.send("❌ Poll system is not available. Please try the regular `.he` command.")
+        
+        # Validate user can start poll
+        error_message = await self._validate_poll_starter(ctx.author)
+        if error_message:
+            return await ctx.send(error_message)
+        
+        try:
+            # Create and start poll
+            poll_view = PollView(self, threshold, timeout=600)  # 10 minute timeout
+            await poll_view.start(ctx)
+            await poll_view.wait()
+            
+        except Exception as e:
+            logger.error(f"Error in poll command: {e}")
+            await ctx.send("❌ Failed to start poll. Please try again.")
+    
+    async def _validate_poll_starter(self, user: discord.Member) -> Optional[str]:
+        """Validate if user can start a poll"""
+        try:
+            # Check blacklisted roles
+            blacklisted_roles = await self.config.guild(user.guild).blacklisted_roles()
+            if any(user.get_role(role_id) for role_id in blacklisted_roles):
+                return "❌ You aren't allowed to start Hunger Games in this server due to your roles!"
+            
+            # Check temporary ban
+            temp_banned_until = await self.config.member(user).temp_banned_until()
+            if temp_banned_until is not None:
+                from datetime import datetime, timezone
+                if datetime.now(timezone.utc).timestamp() < temp_banned_until:
+                    remaining = temp_banned_until - datetime.now(timezone.utc).timestamp()
+                    hours = int(remaining // 3600)
+                    minutes = int((remaining % 3600) // 60)
+                    return f"❌ You are temporarily banned for {hours}h {minutes}m!"
+            
+            # Check if already in another game
+            for guild_id, game in self.active_games.items():
+                if str(user.id) in game.get("players", {}):
+                    guild_name = self.bot.get_guild(guild_id)
+                    guild_name = guild_name.name if guild_name else "another server"
+                    return f"❌ You're already in a Hunger Games in {guild_name}!"
+            
+            return None  # All checks passed
+            
+        except Exception as e:
+            logger.error(f"Error validating poll starter {user.id}: {e}")
+            return "❌ Error checking your eligibility. Please try again."
     
     async def _initialize_new_game(self, ctx, countdown: int):
         """Initialize a new game with proper error handling"""
@@ -731,7 +831,50 @@ class HungerGames(commands.Cog):
     @commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
         """Hunger Games battle royale commands"""
-        await ctx.send_help()
+        embed = discord.Embed(
+            title="🏹 **Hunger Games Commands** 🏹",
+            color=0x4169E1
+        )
+        
+        embed.add_field(
+            name="🎮 **Game Commands**",
+            value=(
+                "• `.he [countdown]` - Start a battle royale\n"
+                "• `.hg poll [threshold]` - Start a poll to gather players\n"
+                "• `.hungergames alive` - Show alive players\n"
+                "• `.hungergames status` - Check game status\n"
+                "• `.hungergames stop` - Stop current game (Admin)\n"
+                "• `.hungergames stats [member]` - View statistics"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⚙️ **Configuration (Admin)**",
+            value=(
+                "• `.hungergames set reward <amount>` - Set base reward\n"
+                "• `.hungergames set sponsor <chance>` - Set sponsor chance\n"
+                "• `.hungergames set interval <seconds>` - Set event interval\n"
+                "• `.hungergames set pollthreshold <number>` - Set poll threshold\n"
+                "• `.hungergames set blacklistrole <role> <add/remove>` - Manage role blacklist\n"
+                "• `.hungergames set tempban <member> <duration>` - Temporary ban"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 **Information**",
+            value=(
+                "• `.hungergames config` - View current settings\n"
+                "• `.hungergames leaderboard [stat]` - View leaderboards\n"
+                "• `.hungergames test` - Test events (Admin)\n"
+                "• `.hungergames debug` - Debug info (Admin)"
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="Use .help <command> for detailed information")
+        await ctx.send(embed=embed)
     
     @hungergames.command(name="alive")
     async def hg_alive(self, ctx):
@@ -1290,320 +1433,6 @@ class HungerGames(commands.Cog):
             )
             await ctx.send(embed=embed)
     
-    @image_main.command(name="debug")
-    async def image_debug(self, ctx):
-        """Create debug image showing positioning guides"""
-        try:
-            if not hasattr(self, 'image_handler') or not self.image_handler:
-                return await ctx.send("❌ No image handler available!")
-            
-            if not self.image_handler.is_available():
-                return await ctx.send("❌ No template image available. Upload one first!")
-            
-            # Create debug image with positioning guides
-            debug_file = self.image_handler.create_debug_image()
-            
-            if debug_file:
-                embed = discord.Embed(
-                    title="🔍 **Debug Positioning**",
-                    description=(
-                        "**Red circle:** Round number position\n"
-                        "**Red rectangle:** Event text area\n"
-                        "**Blue circle:** Player count position\n\n"
-                        "Current coordinates are shown as labels."
-                    ),
-                    color=0xFF0000
-                )
-                embed.set_image(url="attachment://debug_round_display.png")
-                await ctx.send(embed=embed, file=debug_file)
-            else:
-                await ctx.send("❌ Failed to generate debug image!")
-                
-        except Exception as e:
-            logger.error(f"Error creating debug image: {e}")
-            await ctx.send(f"❌ Error creating debug image: {str(e)}")
-    
-    @image_main.command(name="position")
-    async def image_position(self, ctx, element: str, x: int = None, y: int = None, x2: int = None, y2: int = None):
-        """Adjust text positioning
-        
-        Usage:
-        .hungergames image position round 400 200  (for round number)
-        .hungergames image position players 680 950  (for player count)  
-        .hungergames image position event 60 320 940 380  (for event area - needs 4 coordinates)
-        """
-        try:
-            if not hasattr(self, 'image_handler') or not self.image_handler:
-                return await ctx.send("❌ No image handler available!")
-            
-            element = element.lower()
-            
-            if element == "round":
-                if x is None or y is None:
-                    return await ctx.send("❌ Round position needs X and Y coordinates!\nUsage: `.hungergames image position round 400 200`")
-                
-                self.image_handler.update_positions(round_pos=(x, y))
-                await ctx.send(f"✅ Round position updated to ({x}, {y})")
-                
-            elif element == "players":
-                if x is None or y is None:
-                    return await ctx.send("❌ Players position needs X and Y coordinates!\nUsage: `.hungergames image position players 680 950`")
-                
-                self.image_handler.update_positions(players_pos=(x, y))
-                await ctx.send(f"✅ Players position updated to ({x}, {y})")
-                
-            elif element == "event":
-                if None in [x, y, x2, y2]:
-                    return await ctx.send("❌ Event area needs X1, Y1, X2, Y2 coordinates!\nUsage: `.hungergames image position event 60 320 940 380`")
-                
-                self.image_handler.update_positions(event_area=(x, y, x2, y2))
-                await ctx.send(f"✅ Event area updated to ({x}, {y}, {x2}, {y2})")
-                
-            else:
-                await ctx.send("❌ Invalid element! Use: `round`, `players`, or `event`")
-                
-        except Exception as e:
-            logger.error(f"Error updating position: {e}")
-            await ctx.send(f"❌ Error updating position: {str(e)}")
-    
-    @image_main.command(name="info")
-    async def image_info(self, ctx):
-        """Show detailed template information"""
-        try:
-            if not hasattr(self, 'image_handler') or not self.image_handler:
-                return await ctx.send("❌ Image system not available!")
-            
-            template_info = self.image_handler.get_template_info()
-            
-            embed = discord.Embed(
-                title="📋 **Template Information**",
-                color=0x00CED1
-            )
-            
-            if template_info.get("exists"):
-                embed.add_field(
-                    name="📏 **Dimensions**",
-                    value=f"{template_info['size'][0]} x {template_info['size'][1]} pixels",
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="🎨 **Format**",
-                    value=template_info.get('format', 'Unknown'),
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="🔧 **Mode**",
-                    value=template_info.get('mode', 'Unknown'),
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="📁 **Path**",
-                    value=f"`{template_info['path']}`",
-                    inline=False
-                )
-                
-                # Add positioning info
-                embed.add_field(
-                    name="📍 **Text Positions**",
-                    value=(
-                        f"Round Number: {self.image_handler.round_position}\n"
-                        f"Event Area: {self.image_handler.event_area}\n"
-                        f"Players Count: {self.image_handler.players_position}"
-                    ),
-                    inline=False
-                )
-            else:
-                embed.description = "❌ **No template found**"
-                if "error" in template_info:
-                    embed.add_field(
-                        name="❌ **Error**",
-                        value=template_info["error"],
-                        inline=False
-                    )
-            
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            logger.error(f"Error getting template info: {e}")
-            await ctx.send(f"❌ Error retrieving template information: {str(e)}")
-    
-    # =====================================================
-    # EXISTING COMMANDS CONTINUE...
-    # =====================================================
-    
-    @hungergames.command(name="force")
-    @commands.has_permissions(manage_guild=True)
-    async def hg_force_event(self, ctx, event_type: str = "random"):
-        """Force a single event in active game (Admin only)"""
-        guild_id = ctx.guild.id
-        
-        if guild_id not in self.active_games:
-            return await ctx.send("❌ No active game to force event in!")
-        
-        game = self.active_games[guild_id]
-        if game["status"] != "active":
-            return await ctx.send("❌ Game is not active!")
-        
-        valid_types = ["death", "survival", "sponsor", "alliance", "crate", "random", "combined", "special"]
-        if event_type.lower() not in valid_types:
-            return await ctx.send(f"❌ Invalid event type! Use: {', '.join(valid_types)}")
-        
-        # Force execute an event
-        try:
-            if event_type.lower() == "random":
-                await self.execute_random_event(game, ctx.channel)
-            elif event_type.lower() == "combined":
-                await self.execute_combined_events(game, ctx.channel)
-            elif event_type.lower() == "special":
-                alive_players = self.game_engine.get_alive_players(game)
-                special_event = await self.game_engine._generate_midgame_event(game)
-                if special_event:
-                    await self._send_special_event(special_event, ctx.channel)
-                else:
-                    await ctx.send("❌ No special event triggered")
-            else:
-                # Execute specific event type
-                message = await self.event_handler.execute_event(event_type, game, ctx.channel)
-                
-                if message:
-                    # Send using custom image or embed
-                    await self._send_rumble_style_events(game, ctx.channel, [message])
-                else:
-                    await ctx.send(f"❌ Failed to generate {event_type} event")
-                    
-        except Exception as e:
-            logger.error(f"Error forcing event: {e}")
-            await ctx.send(f"❌ Error forcing event: {str(e)}")
-    
-    @hungergames.command(name="debug")
-    @commands.has_permissions(manage_guild=True)
-    async def hg_debug(self, ctx):
-        """Debug current game state (Admin only)"""
-        guild_id = ctx.guild.id
-        
-        embed = discord.Embed(
-            title="🔍 **DEBUG INFO**",
-            color=0x00CED1
-        )
-        
-        # Check if game is active
-        if guild_id in self.active_games:
-            game = self.active_games[guild_id]
-            
-            # Game state info
-            alive_count = len(self.game_engine.get_alive_players(game))
-            total_players = len(game.get("players", {}))
-            
-            embed.add_field(
-                name="🎮 **Game State**",
-                value=f"Status: {game.get('status', 'Unknown')}\n"
-                      f"Round: {game.get('round', 0)}\n"
-                      f"Alive: {alive_count}/{total_players}\n"
-                      f"Eliminated: {len(game.get('eliminated', []))}\n"
-                      f"Sponsors Used: {len(game.get('sponsor_used', []))}",
-                inline=True
-            )
-            
-            # Task status
-            task_status = "Unknown"
-            if "task" in game:
-                if game["task"].done():
-                    task_status = "Completed"
-                elif game["task"].cancelled():
-                    task_status = "Cancelled"
-                else:
-                    task_status = "Running"
-            else:
-                task_status = "No Task"
-            
-            embed.add_field(
-                name="⚙️ **Task Status**",
-                value=task_status,
-                inline=True
-            )
-            
-            # Milestones
-            milestones = game.get("milestones_shown", set())
-            embed.add_field(
-                name="🏁 **Milestones**",
-                value=f"Shown: {list(milestones) if milestones else 'None'}",
-                inline=True
-            )
-        else:
-            embed.add_field(
-                name="🎮 **Game State**",
-                value="No active game",
-                inline=False
-            )
-        
-        # Check constants
-        try:
-            from .constants import DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS
-            embed.add_field(
-                name="📊 **Constants Loaded**",
-                value=f"Death Events: {len(DEATH_EVENTS)}\n"
-                      f"Survival Events: {len(SURVIVAL_EVENTS)}\n"
-                      f"Sponsor Events: {len(SPONSOR_EVENTS)}\n"
-                      f"Alliance Events: {len(ALLIANCE_EVENTS)}\n"
-                      f"Crate Events: {len(CRATE_EVENTS)}",
-                inline=True
-            )
-        except Exception as e:
-            embed.add_field(
-                name="❌ **Import Error**",
-                value=str(e),
-                inline=False
-            )
-        
-        # System info
-        system_info = f"Active Games: {len(self.active_games)}\n"
-        system_info += f"Cache Entries: {len(getattr(self, '_alive_cache', {}))}\n"
-        system_info += f"Event Handler: {'✅' if hasattr(self, 'event_handler') else '❌'}\n"
-        system_info += f"GIF System: {'✅' if getattr(self, 'gif_manager', None) else '❌'}\n"
-        system_info += f"Image System: {'✅' if getattr(self, 'image_handler', None) else '❌'}"
-        
-        embed.add_field(
-            name="🖥️ **System**",
-            value=system_info,
-            inline=True
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @hungergames.command(name="leaderboard", aliases=["lb", "top"])
-    async def hg_leaderboard(self, ctx, stat: str = "wins"):
-        """View the Hunger Games leaderboard
-        
-        Available stats: wins, kills, deaths, revives"""
-        
-        try:
-            if stat.lower() not in ["wins", "kills", "deaths", "revives"]:
-                return await ctx.send("❌ Invalid stat! Use: `wins`, `kills`, `deaths`, or `revives`")
-            
-            stat = stat.lower()
-            
-            # Get all member data
-            all_members = await self.config.all_members(ctx.guild)
-            
-            # Filter and sort
-            filtered_members = []
-            for member_id, data in all_members.items():
-                stat_value = data.get(stat, 0)
-                if stat_value > 0:
-                    filtered_members.append((member_id, data))
-            
-            filtered_members.sort(key=lambda x: x[1].get(stat, 0), reverse=True)
-            
-            embed = create_leaderboard_embed(ctx.guild, filtered_members, stat)
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            logger.error(f"Error in leaderboard command: {e}")
-            await ctx.send("❌ Error retrieving leaderboard data.")
-    
     @hungergames.command(name="config")
     @commands.has_permissions(manage_guild=True)
     async def hg_config(self, ctx):
@@ -1640,6 +1469,21 @@ class HungerGames(commands.Cog):
                 inline=True
             )
             
+            # Poll threshold
+            poll_threshold = config_data.get('poll_threshold')
+            if poll_threshold is not None:
+                embed.add_field(
+                    name="🗳️ **Poll Threshold**",
+                    value=f"{poll_threshold} players",
+                    inline=True
+                )
+            else:
+                embed.add_field(
+                    name="🗳️ **Poll Threshold**",
+                    value="❌ Not set",
+                    inline=True
+                )
+            
             embed.add_field(
                 name="🎬 **GIFs Enabled**",
                 value="✅ Yes" if config_data.get('enable_gifs', False) else "❌ No",
@@ -1661,140 +1505,159 @@ class HungerGames(commands.Cog):
                 inline=True
             )
             
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            logger.error(f"Error in config command: {e}")
-            await ctx.send("❌ Error retrieving configuration.")
-    
-    @hungergames.group(name="set", invoke_without_command=True)
-    @commands.has_permissions(manage_guild=True)
-    async def hg_set(self, ctx):
-        """Configure Hunger Games settings"""
-        await ctx.send_help()
-
-    # =====================================================
-    # GIF COMMANDS - EXISTING (KEPT FOR COMPATIBILITY)
-    # =====================================================
-    
-    @hungergames.group(name="gif", invoke_without_command=True)
-    @commands.has_permissions(manage_guild=True)
-    async def gif_main(self, ctx):
-        """GIF management for Hunger Games"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available. Check bot logs for details.")
-        
-        # Show help for gif commands
-        embed = discord.Embed(
-            title="🎬 **GIF Management Commands**",
-            description="Manage GIF integration for Hunger Games",
-            color=0x00CED1
-        )
-        
-        embed.add_field(
-            name="📋 **Available Commands**",
-            value=(
-                "• `.hungergames gif enable` - Enable GIF integration\n"
-                "• `.hungergames gif disable` - Disable GIF integration\n"
-                "• `.hungergames gif stats` - Show GIF collection statistics\n"
-                "• `.hungergames gif structure` - Show directory structure\n"
-                "• `.hungergames gif test [category] [subcategory]` - Test GIF selection\n"
-                "• `.hungergames gif reload` - Reload GIF cache"
-            ),
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @gif_main.command(name="enable")
-    async def gif_enable(self, ctx):
-        """Enable GIF integration"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            await self.config.guild(ctx.guild).enable_gifs.set(True)
-            
-            embed = discord.Embed(
-                title="🎬 **GIF Integration Enabled!**",
-                description="GIFs will now be displayed during games when available.",
-                color=0x00FF00
-            )
-            
-            await ctx.send(embed=embed)
-        except Exception as e:
-            await ctx.send(f"❌ Error enabling GIFs: {str(e)}")
-    
-    @gif_main.command(name="disable") 
-    async def gif_disable(self, ctx):
-        """Disable GIF integration"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            await self.config.guild(ctx.guild).enable_gifs.set(False)
-            
-            embed = discord.Embed(
-                title="🚫 **GIF Integration Disabled**",
-                description="GIFs will no longer be displayed during games.",
-                color=0xFF0000
-            )
-            
-            await ctx.send(embed=embed)
-        except Exception as e:
-            await ctx.send(f"❌ Error disabling GIFs: {str(e)}")
-    
-    @gif_main.command(name="stats")
-    async def gif_stats(self, ctx):
-        """Show GIF collection statistics"""
-        if not GIF_SYSTEM_AVAILABLE or not self.gif_manager:
-            return await ctx.send("❌ GIF system is not available.")
-        
-        try:
-            stats = self.gif_manager.get_gif_stats()
-            
-            embed = discord.Embed(
-                title="📊 **GIF Collection Statistics**",
-                color=0x00CED1
-            )
-            
-            total_gifs = 0
-            
-            for category, subcategories in stats.items():
-                category_total = sum(subcategories.values())
-                total_gifs += category_total
+            # Blacklisted roles
+            blacklisted_roles = config_data.get('blacklisted_roles', [])
+            if blacklisted_roles:
+                role_mentions = []
+                for role_id in blacklisted_roles[:5]:  # Show max 5
+                    role = ctx.guild.get_role(role_id)
+                    if role:
+                        role_mentions.append(role.mention)
                 
-                if category_total > 0:
-                    subcategory_text = "\n".join([
-                        f"• {subcat}: {count}" 
-                        for subcat, count in subcategories.items() 
-                        if count > 0
-                    ])
-                    
-                    embed.add_field(
-                        name=f"🎬 **{category.title()}** ({category_total})",
-                        value=subcategory_text if subcategory_text else "None",
-                        inline=True
-                    )
-            
-            embed.description = f"**Total GIFs:** {total_gifs}"
-            
-            if total_gifs == 0:
+                if role_mentions:
+                    roles_text = "\n".join(role_mentions)
+                    if len(blacklisted_roles) > 5:
+                        roles_text += f"\n... and {len(blacklisted_roles) - 5} more"
+                else:
+                    roles_text = "None (invalid role IDs)"
+                
                 embed.add_field(
-                    name="📁 **No GIFs Found**",
-                    value="Add GIF files to the `gifs/` directory to get started!",
+                    name="🚫 **Blacklisted Roles**",
+                    value=roles_text,
                     inline=False
                 )
             
             await ctx.send(embed=embed)
             
         except Exception as e:
-            await ctx.send(f"❌ Error getting GIF stats: {str(e)}")
+            logger.error(f"Error in config command: {e}")
+            await ctx.send("❌ Error retrieving configuration.")
     
-    # =====================================================
-    # SETTINGS COMMANDS
-    # =====================================================
+    @commands.group(name="set", invoke_without_command=True)
+    @commands.has_permissions(manage_guild=True)
+    async def hg_set(self, ctx):
+        """Configure Hunger Games settings"""
+        await ctx.send_help()
     
+    @hg_set.command(name="pollthreshold")
+    async def hg_set_poll_threshold(self, ctx, threshold: int = None):
+        """Set the minimum players needed for a poll to start a game
+        
+        Set to None to disable polls."""
+        try:
+            if threshold is None:
+                await self.config.guild(ctx.guild).poll_threshold.set(None)
+                await ctx.send("✅ Poll threshold disabled! Polls will not work until a threshold is set.")
+            else:
+                if threshold < 2:
+                    return await ctx.send("❌ Threshold must be at least 2 players!")
+                
+                if threshold > 50:
+                    return await ctx.send("❌ Threshold cannot exceed 50 players!")
+                
+                await self.config.guild(ctx.guild).poll_threshold.set(threshold)
+                await ctx.send(f"✅ Poll threshold set to {threshold} players!")
+                
+        except Exception as e:
+            logger.error(f"Error setting poll threshold: {e}")
+            await ctx.send("❌ Error updating poll threshold.")
+    
+    @hg_set.command(name="blacklistrole")
+    async def hg_set_blacklist_role(self, ctx, role: discord.Role, action: str = "add"):
+        """Add or remove a role from the blacklist
+        
+        Blacklisted roles cannot participate in Hunger Games.
+        Use 'add' or 'remove' as the action."""
+        try:
+            action = action.lower()
+            if action not in ["add", "remove"]:
+                return await ctx.send("❌ Action must be 'add' or 'remove'!")
+            
+            blacklisted_roles = await self.config.guild(ctx.guild).blacklisted_roles()
+            
+            if action == "add":
+                if role.id in blacklisted_roles:
+                    return await ctx.send(f"❌ {role.mention} is already blacklisted!")
+                
+                blacklisted_roles.append(role.id)
+                await self.config.guild(ctx.guild).blacklisted_roles.set(blacklisted_roles)
+                await ctx.send(f"✅ Added {role.mention} to the blacklist!")
+                
+            else:  # remove
+                if role.id not in blacklisted_roles:
+                    return await ctx.send(f"❌ {role.mention} is not blacklisted!")
+                
+                blacklisted_roles.remove(role.id)
+                await self.config.guild(ctx.guild).blacklisted_roles.set(blacklisted_roles)
+                await ctx.send(f"✅ Removed {role.mention} from the blacklist!")
+                
+        except Exception as e:
+            logger.error(f"Error managing blacklist role: {e}")
+            await ctx.send("❌ Error updating role blacklist.")
+    
+    @hg_set.command(name="tempban")
+    async def hg_set_temp_ban(self, ctx, member: discord.Member, duration: str = None):
+        """Temporarily ban a member from Hunger Games
+        
+        Duration examples: 1h, 30m, 1d, 2h30m
+        Use 'remove' as duration to unban."""
+        try:
+            if duration is None or duration.lower() == "remove":
+                await self.config.member(member).temp_banned_until.set(None)
+                await ctx.send(f"✅ Removed temporary ban from {member.mention}!")
+                return
+            
+            # Parse duration
+            try:
+                from datetime import datetime, timezone, timedelta
+                import re
+                
+                # Parse duration string (e.g., "1h30m", "2d", "45m")
+                pattern = r'(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?'
+                match = re.match(pattern, duration.lower())
+                
+                if not match:
+                    return await ctx.send("❌ Invalid duration format! Use examples: 1h, 30m, 1d, 2h30m")
+                
+                days, hours, minutes = match.groups()
+                total_seconds = 0
+                
+                if days:
+                    total_seconds += int(days) * 86400
+                if hours:
+                    total_seconds += int(hours) * 3600
+                if minutes:
+                    total_seconds += int(minutes) * 60
+                
+                if total_seconds == 0:
+                    return await ctx.send("❌ Duration must be greater than 0!")
+                
+                if total_seconds > 2592000:  # 30 days max
+                    return await ctx.send("❌ Maximum ban duration is 30 days!")
+                
+                # Set ban
+                ban_until = datetime.now(timezone.utc).timestamp() + total_seconds
+                await self.config.member(member).temp_banned_until.set(ban_until)
+                
+                # Format duration for display
+                display_duration = []
+                if days:
+                    display_duration.append(f"{days}d")
+                if hours:
+                    display_duration.append(f"{hours}h")
+                if minutes:
+                    display_duration.append(f"{minutes}m")
+                
+                await ctx.send(f"✅ Temporarily banned {member.mention} for {' '.join(display_duration)}!")
+                
+            except Exception as parse_error:
+                logger.error(f"Error parsing duration: {parse_error}")
+                await ctx.send("❌ Invalid duration format! Use examples: 1h, 30m, 1d, 2h30m")
+                
+        except Exception as e:
+            logger.error(f"Error setting temp ban: {e}")
+            await ctx.send("❌ Error setting temporary ban.")
+
     @hg_set.command(name="reward")
     async def hg_set_reward(self, ctx, amount: int):
         """Set the base reward amount"""
@@ -1839,6 +1702,37 @@ class HungerGames(commands.Cog):
         except Exception as e:
             logger.error(f"Error setting interval: {e}")
             await ctx.send("❌ Error updating event interval.")
+    
+    @hungergames.command(name="leaderboard", aliases=["lb", "top"])
+    async def hg_leaderboard(self, ctx, stat: str = "wins"):
+        """View the Hunger Games leaderboard
+        
+        Available stats: wins, kills, deaths, revives"""
+        
+        try:
+            if stat.lower() not in ["wins", "kills", "deaths", "revives"]:
+                return await ctx.send("❌ Invalid stat! Use: `wins`, `kills`, `deaths`, or `revives`")
+            
+            stat = stat.lower()
+            
+            # Get all member data
+            all_members = await self.config.all_members(ctx.guild)
+            
+            # Filter and sort
+            filtered_members = []
+            for member_id, data in all_members.items():
+                stat_value = data.get(stat, 0)
+                if stat_value > 0:
+                    filtered_members.append((member_id, data))
+            
+            filtered_members.sort(key=lambda x: x[1].get(stat, 0), reverse=True)
+            
+            embed = create_leaderboard_embed(ctx.guild, filtered_members, stat)
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in leaderboard command: {e}")
+            await ctx.send("❌ Error retrieving leaderboard data.")
 
 
 async def setup(bot):
