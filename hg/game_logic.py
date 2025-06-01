@@ -77,7 +77,6 @@ class GameEngine:
     async def _announce_winner(self, channel: discord.TextChannel, winner: Dict, game: Dict):
         """Announce the winner with dramatic flair"""
         victory_phrase = random.choice(VICTORY_PHRASES)
-        victory_scenario = random.choice(VICTORY_SCENARIOS)
         
         embed = discord.Embed(
             title="🏆 **VICTOR OF THE HUNGER GAMES** 🏆",
@@ -88,12 +87,6 @@ class GameEngine:
         embed.add_field(
             name="🎊 **Victory Moment**",
             value=victory_phrase,
-            inline=False
-        )
-        
-        embed.add_field(
-            name="📜 **Final Scenario**",
-            value=victory_scenario.format(winner=winner['name']),
             inline=False
         )
         
@@ -303,25 +296,22 @@ class GameEngine:
         return sponsor_event.format(player=f"{revived_player['name']} {revived_player['title']}")
     
     async def execute_alliance_event(self, game: Dict) -> Optional[str]:
-        """Execute an alliance event"""
+        """Execute an alliance event with proper formatting"""
         alive_players = self.get_alive_players(game)
         
         if len(alive_players) < 2:
             return None
         
-        # Choose 2-4 players for alliance
-        num_players = min(random.randint(2, 4), len(alive_players))
-        players = random.sample(alive_players, num_players)
+        # Choose 2 players for alliance
+        players = random.sample(alive_players, 2)
         
         alliance_event = random.choice(ALLIANCE_EVENTS)
         
-        if len(players) == 2:
-            player_names = f"{players[0]['name']} {players[0]['title']} and {players[1]['name']} {players[1]['title']}"
-        else:
-            player_list = [f"{p['name']} {p['title']}" for p in players]
-            player_names = f"{', '.join(player_list[:-1])}, and {player_list[-1]}"
-        
-        return alliance_event.format(players=player_names)
+        # Format with player1 and player2
+        return alliance_event.format(
+            player1=f"{players[0]['name']} {players[0]['title']}",
+            player2=f"{players[1]['name']} {players[1]['title']}"
+        )
     
     async def execute_crate_event(self, game: Dict) -> Optional[str]:
         """Execute a supply crate event"""
@@ -522,6 +512,6 @@ class GameEngine:
             if message:
                 event_messages.append(message)
             
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)  # Small delay between events
         
         return event_messages
