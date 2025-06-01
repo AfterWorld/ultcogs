@@ -1,4 +1,4 @@
-# constants.py 
+# constants.py - Updated with poll support
 """Constants and configuration for the Hunger Games cog"""
 
 # Game Configuration
