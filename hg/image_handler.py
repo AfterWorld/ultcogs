@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 class ImageRoundHandler:
     """Handles creation of custom round display images"""
     
-    def __init__(self, bot, base_path: str = None):
+    def __init__(self, bot, base_path: str = None, enable_emojis: bool = True):
         self.bot = bot
+        self.enable_emojis = enable_emojis  # Allow emoji rendering to be toggled
         
         # Set up paths - use the specific path provided
         if base_path:
@@ -55,6 +56,7 @@ class ImageRoundHandler:
         
         # Log initialization
         logger.info(f"ImageRoundHandler initialized with template path: {self.template_path}")
+        logger.info(f"Emoji rendering {'enabled' if self.enable_emojis else 'disabled'}")
     
     def _setup_fonts(self):
         """Set up fonts with fallbacks"""
@@ -184,23 +186,26 @@ class ImageRoundHandler:
     def _draw_wrapped_text(self, draw: ImageDraw.Draw, text: str, 
                           area: Tuple[int, int, int, int], font: ImageFont.ImageFont,
                           color: Tuple[int, int, int]):
-        """Draw text with word wrapping in specified area"""
+        """Draw text with word wrapping in specified area, with emoji support"""
         try:
             x1, y1, x2, y2 = area
             area_width = x2 - x1
             area_height = y2 - y1
+            
+            # Test if emojis can be rendered with this font
+            text_to_render = self._test_emoji_rendering(draw, text, font)
             
             # Calculate approximate characters per line
             avg_char_width = self._get_average_char_width(font)
             chars_per_line = max(20, int(area_width / avg_char_width))  # Increased minimum
             
             # Wrap text - try to fit in 2-3 lines max
-            wrapped_lines = textwrap.fill(text, width=chars_per_line).split('\n')
+            wrapped_lines = textwrap.fill(text_to_render, width=chars_per_line).split('\n')
             
             # If too many lines, try with more characters per line
             if len(wrapped_lines) > 3:
                 chars_per_line = int(chars_per_line * 1.5)
-                wrapped_lines = textwrap.fill(text, width=chars_per_line).split('\n')
+                wrapped_lines = textwrap.fill(text_to_render, width=chars_per_line).split('\n')
             
             # Limit to 3 lines maximum
             if len(wrapped_lines) > 3:
@@ -233,12 +238,40 @@ class ImageRoundHandler:
                     
         except Exception as e:
             logger.error(f"Error drawing wrapped text: {e}")
-            # Fallback to simple text
-            truncated_text = text[:60] + "..." if len(text) > 60 else text
+            # Fallback to simple text without emojis
+            fallback_text = self._strip_emojis(text)
+            truncated_text = fallback_text[:60] + "..." if len(fallback_text) > 60 else fallback_text
             # Center the fallback text
             fallback_x = x1 + (area_width - len(truncated_text) * 8) // 2  # Rough estimate
             fallback_y = y1 + (area_height // 2)
             self._draw_text_with_outline(draw, (fallback_x, fallback_y), truncated_text, font, color)
+    
+    def _test_emoji_rendering(self, draw: ImageDraw.Draw, text: str, font: ImageFont.ImageFont) -> str:
+        """Test if emojis can be rendered, fallback to no-emoji version if needed"""
+        if not self.enable_emojis:
+            return self._strip_emojis(text)
+            
+        try:
+            # Try to get text dimensions with emojis
+            bbox = draw.textbbox((0, 0), text, font=font)
+            # If this succeeds without error, emojis should render fine
+            logger.debug("Emoji rendering test passed")
+            return text
+        except Exception as e:
+            logger.debug(f"Emoji rendering failed, falling back to text only: {e}")
+            return self._strip_emojis(text)
+    
+    def _strip_emojis(self, text: str) -> str:
+        """Strip emojis as fallback if rendering fails"""
+        try:
+            # Remove common emoji patterns and keep just the text
+            if "|" in text:
+                parts = text.split("|", 1)
+                if len(parts) > 1:
+                    return parts[1].strip()
+            return text
+        except Exception:
+            return text
     
     def _draw_text_with_outline(self, draw: ImageDraw.Draw, position: Tuple[int, int],
                                text: str, font: ImageFont.ImageFont, 
@@ -257,21 +290,28 @@ class ImageRoundHandler:
         draw.text((x, y), text, font=font, fill=color)
     
     def _clean_event_text(self, text: str) -> str:
-        """Clean event text for display"""
+        """Clean event text for display while preserving emojis"""
         try:
-            # Remove markdown formatting
+            # Remove markdown formatting but keep emojis
             text = text.replace("**", "").replace("__", "").replace("~~", "")
             
-            # Remove emojis at the start and pipe separators
-            if "|" in text:
-                parts = text.split("|", 1)
-                if len(parts) > 1:
-                    text = parts[1].strip()
+            if self.enable_emojis:
+                # Keep the emoji but remove just the pipe separator
+                if "|" in text:
+                    parts = text.split("|", 1)
+                    if len(parts) > 1:
+                        # Keep the emoji part (before |) and the text part (after |)
+                        emoji_part = parts[0].strip()
+                        text_part = parts[1].strip()
+                        text = f"{emoji_part} {text_part}"
+            else:
+                # Strip emojis if disabled
+                text = self._strip_emojis(text)
             
             # Remove extra whitespace
             text = " ".join(text.split())
             
-            # Limit length for display in the orange bar
+            # Limit length for display in the orange bar  
             if len(text) > 150:
                 text = text[:147] + "..."
             
