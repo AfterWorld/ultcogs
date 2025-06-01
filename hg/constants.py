@@ -664,3 +664,24 @@ GIF_CATEGORIES = {
     "sponsor": [],
     "revival": []
 }
+
+# Utility functions
+def get_random_player_title():
+    """Get a random player title/epithet"""
+    import random
+    return random.choice(PLAYER_TITLES)
+
+def get_random_district():
+    """Get a random district number (1-12)"""
+    import random
+    return random.randint(1, 12)
+
+def get_event_weights():
+    """Get default event weights for events"""
+    return {
+        "death": 30,
+        "survival": 25,
+        "sponsor": 15,
+        "alliance": 15,
+        "crate": 15
+    }
