@@ -5,14 +5,14 @@ Main cog file - delegates to other modules for functionality
 """
 
 import discord
-from redbot.core import commands, Config, data_manager
+from redbot.core import commands as discord_commands, Config, data_manager
 import asyncio
 import logging
 from typing import Dict
 
 from .constants import DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG
 from .game_logic import GameEngine
-from .commands import CommandHandler  # Import as CommandHandler to avoid conflict
+from .commands import CommandHandler
 from .poll_system import PollSystem
 from .validators import InputValidator
 from .event_handlers import EventHandler
@@ -36,7 +36,7 @@ except ImportError as e:
     GIF_SYSTEM_AVAILABLE = False
 
 
-class HungerGames(commands.Cog):
+class HungerGames(discord_commands.Cog):
     """A Hunger Games style battle royale game for Discord"""
     
     def __init__(self, bot):
@@ -164,7 +164,6 @@ class HungerGames(commands.Cog):
                 del self.active_games[guild_id]
             await channel.send("❌ The arena has malfunctioned. Game ended.")
     
-    # Add missing _send_game_start_messages method
     async def _send_game_start_messages(self, game, player_count):
         """Send game start and player introduction messages"""
         channel = game["channel"]
@@ -209,23 +208,23 @@ class HungerGames(commands.Cog):
     # =====================================================
     
     # Main commands
-    @commands.command(name="he")
+    @discord_commands.command(name="he")
     async def hunger_games_event(self, ctx, countdown: int = 60):
         """Start a Hunger Games battle royale! React to join!"""
         await self.command_handler.handle_hunger_games_event(ctx, countdown)
     
-    @commands.command(name="hg")
+    @discord_commands.command(name="hg")
     async def hg_command(self, ctx, *, args=None):
         """Hunger Games poll command"""
         await self.command_handler.handle_hg_command(ctx, args)
     
-    @commands.command(name="poll")
+    @discord_commands.command(name="poll")
     async def poll_command(self, ctx, threshold: int = None):
         """Create a poll for starting a Hunger Games"""
         await self.command_handler.handle_poll_command(ctx, threshold)
     
     # Main command group
-    @commands.group(invoke_without_command=True)
+    @discord_commands.group(invoke_without_command=True)
     async def hungergames(self, ctx):
         """Hunger Games battle royale commands"""
         await self.command_handler.handle_hungergames_help(ctx)
@@ -242,7 +241,7 @@ class HungerGames(commands.Cog):
         await self.command_handler.handle_stats(ctx, member)
     
     @hungergames.command(name="stop")
-    @commands.has_permissions(manage_guild=True)
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_stop(self, ctx):
         """Stop the current Hunger Games"""
         await self.command_handler.handle_stop(ctx)
@@ -253,19 +252,19 @@ class HungerGames(commands.Cog):
         await self.command_handler.handle_status(ctx)
     
     @hungergames.command(name="test")
-    @commands.has_permissions(manage_guild=True)
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_test(self, ctx):
         """Test game events (Admin only)"""
         await self.command_handler.handle_test(ctx)
     
     @hungergames.command(name="debug")
-    @commands.has_permissions(manage_guild=True)
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_debug(self, ctx):
         """Debug current game state (Admin only)"""
         await self.command_handler.handle_debug(ctx)
     
     @hungergames.command(name="config")
-    @commands.has_permissions(manage_guild=True)
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_config(self, ctx):
         """View current Hunger Games configuration"""
         await self.command_handler.handle_config(ctx)
@@ -277,42 +276,49 @@ class HungerGames(commands.Cog):
     
     # Settings group
     @hungergames.group(name="set", invoke_without_command=True)
-    @commands.has_permissions(manage_guild=True)
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
         await ctx.send_help()
     
     @hg_set.command(name="pollthreshold")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_poll_threshold(self, ctx, threshold: int = None):
         """Set the minimum players needed for a poll to start a game"""
         await self.command_handler.handle_set_poll_threshold(ctx, threshold)
     
     @hg_set.command(name="pollpingrole")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_poll_ping_role(self, ctx, role: discord.Role = None):
         """Set the role to ping when polls start"""
         await self.command_handler.handle_set_poll_ping_role(ctx, role)
     
     @hg_set.command(name="blacklistrole")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_blacklist_role(self, ctx, role: discord.Role, action: str = "add"):
         """Add or remove a role from the blacklist"""
         await self.command_handler.handle_set_blacklist_role(ctx, role, action)
     
     @hg_set.command(name="tempban")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_temp_ban(self, ctx, member: discord.Member, duration: str = None):
         """Temporarily ban a member from Hunger Games"""
         await self.command_handler.handle_set_temp_ban(ctx, member, duration)
     
     @hg_set.command(name="reward")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_reward(self, ctx, amount: int):
         """Set the base reward amount"""
         await self.command_handler.handle_set_reward(ctx, amount)
     
     @hg_set.command(name="sponsor")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_sponsor(self, ctx, chance: int):
         """Set the sponsor revival chance (1-50%)"""
         await self.command_handler.handle_set_sponsor(ctx, chance)
     
     @hg_set.command(name="interval")
+    @discord_commands.has_permissions(manage_guild=True)
     async def hg_set_interval(self, ctx, seconds: int):
         """Set the event interval (10-120 seconds)"""
         await self.command_handler.handle_set_interval(ctx, seconds)
