@@ -44,68 +44,69 @@ class PollView(discord.ui.View):
         
         embed = self._create_poll_embed()
         self.message = await ctx.send(embed=embed, view=self)
-        
-        # Add initial reactions for better UX
-        try:
-            await self.message.add_reaction(POLL_EMOJIS["join"])
-            await self.message.add_reaction(POLL_EMOJIS["leave"])
-        except discord.HTTPException:
-            pass  # Continue if reactions fail
     
     def _create_poll_embed(self) -> discord.Embed:
         """Create the poll embed"""
-        embed = discord.Embed(
-            title="🗳️ **HUNGER GAMES POLL** 🗳️",
-            color=0x4169E1
-        )
-        
-        description = (
-            f"**A battle royale is being proposed!**\n\n"
-            f"🎯 **Required Players:** {self.threshold}\n"
-            f"👥 **Current Players:** {len(self.players)}\n"
-            f"📊 **Progress:** {len(self.players)}/{self.threshold}\n\n"
-        )
-        
+        # Determine color based on progress
         if len(self.players) >= self.threshold:
-            description += "✅ **Ready to start!** Click the Start Game button!\n\n"
+            color = 0x00FF00  # Green when ready
+        elif len(self.players) >= self.threshold * 0.7:
+            color = 0xFFFF00  # Yellow when close
         else:
-            needed = self.threshold - len(self.players)
-            description += f"⏳ **Need {needed} more players to start**\n\n"
+            color = 0x4169E1  # Blue when starting
+        
+        embed = discord.Embed(
+            title="🗳️ **HUNGER GAMES POLL** 🗳️", 
+            color=color
+        )
+        
+        description = f"**A battle royale is being proposed!**\n\n"
+        
+        # Progress bar visual
+        progress = len(self.players) / self.threshold
+        filled_bars = int(progress * 10)
+        empty_bars = 10 - filled_bars
+        progress_bar = "█" * filled_bars + "░" * empty_bars
         
         description += (
-            f"**How to join:**\n"
-            f"• Click {POLL_EMOJIS['join']} to join\n"
-            f"• Click {POLL_EMOJIS['leave']} to leave\n"
+            f"🎯 **Required Players:** {self.threshold}\n"
+            f"👥 **Current Players:** {len(self.players)}\n"
+            f"📊 **Progress:** `{progress_bar}` {len(self.players)}/{self.threshold}\n\n"
         )
         
         if len(self.players) >= self.threshold:
-            description += f"• Click {POLL_EMOJIS['start']} to start the game!\n"
+            description += "✅ **Ready to start!** Click the Start Game button below!\n"
+        else:
+            needed = self.threshold - len(self.players)
+            description += f"⏳ **Need {needed} more player{'s' if needed != 1 else ''} to start**\n"
         
         embed.description = description
         
         # Show current players if any
         if self.players and self.ctx:
             player_names = []
-            for user_id in list(self.players)[:10]:  # Show max 10 names
+            for user_id in list(self.players)[:8]:  # Show max 8 names
                 member = self.ctx.guild.get_member(user_id)
                 if member:
-                    player_names.append(member.display_name)
+                    player_names.append(f"🏹 {member.display_name}")
             
             if player_names:
-                players_text = "\n".join([f"• {name}" for name in player_names])
-                if len(self.players) > 10:
-                    players_text += f"\n... and {len(self.players) - 10} more"
+                players_text = "\n".join(player_names)
+                if len(self.players) > 8:
+                    players_text += f"\n*... and {len(self.players) - 8} more*"
                 
                 embed.add_field(
-                    name="🏹 **Joined Tributes**",
+                    name="**Joined Tributes**",
                     value=players_text,
                     inline=False
                 )
         
-        embed.set_footer(text="Poll will automatically close after 10 minutes of inactivity")
+        embed.set_footer(
+            text="⏰ Poll expires in 10 minutes • Use buttons below to join/leave"
+        )
         return embed
     
-    @discord.ui.button(label="Join", emoji="✅", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Join Poll", emoji="✅", style=discord.ButtonStyle.green, row=0)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle join button press"""
         await interaction.response.defer()
@@ -134,7 +135,7 @@ class PollView(discord.ui.View):
                 ephemeral=True
             )
     
-    @discord.ui.button(label="Leave", emoji="❌", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Leave Poll", emoji="❌", style=discord.ButtonStyle.red, row=0)
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle leave button press"""
         await interaction.response.defer()
@@ -156,7 +157,7 @@ class PollView(discord.ui.View):
                 ephemeral=True
             )
     
-    @discord.ui.button(label="Start Game", emoji="🎮", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Start Game", emoji="🎮", style=discord.ButtonStyle.primary, row=1)
     async def start_game_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle start game button press"""
         await interaction.response.defer()
