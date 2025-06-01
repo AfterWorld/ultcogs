@@ -1533,7 +1533,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @commands.group(name="set", invoke_without_command=True)
+    @commands.group(name="hgset", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
@@ -1727,7 +1727,20 @@ class HungerGames(commands.Cog):
             
             filtered_members.sort(key=lambda x: x[1].get(stat, 0), reverse=True)
             
-            embed = create_leaderboard_embed(ctx.guild, filtered_members, stat)
+            # Create a simple leaderboard embed if utility is missing
+            embed = discord.Embed(
+                title=f"🏆 Hunger Games Leaderboard - {stat.capitalize()}",
+                color=0x4169E1
+            )
+            description = ""
+            for idx, (member_id, data) in enumerate(filtered_members[:10], start=1):
+                member = ctx.guild.get_member(int(member_id))
+                name = member.display_name if member else f"User {member_id}"
+                value = data.get(stat, 0)
+                description += f"**{idx}. {name}** — {value}\n"
+            if not description:
+                description = "No data available."
+            embed.description = description
             await ctx.send(embed=embed)
             
         except Exception as e:
