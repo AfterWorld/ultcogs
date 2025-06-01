@@ -228,4 +228,33 @@ class PollSystem:
             
             game = self.cog.active_games[guild_id]
             
-            # Add poll participants as
+            # Add poll participants as players
+            for user_id in players:
+                member = ctx.guild.get_member(user_id)
+                if member:
+                    game["players"][str(user_id)] = {
+                        "name": member.display_name,
+                        "title": get_random_player_title(),
+                        "alive": True,
+                        "kills": 0,
+                        "revives": 0,
+                        "district": get_random_district()
+                    }
+            
+            player_count = len(game["players"])
+            
+            # Send game start messages
+            await ctx.send(f"🎮 **Game starting with {player_count} tributes!**")
+            await asyncio.sleep(2)
+            await self.cog._send_game_start_messages(game, player_count)
+            
+            # Start the main game loop
+            game["task"] = asyncio.create_task(self.cog.game_loop(guild_id))
+            
+            logger.info(f"Started Hunger Games via poll with {player_count} players in guild {guild_id}")
+            
+        except Exception as e:
+            logger.error(f"Error starting poll game: {e}")
+            if guild_id in self.cog.active_games:
+                del self.cog.active_games[guild_id]
+            await ctx.send("❌ Failed to start the game.")
