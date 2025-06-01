@@ -334,7 +334,8 @@ class HungerGames(commands.Cog):
                 role_mention = f"{role.mention} "
         
         poll_message = f"{role_mention}🗳️ **Hunger Games Poll Started!**\n"
-        poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
+        poll_message += f"**Target:** {threshold} players\n"
+        poll_message += f"React with 🏹 to join!\n"
         poll_message += f"Game will start in 60 seconds..."
         
         await ctx.send(poll_message)
