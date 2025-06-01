@@ -1706,7 +1706,7 @@ class HungerGames(commands.Cog):
             logger.error(f"Error in config command: {e}")
             await ctx.send("❌ Error retrieving configuration.")
     
-    @hungergames.group(name="set", invoke_without_command=True)
+    @hungergames.group(name="hgset", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def hg_set(self, ctx):
         """Configure Hunger Games settings"""
