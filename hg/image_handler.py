@@ -1,4 +1,4 @@
-# image_handler.py - FIXED VERSION WITH CORRECT POSITIONING
+# image_handler.py - CLEAN FIXED VERSION WITHOUT SYNTAX ERRORS
 """
 Custom Image Round Display System for Hunger Games
 Overlays round info, events, and player count onto custom background image
@@ -360,7 +360,7 @@ class ImageRoundHandler:
         """Get the template image path for admin commands"""
         return str(self.template_path)
     
-    def create_debug_image(self, round_num: int = 5, event_text: str = "Test event text", 
+    def create_debug_image(self, round_num: int = 5, event_text: str = "💀 Test event text with emoji", 
                           remaining_players: int = 12) -> Optional[discord.File]:
         """Create debug image showing positioning guides"""
         try:
@@ -413,6 +413,12 @@ class ImageRoundHandler:
             template.save(img_buffer, format='PNG', optimize=True)
             img_buffer.seek(0)
             
+            return discord.File(img_buffer, filename="debug_round_display.png")
+            
+        except Exception as e:
+            logger.error(f"Error creating debug image: {e}")
+            return None
+    
     def get_template_info(self) -> dict:
         """Get information about the current template"""
         try:
