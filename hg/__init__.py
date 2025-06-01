@@ -12,7 +12,7 @@ from typing import Dict
 
 from .constants import DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG
 from .game_logic import GameEngine
-from .commands import CommandHandler
+from .commands import CommandHandler  # Import as CommandHandler to avoid conflict
 from .poll_system import PollSystem
 from .validators import InputValidator
 from .event_handlers import EventHandler
@@ -90,6 +90,119 @@ class HungerGames(commands.Cog):
             if "task" in self.active_games[guild_id]:
                 self.active_games[guild_id]["task"].cancel()
         logger.info("Hunger Games cog unloaded, all games cancelled")
+    
+    # Add the missing game_loop method
+    async def game_loop(self, guild_id: int):
+        """Main game loop that runs the Hunger Games"""
+        try:
+            game = self.active_games[guild_id]
+            channel = game["channel"]
+            
+            # Get config
+            event_interval = await self.config.guild_from_id(guild_id).event_interval()
+            
+            while guild_id in self.active_games:
+                game = self.active_games[guild_id]
+                
+                if game["status"] != "active":
+                    break
+                
+                # Get alive players
+                alive_players = self.game_engine.get_alive_players(game)
+                
+                # Check for game end
+                if await self.game_engine.check_game_end(game, channel):
+                    break
+                
+                # Increment round
+                game["round"] += 1
+                
+                # Execute events for this round
+                try:
+                    event_messages = await self.game_engine.execute_combined_events(game, channel)
+                    
+                    # Send event messages
+                    for message in event_messages:
+                        if message:
+                            embed = discord.Embed(description=message, color=0xFF6B35)
+                            await channel.send(embed=embed)
+                            await asyncio.sleep(1)
+                    
+                    # Check for special events
+                    special_message = await self.game_engine.check_special_events(game, channel, alive_players)
+                    if special_message:
+                        embed = discord.Embed(description=special_message, color=0x4169E1)
+                        await channel.send(embed=embed)
+                    
+                    # Send status update occasionally
+                    if game["round"] % 6 == 0 and len(alive_players) > 8:
+                        status_embed = self.game_engine.create_status_embed(game, channel.guild)
+                        await channel.send(embed=status_embed)
+                    
+                except Exception as e:
+                    logger.error(f"Error in game loop round {game['round']}: {e}")
+                    await channel.send("⚠️ The arena experienced technical difficulties, but the games continue...")
+                
+                # Calculate sleep time based on player count
+                alive_count = len(self.game_engine.get_alive_players(game))
+                if alive_count <= 2:
+                    sleep_time = max(8, event_interval // 3)
+                elif alive_count <= 5:
+                    sleep_time = max(12, event_interval // 2)
+                else:
+                    sleep_time = max(25, event_interval)
+                
+                await asyncio.sleep(sleep_time)
+            
+            # Clean up
+            if guild_id in self.active_games:
+                del self.active_games[guild_id]
+                
+        except Exception as e:
+            logger.error(f"Fatal error in game loop for guild {guild_id}: {e}")
+            if guild_id in self.active_games:
+                del self.active_games[guild_id]
+            await channel.send("❌ The arena has malfunctioned. Game ended.")
+    
+    # Add missing _send_game_start_messages method
+    async def _send_game_start_messages(self, game, player_count):
+        """Send game start and player introduction messages"""
+        channel = game["channel"]
+        
+        # Game start message
+        from .utils import create_game_start_embed
+        embed = create_game_start_embed(player_count)
+        await channel.send(embed=embed)
+        
+        await asyncio.sleep(3)
+        
+        # Show initial tributes
+        embed = discord.Embed(
+            title="👥 **THE TRIBUTES**",
+            description="Meet this year's brave competitors:",
+            color=0x4169E1
+        )
+        
+        from .utils import format_player_list
+        player_list = format_player_list(game["players"], show_status=False)
+        embed.add_field(
+            name="🏹 **Entered the Arena**",
+            value=player_list,
+            inline=False
+        )
+        
+        await channel.send(embed=embed)
+        
+        # Add extra dramatic pause for small games
+        if player_count <= 4:
+            await asyncio.sleep(2)
+            embed = discord.Embed(
+                title="⚡ **INTENSE SHOWDOWN INCOMING** ⚡",
+                description=f"With only **{player_count} tributes**, this will be a lightning-fast battle!\n"
+                           f"Every second counts... every move matters...",
+                color=0xFF6B35
+            )
+            await channel.send(embed=embed)
     
     # =====================================================
     # DELEGATE COMMANDS TO COMMAND HANDLER
