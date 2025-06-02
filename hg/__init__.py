@@ -93,13 +93,17 @@ class HungerGames(discord_commands.Cog):
     
     # Add the missing game_loop method
     async def game_loop(self, guild_id: int):
-        """Main game loop that runs the Hunger Games"""
+        """Main game loop that runs the Hunger Games with Grand Line conditions"""
         try:
             game = self.active_games[guild_id]
             channel = game["channel"]
             
             # Get config
             event_interval = await self.config.guild_from_id(guild_id).event_interval()
+            
+            # Select initial arena condition
+            await self.game_engine.select_arena_condition(game, channel)
+            await asyncio.sleep(3)  # Let players read the condition
             
             while guild_id in self.active_games:
                 game = self.active_games[guild_id]
@@ -117,6 +121,11 @@ class HungerGames(discord_commands.Cog):
                 # Increment round
                 game["round"] += 1
                 
+                # Check if arena condition should change (every few rounds)
+                if game["round"] % 6 == 0 or random.random() < 0.15:  # 15% chance each round
+                    await self.game_engine.check_condition_change(game, channel)
+                    await asyncio.sleep(2)  # Brief pause after condition change
+                
                 # Execute events for this round
                 try:
                     event_messages = await self.game_engine.execute_combined_events(game, channel)
@@ -126,14 +135,22 @@ class HungerGames(discord_commands.Cog):
                         combined_description = "\n\n".join(msg for msg in event_messages if msg)
                         if combined_description:
                             embed = discord.Embed(
-                                title=f"🎮 **ROUND {game['round']} EVENTS** 🎮",
+                                title=f"🌊 **ROUND {game['round']} - GRAND LINE CHAOS** 🌊",
                                 description=combined_description,
                                 color=0xFF6B35
                             )
-                            embed.set_footer(text=f"Survivors remaining: {len(alive_players)}")
+                            
+                            # Add current condition to footer
+                            condition_info = self.game_engine.condition_manager.get_current_condition_info()
+                            if condition_info:
+                                footer_text = f"Survivors: {len(alive_players)} | {condition_info['name']}"
+                            else:
+                                footer_text = f"Survivors remaining: {len(alive_players)}"
+                            
+                            embed.set_footer(text=footer_text)
                             await channel.send(embed=embed)
                     
-                    # Check for special events
+                    # Check for special events (including environmental ones from conditions)
                     special_message = await self.game_engine.check_special_events(game, channel, alive_players)
                     if special_message:
                         embed = discord.Embed(description=special_message, color=0x4169E1)
@@ -146,16 +163,31 @@ class HungerGames(discord_commands.Cog):
                     
                 except Exception as e:
                     logger.error(f"Error in game loop round {game['round']}: {e}")
-                    await channel.send("⚠️ The arena experienced technical difficulties, but the games continue...")
+                    await channel.send("⚠️ The Grand Line experienced technical difficulties, but the pirate battle continues...")
                 
-                # Calculate sleep time based on player count
+                # Calculate sleep time based on player count and conditions
                 alive_count = len(self.game_engine.get_alive_players(game))
+                
+                # Base sleep calculation
                 if alive_count <= 2:
                     sleep_time = max(8, event_interval // 3)
                 elif alive_count <= 5:
                     sleep_time = max(12, event_interval // 2)
                 else:
                     sleep_time = max(25, event_interval)
+                
+                # Apply condition modifiers to sleep time
+                condition_effects = self.game_engine.condition_manager.condition_effects
+                if condition_effects:
+                    if "chaos_multiplier" in condition_effects:
+                        # Chaotic conditions = faster events
+                        sleep_time = int(sleep_time * (1 - condition_effects["chaos_multiplier"] * 0.5))
+                    elif "environmental_hazard" in condition_effects:
+                        # Environmental hazards = slightly faster
+                        sleep_time = int(sleep_time * 0.8)
+                
+                # Ensure minimum sleep time
+                sleep_time = max(5, sleep_time)
                 
                 await asyncio.sleep(sleep_time)
             
@@ -167,7 +199,7 @@ class HungerGames(discord_commands.Cog):
             logger.error(f"Fatal error in game loop for guild {guild_id}: {e}")
             if guild_id in self.active_games:
                 del self.active_games[guild_id]
-            await channel.send("❌ The arena has malfunctioned. Game ended.")
+            await channel.send("❌ The Grand Line has malfunctioned. Pirate battle ended.")
     
     # Add missing _send_game_start_messages method
     async def _send_game_start_messages(self, game, player_count):
