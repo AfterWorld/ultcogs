@@ -311,6 +311,25 @@ class HungerGames(discord_commands.Cog):
     async def hg_leaderboard(self, ctx, stat: str = "wins"):
         """View the Hunger Games leaderboard"""
         await self.command_handler.handle_leaderboard(ctx, stat)
+
+    @hungergames.command(name="condition")
+    @discord_commands.has_permissions(manage_guild=True)
+    async def hg_condition(self, ctx, action: str = "info", condition_name: str = None):
+        """Manage arena conditions (Admin only)
+        
+        Actions:
+        - info: Show current condition
+        - test [name]: Test a condition
+        - list: List all conditions
+        """
+        if action.lower() == "info":
+            await self.command_handler.handle_condition_info(ctx)
+        elif action.lower() == "test":
+            await self.command_handler.handle_condition_test(ctx, condition_name)
+        elif action.lower() == "list":
+            await self.command_handler.handle_condition_list(ctx)
+        else:
+            await ctx.send("❌ Invalid action! Use: info, test, or list")
     
     # Settings group
     @hungergames.group(name="set", invoke_without_command=True)
