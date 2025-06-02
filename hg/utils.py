@@ -167,40 +167,41 @@ class EmbedBuilder:
     
     @staticmethod
     def create_recruitment_embed(countdown: int, current_players: int = 0) -> discord.Embed:
-        """Create the recruitment embed with enhanced formatting"""
+        """Create the One Piece themed recruitment embed with enhanced formatting"""
         try:
             time_str = TimeFormatter.format_time_remaining(countdown)
             color = TimeFormatter.get_urgency_color(countdown)
             
             description = (
-                f"**A deadly battle royale is about to begin!**\n\n"
-                f"🔥 **React with {EMOJIS.get('bow', '🏹')} to enter the arena!**\n"
+                f"**The Grand Line calls for brave pirates!**\n\n"
+                f"🏴‍☠️ **React with {EMOJIS.get('bow', '🏹')} to set sail and join the battle!**\n"
                 f"⏰ Recruitment ends in **{time_str}**\n\n"
-                f"💰 **Prize Pool:** *Scales with participants*\n"
-                f"🎯 **Sponsor Revivals:** *Possible during the games*\n\n"
-                f"*May the odds be ever in your favor...*"
+                f"💰 **Treasure Awaits:** *Berries scale with crew size*\n"
+                f"🎁 **Mysterious Sponsors:** *Unknown benefactors may revive fallen pirates*\n"
+                f"🌊 **Grand Line Weather:** *Unpredictable conditions will affect the battle*\n\n"
+                f"*Only the strongest pirate will claim the title of Pirate King!*"
             )
             
             embed = discord.Embed(
-                title="🏹 **THE HUNGER GAMES** 🏹",
+                title="🏴‍☠️ **PIRATE BATTLE ROYALE** 🏴‍☠️",
                 description=description,
                 color=color
             )
             
             if current_players > 0:
                 embed.add_field(
-                    name="👥 **Current Tributes**",
-                    value=f"{current_players} brave souls",
+                    name="⚓ **Current Crew**",
+                    value=f"{current_players} brave pirates",
                     inline=True
                 )
             
             # Add different footer messages based on time
             if countdown <= 30:
-                footer_text = "⚠️ Last chance to join!"
+                footer_text = "🚨 Last chance to board! The ship leaves soon!"
             elif countdown <= 60:
-                footer_text = "⏰ Time running out!"
+                footer_text = "⏰ Hurry! The tide is turning!"
             else:
-                footer_text = "React quickly - the arena waits for no one!"
+                footer_text = "🌊 Adventure awaits on the Grand Line!"
             
             embed.set_footer(text=footer_text)
             return embed
@@ -208,8 +209,8 @@ class EmbedBuilder:
         except Exception as e:
             logger.error(f"Error creating recruitment embed: {e}")
             return discord.Embed(
-                title="🏹 Hunger Games",
-                description="Battle royale starting soon!",
+                title="🏴‍☠️ Pirate Battle Royale",
+                description="Join the battle for the One Piece!",
                 color=0x8B0000
             )
     
