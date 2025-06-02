@@ -433,7 +433,7 @@ VICTORY_SCENARIOS = {
     "underdog": [  # Small games or came from behind
         "⚡ **UNDERDOG TRIUMPH!**",
         "🌟 **AGAINST ALL ODDS!**",
-        "🎪 **SPECTACULAR UPSET!**",
+        "🌪 **SPECTACULAR UPSET!**",
         "💫 **MIRACLE VICTORY!**"
     ],
     "final_duel": [  # 2 player games
@@ -443,6 +443,116 @@ VICTORY_SCENARIOS = {
         "💀 **LAST TRIBUTE STANDING!**"
     ]
 }
+
+# Midgame Atmospheric Events
+MIDGAME_ATMOSPHERIC_EVENTS = [
+    "🌙 | An eerie calm falls over the Grand Line as night approaches...",
+    "🦅 | News Coos circle overhead, broadcasting the chaos to the world...",
+    "🔊 | Wanted posters of fallen pirates float across the battlefield...",
+    "⭐ | The stars above seem to judge the remaining warriors...",
+    "🌿 | Strange sounds echo from the depths of the ocean...",
+    "💨 | A sea breeze carries the scent of salt... and blood...",
+    "🌫️ | Mysterious fog rolls across the waves, hiding unknown dangers...",
+    "🎵 | The wind carries the final songs of defeated pirates..."
+]
+
+# Cannon Malfunction Events
+CANNON_DEATH_EVENTS = [
+    "💣💥 | A Marine battleship's cannon misfires and the blast catches ~~**{player}**~~ in the explosion!",
+    "💣⚡ | ~~**{player}**~~ was struck by debris from an exploding cannon!",
+    "💣🔥 | ~~**{player}**~~ couldn't escape the cannonball's devastating blast!",
+    "💣💀 | ~~**{player}**~~ was caught in the shockwave of a ship's exploding armory!"
+]
+
+CANNON_SCARE_EVENTS = [
+    "💣💨 | A Marine ship fires in the distance, the blast barely missing the pirates!",
+    "💣⚠️ | A cannon misfires, sending cannonballs flying but harming no one!",
+    "💣😰 | The sound of naval artillery echoes across the sea, making everyone take cover!",
+    "💣🌪️ | A cannon blast creates massive waves, but all pirates brace their ships in time!"
+]
+
+# Toxic Fog Events (Devil Fruit Gas Powers)
+TOXIC_FOG_SINGLE_DEATH = [
+    "☠️💨 | Poison gas from a Devil Fruit user engulfs the area! ~~**{player}**~~ couldn't escape in time!",
+    "☠️🌫️ | ~~**{player}**~~ was overwhelmed by the deadly purple miasma!",
+    "☠️💜 | ~~**{player}**~~ succumbed to the toxic Devil Fruit power!",
+    "☠️🏃 | ~~**{player}**~~ couldn't outrun the spreading poisonous cloud!"
+]
+
+TOXIC_FOG_MULTI_DEATH = "☠️💨 | Deadly gas from a Devil Fruit ability sweeps the battlefield, claiming {players}!"
+TOXIC_FOG_SURVIVAL = "💨😅 | Poisonous gas rolls across the sea, but all pirates find shelter on their ships in time!"
+
+# Tracker Jacker Events
+TRACKER_JACKER_DEATHS = [
+    "🐙💀 | ~~**{player}**~~ was dragged to the depths by a massive Sea King!",
+    "🐙😵 | ~~**{player}**~~ was crushed by enormous tentacles!",
+    "🐙🌪️ | ~~**{player}**~~ couldn't escape the Sea King's whirlpool attack!",
+    "🐙⚡ | ~~**{player}**~~ was overwhelmed by the ocean beast's fury!"
+]
+
+TRACKER_JACKER_HALLUCINATION = "🌀 | **{player}** sees mirages from dehydration and sea madness!"
+TRACKER_JACKER_AVOIDANCE = "🐙⚠️ | Massive Sea Kings circle below but seem to ignore the final pirates..."
+
+# Arena Trap Types and Events
+ARENA_TRAP_TYPES = [
+    ("sea stone mine", "💎", "triggered a hidden seastone explosive"),
+    ("net trap", "🕸️", "was caught in a Marine capture net"),
+    ("spike trap", "⬆️", "was impaled by hidden Marine spikes"),
+    ("cage trap", "⛓️", "was trapped in a seastone cage and couldn't break free"),
+    ("gas trap", "☠️", "triggered a Marine poison gas trap"),
+    ("blade trap", "⚔️", "was sliced by hidden Marine blade mechanisms"),
+    ("electric trap", "⚡", "was shocked by a Marine Den Den Mushi trap")
+]
+
+ARENA_TRAP_DEATH = "{emoji}💀 | ~~**{player}**~~ {description}!"
+ARENA_TRAP_ESCAPE = "{emoji}😅 | **{player}** narrowly avoids a Marine {trap_name}!"
+
+# Muttation Types and Events
+MUTTATION_TYPES = [
+    ("Sea Kings", "🐙", "devoured by"),
+    ("Giant Bees", "🐝", "stung to death by"),
+    ("Kung Fu Dugongs", "🦭", "beaten down by"),
+    ("Sky Sharks", "🦈", "torn apart by"),
+    ("Poison Spiders", "🕷️", "poisoned by"),
+    ("Sea Serpents", "🐍", "constricted by"),
+    ("Fighting Fish", "🐠", "eaten alive by")
+]
+
+MUTTATION_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_verb} {creature_name}!"
+MUTTATION_ESCAPE = "{emoji}⚠️ | {creature_name} prowl the waters, but the pirates manage to avoid them!"
+
+# Environmental Hazard Types
+ENVIRONMENTAL_HAZARDS = [
+    ("sudden storm", "🌊", "swept overboard during"),
+    ("reverse mountain current", "🌊", "crushed against rocks by"),
+    ("lightning storm", "⚡", "struck by lightning during"),
+    ("hailstorm", "❄️", "battered to death by"),
+    ("fire rain", "🔥", "burned alive by"),
+    ("tornado", "🌪️", "swept away by"),
+    ("underwater volcano", "🌋", "boiled alive by")
+]
+
+ENVIRONMENTAL_SINGLE_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_description} the {hazard_name}!"
+ENVIRONMENTAL_MULTI_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_description} the {hazard_name}!"
+ENVIRONMENTAL_SURVIVAL = "{emoji}⚠️ | A {hazard_name} rocks the Grand Line, but all pirates weather it safely!"
+ENVIRONMENTAL_PARTIAL_SURVIVAL = "{emoji}😅 | **{survivors}** managed to navigate through the chaos!"
+
+# Gamemaker Test Events
+GAMEMAKER_COURAGE_DEATH = "🏛️💀 | The World Government tests **{player}**'s resolve - ~~**they broke under pressure**~~!"
+GAMEMAKER_COURAGE_SURVIVAL = "🏛️⚡ | **{player}** faces the World Government's trial and emerges stronger!"
+GAMEMAKER_TEST_ANNOUNCEMENT = "🏛️⚠️ | The World Government announces a bounty increase for the remaining pirates..."
+GAMEMAKER_LOYALTY_TEST = "🏛️⚡ | Marine spies test the pirates' alliances with false information..."
+
+# Event Type Categories for Midgame
+MIDGAME_DEADLY_EVENT_TYPES = [
+    "cannon_malfunction",
+    "toxic_fog", 
+    "tracker_jackers",
+    "arena_trap",
+    "muttation_attack",
+    "environmental_hazard",
+    "gamemaker_test"
+]
 
 # Player Emoji Mappings based on titles and performance
 TITLE_EMOJIS = {
