@@ -591,7 +591,7 @@ class GameEngine:
         return embed
     
     async def execute_combined_events(self, game: Dict, channel: discord.TextChannel, event_count: int = None):
-        """Execute multiple events in one round with condition awareness"""
+        """Execute multiple events in one round with condition awareness and special events"""
         alive_count = len(self.get_alive_players(game))
         
         # Determine number of events if not specified
@@ -611,17 +611,29 @@ class GameEngine:
         from .constants import get_event_weights
         base_weights = get_event_weights()
         
-        # Apply condition effects to weights
+        # Apply condition effects to weights (but don't let them dominate)
         weights = self.condition_manager.apply_condition_to_event_weights(base_weights)
+        
+        # Ensure minimum chances for non-death events so conditions don't prevent them
+        weights["survival"] = max(weights["survival"], 15)
+        weights["sponsor"] = max(weights["sponsor"], 10)
+        weights["alliance"] = max(weights["alliance"], 10)
+        weights["crate"] = max(weights["crate"], 10)
+        
+        # Check for special midgame events first (these are additional to normal events)
+        special_event = await self._check_special_midgame_events(game, channel, alive_count)
+        if special_event:
+            event_messages.append(special_event)
         
         for i in range(event_count):
             if len(self.get_alive_players(game)) <= 1:
                 break
             
             # Adjust weights based on game state
-            if alive_count <= 2:
+            current_alive = len(self.get_alive_players(game))
+            if current_alive <= 2:
                 weights.update({"death": 70, "survival": 10, "sponsor": 10, "alliance": 5, "crate": 5})
-            elif alive_count <= 5:
+            elif current_alive <= 5:
                 weights.update({"death": 45, "survival": 20, "sponsor": 15, "alliance": 10, "crate": 10})
             
             # Choose event type
@@ -648,3 +660,252 @@ class GameEngine:
             await asyncio.sleep(0.1)  # Small delay between events
         
         return event_messages
+    
+    async def _check_special_midgame_events(self, game: Dict, channel: discord.TextChannel, alive_count: int) -> Optional[str]:
+        """Check for and execute special midgame events"""
+        try:
+            round_num = game["round"]
+            
+            # Only trigger special events in midgame (not too early, not too late)
+            if round_num < 3 or alive_count <= 3:
+                return None
+            
+            # 15% chance for special events in midgame
+            if random.random() > 0.15:
+                return None
+            
+            # Choose random special event type
+            from .constants import MIDGAME_DEADLY_EVENT_TYPES
+            event_type = random.choice(MIDGAME_DEADLY_EVENT_TYPES)
+            
+            if event_type == "cannon_malfunction":
+                return await self._execute_cannon_event(game)
+            elif event_type == "toxic_fog":
+                return await self._execute_toxic_fog_event(game)
+            elif event_type == "tracker_jackers":
+                return await self._execute_sea_king_event(game)
+            elif event_type == "arena_trap":
+                return await self._execute_arena_trap_event(game)
+            elif event_type == "muttation_attack":
+                return await self._execute_muttation_event(game)
+            elif event_type == "environmental_hazard":
+                return await self._execute_environmental_hazard_event(game)
+            elif event_type == "gamemaker_test":
+                return await self._execute_gamemaker_event(game)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error in special midgame events: {e}")
+            return None
+    
+    async def _execute_cannon_event(self, game: Dict) -> Optional[str]:
+        """Execute cannon malfunction event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import CANNON_DEATH_EVENTS, CANNON_SCARE_EVENTS
+            
+            if random.random() < 0.3:  # 30% chance for death
+                victim = random.choice(alive_players)
+                victim['alive'] = False
+                game['eliminated'].append(victim['name'])
+                
+                death_event = random.choice(CANNON_DEATH_EVENTS)
+                return death_event.format(player=f"{victim['name']} {victim['title']}")
+            else:
+                return random.choice(CANNON_SCARE_EVENTS)
+                
+        except Exception as e:
+            logger.error(f"Error in cannon event: {e}")
+            return None
+    
+    async def _execute_toxic_fog_event(self, game: Dict) -> Optional[str]:
+        """Execute toxic fog event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import TOXIC_FOG_SINGLE_DEATH, TOXIC_FOG_MULTI_DEATH, TOXIC_FOG_SURVIVAL
+            
+            if random.random() < 0.4:  # 40% chance for deaths
+                if len(alive_players) >= 4 and random.random() < 0.3:
+                    # Multi-death
+                    num_victims = min(random.randint(2, 3), len(alive_players) - 1)
+                    victims = random.sample(alive_players, num_victims)
+                    
+                    for victim in victims:
+                        victim['alive'] = False
+                        game['eliminated'].append(victim['name'])
+                    
+                    victim_names = ", ".join([f"~~**{v['name']} {v['title']}**~~" for v in victims])
+                    return TOXIC_FOG_MULTI_DEATH.format(players=victim_names)
+                else:
+                    # Single death
+                    victim = random.choice(alive_players)
+                    victim['alive'] = False
+                    game['eliminated'].append(victim['name'])
+                    
+                    death_event = random.choice(TOXIC_FOG_SINGLE_DEATH)
+                    return death_event.format(player=f"{victim['name']} {victim['title']}")
+            else:
+                return TOXIC_FOG_SURVIVAL
+                
+        except Exception as e:
+            logger.error(f"Error in toxic fog event: {e}")
+            return None
+    
+    async def _execute_sea_king_event(self, game: Dict) -> Optional[str]:
+        """Execute Sea King attack event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import TRACKER_JACKER_DEATHS, TRACKER_JACKER_HALLUCINATION, TRACKER_JACKER_AVOIDANCE
+            
+            if random.random() < 0.35:  # 35% chance for death
+                victim = random.choice(alive_players)
+                victim['alive'] = False
+                game['eliminated'].append(victim['name'])
+                
+                death_event = random.choice(TRACKER_JACKER_DEATHS)
+                return death_event.format(player=f"{victim['name']} {victim['title']}")
+            elif random.random() < 0.6:
+                # Hallucination event
+                survivor = random.choice(alive_players)
+                return TRACKER_JACKER_HALLUCINATION.format(player=f"{survivor['name']} {survivor['title']}")
+            else:
+                return TRACKER_JACKER_AVOIDANCE
+                
+        except Exception as e:
+            logger.error(f"Error in sea king event: {e}")
+            return None
+    
+    async def _execute_arena_trap_event(self, game: Dict) -> Optional[str]:
+        """Execute arena trap event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import ARENA_TRAP_TYPES, ARENA_TRAP_DEATH, ARENA_TRAP_ESCAPE
+            
+            trap_name, emoji, description = random.choice(ARENA_TRAP_TYPES)
+            player = random.choice(alive_players)
+            
+            if random.random() < 0.4:  # 40% chance for death
+                player['alive'] = False
+                game['eliminated'].append(player['name'])
+                
+                return ARENA_TRAP_DEATH.format(
+                    emoji=emoji,
+                    player=f"{player['name']} {player['title']}",
+                    description=description
+                )
+            else:
+                return ARENA_TRAP_ESCAPE.format(
+                    emoji=emoji,
+                    player=f"{player['name']} {player['title']}",
+                    trap_name=trap_name
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in arena trap event: {e}")
+            return None
+    
+    async def _execute_muttation_event(self, game: Dict) -> Optional[str]:
+        """Execute muttation/creature attack event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import MUTTATION_TYPES, MUTTATION_DEATH, MUTTATION_ESCAPE
+            
+            creature_name, emoji, death_verb = random.choice(MUTTATION_TYPES)
+            
+            if random.random() < 0.3:  # 30% chance for death
+                victim = random.choice(alive_players)
+                victim['alive'] = False
+                game['eliminated'].append(victim['name'])
+                
+                return MUTTATION_DEATH.format(
+                    emoji=emoji,
+                    player=f"{victim['name']} {victim['title']}",
+                    death_verb=death_verb,
+                    creature_name=creature_name
+                )
+            else:
+                return MUTTATION_ESCAPE.format(
+                    emoji=emoji,
+                    creature_name=creature_name
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in muttation event: {e}")
+            return None
+    
+    async def _execute_environmental_hazard_event(self, game: Dict) -> Optional[str]:
+        """Execute environmental hazard event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import ENVIRONMENTAL_HAZARDS, ENVIRONMENTAL_SINGLE_DEATH, ENVIRONMENTAL_SURVIVAL
+            
+            hazard_name, emoji, death_description = random.choice(ENVIRONMENTAL_HAZARDS)
+            
+            if random.random() < 0.35:  # 35% chance for death
+                victim = random.choice(alive_players)
+                victim['alive'] = False
+                game['eliminated'].append(victim['name'])
+                
+                return ENVIRONMENTAL_SINGLE_DEATH.format(
+                    emoji=emoji,
+                    player=f"{victim['name']} {victim['title']}",
+                    death_description=death_description,
+                    hazard_name=hazard_name
+                )
+            else:
+                return ENVIRONMENTAL_SURVIVAL.format(
+                    emoji=emoji,
+                    hazard_name=hazard_name
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in environmental hazard event: {e}")
+            return None
+    
+    async def _execute_gamemaker_event(self, game: Dict) -> Optional[str]:
+        """Execute World Government test event"""
+        try:
+            alive_players = self.get_alive_players(game)
+            if not alive_players:
+                return None
+            
+            from .constants import (GAMEMAKER_COURAGE_DEATH, GAMEMAKER_COURAGE_SURVIVAL, 
+                                   GAMEMAKER_TEST_ANNOUNCEMENT, GAMEMAKER_LOYALTY_TEST)
+            
+            event_type = random.choice(["courage", "announcement", "loyalty"])
+            
+            if event_type == "courage":
+                player = random.choice(alive_players)
+                if random.random() < 0.2:  # 20% chance for death
+                    player['alive'] = False
+                    game['eliminated'].append(player['name'])
+                    return GAMEMAKER_COURAGE_DEATH.format(player=f"{player['name']} {player['title']}")
+                else:
+                    return GAMEMAKER_COURAGE_SURVIVAL.format(player=f"{player['name']} {player['title']}")
+            elif event_type == "announcement":
+                return GAMEMAKER_TEST_ANNOUNCEMENT
+            else:
+                return GAMEMAKER_LOYALTY_TEST
+                
+        except Exception as e:
+            logger.error(f"Error in gamemaker event: {e}")
+            return None
