@@ -26,23 +26,34 @@ class PollView(discord.ui.View):
         self.game_started = False
     
     async def start(self, ctx):
-        """Start the poll"""
+        """Start the poll with proper role pinging"""
         self.ctx = ctx
         
-        # Get role to ping
+        # Handle role ping separately first
         poll_ping_role_id = await self.cog.config.guild(ctx.guild).poll_ping_role()
-        role_mention = ""
         if poll_ping_role_id:
             role = ctx.guild.get_role(poll_ping_role_id)
             if role:
-                role_mention = f"{role.mention} "
+                try:
+                    # Send a separate ping message that actually notifies
+                    ping_msg = await ctx.send(
+                        f"{role.mention} 🗳️ **Hunger Games Poll Starting!**",
+                        allowed_mentions=discord.AllowedMentions(roles=True)
+                    )
+                    # Delete it after a moment to keep channel clean
+                    await asyncio.sleep(1)
+                    try:
+                        await ping_msg.delete()
+                    except:
+                        pass  # Ignore deletion errors
+                except Exception as e:
+                    logger.error(f"Failed to ping role: {e}")
         
-        # Create initial embed
+        # Create initial embed (without role mention)
         embed = self._create_poll_embed()
         
         # Send poll message
-        content = f"{role_mention}🗳️ **Hunger Games Poll Started!**" if role_mention else None
-        self.message = await ctx.send(content=content, embed=embed, view=self)
+        self.message = await ctx.send(embed=embed, view=self)
     
     def _create_poll_embed(self) -> discord.Embed:
         """Create the poll embed"""
