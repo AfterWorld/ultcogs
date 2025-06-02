@@ -381,6 +381,76 @@ class HungerGames(discord_commands.Cog):
         """Set the event interval (10-120 seconds)"""
         await self.command_handler.handle_set_interval(ctx, seconds)
 
+    @hg_set.command(name="testping")
+    @discord_commands.has_permissions(manage_guild=True)
+    async def hg_test_ping(self, ctx):
+        """Test the poll ping role to make sure it works (Admin only)"""
+        try:
+            poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
+            
+            if not poll_ping_role_id:
+                return await ctx.send("❌ No poll ping role is set! Use `.hungergames set pollpingrole <role>` to set one.")
+            
+            role = ctx.guild.get_role(poll_ping_role_id)
+            if not role:
+                return await ctx.send("❌ The configured poll ping role no longer exists! Please set a new one.")
+            
+            # Check if role is mentionable
+            if not role.mentionable:
+                embed = discord.Embed(
+                    title="⚠️ **Role Ping Issue**",
+                    description=(
+                        f"The role {role.mention} is **not mentionable**!\n\n"
+                        f"**To fix this:**\n"
+                        f"1. Go to Server Settings → Roles\n"
+                        f"2. Click on the `{role.name}` role\n"
+                        f"3. Enable **'Allow anyone to @mention this role'**\n\n"
+                        f"**Alternative:** Use a different role that is mentionable."
+                    ),
+                    color=0xFF8000
+                )
+                return await ctx.send(embed=embed)
+            
+            # Test the ping
+            await ctx.send("🧪 **Testing role ping...**")
+            
+            try:
+                test_msg = await ctx.send(
+                    f"{role.mention} 🧪 **Test ping - please confirm you received a notification!**",
+                    allowed_mentions=discord.AllowedMentions(roles=True)
+                )
+                
+                embed = discord.Embed(
+                    title="✅ **Ping Test Sent**",
+                    description=(
+                        f"Test ping sent for {role.mention}!\n\n"
+                        f"**If members with this role received a notification:** ✅ Working correctly\n"
+                        f"**If no notification was received:** There may be an issue with Discord or role permissions\n\n"
+                        f"**Troubleshooting:**\n"
+                        f"• Make sure the role is mentionable\n"
+                        f"• Check that members have notification settings enabled\n"
+                        f"• Verify the bot has permission to mention roles"
+                    ),
+                    color=0x00FF00
+                )
+                await ctx.send(embed=embed)
+                
+                # Clean up test message after 10 seconds
+                await asyncio.sleep(10)
+                try:
+                    await test_msg.delete()
+                except:
+                    pass
+                
+            except discord.Forbidden:
+                await ctx.send("❌ I don't have permission to mention roles! Please check bot permissions.")
+            except Exception as e:
+                await ctx.send(f"❌ Error sending test ping: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Error in ping test: {e}")
+            await ctx.send("❌ Error testing ping.")
+
 
 async def setup(bot):
     """Required function for loading the cog"""
