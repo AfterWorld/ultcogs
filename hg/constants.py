@@ -1,4 +1,4 @@
-# constants.py - Updated with poll support
+# constants.py - Updated with One Piece theming and bug fixes
 """Constants and configuration for the Hunger Games cog"""
 
 # Game Configuration
@@ -44,198 +44,166 @@ POLL_EMOJIS = {
     "start": "🎮"
 }
 
-DEATH_EVENTS = [
+# One Piece Style Death Events - Player vs Player
+PLAYER_DEATH_EVENTS = [
     "💀 | **{killer}** fed ~~**{player}**~~ to their pet Sea King!",
-    "💀 | ~~**{player}**~~ got electrocuted trying to steal a Devil Fruit from the World Government vault.",
     "💀 | **{killer}** slipped a blade between ~~**{player}**~~'s ribs in the bustling port town!",
-    "💀 | ~~**{player}**~~ drank seawater while having Devil Fruit powers and drowned helplessly.",
     "💀 | **{killer}** went into a rage and cleaved ~~**{player}**~~ in half with their legendary cutlass!",
-    "💀 | ~~**{player}**~~ collapsed from exhaustion in the middle of a Marine raid.",
     "💀 | **{killer}** materialized behind ~~**{player}**~~ using Soru and slit their throat!",
-    "💀 | ~~**{player}**~~ triggered a trap while exploring ancient Shandian ruins.",
     "💀 | **{killer}** devoured ~~**{player}**~~ alive using their Carnivorous Zoan powers!",
-    "💀 | ~~**{player}**~~ touched a cursed treasure and was instantly turned to gold.",
     "💀 | **{killer}** crucified ~~**{player}**~~ on the town's execution platform for all to see!",
-    "💀 | ~~**{player}**~~ was torn apart by Pacifista during a Buster Call.",
     "💀 | **{killer}** bludgeoned ~~**{player}**~~ to death with their kanabo!",
-    "💀 | ~~**{player}**~~ got lost in the Calm Belt and became Sea King bait.",
     "💀 | **{killer}** slowly flayed ~~**{player}**~~ alive in their torture chamber on Thriller Bark!",
-    "💀 | ~~**{player}**~~ fell into the ocean depths and was crushed by water pressure.",
     "💀 | **{killer}** keelhauled ~~**{player}**~~ beneath their ghostly pirate ship!",
-    "💀 | ~~**{player}**~~ walked into Vegapunk's experimental laser grid.",
     "💀 | **{killer}** sacrificed ~~**{player}**~~ to summon an ancient Sea King!",
-    "💀 | ~~**{player}**~~ was possessed by a vengeful spirit on Thriller Bark and self-destructed.",
     "💀 | **{killer}** impaled ~~**{player}**~~ with their trident in the Corrida Colosseum!",
-    "💀 | ~~**{player}**~~ got crushed by falling debris during Whitebeard's earthquake.",
     "💀 | **{killer}** drained ~~**{player}**~~ completely dry using their Vampire Bat Zoan form!",
-    "💀 | ~~**{player}**~~ ran straight into the Red Line at full speed.",
     "💀 | **{killer}** cursed ~~**{player}**~~ using their Voodoo-Voodoo Fruit powers!",
-    "💀 | ~~**{player}**~~ was digested alive by a carnivorous plant on the Boin Archipelago.",
     "💀 | **{killer}** buried ~~**{player}**~~ alive under tons of rubble using their Earth-Earth Fruit!",
-    "💀 | ~~**{player}**~~ fell off the edge of a Sky Island.",
     "💀 | **{killer}** burned ~~**{player}**~~ at the stake using their Flame-Flame Fruit!",
-    "💀 | ~~**{player}**~~ activated a self-destruct Dial by accident.",
     "💀 | **{killer}** performed ritual seppuku on ~~**{player}**~~ with ceremonial precision!",
-    "💀 | ~~**{player}**~~ was torn limb from limb by Kung-Fu Dugongs in the desert.",
     "💀 | **{killer}** harvested ~~**{player}**~~'s soul using their Soul-Soul Fruit powers!",
-    "💀 | ~~**{player}**~~ drank obviously poisoned sake at the pirate feast.",
     "💀 | **{killer}** smashed ~~**{player}**~~ against the ship's mast repeatedly!",
-    "💀 | ~~**{player}**~~ was consumed by shadow creatures in the Florian Triangle.",
     "💀 | **{killer}** tortured ~~**{player}**~~ to death with red-hot branding irons!",
-    "💀 | ~~**{player}**~~ stepped on a pressure plate that triggered ancient Poneglyph defenses.",
     "💀 | **{killer}** had ~~**{player}**~~ thrown into the magma chamber of Punk Hazard!",
-    "💀 | ~~**{player}**~~ was strangled by killer vines while napping in the jungle of Little Garden.",
     "💀 | **{killer}** carved ~~**{player}**~~ up like a piece of meat using their Dice-Dice Fruit!",
-    "💀 | ~~**{player}**~~ got absorbed by Blackbeard's darkness powers.",
     "💀 | **{killer}** sacrificed ~~**{player}**~~ to their dark god on an obsidian altar!",
-    "💀 | ~~**{player}**~~ sailed their ship straight into a massive whirlpool.",
     "💀 | **{killer}** garroted ~~**{player}**~~ with razor wire!",
-    "💀 | ~~**{player}**~~ tried to pet a cyber-enhanced Tiger from Vegapunk's lab.",
     "💀 | **{killer}** ran ~~**{player}**~~ down with their ship at full sail!",
-    "💀 | ~~**{player}**~~ ate poisonous mushrooms on the Boin Archipelago.",
     "💀 | **{killer}** locked ~~**{player}**~~ in Impel Down's Level 6 to rot forever!",
-    "💀 | ~~**{player}**~~ got caught in the crossfire of a Yonko battle.",
     "💀 | **{killer}** gunned down ~~**{player}**~~ with their flintlock in broad daylight!",
-    "💀 | ~~**{player}**~~ was betrayed by their own crew member.",
     "💀 | **{killer}** went berserk and tore ~~**{player}**~~ apart with their bare hands!",
-    "💀 | ~~**{player}**~~ never woke up from Big Mom's dream-induced coma.",
     "💀 | **{killer}** dissolved ~~**{player}**~~ in a vat of acid using their Acid-Acid Fruit!",
-    "💀 | ~~**{player}**~~ got lost in a temporal loop created by a Devil Fruit and aged to death instantly.",
     "💀 | **{killer}** decapitated ~~**{player}**~~ with a single sword draw!",
-    "💀 | ~~**{player}**~~ challenged a Cipher Pol agent to combat and had their mind broken.",
     "💀 | **{killer}** vaporized ~~**{player}**~~ with a concentrated laser beam!",
-    "💀 | ~~**{player}**~~ was driven insane by whispers from the Void Century.",
     "💀 | **{killer}** whipped ~~**{player}**~~ to death in the fighting pits of Dressrosa!",
-    "💀 | ~~**{player}**~~ accidentally triggered explosive powder while raiding a Marine base.",
     "💀 | **{killer}** collected ~~**{player}**~~'s skull for their trophy wall!",
-    "💀 | ~~**{player}**~~ was crushed by their own treasure hoard when their ship sank.",
     "💀 | **{killer}** possessed ~~**{player}**~~ using their Spirit-Spirit Fruit and made them jump overboard!",
-    "💀 | ~~**{player}**~~ died of exhaustion while mining Sea Prism Stone.",
     "💀 | **{killer}** had ~~**{player}**~~ drawn and quartered in the town square!",
-    "💀 | ~~**{player}**~~ was driven to madness by isolation on a deserted island.",
     "💀 | **{killer}** performed experimental surgery on ~~**{player}**~~ without anesthesia!",
-    "💀 | ~~**{player}**~~ stood their ground against a horde of Marines and was overwhelmed.",
     "💀 | **{killer}** threw ~~**{player}**~~ to the wild beasts of Rusukaina!",
-    "💀 | ~~**{player}**~~ touched an ancient weapon and was erased from existence.",
     "💀 | **{killer}** scalped ~~**{player}**~~ with a rusty cutlass!",
-    "💀 | ~~**{player}**~~ drank liquid mercury thinking it was rum.",
     "💀 | **{killer}** beat ~~**{player}**~~ to death with a lead pipe for unpaid debts!",
-    "💀 | ~~**{player}**~~ was flash-frozen by Aokiji's ice powers.",
     "💀 | **{killer}** impaled ~~**{player}**~~ on spikes as a warning to other pirates!",
-    "💀 | ~~**{player}**~~ was devoured by dream parasites in the psychic realm of Totland.",
     "💀 | **{killer}** systematically eliminated ~~**{player}**~~ with extreme prejudice!",
-    "💀 | ~~**{player}**~~ tried to surf on Akainu's magma flows.",
     "💀 | **{killer}** had ~~**{player}**~~ cement-shoed and thrown into the ocean!",
-    "💀 | ~~**{player}**~~ was poisoned by contaminated food from a SMILE factory.",
     "💀 | **{killer}** cursed ~~**{player}**~~ to be eaten alive by spirit wolves!",
-    "💀 | ~~**{player}**~~ volunteered for Vegapunk's experiments and mutated into oblivion.",
     "💀 | **{killer}** went into a blood rage and pulverized ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ fell asleep on a Sea Train track and was run over.",
     "💀 | **{killer}** haunted ~~**{player}**~~ using their Ghost-Ghost Fruit until they died of terror!",
-    "💀 | ~~**{player}**~~ was betrayed by their navigator and sailed into a hurricane.",
     "💀 | **{killer}** threw ~~**{player}**~~ into the fighting pit with hungry beasts!",
-    "💀 | ~~**{player}**~~ got stuck in a Devil Fruit paradox and ceased to exist.",
     "💀 | **{killer}** slowly peeled the skin off ~~**{player}**~~ using their Peel-Peel Fruit!",
-    "💀 | ~~**{player}**~~ was disintegrated by ancient Poneglyph defense systems.",
     "💀 | **{killer}** made ~~**{player}**~~ walk the plank into shark-infested waters!",
-    "💀 | ~~**{player}**~~ triggered an avalanche while climbing the Red Line.",
     "💀 | **{killer}** slowly tortured ~~**{player}**~~ to death for entertainment!",
-    "💀 | ~~**{player}**~~ tried to reason with the World Government and was executed.",
     "💀 | **{killer}** crucified ~~**{player}**~~ upside down as an example to other pirates!",
-    "💀 | ~~**{player}**~~ was consumed from the inside by parasitic Sea King larvae.",
     "💀 | **{killer}** tracked ~~**{player}**~~ through the Grand Line and finished them with a harpoon!",
-    "💀 | ~~**{player}**~~ was betrayed by their own twin brother and stabbed in the back.",
     "💀 | **{killer}** beheaded ~~**{player}**~~ with their legendary blade!",
-    "💀 | ~~**{player}**~~ wandered into a Devil's Triangle and was torn apart by supernatural forces.",
     "💀 | **{killer}** had ~~**{player}**~~ executed by Marine firing squad!",
-    "💀 | ~~**{player}**~~ pressed the self-destruct button on a Marine warship.",
     "💀 | **{killer}** stalked ~~**{player}**~~ through the jungle and eviscerated them!",
-    "💀 | ~~**{player}**~~ was trapped forever in a Mirror World dimension.",
     "💀 | **{killer}** obliterated ~~**{player}**~~ with their awakened Devil Fruit blast!",
-    "💀 | ~~**{player}**~~ tried to make friends with the World Nobles.",
     "💀 | **{killer}** fed ~~**{player}**~~ to their mutant Sea King pet!",
-    "💀 | ~~**{player}**~~ tripped and fell into the ocean with Devil Fruit powers.",
-    "💀 | **{killer}** slowly lowered ~~**{player}**~~ into a vat of molten steel!",
-    "💀 | **{killer}** stretched ~~**{player}**~~ until they snapped like rubber!",
-    "💀 | ~~**{player}**~~ was devoured by a massive Sea King while trying to steal its treasure.",
-    "💀 | **{killer}** executed ~~**{player}**~~ with a devastating magma punch!",
-    "💀 | ~~**{player}**~~ fell into the ocean and drowned because of their Devil Fruit weakness.",
-    "💀 | **{killer}** sliced ~~**{player}**~~ clean in half with their legendary blade!",
-    "💀 | ~~**{player}**~~ got lost in the Florian Triangle and was consumed by the mist.",
-    "💀 | **{killer}** turned ~~**{player}**~~ to ash with their fire powers!",
-    "💀 | ~~**{player}**~~ tried to swim across the Calm Belt and became Sea King bait.",
-    "💀 | **{killer}** froze ~~**{player}**~~ solid and shattered them into pieces!",
-    "💀 | ~~**{player}**~~ was overwhelmed by a horde of Pacifista during the war.",
-    "💀 | **{killer}** crushed ~~**{player}**~~ with Conqueror's Haki alone!",
-    "💀 | ~~**{player}**~~ got caught in Enies Lobby's judicial waterfall.",
-    "💀 | **{killer}** mauled ~~**{player}**~~ in their full Zoan beast form!",
-    "💀 | ~~**{player}**~~ wandered into Impel Down and was tortured to death by the guards.",
-    "💀 | **{killer}** impaled ~~**{player}**~~ with their dragon claw technique!",
-    "💀 | ~~**{player}**~~ ate a poisonous Devil Fruit thinking it was regular food.",
-    "💀 | **{killer}** made ~~**{player}**~~ walk the plank into a whirlpool!",
-    "💀 | ~~**{player}**~~ was vaporized by one of Vegapunk's experimental weapons.",
-    "💀 | **{killer}** used Fishman Karate to pierce straight through ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ got trampled by a herd of Kung-Fu Dugongs.",
-    "💀 | **{killer}** turned ~~**{player}**~~ into a toy and erased their existence!",
-    "💀 | ~~**{player}**~~ was trapped forever in a Mirror World dimension.",
-    "💀 | **{killer}** obliterated ~~**{player}**~~ with their awakened Devil Fruit!",
-    "💀 | ~~**{player}**~~ was assassinated by CP9 agents in their sleep.",
-    "💀 | **{killer}** petrified ~~**{player}**~~ with their beauty and kicked them to pieces!",
-    "💀 | ~~**{player}**~~ got caught in Whitebeard's earthquake and was buried under debris.",
-    "💀 | **{killer}** stepped on ~~**{player}**~~ like they were an ant!",
-    "💀 | ~~**{player}**~~ drank seawater in desperation and died of dehydration.",
-    "💀 | **{killer}** blasted ~~**{player}**~~ to smithereens with their laser beam!",
-    "💀 | ~~**{player}**~~ was crushed by their own treasure hoard in a collapsing cave.",
-    "💀 | **{killer}** struck ~~**{player}**~~ down with divine lightning from Enel!",
-    "💀 | ~~**{player}**~~ fell from a Sky Island and became a crater.",
-    "💀 | **{killer}** electrocuted ~~**{player}**~~ with Electro during their Sulong form!",
-    "💀 | ~~**{player}**~~ was dissolved by the acidic stomach of a massive sea beast.",
-    "💀 | **{killer}** used Rokushiki to literally punch through ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ challenged Kaido to single combat and was obliterated.",
-    "💀 | **{killer}** swapped ~~**{player}**~~'s heart with a rock using the Ope-Ope Fruit!",
-    "💀 | ~~**{player}**~~ got caught in Big Mom's soul-stealing rampage.",
-    "💀 | **{killer}** crushed ~~**{player}**~~ in their massive dinosaur jaws!",
-    "💀 | ~~**{player}**~~ tried to steal from a Celestial Dragon and was executed on the spot.",
-    "💀 | **{killer}** coated their fist with Haki and punched straight through ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ ate a SMILE fruit and laughed themselves to death.",
-    "💀 | **{killer}** burned ~~**{player}**~~ to cinders with their fire fist!",
-    "💀 | ~~**{player}**~~ was betrayed and sold to slave traders on Sabaody.",
-    "💀 | **{killer}** puppeteered ~~**{player}**~~ into killing themselves using their String-String Fruit!",
-    "💀 | ~~**{player}**~~ was fed explosive food by a vengeful cook.",
-    "💀 | **{killer}** split ~~**{player}**~~ in two with a single sword draw!",
-    "💀 | ~~**{player}**~~ sailed into the New World unprepared and was instantly vaporized.",
-    "💀 | **{killer}** struck ~~**{player}**~~ with a 200 million volt lightning bolt!",
-    "💀 | ~~**{player}**~~ got sucked into a Knock Up Stream without proper preparation.",
-    "💀 | **{killer}** stretched their arm across the island to punch ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ was cursed by Aztec gold and crumbled to dust.",
-    "💀 | **{killer}** impaled ~~**{player}**~~ with razor-sharp bone spears!",
-    "💀 | ~~**{player}**~~ was poisoned by a seemingly friendly barkeeper.",
-    "💀 | **{killer}** drained all moisture from ~~**{player}**~~ using their Sand-Sand Fruit!",
-    "💀 | ~~**{player}**~~ got caught in crossfire between two Yonko crews.",
-    "💀 | **{killer}** froze the entire ocean with ~~**{player}**~~ trapped inside!",
-    "💀 | ~~**{player}**~~ was overtaken by a deadly Buster Call bombardment.",
-    "💀 | **{killer}** struck ~~**{player}**~~ with 200 million volt divine judgment!",
-    "💀 | ~~**{player}**~~ was caught in the middle of a Conqueror's Haki clash.",
-    "💀 | **{killer}** snuck up on ~~**{player}**~~ and slit their throat with a hidden blade!",
-    "💀 | ~~**{player}**~~ tried to befriend a wild tiger on Rusukaina Island.",
-    "💀 | **{killer}** encased ~~**{player}**~~ in hardened wax and let them suffocate!",
-    "💀 | ~~**{player}**~~ opened an ancient weapon's vault and released destructive forces.",
-    "💀 | **{killer}** dive-bombed ~~**{player}**~~ with blazing phoenix talons!",
-    "💀 | ~~**{player}**~~ was trapped in an eternal nightmare by a Sleep-Sleep fruit user.",
-    "💀 | **{killer}** moved at light speed and bisected ~~**{player}**~~!",
-    "💀 | ~~**{player}**~~ tried to navigate the Grand Line without a Log Pose and sailed into a hurricane.",
-    "💀 | **{killer}** stole ~~**{player}**~~'s shadow and they crumbled in daylight!",
-    "💀 | ~~**{player}**~~ was overwhelmed by the sheer presence of a Yonko's Conqueror's Haki.",
-    "💀 | **{killer}** shattered the very air and ~~**{player}**~~ along with it using their Tremor-Tremor Fruit!",
-    "💀 | ~~**{player}**~~ challenged Mihawk to a sword duel with a butter knife.",
-    "💀 | **{killer}** trapped ~~**{player}**~~ in an inescapable barrier until they suffocated!",
-    "💀 | ~~**{player}**~~ got their soul sucked out by Big Mom's homies.",
-    "💀 | **{killer}** opened a door in ~~**{player}**~~'s chest and reached through using their Door-Door Fruit!",
-    "💀 | ~~**{player}**~~ got lost in the Florian Triangle and was never seen again.",
-    "💀 | **{killer}** turned ~~**{player}**~~ into a puddle of magma!",
-    "💀 | ~~**{player}**~~ ate poisonous pufferfish sashimi prepared by an amateur chef.",
-    "💀 | **{killer}** obliterated ~~**{player}**~~ and their entire island with an ancient weapon!"
+    "💀 | **{killer}** slowly lowered ~~**{player}**~~ into a vat of molten steel!"
 ]
+
+# Environmental Death Events - No killer needed
+ENVIRONMENTAL_DEATH_EVENTS = [
+    "💀 | ~~**{player}**~~ got electrocuted trying to steal a Devil Fruit from the World Government vault.",
+    "💀 | ~~**{player}**~~ drank seawater while having Devil Fruit powers and drowned helplessly.",
+    "💀 | ~~**{player}**~~ collapsed from exhaustion in the middle of a Marine raid.",
+    "💀 | ~~**{player}**~~ triggered a trap while exploring ancient Shandian ruins.",
+    "💀 | ~~**{player}**~~ touched a cursed treasure and was instantly turned to gold.",
+    "💀 | ~~**{player}**~~ was torn apart by Pacifista during a Buster Call.",
+    "💀 | ~~**{player}**~~ got lost in the Calm Belt and became Sea King bait.",
+    "💀 | ~~**{player}**~~ fell into the ocean depths and was crushed by water pressure.",
+    "💀 | ~~**{player}**~~ walked into Vegapunk's experimental laser grid.",
+    "💀 | ~~**{player}**~~ was possessed by a vengeful spirit on Thriller Bark and self-destructed.",
+    "💀 | ~~**{player}**~~ got crushed by falling debris during Whitebeard's earthquake.",
+    "💀 | ~~**{player}**~~ ran straight into the Red Line at full speed.",
+    "💀 | ~~**{player}**~~ was digested alive by a carnivorous plant on the Boin Archipelago.",
+    "💀 | ~~**{player}**~~ fell off the edge of a Sky Island.",
+    "💀 | ~~**{player}**~~ activated a self-destruct Dial by accident.",
+    "💀 | ~~**{player}**~~ was torn limb from limb by Kung-Fu Dugongs in the desert.",
+    "💀 | ~~**{player}**~~ drank obviously poisoned sake at the pirate feast.",
+    "💀 | ~~**{player}**~~ was consumed by shadow creatures in the Florian Triangle.",
+    "💀 | ~~**{player}**~~ stepped on a pressure plate that triggered ancient Poneglyph defenses.",
+    "💀 | ~~**{player}**~~ was strangled by killer vines while napping in the jungle of Little Garden.",
+    "💀 | ~~**{player}**~~ got absorbed by Blackbeard's darkness powers.",
+    "💀 | ~~**{player}**~~ sailed their ship straight into a massive whirlpool.",
+    "💀 | ~~**{player}**~~ tried to pet a cyber-enhanced Tiger from Vegapunk's lab.",
+    "💀 | ~~**{player}**~~ ate poisonous mushrooms on the Boin Archipelago.",
+    "💀 | ~~**{player}**~~ got caught in the crossfire of a Yonko battle.",
+    "💀 | ~~**{player}**~~ was betrayed by their own crew member.",
+    "💀 | ~~**{player}**~~ never woke up from Big Mom's dream-induced coma.",
+    "💀 | ~~**{player}**~~ got lost in a temporal loop created by a Devil Fruit and aged to death instantly.",
+    "💀 | ~~**{player}**~~ challenged a Cipher Pol agent to combat and had their mind broken.",
+    "💀 | ~~**{player}**~~ was driven insane by whispers from the Void Century.",
+    "💀 | ~~**{player}**~~ accidentally triggered explosive powder while raiding a Marine base.",
+    "💀 | ~~**{player}**~~ was crushed by their own treasure hoard when their ship sank.",
+    "💀 | ~~**{player}**~~ died of exhaustion while mining Sea Prism Stone.",
+    "💀 | ~~**{player}**~~ was driven to madness by isolation on a deserted island.",
+    "💀 | ~~**{player}**~~ stood their ground against a horde of Marines and was overwhelmed.",
+    "💀 | ~~**{player}**~~ touched an ancient weapon and was erased from existence.",
+    "💀 | ~~**{player}**~~ drank liquid mercury thinking it was rum.",
+    "💀 | ~~**{player}**~~ was flash-frozen by Aokiji's ice powers.",
+    "💀 | ~~**{player}**~~ was devoured by dream parasites in the psychic realm of Totland.",
+    "💀 | ~~**{player}**~~ tried to surf on Akainu's magma flows.",
+    "💀 | ~~**{player}**~~ was poisoned by contaminated food from a SMILE factory.",
+    "💀 | ~~**{player}**~~ volunteered for Vegapunk's experiments and mutated into oblivion.",
+    "💀 | ~~**{player}**~~ fell asleep on a Sea Train track and was run over.",
+    "💀 | ~~**{player}**~~ was betrayed by their navigator and sailed into a hurricane.",
+    "💀 | ~~**{player}**~~ got stuck in a Devil Fruit paradox and ceased to exist.",
+    "💀 | ~~**{player}**~~ was disintegrated by ancient Poneglyph defense systems.",
+    "💀 | ~~**{player}**~~ triggered an avalanche while climbing the Red Line.",
+    "💀 | ~~**{player}**~~ tried to reason with the World Government and was executed.",
+    "💀 | ~~**{player}**~~ was consumed from the inside by parasitic Sea King larvae.",
+    "💀 | ~~**{player}**~~ was betrayed by their own twin brother and stabbed in the back.",
+    "💀 | ~~**{player}**~~ wandered into a Devil's Triangle and was torn apart by supernatural forces.",
+    "💀 | ~~**{player}**~~ pressed the self-destruct button on a Marine warship.",
+    "💀 | ~~**{player}**~~ was trapped forever in a Mirror World dimension.",
+    "💀 | ~~**{player}**~~ tried to make friends with the World Nobles.",
+    "💀 | ~~**{player}**~~ tripped and fell into the ocean with Devil Fruit powers.",
+    "💀 | ~~**{player}**~~ was devoured by a massive Sea King while trying to steal its treasure.",
+    "💀 | ~~**{player}**~~ fell into the ocean and drowned because of their Devil Fruit weakness.",
+    "💀 | ~~**{player}**~~ got lost in the Florian Triangle and was consumed by the mist.",
+    "💀 | ~~**{player}**~~ tried to swim across the Calm Belt and became Sea King bait.",
+    "💀 | ~~**{player}**~~ was overwhelmed by a horde of Pacifista during the war.",
+    "💀 | ~~**{player}**~~ got caught in Enies Lobby's judicial waterfall.",
+    "💀 | ~~**{player}**~~ wandered into Impel Down and was tortured to death by the guards.",
+    "💀 | ~~**{player}**~~ ate a poisonous Devil Fruit thinking it was regular food.",
+    "💀 | ~~**{player}**~~ was vaporized by one of Vegapunk's experimental weapons.",
+    "💀 | ~~**{player}**~~ got trampled by a herd of Kung-Fu Dugongs.",
+    "💀 | ~~**{player}**~~ was trapped forever in a Mirror World dimension.",
+    "💀 | ~~**{player}**~~ was assassinated by CP9 agents in their sleep.",
+    "💀 | ~~**{player}**~~ got caught in Whitebeard's earthquake and was buried under debris.",
+    "💀 | ~~**{player}**~~ drank seawater in desperation and died of dehydration.",
+    "💀 | ~~**{player}**~~ was crushed by their own treasure hoard in a collapsing cave.",
+    "💀 | ~~**{player}**~~ fell from a Sky Island and became a crater.",
+    "💀 | ~~**{player}**~~ was dissolved by the acidic stomach of a massive sea beast.",
+    "💀 | ~~**{player}**~~ challenged Kaido to single combat and was obliterated.",
+    "💀 | ~~**{player}**~~ got caught in Big Mom's soul-stealing rampage.",
+    "💀 | ~~**{player}**~~ tried to steal from a Celestial Dragon and was executed on the spot.",
+    "💀 | ~~**{player}**~~ ate a SMILE fruit and laughed themselves to death.",
+    "💀 | ~~**{player}**~~ was betrayed and sold to slave traders on Sabaody.",
+    "💀 | ~~**{player}**~~ was fed explosive food by a vengeful cook.",
+    "💀 | ~~**{player}**~~ sailed into the New World unprepared and was instantly vaporized.",
+    "💀 | ~~**{player}**~~ got sucked into a Knock Up Stream without proper preparation.",
+    "💀 | ~~**{player}**~~ was cursed by Aztec gold and crumbled to dust.",
+    "💀 | ~~**{player}**~~ was poisoned by a seemingly friendly barkeeper.",
+    "💀 | ~~**{player}**~~ got caught in crossfire between two Yonko crews.",
+    "💀 | ~~**{player}**~~ was overtaken by a deadly Buster Call bombardment.",
+    "💀 | ~~**{player}**~~ was caught in the middle of a Conqueror's Haki clash.",
+    "💀 | ~~**{player}**~~ tried to befriend a wild tiger on Rusukaina Island.",
+    "💀 | ~~**{player}**~~ opened an ancient weapon's vault and released destructive forces.",
+    "💀 | ~~**{player}**~~ was trapped in an eternal nightmare by a Sleep-Sleep fruit user.",
+    "💀 | ~~**{player}**~~ tried to navigate the Grand Line without a Log Pose and sailed into a hurricane.",
+    "💀 | ~~**{player}**~~ was overwhelmed by the sheer presence of a Yonko's Conqueror's Haki.",
+    "💀 | ~~**{player}**~~ challenged Mihawk to a sword duel with a butter knife.",
+    "💀 | ~~**{player}**~~ got their soul sucked out by Big Mom's homies.",
+    "💀 | ~~**{player}**~~ got lost in the Florian Triangle and was never seen again.",
+    "💀 | ~~**{player}**~~ ate poisonous pufferfish sashimi prepared by an amateur chef."
+]
+
+# Combine all death events for backwards compatibility
+DEATH_EVENTS = PLAYER_DEATH_EVENTS + ENVIRONMENTAL_DEATH_EVENTS
 
 # One Piece Style Survival Events
 SURVIVAL_EVENTS = [
@@ -335,20 +303,20 @@ REVIVAL_MESSAGES = [
     "👻 | **SUPERNATURAL!** ~~**{player}**~~ the Spirit __*materialized back*__ from the afterlife using Brook's Yomi-Yomi powers!"
 ]
 
-# District Names - Varied and Creative Themes
+# One Piece Themed Districts - Grand Line Islands and Locations
 DISTRICTS = {
-    1: "The Neon Metropolis",
-    2: "The Frozen Wasteland", 
-    3: "The Floating Islands",
-    4: "The Underground Caverns",
-    5: "The Cyber District",
-    6: "The Savage Jungle",
-    7: "The Desert Oasis",
-    8: "The Sky Fortress",
-    9: "The Sunken City",
-    10: "The Volcanic Peaks",
-    11: "The Crystal Mines",
-    12: "The Shadow Realm"
+    1: "East Blue - Dawn Island",          # Luffy's home
+    2: "East Blue - Syrup Village",        # Usopp's home
+    3: "East Blue - Baratie",              # Sanji's restaurant
+    4: "East Blue - Cocoyasi Village",     # Nami's home
+    5: "Grand Line - Whisky Peak",        # First island
+    6: "Grand Line - Little Garden",      # Giants' island
+    7: "Grand Line - Drum Island",        # Chopper's home
+    8: "Grand Line - Alabasta",           # Desert kingdom
+    9: "Grand Line - Skypiea",            # Sky island
+    10: "Grand Line - Water 7",           # Shipbuilding city
+    11: "Grand Line - Thriller Bark",     # Ghost ship
+    12: "New World - Dressrosa"           # Colosseum kingdom
 }
 
 # Player Titles/Epithets for Flavor
@@ -386,117 +354,6 @@ FINALE_MESSAGES = [
     "👑 **CROWNING THE PIRATE KING!** {count} contenders for the throne!",
 ]
 
-
-# Midgame Event Categories
-MIDGAME_ATMOSPHERIC_EVENTS = [
-    "🌙 | An eerie calm falls over the Grand Line as night approaches...",
-    "🦅 | News Coos circle overhead, broadcasting the chaos to the world...",
-    "🔊 | Wanted posters of fallen pirates float across the battlefield...",
-    "⭐ | The stars above seem to judge the remaining warriors...",
-    "🌿 | Strange sounds echo from the depths of the ocean...",
-    "💨 | A sea breeze carries the scent of salt... and blood...",
-    "🌫️ | Mysterious fog rolls across the waves, hiding unknown dangers...",
-    "🎵 | The wind carries the final songs of defeated pirates..."
-]
-
-# Cannon Malfunction Events
-CANNON_DEATH_EVENTS = [
-    "💣💥 | A Marine battleship's cannon misfires and the blast catches ~~**{player}**~~ in the explosion!",
-    "💣⚡ | ~~**{player}**~~ was struck by debris from an exploding cannon!",
-    "💣🔥 | ~~**{player}**~~ couldn't escape the cannonball's devastating blast!",
-    "💣💀 | ~~**{player}**~~ was caught in the shockwave of a ship's exploding armory!"
-]
-
-CANNON_SCARE_EVENTS = [
-    "💣💨 | A Marine ship fires in the distance, the blast barely missing the pirates!",
-    "💣⚠️ | A cannon misfires, sending cannonballs flying but harming no one!",
-    "💣😰 | The sound of naval artillery echoes across the sea, making everyone take cover!",
-    "💣🌪️ | A cannon blast creates massive waves, but all pirates brace their ships in time!"
-]
-
-# Toxic Fog Events (Devil Fruit Gas Powers)
-TOXIC_FOG_SINGLE_DEATH = [
-    "☠️💨 | Poison gas from a Devil Fruit user engulfs the area! ~~**{player}**~~ couldn't escape in time!",
-    "☠️🌫️ | ~~**{player}**~~ was overwhelmed by the deadly purple miasma!",
-    "☠️💜 | ~~**{player}**~~ succumbed to the toxic Devil Fruit power!",
-    "☠️🏃 | ~~**{player}**~~ couldn't outrun the spreading poisonous cloud!"
-]
-
-TOXIC_FOG_MULTI_DEATH = "☠️💨 | Deadly gas from a Devil Fruit ability sweeps the battlefield, claiming {players}!"
-TOXIC_FOG_SURVIVAL = "💨😅 | Poisonous gas rolls across the sea, but all pirates find shelter on their ships in time!"
-
-# Tracker Jacker Events
-TRACKER_JACKER_DEATHS = [
-    "🐙💀 | ~~**{player}**~~ was dragged to the depths by a massive Sea King!",
-    "🐙😵 | ~~**{player}**~~ was crushed by enormous tentacles!",
-    "🐙🌪️ | ~~**{player}**~~ couldn't escape the Sea King's whirlpool attack!",
-    "🐙⚡ | ~~**{player}**~~ was overwhelmed by the ocean beast's fury!"
-]
-
-TRACKER_JACKER_HALLUCINATION = "🌀 | **{player}** sees mirages from dehydration and sea madness!"
-TRACKER_JACKER_AVOIDANCE = "🐙⚠️ | Massive Sea Kings circle below but seem to ignore the final pirates..."
-
-# Arena Trap Types and Events
-ARENA_TRAP_TYPES = [
-    ("sea stone mine", "💎", "triggered a hidden seastone explosive"),
-    ("net trap", "🕸️", "was caught in a Marine capture net"),
-    ("spike trap", "⬆️", "was impaled by hidden Marine spikes"),
-    ("cage trap", "⛓️", "was trapped in a seastone cage and couldn't break free"),
-    ("gas trap", "☠️", "triggered a Marine poison gas trap"),
-    ("blade trap", "⚔️", "was sliced by hidden Marine blade mechanisms"),
-    ("electric trap", "⚡", "was shocked by a Marine Den Den Mushi trap")
-]
-
-ARENA_TRAP_DEATH = "{emoji}💀 | ~~**{player}**~~ {description}!"
-ARENA_TRAP_ESCAPE = "{emoji}😅 | **{player}** narrowly avoids a Marine {trap_name}!"
-
-# Muttation Types and Events
-MUTTATION_TYPES = [
-    ("Sea Kings", "🐙", "devoured by"),
-    ("Giant Bees", "🐝", "stung to death by"),
-    ("Kung Fu Dugongs", "🦭", "beaten down by"),
-    ("Sky Sharks", "🦈", "torn apart by"),
-    ("Poison Spiders", "🕷️", "poisoned by"),
-    ("Sea Serpents", "🐍", "constricted by"),
-    ("Fighting Fish", "🐠", "eaten alive by")
-]
-
-MUTTATION_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_verb} {creature_name}!"
-MUTTATION_ESCAPE = "{emoji}⚠️ | {creature_name} prowl the waters, but the pirates manage to avoid them!"
-
-# Environmental Hazard Types
-ENVIRONMENTAL_HAZARDS = [
-    ("sudden storm", "🌊", "swept overboard during"),
-    ("reverse mountain current", "🌊", "crushed against rocks by"),
-    ("lightning storm", "⚡", "struck by lightning during"),
-    ("hailstorm", "❄️", "battered to death by"),
-    ("fire rain", "🔥", "burned alive by"),
-    ("tornado", "🌪️", "swept away by"),
-    ("underwater volcano", "🌋", "boiled alive by")
-]
-
-ENVIRONMENTAL_SINGLE_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_description} the {hazard_name}!"
-ENVIRONMENTAL_MULTI_DEATH = "{emoji}💀 | ~~**{player}**~~ was {death_description} the {hazard_name}!"
-ENVIRONMENTAL_SURVIVAL = "{emoji}⚠️ | A {hazard_name} rocks the Grand Line, but all pirates weather it safely!"
-ENVIRONMENTAL_PARTIAL_SURVIVAL = "{emoji}😅 | **{survivors}** managed to navigate through the chaos!"
-
-# Gamemaker Test Events
-GAMEMAKER_COURAGE_DEATH = "🏛️💀 | The World Government tests **{player}**'s resolve - ~~**they broke under pressure**~~!"
-GAMEMAKER_COURAGE_SURVIVAL = "🏛️⚡ | **{player}** faces the World Government's trial and emerges stronger!"
-GAMEMAKER_TEST_ANNOUNCEMENT = "🏛️⚠️ | The World Government announces a bounty increase for the remaining pirates..."
-GAMEMAKER_LOYALTY_TEST = "🏛️⚡ | Marine spies test the pirates' alliances with false information..."
-
-# Event Type Categories for Midgame
-MIDGAME_DEADLY_EVENT_TYPES = [
-    "cannon_malfunction",
-    "toxic_fog", 
-    "tracker_jackers",
-    "arena_trap",
-    "muttation_attack",
-    "environmental_hazard",
-    "gamemaker_test"
-]
-
 # Victory display constants
 VICTORY_TITLE_ART = [
     """
@@ -530,12 +387,6 @@ PLACEMENT_MEDALS = {
     4: "4️⃣",
     5: "5️⃣"
 }
-
-# GIF Integration Constants
-ENABLE_GIFS = False  # Set to True once GIFs are added
-GIF_BASE_PATH = "gifs"
-GIF_CACHE_TIMEOUT = 300  # 5 minutes
-SUPPORTED_GIF_FORMATS = ['.gif', '.webp', '.mp4', '.mov']
 
 # Victory Customization
 VICTORY_PHRASES = [
@@ -639,20 +490,6 @@ TITLE_EMOJIS = {
     "default_medium_kill": "⚔️",  # 3-4 kills  
     "default_low_kill": "🗡️",  # 1-2 kills
     "default_no_kill": "🏹"  # 0 kills
-}
-
-# Future GIF Integration Structure
-GIF_CATEGORIES = {
-    "victory": {
-        "general": [],  # General victory GIFs
-        "high_kill": [],  # For winners with 3+ kills
-        "underdog": [],  # For winners with 0 kills
-        "final_duel": [],  # For 2-player games
-        "bloodbath": []  # For very high kill games
-    },
-    "death": [],
-    "sponsor": [],
-    "revival": []
 }
 
 # Utility functions
