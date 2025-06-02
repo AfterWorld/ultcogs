@@ -1,6 +1,6 @@
 # commands.py
 """
-Command handlers for Hunger Games cog
+Command handlers for Pirate Royale cog
 """
 
 import discord
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class CommandHandler:
-    """Handles all command logic for the Hunger Games cog"""
+    """Handles all command logic for the Pirate Royale cog"""
     
     def __init__(self, cog):
         self.cog = cog
@@ -43,7 +43,7 @@ class CommandHandler:
             return await ctx.send(f"❌ {error_msg}")
         
         if guild_id in self.cog.active_games:
-            return await ctx.send("❌ A Hunger Games battle is already active!")
+            return await ctx.send("❌ A Pirate Royale battle is already active!")
         
         try:
             # Create the game instance with validation
@@ -58,7 +58,7 @@ class CommandHandler:
         
         # Check if game already running
         if guild_id in self.cog.active_games:
-            return await ctx.send("❌ A Hunger Games battle is already active!")
+            return await ctx.send("❌ A Pirate Royale battle is already active!")
         
         # Parse arguments
         threshold = 5  # default
@@ -111,7 +111,7 @@ class CommandHandler:
                 try:
                     # Send separate ping message
                     ping_msg = await ctx.send(
-                        f"{role.mention} 🗳️ **Starting Hunger Games!**",
+                        f"{role.mention} 🗳️ **Starting Pirate Royale!**",
                         allowed_mentions=discord.AllowedMentions(roles=True)
                     )
                     # Delete after brief moment
@@ -124,7 +124,7 @@ class CommandHandler:
                     logger.error(f"Failed to ping role: {e}")
         
         # Send main poll message (without role mention to avoid double ping)
-        poll_message = f"🗳️ **Starting Hunger Games!**\n"
+        poll_message = f"🗳️ **Starting Pirate Royale!**\n"
         poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
         poll_message += f"Game will start in 60 seconds..."
         
@@ -136,7 +136,7 @@ class CommandHandler:
         
         # Check if game already running
         if guild_id in self.cog.active_games:
-            return await ctx.send("❌ A Hunger Games battle is already active!")
+            return await ctx.send("❌ A Pirate Royale battle is already active!")
         
         # Get threshold
         if threshold is None:
@@ -276,7 +276,7 @@ class CommandHandler:
             
             # Start the main game loop
             game["task"] = asyncio.create_task(self.cog.game_loop(guild_id))
-            logger.info(f"Started Hunger Games with {player_count} players in guild {guild_id}")
+            logger.info(f"Started Pirate Royale with {player_count} players in guild {guild_id}")
             
         except Exception as e:
             logger.error(f"Failed to start battle royale in guild {guild_id}: {e}", exc_info=True)
@@ -330,7 +330,7 @@ class CommandHandler:
         guild_id = ctx.guild.id
         
         if guild_id not in self.cog.active_games:
-            return await ctx.send("❌ No active Hunger Games in this server.")
+            return await ctx.send("❌ No active Pirate Royale in this server.")
         
         try:
             game = self.cog.active_games[guild_id]
@@ -347,7 +347,7 @@ class CommandHandler:
             await ctx.send("❌ Error retrieving player information.")
     
     async def handle_stats(self, ctx, member: discord.Member = None):
-        """View Hunger Games statistics for yourself or another player"""
+        """View Pirate Royale statistics for yourself or another player"""
         try:
             if member is None:
                 member = ctx.author
@@ -361,11 +361,11 @@ class CommandHandler:
             await ctx.send("❌ Error retrieving statistics.")
     
     async def handle_status(self, ctx):
-        """Check the status of current Hunger Games"""
+        """Check the status of current Pirate Royale"""
         guild_id = ctx.guild.id
         
         if guild_id not in self.cog.active_games:
-            return await ctx.send("❌ No active Hunger Games in this server.")
+            return await ctx.send("❌ No active Pirate Royale in this server.")
         
         try:
             game = self.cog.active_games[guild_id]
@@ -417,7 +417,7 @@ class CommandHandler:
             await ctx.send("❌ Error retrieving game status.")
     
     async def handle_leaderboard(self, ctx, stat: str = "wins"):
-        """View the Hunger Games leaderboard"""
+        """View the Pirate Royale leaderboard"""
         try:
             if stat.lower() not in ["wins", "kills", "deaths", "revives"]:
                 return await ctx.send("❌ Invalid stat! Use: `wins`, `kills`, `deaths`, or `revives`")
@@ -448,7 +448,7 @@ class CommandHandler:
     # =====================================================
     
     async def handle_stop(self, ctx):
-        """Stop the current Hunger Games"""
+        """Stop the current Pirate Royale"""
         guild_id = ctx.guild.id
         
         if guild_id not in self.cog.active_games:
@@ -467,7 +467,7 @@ class CommandHandler:
             
             embed = discord.Embed(
                 title="🛑 **GAME TERMINATED**",
-                description="The Hunger Games have been forcibly ended by the Capitol.",
+                description="The Pirate Royale have been forcibly ended by the Capitol.",
                 color=0x000000
             )
             
@@ -624,12 +624,12 @@ class CommandHandler:
             await ctx.send(f"❌ Debug error: {str(e)}")
     
     async def handle_config(self, ctx):
-        """View current Hunger Games configuration"""
+        """View current Pirate Royale configuration"""
         try:
             config_data = await self.config.guild(ctx.guild).all()
             
             embed = discord.Embed(
-                title="⚙️ **Hunger Games Configuration**",
+                title="⚙️ **Pirate Royale Configuration**",
                 color=0x4169E1
             )
             
@@ -739,7 +739,7 @@ class CommandHandler:
     async def handle_hungergames_help(self, ctx):
         """Show help for hungergames commands"""
         embed = discord.Embed(
-            title="🏹 **Hunger Games Commands** 🏹",
+            title="🏹 **Pirate Royale Commands** 🏹",
             color=0x4169E1
         )
         
@@ -878,7 +878,7 @@ class CommandHandler:
             await ctx.send("❌ Error updating role blacklist.")
     
     async def handle_set_temp_ban(self, ctx, member: discord.Member, duration: str = None):
-        """Temporarily ban a member from Hunger Games"""
+        """Temporarily ban a member from Pirate Royale"""
         try:
             if duration is None or duration.lower() == "remove":
                 await self.config.member(member).temp_banned_until.set(None)
