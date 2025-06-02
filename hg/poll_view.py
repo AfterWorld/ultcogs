@@ -1,6 +1,6 @@
 # poll_view.py - BUTTON-BASED POLL SYSTEM
 """
-Advanced button-based poll system for Hunger Games
+Advanced button-based poll system for Pirate's Royale
 """
 
 import discord
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PollView(discord.ui.View):
-    """Advanced button-based poll for Hunger Games recruitment"""
+    """Advanced button-based poll for Pirate's Royale recruitment"""
     
     def __init__(self, cog, threshold: int, timeout: float = 600):
         super().__init__(timeout=timeout)
@@ -68,7 +68,7 @@ class PollView(discord.ui.View):
             color = 0x4169E1  # Blue - need more
         
         embed = discord.Embed(
-            title="🗳️ **HUNGER GAMES POLL** 🗳️",
+            title="🗳️ **PIRATE'S ROYALE POLL** 🗳️",
             color=color
         )
         
@@ -190,7 +190,7 @@ class PollView(discord.ui.View):
             await interaction.response.send_message("❌ An error occurred. Please try again.", ephemeral=True)
     
     async def _start_game(self):
-        """Start the Hunger Games with poll participants"""
+        """Start the Pirate's Royale with poll participants"""
         try:
             guild_id = self.ctx.guild.id
             
@@ -234,7 +234,7 @@ class PollView(discord.ui.View):
             # Start the main game loop
             game["task"] = asyncio.create_task(self.cog.game_loop(guild_id))
             
-            logger.info(f"Started Hunger Games via poll with {player_count} players in guild {guild_id}")
+            logger.info(f"Started Pirate's Royale via poll with {player_count} players in guild {guild_id}")
             
         except Exception as e:
             logger.error(f"Error starting poll game: {e}")
