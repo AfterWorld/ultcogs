@@ -425,6 +425,7 @@ class Suggestion(commands.Cog):
     async def suggestion_blacklist(self, ctx: commands.Context):
         """Manage suggestion blacklist."""
         if ctx.invoked_subcommand is None:
+            await ctx.send_help()
     
     @suggestion_blacklist.command(name="add")
     async def blacklist_add(self, ctx: commands.Context, user: discord.Member, *, reason: str = "No reason provided"):
