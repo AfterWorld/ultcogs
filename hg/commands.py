@@ -813,9 +813,37 @@ class CommandHandler:
                 await self.config.guild(ctx.guild).poll_ping_role.set(None)
                 await ctx.send("✅ Poll ping role disabled! No role will be pinged for polls.")
             else:
-                await self.config.guild(ctx.guild).poll_ping_role.set(role.id)
-                await ctx.send(f"✅ Poll ping role set to {role.mention}!")
-                
+                # Check if role is mentionable
+                if not role.mentionable:
+                    embed = discord.Embed(
+                        title="⚠️ **Role Setup Warning**",
+                        description=(
+                            f"Role {role.mention} has been set as the poll ping role, but it's **not mentionable**!\n\n"
+                            f"**To make role pings work:**\n"
+                            f"1. Go to Server Settings → Roles\n"
+                            f"2. Click on the `{role.name}` role\n"
+                            f"3. Enable **'Allow anyone to @mention this role'**\n\n"
+                            f"**Test the ping:** Use `.hungergames set testping` after enabling mentionable"
+                        ),
+                        color=0xFF8000
+                    )
+                    await self.config.guild(ctx.guild).poll_ping_role.set(role.id)
+                    await ctx.send(embed=embed)
+                else:
+                    await self.config.guild(ctx.guild).poll_ping_role.set(role.id)
+                    embed = discord.Embed(
+                        title="✅ **Poll Ping Role Set**",
+                        description=(
+                            f"Poll ping role set to {role.mention}!\n\n"
+                            f"**What happens now:**\n"
+                            f"• Members with this role will be pinged when polls start\n"
+                            f"• Use `.hungergames set testping` to test the ping\n"
+                            f"• Polls can be started with `.hg poll` or `.poll`"
+                        ),
+                        color=0x00FF00
+                    )
+                    await ctx.send(embed=embed)
+                    
         except Exception as e:
             logger.error(f"Error setting poll ping role: {e}")
             await ctx.send("❌ Error updating poll ping role.")
