@@ -435,13 +435,6 @@ class HungerGames(discord_commands.Cog):
                 )
                 await ctx.send(embed=embed)
                 
-                # Clean up test message after 10 seconds
-                await asyncio.sleep(10)
-                try:
-                    await test_msg.delete()
-                except:
-                    pass
-                
             except discord.Forbidden:
                 await ctx.send("❌ I don't have permission to mention roles! Please check bot permissions.")
             except Exception as e:
@@ -450,7 +443,6 @@ class HungerGames(discord_commands.Cog):
         except Exception as e:
             logger.error(f"Error in ping test: {e}")
             await ctx.send("❌ Error testing ping.")
-
 
 async def setup(bot):
     """Required function for loading the cog"""
