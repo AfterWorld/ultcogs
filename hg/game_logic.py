@@ -1,6 +1,6 @@
-# game_logic.py
+# game_logic.py - Updated with Arena Conditions
 """
-Core game logic and mechanics for Hunger Games cog
+Core game logic and mechanics for Hunger Games cog with Grand Line conditions
 """
 
 import discord
@@ -14,6 +14,7 @@ from .constants import (
     DEATH_EVENTS, SURVIVAL_EVENTS, SPONSOR_EVENTS, ALLIANCE_EVENTS, CRATE_EVENTS,
     VICTORY_PHRASES, VICTORY_SCENARIOS, EMOJIS
 )
+from .arena_conditions import arena_condition_manager, CONDITION_DEATH_EVENTS
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,12 @@ class InvalidGameStateError(GameError):
 
 
 class GameEngine:
-    """Core game engine for Hunger Games logic"""
+    """Core game engine for Hunger Games logic with Grand Line conditions"""
     
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
+        self.condition_manager = arena_condition_manager
     
     def get_alive_players(self, game: Dict) -> List[Dict]:
         """Get list of alive players"""
@@ -64,7 +66,7 @@ class GameEngine:
                 # No survivors
                 embed = discord.Embed(
                     title="💀 **NO SURVIVORS** 💀",
-                    description="The arena claimed all tributes... The Capitol is not pleased.",
+                    description="The Grand Line claimed all pirates... The World Government is pleased.",
                     color=0x000000
                 )
                 await channel.send(embed=embed)
@@ -79,8 +81,8 @@ class GameEngine:
         victory_phrase = random.choice(VICTORY_PHRASES)
         
         embed = discord.Embed(
-            title="🏆 **VICTOR OF THE HUNGER GAMES** 🏆",
-            description=f"**{winner['name']} {winner['title']}** has emerged victorious!",
+            title="👑 **PIRATE KING OF THE GRAND LINE** 👑",
+            description=f"**{winner['name']} {winner['title']}** has conquered the Grand Line!",
             color=0xFFD700
         )
         
@@ -101,7 +103,16 @@ class GameEngine:
             inline=True
         )
         
-        embed.set_footer(text="🎉 Congratulations to our victor!")
+        # Add condition info if active
+        condition_info = self.condition_manager.get_current_condition_info()
+        if condition_info:
+            embed.add_field(
+                name="🌊 **Final Condition**",
+                value=condition_info.get("name", "Unknown"),
+                inline=True
+            )
+        
+        embed.set_footer(text="🏴‍☠️ A new Pirate King has been crowned!")
         
         await channel.send(embed=embed)
     
@@ -156,8 +167,41 @@ class GameEngine:
         except Exception as e:
             logger.error(f"Error updating winner stats: {e}")
     
+    async def select_arena_condition(self, game: Dict, channel: discord.TextChannel) -> bool:
+        """Select and announce new arena condition"""
+        try:
+            # Select condition based on game state
+            alive_count = len(self.get_alive_players(game))
+            condition = self.condition_manager.select_condition(game["round"], alive_count)
+            
+            # Get announcement
+            announcement = self.condition_manager.get_condition_announcement(condition)
+            
+            # Send condition announcement
+            embed = discord.Embed(
+                title="🌊 **GRAND LINE WEATHER CHANGE** 🌊",
+                description=announcement,
+                color=0x4169E1
+            )
+            
+            condition_info = self.condition_manager.get_current_condition_info()
+            if condition_info:
+                embed.add_field(
+                    name="📍 **Current Condition**",
+                    value=f"**{condition_info['name']}**\n{condition_info['description']}",
+                    inline=False
+                )
+            
+            await channel.send(embed=embed)
+            logger.info(f"Arena condition changed to: {condition}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error selecting arena condition: {e}")
+            return False
+    
     async def execute_death_event(self, game: Dict, channel: discord.TextChannel) -> Optional[str]:
-        """Execute a death event"""
+        """Execute a death event with condition awareness"""
         alive_players = self.get_alive_players(game)
         
         if len(alive_players) < 2:
@@ -189,8 +233,12 @@ class GameEngine:
             victim['alive'] = False
             game['eliminated'].append(victim['name'])
         
-        # Choose appropriate death event
-        death_event = random.choice(DEATH_EVENTS)
+        # Choose death event - check for condition-specific events first
+        condition_events = self.condition_manager.get_condition_death_events()
+        if condition_events and random.random() < 0.4:  # 40% chance to use condition event
+            death_event = random.choice(condition_events)
+        else:
+            death_event = random.choice(DEATH_EVENTS)
         
         # Format the event message
         if len(victims) == 1:
@@ -206,6 +254,9 @@ class GameEngine:
             message = death_event.format(player=victim_names, killer=killer_name)
         else:
             message = death_event.format(player=victim_names)
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
         
         # Update stats for eliminated players
         await self._update_death_stats(channel.guild, victims)
@@ -235,7 +286,7 @@ class GameEngine:
             logger.error(f"Error updating death stats: {e}")
     
     async def execute_survival_event(self, game: Dict) -> Optional[str]:
-        """Execute a survival event"""
+        """Execute a survival event with condition awareness"""
         alive_players = self.get_alive_players(game)
         
         if not alive_players:
@@ -256,19 +307,29 @@ class GameEngine:
             else:
                 player_names = f"{', '.join(player_list[:-1])}, and {player_list[-1]}"
         
-        return survival_event.format(player=player_names)
+        message = survival_event.format(player=player_names)
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
+        
+        return message
     
     async def execute_sponsor_event(self, game: Dict) -> Optional[str]:
-        """Execute a sponsor revival event"""
+        """Execute a sponsor revival event with condition awareness"""
         dead_players = self.get_dead_players(game)
         
         if not dead_players:
             return None
         
-        # Check sponsor chance
-        sponsor_chance = await self.config.guild_from_id(game["channel"].guild.id).sponsor_chance()
+        # Check sponsor chance (modified by conditions)
+        base_sponsor_chance = await self.config.guild_from_id(game["channel"].guild.id).sponsor_chance()
         
-        if random.randint(1, 100) > sponsor_chance:
+        # Apply condition modifiers
+        condition_effects = self.condition_manager.condition_effects
+        modifier = condition_effects.get("sponsor_chance_modifier", 0) if condition_effects else 0
+        final_chance = int(base_sponsor_chance * (1 + modifier))
+        
+        if random.randint(1, 100) > final_chance:
             return None
         
         # Choose a recently eliminated player
@@ -293,7 +354,12 @@ class GameEngine:
         game['sponsor_used'].append(revived_player['name'])
         
         sponsor_event = random.choice(SPONSOR_EVENTS)
-        return sponsor_event.format(player=f"{revived_player['name']} {revived_player['title']}")
+        message = sponsor_event.format(player=f"{revived_player['name']} {revived_player['title']}")
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
+        
+        return message
     
     async def execute_alliance_event(self, game: Dict) -> Optional[str]:
         """Execute an alliance event with proper formatting"""
@@ -308,10 +374,15 @@ class GameEngine:
         alliance_event = random.choice(ALLIANCE_EVENTS)
         
         # Format with player1 and player2
-        return alliance_event.format(
+        message = alliance_event.format(
             player1=f"{players[0]['name']} {players[0]['title']}",
             player2=f"{players[1]['name']} {players[1]['title']}"
         )
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
+        
+        return message
     
     async def execute_crate_event(self, game: Dict) -> Optional[str]:
         """Execute a supply crate event"""
@@ -331,12 +402,22 @@ class GameEngine:
         else:
             player_names = f"{players[0]['name']} {players[0]['title']} and {players[1]['name']} {players[1]['title']}"
         
-        return crate_event.format(player=player_names)
+        message = crate_event.format(player=player_names)
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
+        
+        return message
     
     async def check_special_events(self, game: Dict, channel: discord.TextChannel, alive_players: List[Dict]) -> Optional[str]:
         """Check for and generate special arena events"""
         alive_count = len(alive_players)
         round_num = game["round"]
+        
+        # Check for environmental events from current condition
+        environmental_event = self.condition_manager.get_environmental_event()
+        if environmental_event:
+            return environmental_event
         
         # Final duel event
         if alive_count == 2 and "final_duel" not in game.get("milestones_shown", set()):
@@ -346,7 +427,7 @@ class GameEngine:
         # Endgame events
         if alive_count <= 3 and "finale_announcement" not in game.get("milestones_shown", set()):
             game.setdefault("milestones_shown", set()).add("finale_announcement")
-            return "📢 **ATTENTION TRIBUTES!** Only a few remain... The finale approaches! The arena grows more dangerous by the minute!"
+            return "📢 **ATTENTION PIRATES!** Only a few remain... The final battle approaches! The Grand Line grows more dangerous by the minute!"
         
         # Midgame events
         if alive_count <= 8 and alive_count > 3 and round_num % 3 == 0:
@@ -354,9 +435,28 @@ class GameEngine:
         
         # Early game bloodbath
         if round_num == 1 and alive_count >= 6:
-            return "⚔️ **THE BLOODBATH BEGINS!** Tributes scramble for supplies at the Cornucopia as the gong sounds!"
+            return "⚔️ **THE PIRATE BATTLE BEGINS!** Pirates scramble for weapons and Devil Fruits as the chaos erupts!"
         
         return None
+    
+    async def check_condition_change(self, game: Dict, channel: discord.TextChannel) -> bool:
+        """Check if arena condition should change"""
+        try:
+            # Update condition duration
+            should_change = self.condition_manager.update_condition_duration()
+            
+            # Also chance to change on certain rounds
+            if game["round"] % 8 == 0 and random.random() < 0.3:  # 30% chance every 8 rounds
+                should_change = True
+            
+            if should_change:
+                await self.select_arena_condition(game, channel)
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error checking condition change: {e}")
+            return False
     
     async def _generate_final_duel_event(self, alive_players: List[Dict]) -> str:
         """Generate final duel announcement"""
@@ -364,10 +464,10 @@ class GameEngine:
         player2 = alive_players[1]
         
         scenarios = [
-            f"🔥 **FINAL SHOWDOWN!** {player1['name']} {player1['title']} and {player2['name']} {player2['title']} face off in the ultimate battle for victory!",
-            f"⚡ **THE LAST STAND!** Only {player1['name']} {player1['title']} and {player2['name']} {player2['title']} remain... Who will claim the crown?",
-            f"🏆 **VICTOR'S DUEL!** {player1['name']} {player1['title']} versus {player2['name']} {player2['title']} - the arena holds its breath!",
-            f"💀 **FINAL CONFRONTATION!** The last two tributes, {player1['name']} {player1['title']} and {player2['name']} {player2['title']}, prepare for their destiny!"
+            f"🔥 **FINAL SHOWDOWN!** {player1['name']} {player1['title']} and {player2['name']} {player2['title']} face off in the ultimate battle for the One Piece!",
+            f"⚡ **THE LAST STAND!** Only {player1['name']} {player1['title']} and {player2['name']} {player2['title']} remain... Who will become the Pirate King?",
+            f"🏆 **PIRATE KING'S DUEL!** {player1['name']} {player1['title']} versus {player2['name']} {player2['title']} - the Grand Line holds its breath!",
+            f"💀 **FINAL CONFRONTATION!** The last two pirates, {player1['name']} {player1['title']} and {player2['name']} {player2['title']}, prepare for their destiny!"
         ]
         
         return random.choice(scenarios)
@@ -377,30 +477,35 @@ class GameEngine:
         alive_count = len(self.get_alive_players(game))
         
         events = [
-            "🌪️ **ARENA EVENT:** A massive tornado tears through the battlefield, forcing tributes to seek shelter!",
-            "🔥 **GAMEMAKER INTERVENTION:** Walls of fire begin closing in from the arena's edges!",
-            "❄️ **SUDDEN BLIZZARD:** Freezing winds and snow engulf the arena, visibility drops to zero!",
-            "🌋 **VOLCANIC ERUPTION:** Lava begins flowing from the arena's center outward!",
-            "💨 **TOXIC FOG:** A deadly green mist rolls across the arena floor!",
-            "🕷️ **TRACKER JACKER ATTACK:** Genetically modified wasps swarm the arena!",
-            "📦 **CORNUCOPIA FEAST:** Fresh supplies appear at the center - but danger lurks for those who dare approach!",
-            "🦅 **MUTTATION RELEASE:** The Gamemakers unleash engineered beasts into the arena!",
-            "⚡ **ELECTRICAL STORM:** Lightning strikes begin targeting the highest points in the arena!",
-            "🌊 **FLASH FLOOD:** Rising waters force tributes to higher ground!"
+            "🌪️ **GRAND LINE CHAOS:** A massive whirlpool tears through the battlefield, forcing pirates to seek higher ground!",
+            "🔥 **DEVIL FRUIT AWAKENING:** Massive power surges as someone's ability goes out of control!",
+            "❄️ **ICE AGE:** Freezing winds and ice engulf the ocean, trapping ships in frozen seas!",
+            "🌋 **VOLCANIC ERUPTION:** Lava begins flowing from underwater volcanoes!",
+            "💨 **STORM KING:** A deadly hurricane with lightning begins devastating the area!",
+            "🐙 **SEA KING ATTACK:** Massive sea creatures emerge from the depths to hunt!",
+            "📦 **DEVIL FRUIT CACHE:** Fresh Devil Fruits appear at dangerous locations - but who will dare claim them?",
+            "🦅 **MARINE INTERVENTION:** The World Government sends their deadliest agents into the fray!",
+            "⚡ **CONQUEROR'S HAKI:** Overwhelming willpower clashes shake the very foundations of reality!",
+            "🌊 **TSUNAMI WARNING:** Massive tidal waves force pirates to the highest points available!"
         ]
         
         # Filter events based on game state
         if alive_count <= 5:
             # More intense events for fewer players
             intense_events = [
-                "🔥 **LIGHTNING FINALE:** The arena begins collapsing, forcing the remaining tributes together!",
-                "💀 **MUTTATION HUNT:** Engineered beasts are released to hunt down the survivors!",
-                "⚡ **FINAL TRAP:** The Gamemakers activate their deadliest arena feature!",
-                "🌪️ **ENDGAME CHAOS:** Multiple disasters strike simultaneously!"
+                "🔥 **FINAL TEMPEST:** The Grand Line begins collapsing, forcing the remaining pirates together!",
+                "💀 **YONKO'S WRATH:** The power of an Emperor-level pirate rocks the entire area!",
+                "⚡ **WORLD'S END:** Ancient Weapons activate their deadliest features!",
+                "🌪️ **RAGNAROK:** Multiple disasters strike simultaneously as the world itself seems to end!"
             ]
             events.extend(intense_events)
         
-        return random.choice(events)
+        message = random.choice(events)
+        
+        # Apply condition flavor
+        message = self.condition_manager.apply_flavor_to_message(message)
+        
+        return message
     
     def create_status_embed(self, game: Dict, guild: discord.Guild) -> discord.Embed:
         """Create a status embed for the current game"""
@@ -408,13 +513,13 @@ class GameEngine:
         total_players = len(game["players"])
         
         embed = discord.Embed(
-            title="📊 **ARENA STATUS UPDATE**",
+            title="📊 **GRAND LINE STATUS UPDATE**",
             color=0x4169E1
         )
         
         # Basic stats
         embed.add_field(
-            name="👥 **Tributes Remaining**",
+            name="🏴‍☠️ **Pirates Remaining**",
             value=f"{len(alive_players)}/{total_players}",
             inline=True
         )
@@ -431,9 +536,18 @@ class GameEngine:
             inline=True
         )
         
+        # Show current arena condition
+        condition_info = self.condition_manager.get_current_condition_info()
+        if condition_info:
+            embed.add_field(
+                name="🌊 **Arena Condition**",
+                value=f"{condition_info['name']}\n*{condition_info['duration']} rounds remaining*",
+                inline=False
+            )
+        
         # Show alive players if not too many
         if len(alive_players) <= 8:
-            alive_names = [f"🏹 {p['name']} {p['title']}" for p in alive_players]
+            alive_names = [f"🏴‍☠️ {p['name']} {p['title']}" for p in alive_players]
             embed.add_field(
                 name="⚔️ **Survivors**",
                 value="\n".join(alive_names) if alive_names else "None",
@@ -446,21 +560,21 @@ class GameEngine:
             killer_text = []
             for i, player in enumerate(top_killers):
                 if player['kills'] > 0:
-                    emoji = ["🥇", "🥈", "🥉"][i] if i < 3 else "🏹"
-                    killer_text.append(f"{emoji} {player['name']} ({player['kills']} kills)")
+                    emoji = ["🥇", "🥈", "🥉"][i] if i < 3 else "🏴‍☠️"
+                    killer_text.append(f"{emoji} {player['name']} ({player['kills']} eliminations)")
             
             if killer_text:
                 embed.add_field(
-                    name="🏆 **Top Eliminators**",
+                    name="🏆 **Most Dangerous Pirates**",
                     value="\n".join(killer_text),
                     inline=False
                 )
         
-        embed.set_footer(text="🎮 Game in progress...")
+        embed.set_footer(text="🌊 Battle rages across the Grand Line...")
         return embed
     
     async def execute_combined_events(self, game: Dict, channel: discord.TextChannel, event_count: int = None):
-        """Execute multiple events in one round for variety"""
+        """Execute multiple events in one round with condition awareness"""
         alive_count = len(self.get_alive_players(game))
         
         # Determine number of events if not specified
@@ -480,12 +594,14 @@ class GameEngine:
         from .constants import get_event_weights
         base_weights = get_event_weights()
         
+        # Apply condition effects to weights
+        weights = self.condition_manager.apply_condition_to_event_weights(base_weights)
+        
         for i in range(event_count):
             if len(self.get_alive_players(game)) <= 1:
                 break
             
             # Adjust weights based on game state
-            weights = base_weights.copy()
             if alive_count <= 2:
                 weights.update({"death": 70, "survival": 10, "sponsor": 10, "alliance": 5, "crate": 5})
             elif alive_count <= 5:
