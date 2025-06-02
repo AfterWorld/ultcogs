@@ -103,20 +103,32 @@ class CommandHandler:
         
         # Fallback to regular recruitment system
         poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
-        role_mention = ""
+        
+        # Send role ping first if configured
         if poll_ping_role_id:
             role = ctx.guild.get_role(poll_ping_role_id)
             if role:
-                role_mention = f"{role.mention} "
+                try:
+                    # Send separate ping message
+                    ping_msg = await ctx.send(
+                        f"{role.mention} 🗳️ **Starting Hunger Games!**",
+                        allowed_mentions=discord.AllowedMentions(roles=True)
+                    )
+                    # Delete after brief moment
+                    await asyncio.sleep(1)
+                    try:
+                        await ping_msg.delete()
+                    except:
+                        pass
+                except Exception as e:
+                    logger.error(f"Failed to ping role: {e}")
         
-        poll_message = f"{role_mention}🗳️ **Starting Hunger Games!**\n"
+        # Send main poll message (without role mention to avoid double ping)
+        poll_message = f"🗳️ **Starting Hunger Games!**\n"
         poll_message += f"Need **{threshold}** players - react with 🏹 to join!\n"
         poll_message += f"Game will start in 60 seconds..."
         
         await ctx.send(poll_message)
-        
-        # Use the existing recruitment system
-        await self._initialize_new_game(ctx, 60)
     
     async def handle_poll_command(self, ctx, threshold: int = None):
         """Handle the .poll command"""
