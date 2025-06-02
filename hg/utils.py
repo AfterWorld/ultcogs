@@ -1,5 +1,5 @@
 # utils.py - IMPROVED VERSION
-"""Enhanced utility functions for Hunger Games cog with better error handling"""
+"""Enhanced utility functions for Pirate Royale cog with better error handling"""
 
 import discord
 import random
@@ -105,11 +105,11 @@ class RandomGenerators:
         """Get random victory art with fallback"""
         try:
             if not VICTORY_TITLE_ART:
-                return "```\n🏹 THE HUNGER GAMES 🏹\n```"
+                return "```\n🏹 THE PIRATE ROYALE 🏹\n```"
             return random.choice(VICTORY_TITLE_ART)
         except Exception as e:
             logger.error(f"Error getting victory art: {e}")
-            return "```\n🏹 THE HUNGER GAMES 🏹\n```"
+            return "```\n🏹 THE Pirate Royale 🏹\n```"
 
 
 class TimeFormatter:
@@ -252,7 +252,7 @@ class EmbedBuilder:
                 color=color
             )
             
-            embed.set_footer(text="The Hunger Games have begun!")
+            embed.set_footer(text="The Pirate Royale have begun!")
             return embed
             
         except Exception as e:
@@ -268,7 +268,7 @@ class EmbedBuilder:
         """Create player statistics embed with enhanced metrics"""
         try:
             embed = discord.Embed(
-                title=f"📊 **{member.display_name}'s Hunger Games Stats**",
+                title=f"📊 **{member.display_name}'s Pirate Royale Stats**",
                 color=0x00CED1
             )
             
