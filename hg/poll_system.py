@@ -67,33 +67,62 @@ class PollSystem:
             return False
     
     async def _create_advanced_poll(self, ctx, threshold: int):
-        """Create advanced button-based poll"""
-        # Get role to ping
+        """Create advanced button-based poll with proper role pinging"""
+        # Get role to ping and send initial ping message
         poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
         if poll_ping_role_id:
             role = ctx.guild.get_role(poll_ping_role_id)
             if role:
-                await ctx.send(f"{role.mention} 🗳️ **Hunger Games Poll Starting!**")
+                # Send a separate ping message first to ensure notification
+                try:
+                    ping_msg = await ctx.send(
+                        f"{role.mention} 🗳️ **Hunger Games Poll Starting!**",
+                        allowed_mentions=discord.AllowedMentions(roles=True)
+                    )
+                    # Delete the ping message after 1 second to keep channel clean
+                    await asyncio.sleep(1)
+                    try:
+                        await ping_msg.delete()
+                    except:
+                        pass  # Ignore if we can't delete (permissions, etc.)
+                except Exception as e:
+                    logger.error(f"Failed to send ping message: {e}")
         
-        # Create and start poll
+        # Create and start poll (without role mention in this message)
         poll_view = PollView(self.cog, threshold, timeout=600)
         await poll_view.start(ctx)
         await poll_view.wait()
     
     async def _create_simple_poll(self, ctx, threshold: int):
-        """Create simple reaction-based poll"""
+        """Create simple reaction-based poll with proper role pinging"""
         # Get role to ping
         poll_ping_role_id = await self.config.guild(ctx.guild).poll_ping_role()
-        role_mention = ""
+        
+        # Send separate ping message first if role exists
         if poll_ping_role_id:
             role = ctx.guild.get_role(poll_ping_role_id)
             if role:
-                role_mention = f"{role.mention} "
+                try:
+                    ping_msg = await ctx.send(
+                        f"{role.mention} 🗳️ **Hunger Games Poll Starting!**",
+                        allowed_mentions=discord.AllowedMentions(roles=True)
+                    )
+                    # Delete the ping message after 1 second
+                    await asyncio.sleep(1)
+                    try:
+                        await ping_msg.delete()
+                    except:
+                        pass
+                except Exception as e:
+                    logger.error(f"Failed to send ping message: {e}")
         
-        poll_message = f"{role_mention}🗳️ **Hunger Games Poll Started!**\n"
-        poll_message += f"**Target:** {threshold} players\n"
-        poll_message += f"React with 🏹 to join!\n"
-        poll_message += f"Game will start in 60 seconds..."
+        # Send main poll message (without role mention)
+        poll_message = (
+            f"🗳️ **Hunger Games Poll Started!**\n"
+            f"**Target:** {threshold} players\n"
+            f"React with 🏹 to join!\n"
+            f"Game will start in 60 seconds..."
+        )
         
         message = await ctx.send(poll_message)
         await message.add_reaction("🏹")
