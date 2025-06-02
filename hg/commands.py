@@ -914,3 +914,136 @@ class CommandHandler:
         except Exception as e:
             logger.error(f"Error setting interval: {e}")
             await ctx.send("❌ Error updating event interval.")
+
+    # =====================================================
+    # Arena handlers
+    # =====================================================
+    
+
+    async def handle_condition_test(self, ctx, condition_name: str = None):
+        """Test arena conditions (Admin only)"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.cog.active_games:
+            return await ctx.send("❌ No active game to test conditions on!")
+        
+        try:
+            game = self.cog.active_games[guild_id]
+            
+            if condition_name:
+                # Test specific condition
+                from .arena_conditions import GRAND_LINE_CONDITIONS
+                if condition_name.lower() not in GRAND_LINE_CONDITIONS:
+                    available = ", ".join(GRAND_LINE_CONDITIONS.keys())
+                    return await ctx.send(f"❌ Invalid condition! Available: {available}")
+                
+                # Force the condition
+                await self.cog.game_engine.condition_manager.select_condition(
+                    game["round"], 
+                    len(self.cog.game_engine.get_alive_players(game)),
+                    force_condition=condition_name.lower()
+                )
+                
+                # Send announcement
+                announcement = self.cog.game_engine.condition_manager.get_condition_announcement()
+                embed = discord.Embed(
+                    title="🧪 **CONDITION TEST** 🧪",
+                    description=f"**Testing:** {condition_name}\n\n{announcement}",
+                    color=0x00CED1
+                )
+            else:
+                # Test random condition
+                await self.cog.game_engine.select_arena_condition(game, ctx.channel)
+                embed = discord.Embed(
+                    title="🧪 **RANDOM CONDITION TEST** 🧪",
+                    description="Random arena condition selected for testing!",
+                    color=0x00CED1
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in condition test: {e}")
+            await ctx.send(f"❌ Error testing condition: {str(e)}")
+    
+    async def handle_condition_info(self, ctx):
+        """Show current arena condition info"""
+        guild_id = ctx.guild.id
+        
+        if guild_id not in self.cog.active_games:
+            return await ctx.send("❌ No active game to check conditions!")
+        
+        try:
+            condition_info = self.cog.game_engine.condition_manager.get_current_condition_info()
+            
+            if not condition_info:
+                return await ctx.send("🌊 No arena condition currently active.")
+            
+            embed = discord.Embed(
+                title="🌊 **CURRENT ARENA CONDITION** 🌊",
+                color=0x4169E1
+            )
+            
+            embed.add_field(
+                name="📍 **Condition**",
+                value=condition_info['name'],
+                inline=True
+            )
+            
+            embed.add_field(
+                name="⏰ **Duration**",
+                value=f"{condition_info['duration']} rounds remaining",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="📝 **Description**",
+                value=condition_info['description'],
+                inline=False
+            )
+            
+            # Show effects if any
+            if condition_info.get('effects'):
+                effects_text = []
+                for effect, value in condition_info['effects'].items():
+                    if isinstance(value, float):
+                        percentage = f"{value*100:+.0f}%"
+                        effects_text.append(f"• {effect.replace('_', ' ').title()}: {percentage}")
+                
+                if effects_text:
+                    embed.add_field(
+                        name="⚡ **Active Effects**",
+                        value="\n".join(effects_text),
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting condition info: {e}")
+            await ctx.send("❌ Error retrieving condition information.")
+    
+    async def handle_condition_list(self, ctx):
+        """List all available arena conditions"""
+        try:
+            from .arena_conditions import GRAND_LINE_CONDITIONS
+            
+            embed = discord.Embed(
+                title="🌊 **GRAND LINE CONDITIONS** 🌊",
+                description="All available arena conditions:",
+                color=0x4169E1
+            )
+            
+            for condition_key, condition_data in GRAND_LINE_CONDITIONS.items():
+                embed.add_field(
+                    name=condition_data["name"],
+                    value=condition_data["description"],
+                    inline=False
+                )
+            
+            embed.set_footer(text="Use .hungergames condition test <name> to test a specific condition")
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error listing conditions: {e}")
+            await ctx.send("❌ Error retrieving condition list.")
