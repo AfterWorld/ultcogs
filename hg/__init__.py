@@ -8,6 +8,7 @@ import discord
 from redbot.core import commands as discord_commands, Config, data_manager
 import asyncio
 import logging
+import random
 from typing import Dict
 
 from .constants import DEFAULT_GUILD_CONFIG, DEFAULT_MEMBER_CONFIG
