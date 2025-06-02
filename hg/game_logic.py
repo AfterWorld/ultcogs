@@ -201,7 +201,7 @@ class GameEngine:
             return False
     
     async def execute_death_event(self, game: Dict, channel: discord.TextChannel) -> Optional[str]:
-        """Execute a death event with condition awareness"""
+        """Execute a death event with condition awareness - FIXED"""
         alive_players = self.get_alive_players(game)
         
         if len(alive_players) < 2:
@@ -217,30 +217,38 @@ class GameEngine:
             victims = [random.choice(alive_players)]
         
         # Choose killer (can be environment or another player)
+        killer = None
+        killer_name = None
+        
         if random.random() < 0.6 and len(alive_players) > len(victims):
             # Player vs player
             potential_killers = [p for p in alive_players if p not in victims]
-            killer = random.choice(potential_killers)
-            killer_name = f"{killer['name']} {killer['title']}"
-            killer['kills'] += len(victims)
-        else:
-            # Environmental death
-            killer = None
-            killer_name = None
+            if potential_killers:  # Make sure we have potential killers
+                killer = random.choice(potential_killers)
+                killer_name = f"{killer['name']} {killer['title']}"
+                killer['kills'] += len(victims)
         
         # Execute the deaths
         for victim in victims:
             victim['alive'] = False
             game['eliminated'].append(victim['name'])
         
-        # Choose death event - check for condition-specific events first
+        # Choose death event based on whether we have a killer
         condition_events = self.condition_manager.get_condition_death_events()
-        if condition_events and random.random() < 0.4:  # 40% chance to use condition event
-            death_event = random.choice(condition_events)
-        else:
-            death_event = random.choice(DEATH_EVENTS)
         
-        # Format the event message
+        if killer_name and condition_events and random.random() < 0.4:
+            # Use condition-specific death event (these always have killers)
+            death_event = random.choice(condition_events)
+        elif killer_name:
+            # Use player vs player death event
+            from .constants import PLAYER_DEATH_EVENTS
+            death_event = random.choice(PLAYER_DEATH_EVENTS)
+        else:
+            # Use environmental death event (no killer)
+            from .constants import ENVIRONMENTAL_DEATH_EVENTS
+            death_event = random.choice(ENVIRONMENTAL_DEATH_EVENTS)
+        
+        # Format victim names
         if len(victims) == 1:
             victim_names = f"{victims[0]['name']} {victims[0]['title']}"
         else:
@@ -250,10 +258,19 @@ class GameEngine:
             else:
                 victim_names = f"{', '.join(victim_list[:-1])}, and {victim_list[-1]}"
         
-        if killer_name:
-            message = death_event.format(player=victim_names, killer=killer_name)
-        else:
-            message = death_event.format(player=victim_names)
+        # Format the event message
+        try:
+            if killer_name:
+                message = death_event.format(player=victim_names, killer=killer_name)
+            else:
+                message = death_event.format(player=victim_names)
+        except KeyError as e:
+            # Fallback if formatting fails
+            logger.error(f"Death event formatting error: {e}, event: {death_event}")
+            if killer_name:
+                message = f"💀 | **{killer_name}** eliminated ~~**{victim_names}**~~ in brutal combat!"
+            else:
+                message = f"💀 | ~~**{victim_names}**~~ met their end in the Grand Line!"
         
         # Apply condition flavor
         message = self.condition_manager.apply_flavor_to_message(message)
