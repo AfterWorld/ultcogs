@@ -49,7 +49,7 @@ class DeathBattle(BankCommands, BattleCommands):
             force_registration=True
         )
         
-        # Default settings
+        # Default settings - ADDED devil_fruit field
         default_member = {
             "total_berris": 0,
             "bank_balance": 0,
@@ -57,7 +57,8 @@ class DeathBattle(BankCommands, BattleCommands):
             "wins": 0,
             "losses": 0,
             "last_battle": None,
-            "last_robbery": None
+            "last_robbery": None,
+            "devil_fruit": None  # Added this field
         }
         
         default_guild = {

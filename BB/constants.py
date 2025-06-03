@@ -4,13 +4,20 @@ Constants and configuration for the DeathBattle cog.
 import os
 from datetime import timedelta
 
-# File paths
-BASE_DATA_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/DeathBattle"
+# File paths - UPDATED with correct paths
+BASE_DATA_PATH = "/home/adam/.local/share/Red-DiscordBot/data/sunny/cogs/CogManager/cogs/BB/template"
 TEMPLATE_PATH = os.path.join(BASE_DATA_PATH, "deathbattle.png")
 FONT_PATH = os.path.join(BASE_DATA_PATH, "onepiece.ttf")
 
 # Ensure directory exists
 os.makedirs(BASE_DATA_PATH, exist_ok=True)
+
+# Custom emoji IDs for health bars
+HEALTH_EMOJIS = {
+    "full": "<:full:1379318858279551027>",
+    "half": "<:half:1379318888906489897>",
+    "gone": "<:gone:1379318910809018408>"
+}
 
 # Battle constants - Updated for new system
 STARTING_HP = 250  # Increased from 100 for more complex battles

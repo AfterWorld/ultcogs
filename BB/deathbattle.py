@@ -756,3 +756,49 @@ class BattleCommands(commands.Cog):
             )
         
         await safe_send(ctx, embed=embed)
+        
+    @commands.command(name="givefruit", hidden=True)
+    @commands.is_owner()
+    async def give_devil_fruit(self, ctx, user: discord.Member, *, fruit_name: str):
+        """Give a devil fruit to a user (Owner only)."""
+        # Check if fruit exists
+        fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+        
+        if not fruit_data:
+            await safe_send(ctx, f"❌ Devil Fruit '{fruit_name}' not found!")
+            return
+        
+        # Check if user already has a fruit
+        current_fruit = await self.config.member(user).devil_fruit()
+        if current_fruit:
+            await safe_send(ctx, f"❌ {user.display_name} already has {current_fruit}!")
+            return
+        
+        # Give the fruit
+        await self.config.member(user).devil_fruit.set(fruit_name)
+        
+        embed = discord.Embed(
+            title="🍎 Devil Fruit Granted!",
+            description=f"**{fruit_name}** has been given to {user.display_name}!",
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="Type",
+            value=fruit_data["type"],
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Effect",
+            value=fruit_data["effect"].title(),
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Bonus",
+            value=fruit_data["bonus"],
+            inline=False
+        )
+        
+        await safe_send(ctx, embed=embed)

@@ -57,15 +57,28 @@ def check_critical_hit(move: Dict[str, Any], attacker: Dict[str, Any] = None) ->
     return random.random() < base_crit
 
 def generate_health_bar(current_hp: int, max_hp: int = STARTING_HP) -> str:
-    """Generate a visual health bar."""
+    """Generate a visual health bar using custom emojis."""
     if current_hp <= 0:
-        return "💀" * 10
+        return HEALTH_EMOJIS["gone"] * 10
     
     percentage = current_hp / max_hp
-    filled_blocks = int(percentage * 10)
-    empty_blocks = 10 - filled_blocks
     
-    return "❤️" * filled_blocks + "🖤" * empty_blocks
+    # Calculate filled and empty blocks
+    total_blocks = 10
+    filled_blocks = percentage * total_blocks
+    
+    # Use different emoji combinations for more granular display
+    health_bar = ""
+    
+    for i in range(total_blocks):
+        if i < int(filled_blocks):
+            health_bar += HEALTH_EMOJIS["full"]
+        elif i < filled_blocks and (filled_blocks - int(filled_blocks)) >= 0.5:
+            health_bar += HEALTH_EMOJIS["half"]
+        else:
+            health_bar += HEALTH_EMOJIS["gone"]
+    
+    return health_bar
 
 def create_battle_embed(
     player1: discord.Member, 
