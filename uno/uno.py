@@ -29,10 +29,6 @@ class UnoCog(commands.Cog):
         
         # Start background tasks
         self.cleanup_task.start()
-        
-        # Add persistent views
-        self.bot.add_view(UnoGameView(None, self))
-        self.bot.add_view(LobbyView(None, self))
     
     def cog_unload(self):
         """Clean up when cog is unloaded"""
@@ -459,3 +455,8 @@ async def setup(bot):
     cog = UnoCog(bot)
     await bot.add_cog(cog)
 
+
+# For testing or direct import
+def setup_cog(bot):
+    """Alternative setup function"""
+    return UnoCog(bot)
