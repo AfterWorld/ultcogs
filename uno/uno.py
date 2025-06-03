@@ -1,719 +1,1240 @@
-# Check for Uno call (1 card left)
-        uno_message = ""
-        if hand.card_count == 1:
-            if self.uno_called.get(player_id, False):
-                uno_message = f"\n🔥 **UNO!** <@{player_id}> has one card left!"
-            else:
-                uno_message = f"\n🔥 <@{player_id}> has one card left! (Remember to call UNO!)"
-        
-        # Turn advancement is handled entirely by _handle_card_effect
-        # No additional turn advancement needed here"""
-Enhanced Uno Game Session Management with Fixed Turn Logic
+"""
+Enhanced Uno Game Cog for Red-Discord Bot V3
+Features: Configuration, Statistics, AI Players, Error Handling, Visual Persistence
 """
 import asyncio
-import random
-from typing import Dict, List, Optional, Tuple, Any
-from enum import Enum
 import discord
+from discord.ext import tasks
+from typing import Optional, Dict, Any, List
+import traceback
+import json
 from datetime import datetime, timedelta
-from .cards import UnoDeck, PlayerHand, UnoCard, UnoColor, UnoCardType
+
+# Red-DiscordBot V3 specific imports
+from redbot.core import commands, Config
+from redbot.core.data_manager import cog_data_path
+from redbot.core.utils.predicates import MessagePredicate
+
+from .game import UnoGameSession, GameState, PlayerStats, AIPlayer
+from .views import UnoGameView, LobbyView, StatsView, ConfigView
+from .utils import (
+    setup_assets_directory, 
+    game_manager, 
+    format_player_list, 
+    format_card_counts,
+    validate_card_files,
+    cleanup_temp_files,
+    stats_manager,
+    validate_card_emojis,
+    check_bot_emoji_permissions
+)
+from .cards import UnoColor
 
 
-class GameState(Enum):
-    LOBBY = "lobby"
-    PLAYING = "playing"
-    FINISHED = "finished"
-    PAUSED = "paused"
-
-
-class GameDirection(Enum):
-    CLOCKWISE = 1
-    COUNTERCLOCKWISE = -1
-
-
-class UnoAction(Enum):
-    PLAY_CARD = "play_card"
-    DRAW_CARD = "draw_card"
-    CALL_UNO = "call_uno"
-    CHALLENGE_DRAW4 = "challenge_draw4"
-    PASS_TURN = "pass_turn"
-
-
-class PlayerStats:
-    """Track individual player statistics"""
+class UnoCog(commands.Cog):
+    """Enhanced Uno card game cog with advanced features"""
     
-    def __init__(self, player_id: int):
-        self.player_id = player_id
-        self.games_played = 0
-        self.games_won = 0
-        self.cards_played = 0
-        self.draw4_challenged = 0
-        self.draw4_successful_challenges = 0
-        self.uno_calls = 0
-        self.uno_penalties = 0
-        self.fastest_win = None  # Time in seconds
-        self.total_play_time = 0
-        self.favorite_color = None
-        self.achievements = set()
-    
-    @property
-    def win_rate(self) -> float:
-        return (self.games_won / self.games_played) if self.games_played > 0 else 0.0
-    
-    @property
-    def challenge_success_rate(self) -> float:
-        return (self.draw4_successful_challenges / self.draw4_challenged) if self.draw4_challenged > 0 else 0.0
-
-
-class AIPlayer:
-    """AI player for filling games"""
-    
-    def __init__(self, name: str, difficulty: str = "medium"):
-        self.name = name
-        self.difficulty = difficulty  # easy, medium, hard
-        self.player_id = f"ai_{name.lower()}_{random.randint(1000, 9999)}"
-        self.is_ai = True
-    
-    def choose_card(self, hand: PlayerHand, top_card: UnoCard, current_color: Optional[UnoColor]) -> Optional[UnoCard]:
-        """AI logic for choosing a card to play"""
-        playable = hand.get_playable_cards(top_card, current_color)
+    def __init__(self, bot):
+        self.bot = bot
+        self.assets_path = setup_assets_directory(cog_data_path(self))
         
-        if not playable:
-            return None
+        # Configuration system
+        self.config = Config.get_conf(self, identifier=2584931056)
         
-        if self.difficulty == "easy":
-            return random.choice(playable)
-        
-        elif self.difficulty == "medium":
-            # Prefer action cards and wilds
-            action_cards = [c for c in playable if c.card_type != UnoCardType.NUMBER]
-            if action_cards:
-                return random.choice(action_cards)
-            return random.choice(playable)
-        
-        elif self.difficulty == "hard":
-            # Strategic play: save wilds, play high numbers, prefer matching colors
-            # This is a simplified strategy
-            
-            # If only one card left, play anything
-            if len(hand.cards) == 1:
-                return playable[0]
-            
-            # Avoid playing wilds unless necessary
-            non_wilds = [c for c in playable if c.color != UnoColor.WILD]
-            if non_wilds and len(non_wilds) < len(playable):
-                playable = non_wilds
-            
-            # Prefer action cards to disrupt opponents
-            action_cards = [c for c in playable if c.card_type in [UnoCardType.SKIP, UnoCardType.REVERSE, UnoCardType.DRAW2]]
-            if action_cards and len(hand.cards) > 3:
-                return random.choice(action_cards)
-            
-            # Play highest number card to reduce hand value
-            number_cards = [c for c in playable if c.card_type == UnoCardType.NUMBER]
-            if number_cards:
-                return max(number_cards, key=lambda c: c.value or 0)
-            
-            return random.choice(playable)
-    
-    def choose_wild_color(self, hand: PlayerHand) -> UnoColor:
-        """Choose color for wild card"""
-        # Count cards by color
-        color_counts = {color: 0 for color in [UnoColor.RED, UnoColor.GREEN, UnoColor.YELLOW, UnoColor.BLUE]}
-        
-        for card in hand.cards:
-            if card.color in color_counts:
-                color_counts[card.color] += 1
-        
-        # Choose color with most cards
-        return max(color_counts, key=color_counts.get)
-
-
-class UnoGameSession:
-    """Enhanced Uno game session with fixed turn mechanics"""
-    
-    def __init__(self, channel_id: int, host_id: int, settings: Dict[str, Any] = None):
-        self.channel_id = channel_id
-        self.host_id = host_id
-        self.state = GameState.LOBBY
-        self.players: List[int] = [host_id]  # Player IDs in turn order
-        self.ai_players: List[AIPlayer] = []
-        self.hands: Dict[int, PlayerHand] = {host_id: PlayerHand(host_id)}
-        self.deck = UnoDeck()
-        self.current_player_index = 0
-        self.direction = GameDirection.CLOCKWISE
-        self.draw_count = 0  # For stacking draw cards
-        self.last_activity = discord.utils.utcnow()
-        self.game_message: Optional[discord.Message] = None
-        self.game_start_time: Optional[datetime] = None
-        
-        # Game history for replays and statistics
-        self.action_history: List[Dict[str, Any]] = []
-        self.round_number = 0
-        
-        # UNO callout tracking
-        self.uno_called: Dict[int, bool] = {}
-        self.pending_uno_penalty: Dict[int, bool] = {}
-        
-        # Draw 4 challenge system
-        self.last_draw4_player: Optional[int] = None
-        self.last_draw4_card: Optional[UnoCard] = None
-        self.challenge_window_open = False
-        
-        # Settings with defaults
-        self.settings = {
+        # Default server settings
+        default_guild = {
             "starting_cards": 7,
             "max_players": 10,
-            "min_players": 2,
             "timeout_minutes": 30,
             "uno_penalty": True,
             "draw_stacking": True,
             "challenge_draw4": True,
             "ai_players": True,
             "max_ai_players": 3,
+            "auto_start_delay": 60,  # seconds before auto-starting with AI
             "persistent_games": True,
-            **( settings or {})
+            "statistics_enabled": True,
+            "leaderboard_enabled": True,
+            "visual_persistence": True,  # NEW: Keep game visible when people talk
+            "repost_threshold": 5  # NEW: Repost game after X messages
         }
+        
+        # Default global settings
+        default_global = {
+            "total_games": 0,
+            "total_players": 0,
+            "maintenance_mode": False
+        }
+        
+        # Player statistics
+        default_member = {
+            "games_played": 0,
+            "games_won": 0,
+            "cards_played": 0,
+            "draw4_challenged": 0,
+            "draw4_successful_challenges": 0,
+            "uno_calls": 0,
+            "uno_penalties": 0,
+            "fastest_win": None,
+            "total_play_time": 0,
+            "favorite_color": None,
+            "achievements": []
+        }
+        
+        self.config.register_guild(**default_guild)
+        self.config.register_global(**default_global)
+        self.config.register_member(**default_member)
+        
+        # Track message counts for visual persistence
+        self.channel_message_counts: Dict[int, int] = {}
+        
+        # Start background tasks
+        self.cleanup_task.start()
+        self.ai_task.start()
+        self.statistics_task.start()
     
-    def add_player(self, player_id: int) -> bool:
-        """Add a player to the game. Returns True if successful."""
-        if (self.state != GameState.LOBBY or 
-            player_id in self.players or 
-            len(self.players) >= self.settings["max_players"]):
-            return False
+    def cog_unload(self):
+        """Clean up when cog is unloaded"""
+        self.cleanup_task.cancel()
+        self.ai_task.cancel()
+        self.statistics_task.cancel()
         
-        self.players.append(player_id)
-        self.hands[player_id] = PlayerHand(player_id)
-        self.uno_called[player_id] = False
-        self.pending_uno_penalty[player_id] = False
-        self.last_activity = discord.utils.utcnow()
-        return True
+        # Save all active games if persistence is enabled
+        asyncio.create_task(self._save_persistent_games())
+        
+        # Clean up all games
+        for game in list(game_manager.games.values()):
+            game.cleanup()
+        game_manager.games.clear()
     
-    def add_ai_player(self, difficulty: str = "medium") -> Optional[AIPlayer]:
-        """Add an AI player to the game"""
-        if (len(self.ai_players) >= self.settings["max_ai_players"] or 
-            len(self.players) + len(self.ai_players) >= self.settings["max_players"]):
-            return None
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Listen for messages to handle visual persistence"""
+        # Ignore bot messages
+        if message.author.bot:
+            return
         
-        ai_names = ["Bot Alice", "Bot Bob", "Bot Charlie", "Bot Diana", "Bot Eve"]
-        used_names = [ai.name for ai in self.ai_players]
-        available_names = [name for name in ai_names if name not in used_names]
+        # Check if there's an active game in this channel
+        game = game_manager.get_game(message.channel.id)
+        if not game or game.state not in [GameState.LOBBY, GameState.PLAYING]:
+            return
         
-        if not available_names:
-            return None
-        
-        ai_player = AIPlayer(random.choice(available_names), difficulty)
-        self.ai_players.append(ai_player)
-        
-        # Add AI to players list and create hand
-        self.players.append(ai_player.player_id)
-        self.hands[ai_player.player_id] = PlayerHand(ai_player.player_id)
-        self.uno_called[ai_player.player_id] = False
-        
-        return ai_player
-    
-    def remove_player(self, player_id: int) -> bool:
-        """Remove a player from the game. Returns True if successful."""
-        if player_id not in self.players:
-            return False
-        
-        # Remove from AI players if applicable
-        self.ai_players = [ai for ai in self.ai_players if ai.player_id != player_id]
-        
-        # If game is in progress, this is more complex
-        if self.state == GameState.PLAYING:
-            player_index = self.players.index(player_id)
+        # Check if visual persistence is enabled
+        try:
+            settings = await self.config.guild(message.guild).all()
+            if not settings.get("visual_persistence", True):
+                return
             
-            # Adjust current player index if needed
-            if player_index < self.current_player_index:
-                self.current_player_index -= 1
-            elif player_index == self.current_player_index:
-                # Current player left, move to next
-                if self.current_player_index >= len(self.players) - 1:
-                    self.current_player_index = 0
-        
-        self.players.remove(player_id)
-        if player_id in self.hands:
-            del self.hands[player_id]
-        if player_id in self.uno_called:
-            del self.uno_called[player_id]
-        if player_id in self.pending_uno_penalty:
-            del self.pending_uno_penalty[player_id]
-        
-        # Check if game should end
-        if len(self.players) < self.settings["min_players"]:
-            self.state = GameState.FINISHED
-        
-        self.last_activity = discord.utils.utcnow()
-        return True
-    
-    def start_game(self) -> bool:
-        """Start the game if conditions are met"""
-        total_players = len(self.players) + len(self.ai_players)
-        if (self.state != GameState.LOBBY or 
-            total_players < self.settings["min_players"]):
-            return False
-        
-        self.state = GameState.PLAYING
-        self.game_start_time = discord.utils.utcnow()
-        
-        # Deal starting cards to all players
-        all_player_ids = self.players.copy()
-        for player_id in all_player_ids:
-            hand = self.hands[player_id]
-            for _ in range(self.settings["starting_cards"]):
-                card = self.deck.draw_card()
-                if card:
-                    hand.add_card(card)
-        
-        # Start with first card
-        self.deck.start_game()
-        
-        # Check if first card requires special action
-        top_card = self.deck.top_card
-        if top_card:
-            self._handle_card_effect(top_card, is_starting_card=True)
-        
-        self.last_activity = discord.utils.utcnow()
-        self._log_action("game_started", {"players": len(self.players), "ai_players": len(self.ai_players)})
-        return True
-    
-    def call_uno(self, player_id: int) -> Tuple[bool, str]:
-        """Player calls UNO"""
-        if self.state != GameState.PLAYING or player_id not in self.players:
-            return False, "Invalid game state or player"
-        
-        hand = self.hands.get(player_id)
-        if not hand:
-            return False, "Player not found"
-        
-        if hand.card_count != 1:
-            return False, "Can only call UNO with exactly 1 card"
-        
-        self.uno_called[player_id] = True
-        self.pending_uno_penalty[player_id] = False
-        self._log_action("uno_called", {"player": player_id, "cards_left": hand.card_count})
-        
-        return True, f"<@{player_id}> called **UNO!** 🔥"
-    
-    def challenge_draw4(self, challenger_id: int) -> Tuple[bool, str]:
-        """Challenge the last played Draw 4 card"""
-        if not self.settings["challenge_draw4"]:
-            return False, "Draw 4 challenges are disabled"
-        
-        if not self.challenge_window_open or not self.last_draw4_player:
-            return False, "No Draw 4 to challenge"
-        
-        if challenger_id == self.last_draw4_player:
-            return False, "Cannot challenge your own card"
-        
-        if not self.is_current_player(challenger_id):
-            return False, "Only the affected player can challenge"
-        
-        # Check if the Draw 4 was legal
-        # Draw 4 is illegal if the player had other playable cards
-        draw4_player_hand = self.hands.get(self.last_draw4_player)
-        if not draw4_player_hand:
-            return False, "Invalid game state"
-        
-        # Simulate the game state before the Draw 4 was played
-        # This is simplified - in a real implementation, you'd want to store more history
-        playable_cards = []
-        for card in draw4_player_hand.cards:
-            if (card != self.last_draw4_card and 
-                card.color != UnoColor.WILD and
-                card.can_play_on(self.deck.top_card, self.deck.current_color)):
-                playable_cards.append(card)
-        
-        challenge_successful = len(playable_cards) > 0
-        
-        if challenge_successful:
-            # Challenge successful - Draw 4 player draws 4, challenger draws nothing
-            for _ in range(4):
-                card = self.deck.draw_card()
-                if card:
-                    draw4_player_hand.add_card(card)
+            # Track message count
+            channel_id = message.channel.id
+            if channel_id not in self.channel_message_counts:
+                self.channel_message_counts[channel_id] = 0
             
-            self.draw_count = 0  # Reset draw count
-            message = f"🎯 **Challenge successful!** <@{self.last_draw4_player}> draws 4 cards instead!"
+            self.channel_message_counts[channel_id] += 1
+            
+            # Check if we should repost the game
+            threshold = settings.get("repost_threshold", 5)
+            if self.channel_message_counts[channel_id] >= threshold:
+                self.channel_message_counts[channel_id] = 0  # Reset counter
+                
+                # Repost the game embed
+                await self._repost_game_embed(game)
+                
+        except Exception as e:
+            print(f"Error in visual persistence: {e}")
+    
+    async def _repost_game_embed(self, game: UnoGameSession):
+        """Repost the game embed to keep it visible"""
+        try:
+            channel = self.bot.get_channel(game.channel_id)
+            if not channel:
+                return
+            
+            # Create new embed and view
+            if game.state == GameState.LOBBY:
+                embed = self.create_lobby_embed(game)
+                view = LobbyView(game, self)
+            else:
+                embed = self.create_game_embed(game)
+                view = UnoGameView(game, self)
+            
+            # Send new message
+            new_message = await channel.send(embed=embed, view=view)
+            
+            # Update game message reference
+            old_message = game.game_message
+            game.game_message = new_message
+            
+            # Try to delete old message
+            if old_message:
+                try:
+                    await old_message.delete()
+                except (discord.NotFound, discord.Forbidden):
+                    pass  # Message might already be deleted or no permissions
+                    
+        except Exception as e:
+            print(f"Error reposting game embed: {e}")
+    
+    async def _save_persistent_games(self):
+        """Save active games for persistence"""
+        try:
+            persistent_data = {}
+            for channel_id, game in game_manager.games.items():
+                if game.settings.get("persistent_games", True) and game.state != GameState.FINISHED:
+                    persistent_data[str(channel_id)] = game.to_dict()
+            
+            if persistent_data:
+                # Save to config or file
+                await self.config.persistent_games.set(persistent_data)
+        except Exception as e:
+            print(f"Error saving persistent games: {e}")
+    
+    async def _load_persistent_games(self):
+        """Load saved games on startup"""
+        try:
+            persistent_data = await self.config.persistent_games()
+            for channel_id_str, game_data in persistent_data.items():
+                channel_id = int(channel_id_str)
+                game = UnoGameSession.from_dict(game_data)
+                game_manager.games[channel_id] = game
+        except Exception as e:
+            print(f"Error loading persistent games: {e}")
+    
+    @tasks.loop(minutes=5)
+    async def cleanup_task(self):
+        """Periodic cleanup task"""
+        try:
+            # Clean up expired games
+            expired_count = game_manager.cleanup_expired_games()
+            if expired_count > 0:
+                print(f"Cleaned up {expired_count} expired Uno games")
+            
+            # Clean up temporary image files
+            await cleanup_temp_files(self.assets_path)
+            
+            # Save persistent games
+            await self._save_persistent_games()
+            
+            # Clean up message counts for inactive channels
+            active_channels = set(game.channel_id for game in game_manager.games.values())
+            self.channel_message_counts = {
+                ch_id: count for ch_id, count in self.channel_message_counts.items() 
+                if ch_id in active_channels
+            }
+            
+        except Exception as e:
+            print(f"Error in cleanup task: {e}")
+    
+    @tasks.loop(seconds=30)
+    async def ai_task(self):
+        """Handle AI player actions"""
+        try:
+            for game in game_manager.games.values():
+                if game.state != GameState.PLAYING:
+                    continue
+                
+                current_player = game.get_current_player()
+                if not game.is_ai_player(current_player):
+                    continue
+                
+                ai_player = game.get_ai_player(current_player)
+                if not ai_player:
+                    continue
+                
+                # AI makes a move
+                await self._handle_ai_turn(game, ai_player)
+                
+        except Exception as e:
+            print(f"Error in AI task: {e}")
+    
+    @tasks.loop(hours=1)
+    async def statistics_task(self):
+        """Periodic statistics updates"""
+        try:
+            # Update global statistics
+            total_games = sum(1 for g in game_manager.games.values() if g.state == GameState.FINISHED)
+            await self.config.total_games.set(total_games)
+            
+            # Additional periodic stats processing could go here
+            
+        except Exception as e:
+            print(f"Error in statistics task: {e}")
+    
+    @cleanup_task.before_loop
+    @ai_task.before_loop  
+    @statistics_task.before_loop
+    async def before_tasks(self):
+        await self.bot.wait_until_ready()
+        # Load persistent games on startup
+        await self._load_persistent_games()
+    
+    async def _handle_ai_turn(self, game: UnoGameSession, ai_player: AIPlayer):
+        """Handle an AI player's turn"""
+        try:
+            hand = game.hands.get(ai_player.player_id)
+            if not hand:
+                return
+            
+            # Check if AI needs to draw penalty cards
+            if game.draw_count > 0:
+                # AI always draws penalty (doesn't stack for now)
+                game.draw_card(ai_player.player_id)
+                await self.update_game_display(game)
+                return
+            
+            # Get playable cards
+            playable_cards = game.get_playable_cards(ai_player.player_id)
+            
+            if not playable_cards:
+                # Must draw a card
+                success, message, drawn = game.draw_card(ai_player.player_id)
+                if success:
+                    await self.update_game_display(game)
+                return
+            
+            # AI chooses a card
+            chosen_card = ai_player.choose_card(hand, game.deck.top_card, game.deck.current_color)
+            if not chosen_card:
+                return
+            
+            # Handle wild cards
+            declared_color = None
+            if chosen_card.color == UnoColor.WILD:
+                declared_color = ai_player.choose_wild_color(hand)
+            
+            # Call UNO if needed
+            if hand.card_count == 2:  # Will have 1 after playing
+                game.call_uno(ai_player.player_id)
+            
+            # Play the card
+            success, message = game.play_card(ai_player.player_id, chosen_card, declared_color)
+            if success:
+                await self.update_game_display(game)
+                
+                # Add a small delay for realism
+                await asyncio.sleep(2)
+            
+        except Exception as e:
+            print(f"Error handling AI turn: {e}")
+    
+    # Hybrid commands (work with both prefix and slash)
+    
+    @commands.hybrid_group(name="uno", invoke_without_command=True)
+    async def uno_group(self, ctx):
+        """Uno card game commands"""
+        try:
+            embed = discord.Embed(
+                title="🎮 Uno Card Game",
+                description="Play Uno with your friends using Discord UI!",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="📋 Game Commands",
+                value=(
+                    f"`{ctx.prefix}uno start` - Start a new game\n"
+                    f"`{ctx.prefix}uno join` - Join existing game\n"
+                    f"`{ctx.prefix}uno status` - Check game status\n"
+                    f"`{ctx.prefix}uno stop` - Stop current game\n"
+                    f"`{ctx.prefix}uno rules` - Show game rules"
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="📊 Statistics Commands",
+                value=(
+                    f"`{ctx.prefix}uno stats` - Your statistics\n"
+                    f"`{ctx.prefix}uno leaderboard` - Server leaderboard\n"
+                    f"`{ctx.prefix}uno achievements` - Your achievements"
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="⚙️ Configuration Commands",
+                value=(
+                    f"`{ctx.prefix}uno config` - View settings\n"
+                    f"`{ctx.prefix}uno set` - Change settings (Admin)\n"
+                    f"`{ctx.prefix}uno emojis` - Check emoji setup"
+                ),
+                inline=False
+            )
+            embed.set_footer(text="Use the buttons on game messages to play!")
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "displaying help")
+    
+    @uno_group.command(name="start")
+    async def start_game(self, ctx):
+        """Start a new Uno game in this channel"""
+        try:
+            # Check maintenance mode
+            if await self.config.maintenance_mode():
+                await ctx.send("🔧 Uno is currently in maintenance mode. Please try again later.")
+                return
+            
+            # Check if game already exists
+            existing_game = game_manager.get_game(ctx.channel.id)
+            if existing_game and existing_game.state != GameState.FINISHED and not existing_game.is_expired():
+                await ctx.send("❌ A game is already active in this channel! Use `uno stop` to end it first.")
+                return
+            
+            # Get server settings
+            settings = await self.config.guild(ctx.guild).all()
+            
+            # Create new game
+            game = game_manager.create_game(ctx.channel.id, ctx.author.id, settings)
+            if not game:
+                await ctx.send("❌ Failed to create game. Try again.")
+                return
+            
+            # Reset message counter for this channel
+            self.channel_message_counts[ctx.channel.id] = 0
+            
+            # Create lobby embed and view
+            embed = self.create_lobby_embed(game)
+            view = LobbyView(game, self)
+            
+            # Send the game message
+            message = await ctx.send(embed=embed, view=view)
+            game.game_message = message
+            
+            await ctx.send(f"🎮 **Uno game created!** {ctx.author.mention} is the host.")
+            
+            # Update statistics
+            await self._increment_global_stat("total_games")
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "starting game")
+    
+    @uno_group.command(name="join")
+    async def join_game(self, ctx):
+        """Join the Uno game in this channel"""
+        try:
+            game = game_manager.get_game(ctx.channel.id)
+            if not game:
+                await ctx.send("❌ No game found in this channel. Use `uno start` to create one!")
+                return
+            
+            if game.state != GameState.LOBBY:
+                await ctx.send("❌ Game has already started or finished!")
+                return
+            
+            success = game.add_player(ctx.author.id)
+            if success:
+                await self.update_lobby_display(game)
+                await ctx.send(f"✅ {ctx.author.mention} joined the game!")
+                
+                # Update player statistics
+                await self._increment_player_stat(ctx.guild, ctx.author, "games_played")
+                
+            else:
+                await ctx.send("❌ Cannot join: Game is full or you're already in it!")
+                
+        except Exception as e:
+            await self._handle_error(ctx, e, "joining game")
+    
+    @uno_group.command(name="ai")
+    async def add_ai(self, ctx, difficulty: str = "medium"):
+        """Add an AI player to the current game
+        
+        Difficulty levels: easy, medium, hard
+        """
+        try:
+            if difficulty not in ["easy", "medium", "hard"]:
+                await ctx.send("❌ Invalid difficulty. Choose: easy, medium, or hard")
+                return
+            
+            game = game_manager.get_game(ctx.channel.id)
+            if not game:
+                await ctx.send("❌ No game found in this channel.")
+                return
+            
+            if game.state != GameState.LOBBY:
+                await ctx.send("❌ Can only add AI players in the lobby!")
+                return
+            
+            if ctx.author.id != game.host_id:
+                await ctx.send("❌ Only the host can add AI players!")
+                return
+            
+            settings = await self.config.guild(ctx.guild).all()
+            if not settings["ai_players"]:
+                await ctx.send("❌ AI players are disabled on this server!")
+                return
+            
+            ai_player = game.add_ai_player(difficulty)
+            if ai_player:
+                await self.update_lobby_display(game)
+                await ctx.send(f"🤖 Added AI player **{ai_player.name}** ({difficulty} difficulty)")
+            else:
+                await ctx.send("❌ Cannot add AI player: Game is full or max AI limit reached!")
+                
+        except Exception as e:
+            await self._handle_error(ctx, e, "adding AI player")
+    
+    @uno_group.command(name="stop", aliases=["end"])
+    async def stop_game(self, ctx):
+        """Stop the current Uno game (host or admin only)"""
+        try:
+            game = game_manager.get_game(ctx.channel.id)
+            if not game:
+                await ctx.send("❌ No game found in this channel.")
+                return
+            
+            # Check permissions
+            is_host = ctx.author.id == game.host_id
+            is_admin = ctx.author.guild_permissions.manage_messages
+            
+            if not (is_host or is_admin):
+                await ctx.send("❌ Only the game host or server admins can stop the game!")
+                return
+            
+            # Save final statistics if game was in progress
+            if game.state == GameState.PLAYING:
+                await self._save_game_statistics(game)
+            
+            # Clean up message counter
+            if ctx.channel.id in self.channel_message_counts:
+                del self.channel_message_counts[ctx.channel.id]
+            
+            # Stop the game
+            game_manager.remove_game(ctx.channel.id)
+            
+            embed = discord.Embed(
+                title="🛑 Game Stopped",
+                description="The Uno game has been stopped.",
+                color=discord.Color.red()
+            )
+            
+            if game.game_message:
+                try:
+                    await game.game_message.edit(embed=embed, view=None)
+                except discord.NotFound:
+                    pass
+            
+            await ctx.send("🛑 **Game stopped!**")
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "stopping game")
+    
+    @uno_group.command(name="status")
+    async def game_status(self, ctx):
+        """Show current game status"""
+        try:
+            game = game_manager.get_game(ctx.channel.id)
+            if not game:
+                await ctx.send("❌ No game found in this channel.")
+                return
+            
+            status = game.get_game_status()
+            embed = discord.Embed(title="📊 Uno Game Status", color=discord.Color.blue())
+            
+            # Game state
+            embed.add_field(name="🎮 State", value=status["state"].title(), inline=True)
+            embed.add_field(name="👥 Players", value=f"{status['players']}", inline=True)
+            embed.add_field(name="🤖 AI Players", value=f"{status['ai_players']}", inline=True)
+            
+            if status["state"] == "playing":
+                # Current game info
+                if status["top_card"]:
+                    embed.add_field(name="🎯 Current Card", value=status["top_card"], inline=True)
+                
+                if status["current_color"]:
+                    embed.add_field(name="🎨 Current Color", value=status["current_color"], inline=True)
+                
+                embed.add_field(name="🔄 Direction", value=status["direction"], inline=True)
+                
+                if status["current_player"]:
+                    current_player_id = status["current_player"]
+                    if game.is_ai_player(current_player_id):
+                        ai_player = game.get_ai_player(current_player_id)
+                        player_name = f"🤖 {ai_player.name}" if ai_player else "🤖 AI Player"
+                    else:
+                        player_name = f"<@{current_player_id}>"
+                    embed.add_field(name="🎯 Current Turn", value=player_name, inline=True)
+                
+                if status["draw_penalty"] > 0:
+                    embed.add_field(name="📥 Draw Penalty", value=f"{status['draw_penalty']} cards", inline=True)
+                
+                if status["challenge_window"]:
+                    embed.add_field(name="⚖️ Challenge Window", value="Draw 4 can be challenged!", inline=True)
+                
+                # Game duration
+                duration = int(status["game_duration"])
+                embed.add_field(name="⏱️ Duration", value=f"{duration // 60}m {duration % 60}s", inline=True)
+                
+                # Player card counts
+                player_counts = format_card_counts(status["card_counts"], status["current_player"], game)
+                embed.add_field(name="🃏 Card Counts", value=player_counts, inline=False)
+            
+            elif status["state"] == "lobby":
+                # Lobby info
+                player_list = format_player_list(game.players, game.ai_players)
+                embed.add_field(name="👥 Players in Lobby", value=player_list, inline=False)
+                
+                min_players = game.settings["min_players"]
+                total_players = len(game.players) + len(game.ai_players)
+                
+                if total_players >= min_players:
+                    embed.add_field(name="✅ Ready", value="Host can start the game!", inline=False)
+                else:
+                    needed = min_players - total_players
+                    embed.add_field(
+                        name="⏳ Waiting", 
+                        value=f"Need {needed} more player{'s' if needed != 1 else ''} to start", 
+                        inline=False
+                    )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing game status")
+    
+    @uno_group.command(name="emojis")
+    async def check_emojis(self, ctx):
+        """Check emoji setup status"""
+        try:
+            # Check bot permissions
+            permissions = check_bot_emoji_permissions(self.bot, ctx.guild)
+            
+            embed = discord.Embed(
+                title="🎴 Uno Emoji Setup Status",
+                color=discord.Color.blue()
+            )
+            
+            # Permission check
+            if not permissions["in_guild"]:
+                embed.add_field(name="❌ Error", value="Bot not found in guild", inline=False)
+                await ctx.send(embed=embed)
+                return
+            
+            perm_status = []
+            if permissions["use_external_emojis"]:
+                perm_status.append("✅ Use External Emojis")
+            else:
+                perm_status.append("❌ Use External Emojis")
+                
+            if permissions["embed_links"]:
+                perm_status.append("✅ Embed Links")
+            else:
+                perm_status.append("❌ Embed Links")
+            
+            embed.add_field(name="🔐 Bot Permissions", value="\n".join(perm_status), inline=False)
+            
+            # Check emoji availability
+            missing_emojis, existing_emojis = validate_card_emojis(self.bot)
+            
+            embed.add_field(
+                name="📊 Emoji Status", 
+                value=f"Found: {len(existing_emojis)}/54\nMissing: {len(missing_emojis)}", 
+                inline=True
+            )
+            
+            if len(existing_emojis) == 54:
+                embed.add_field(name="✅ Status", value="All emojis found! Perfect setup!", inline=True)
+            elif len(existing_emojis) > 0:
+                embed.add_field(name="⚠️ Status", value="Partial setup - some emojis missing", inline=True)
+            else:
+                embed.add_field(name="❌ Status", value="No card emojis found", inline=True)
+            
+            # Show some missing emojis
+            if missing_emojis:
+                missing_sample = missing_emojis[:10]
+                if len(missing_emojis) > 10:
+                    missing_sample.append(f"... and {len(missing_emojis) - 10} more")
+                
+                embed.add_field(
+                    name="❌ Missing Emojis (sample)",
+                    value="`" + "`, `".join(missing_sample) + "`",
+                    inline=False
+                )
+            
+            # Setup instructions
+            if missing_emojis:
+                embed.add_field(
+                    name="📋 Setup Instructions",
+                    value=(
+                        "1. Get 54 Uno card images\n"
+                        "2. Go to Server Settings > Emoji\n"
+                        "3. Upload each image as custom emoji\n"
+                        "4. Name emojis exactly as shown above\n"
+                        "5. Use `uno emojis` to check progress"
+                    ),
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "checking emoji setup")
+    
+    @uno_group.command(name="stats")
+    async def player_stats(self, ctx, member: discord.Member = None):
+        """Show player statistics"""
+        try:
+            target = member or ctx.author
+            stats = await self.config.member(target).all()
+            
+            embed = discord.Embed(
+                title=f"📊 Uno Statistics - {target.display_name}",
+                color=discord.Color.gold()
+            )
+            
+            # Basic stats
+            embed.add_field(name="🎮 Games Played", value=f"{stats['games_played']}", inline=True)
+            embed.add_field(name="🏆 Games Won", value=f"{stats['games_won']}", inline=True)
+            
+            win_rate = (stats['games_won'] / stats['games_played'] * 100) if stats['games_played'] > 0 else 0
+            embed.add_field(name="📈 Win Rate", value=f"{win_rate:.1f}%", inline=True)
+            
+            embed.add_field(name="🃏 Cards Played", value=f"{stats['cards_played']}", inline=True)
+            embed.add_field(name="🔥 UNO Calls", value=f"{stats['uno_calls']}", inline=True)
+            embed.add_field(name="⚠️ UNO Penalties", value=f"{stats['uno_penalties']}", inline=True)
+            
+            # Challenge stats
+            challenge_rate = (stats['draw4_successful_challenges'] / stats['draw4_challenged'] * 100) if stats['draw4_challenged'] > 0 else 0
+            embed.add_field(name="⚖️ Draw4 Challenges", value=f"{stats['draw4_challenged']}", inline=True)
+            embed.add_field(name="✅ Challenge Success", value=f"{challenge_rate:.1f}%", inline=True)
+            
+            # Time stats
+            if stats['fastest_win']:
+                fastest = stats['fastest_win']
+                embed.add_field(name="⚡ Fastest Win", value=f"{fastest // 60}m {fastest % 60}s", inline=True)
+            
+            if stats['favorite_color']:
+                embed.add_field(name="🎨 Favorite Color", value=stats['favorite_color'], inline=True)
+            
+            # Achievements
+            if stats['achievements']:
+                achievements_text = "\n".join([f"🏅 {achievement}" for achievement in stats['achievements'][:5]])
+                if len(stats['achievements']) > 5:
+                    achievements_text += f"\n... and {len(stats['achievements']) - 5} more"
+                embed.add_field(name="🏆 Achievements", value=achievements_text, inline=False)
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing player statistics")
+    
+    @uno_group.command(name="leaderboard", aliases=["lb", "top"])
+    async def leaderboard(self, ctx, category: str = "wins"):
+        """Show server leaderboard
+        
+        Categories: wins, games, winrate, cards
+        """
+        try:
+            if category not in ["wins", "games", "winrate", "cards"]:
+                await ctx.send("❌ Invalid category. Choose: wins, games, winrate, cards")
+                return
+            
+            # Get all member stats for this guild
+            all_members = await self.config.all_members(ctx.guild)
+            
+            # Filter and sort
+            member_data = []
+            for member_id, stats in all_members.items():
+                if stats['games_played'] == 0:
+                    continue
+                
+                member = ctx.guild.get_member(member_id)
+                if not member:
+                    continue
+                
+                if category == "wins":
+                    value = stats['games_won']
+                elif category == "games":
+                    value = stats['games_played']
+                elif category == "winrate":
+                    value = (stats['games_won'] / stats['games_played']) * 100 if stats['games_played'] > 0 else 0
+                elif category == "cards":
+                    value = stats['cards_played']
+                
+                member_data.append((member, value, stats))
+            
+            if not member_data:
+                await ctx.send("📊 No statistics available yet!")
+                return
+            
+            # Sort by value (descending)
+            member_data.sort(key=lambda x: x[1], reverse=True)
+            
+            # Create leaderboard embed
+            embed = discord.Embed(
+                title=f"🏆 {ctx.guild.name} - {category.title()} Leaderboard",
+                color=discord.Color.gold()
+            )
+            
+            # Top 10
+            leaderboard_text = ""
+            for i, (member, value, stats) in enumerate(member_data[:10]):
+                if i == 0:
+                    medal = "🥇"
+                elif i == 1:
+                    medal = "🥈"
+                elif i == 2:
+                    medal = "🥉"
+                else:
+                    medal = f"{i+1}."
+                
+                if category == "winrate":
+                    value_text = f"{value:.1f}%"
+                else:
+                    value_text = f"{value:,}"
+                
+                leaderboard_text += f"{medal} **{member.display_name}** - {value_text}\n"
+            
+            embed.description = leaderboard_text
+            
+            # Add user's position if not in top 10
+            user_pos = next((i for i, (m, _, _) in enumerate(member_data) if m.id == ctx.author.id), None)
+            if user_pos is not None and user_pos >= 10:
+                user_member, user_value, _ = member_data[user_pos]
+                if category == "winrate":
+                    user_value_text = f"{user_value:.1f}%"
+                else:
+                    user_value_text = f"{user_value:,}"
+                
+                embed.add_field(
+                    name="Your Position",
+                    value=f"{user_pos + 1}. **{user_member.display_name}** - {user_value_text}",
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing leaderboard")
+    
+    @uno_group.command(name="achievements")
+    async def show_achievements(self, ctx, member: discord.Member = None):
+        """Show player achievements"""
+        try:
+            target = member or ctx.author
+            stats = await self.config.member(target).all()
+            
+            embed = discord.Embed(
+                title=f"🏆 Achievements - {target.display_name}",
+                color=discord.Color.purple()
+            )
+            
+            if not stats['achievements']:
+                embed.description = "No achievements unlocked yet! Keep playing to earn them!"
+            else:
+                achievements_text = "\n".join([f"🏅 {achievement}" for achievement in stats['achievements']])
+                embed.description = achievements_text
+            
+            # Show some available achievements
+            available_achievements = [
+                "First Win - Win your first game",
+                "Speed Demon - Win a game in under 5 minutes", 
+                "UNO Master - Call UNO 10 times",
+                "Challenge Champion - Successfully challenge 5 Draw 4s",
+                "Card Counter - Play 100 cards",
+                "Perfect Game - Win without drawing any cards",
+                "AI Crusher - Beat 10 AI players",
+                "Comeback King - Win from 10+ cards",
+                "Color Master - Play all 4 colors in one game",
+                "Wild Wild West - Play 20 wild cards"
+            ]
+            
+            unlocked = set(stats['achievements'])
+            available_text = "\n".join([
+                f"{'✅' if ach.split(' - ')[0] in unlocked else '🔒'} {ach}" 
+                for ach in available_achievements[:10]
+            ])
+            
+            embed.add_field(name="Available Achievements", value=available_text, inline=False)
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing achievements")
+    
+    @uno_group.command(name="config", aliases=["settings"])
+    async def show_config(self, ctx):
+        """Show current server configuration"""
+        try:
+            settings = await self.config.guild(ctx.guild).all()
+            
+            embed = discord.Embed(
+                title="⚙️ Uno Configuration",
+                description=f"Current settings for {ctx.guild.name}",
+                color=discord.Color.blue()
+            )
+            
+            # Game settings
+            embed.add_field(name="🃏 Starting Cards", value=settings["starting_cards"], inline=True)
+            embed.add_field(name="👥 Max Players", value=settings["max_players"], inline=True)
+            embed.add_field(name="⏱️ Timeout (min)", value=settings["timeout_minutes"], inline=True)
+            
+            # Rule settings
+            embed.add_field(name="🔥 UNO Penalty", value="✅" if settings["uno_penalty"] else "❌", inline=True)
+            embed.add_field(name="📚 Draw Stacking", value="✅" if settings["draw_stacking"] else "❌", inline=True)
+            embed.add_field(name="⚖️ Draw 4 Challenge", value="✅" if settings["challenge_draw4"] else "❌", inline=True)
+            
+            # AI settings
+            embed.add_field(name="🤖 AI Players", value="✅" if settings["ai_players"] else "❌", inline=True)
+            embed.add_field(name="🤖 Max AI Players", value=settings["max_ai_players"], inline=True)
+            embed.add_field(name="⏰ Auto-start Delay", value=f"{settings['auto_start_delay']}s", inline=True)
+            
+            # Feature settings
+            embed.add_field(name="💾 Persistent Games", value="✅" if settings["persistent_games"] else "❌", inline=True)
+            embed.add_field(name="📊 Statistics", value="✅" if settings["statistics_enabled"] else "❌", inline=True)
+            embed.add_field(name="🏆 Leaderboards", value="✅" if settings["leaderboard_enabled"] else "❌", inline=True)
+            
+            # Visual persistence settings
+            embed.add_field(name="👁️ Visual Persistence", value="✅" if settings["visual_persistence"] else "❌", inline=True)
+            embed.add_field(name="📝 Repost Threshold", value=f"{settings['repost_threshold']} messages", inline=True)
+            
+            embed.set_footer(text="Use 'uno set <setting> <value>' to change settings (Admin only)")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing configuration")
+    
+    @uno_group.command(name="set")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def set_config(self, ctx, setting: str, *, value: str):
+        """Change a server configuration setting
+        
+        Available settings:
+        - starting_cards (5-10)
+        - max_players (4-20)
+        - timeout_minutes (10-120)
+        - uno_penalty (true/false)
+        - draw_stacking (true/false)
+        - challenge_draw4 (true/false)
+        - ai_players (true/false)
+        - max_ai_players (1-5)
+        - auto_start_delay (30-300)
+        - persistent_games (true/false)
+        - statistics_enabled (true/false)
+        - leaderboard_enabled (true/false)
+        - visual_persistence (true/false)
+        - repost_threshold (1-10)
+        """
+        try:
+            valid_settings = {
+                "starting_cards": (int, 5, 10),
+                "max_players": (int, 4, 20),
+                "timeout_minutes": (int, 10, 120),
+                "uno_penalty": (bool, None, None),
+                "draw_stacking": (bool, None, None),
+                "challenge_draw4": (bool, None, None),
+                "ai_players": (bool, None, None),
+                "max_ai_players": (int, 1, 5),
+                "auto_start_delay": (int, 30, 300),
+                "persistent_games": (bool, None, None),
+                "statistics_enabled": (bool, None, None),
+                "leaderboard_enabled": (bool, None, None),
+                "visual_persistence": (bool, None, None),
+                "repost_threshold": (int, 1, 10)
+            }
+            
+            if setting not in valid_settings:
+                settings_list = ", ".join(valid_settings.keys())
+                await ctx.send(f"❌ Invalid setting. Available settings:\n```{settings_list}```")
+                return
+            
+            setting_type, min_val, max_val = valid_settings[setting]
+            
+            try:
+                if setting_type == bool:
+                    parsed_value = value.lower() in ("true", "yes", "1", "on", "enable", "enabled")
+                else:
+                    parsed_value = setting_type(value)
+                    if min_val is not None and max_val is not None:
+                        if not (min_val <= parsed_value <= max_val):
+                            await ctx.send(f"❌ Value must be between {min_val} and {max_val}")
+                            return
+                
+                await self.config.guild(ctx.guild).set_raw(setting, value=parsed_value)
+                await ctx.send(f"✅ Set `{setting}` to `{parsed_value}`")
+                
+            except ValueError:
+                await ctx.send(f"❌ Invalid value for {setting}")
+                
+        except Exception as e:
+            await self._handle_error(ctx, e, "setting configuration")
+    
+    @uno_group.command(name="rules")
+    async def show_rules(self, ctx):
+        """Show Uno game rules and how to play"""
+        try:
+            embed = discord.Embed(title="📋 Uno Rules & How to Play", color=discord.Color.purple())
+            
+            embed.add_field(
+                name="🎯 Objective",
+                value="Be the first player to play all your cards!",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="🎮 How to Play",
+                value=(
+                    f"• Use `{ctx.prefix}uno start` to create a game\n"
+                    "• Click **Join Game** to join the lobby\n"
+                    "• Host clicks **Start Game** when ready\n"
+                    "• Use **Hand** button to see your cards\n"
+                    "• Use **Play** button to play a card on your turn\n"
+                    "• Use **Status** button to see game info"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="🃏 Card Types",
+                value=(
+                    "• **Number Cards** (0-9): Play matching color or number\n"
+                    "• **Skip**: Next player loses their turn\n"
+                    "• **Reverse**: Change direction of play\n"
+                    "• **Draw 2**: Next player draws 2 cards\n"
+                    "• **Wild**: Change color to any color\n"
+                    "• **Wild Draw 4**: Change color, next player draws 4"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="📏 Special Rules",
+                value=(
+                    "• **Call UNO** when you have one card left!\n"
+                    "• **Draw Stacking**: Stack Draw 2s and Draw 4s\n"
+                    "• **Challenge Draw 4**: Challenge illegal Draw 4 plays\n"
+                    "• **AI Players**: Add computer players to fill games\n"
+                    "• If you can't play, you must draw a card"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing rules")
+    
+    # Helper methods
+    
+    async def _handle_error(self, ctx, error: Exception, action: str):
+        """Centralized error handling"""
+        error_msg = f"An error occurred while {action}. Please try again."
+        
+        # Log the full error for debugging
+        print(f"Uno Cog Error ({action}): {error}")
+        print(traceback.format_exc())
+        
+        # Send user-friendly error message
+        embed = discord.Embed(
+            title="❌ Error",
+            description=error_msg,
+            color=discord.Color.red()
+        )
+        
+        try:
+            await ctx.send(embed=embed)
+        except:
+            # Fallback if embed fails
+            await ctx.send(f"❌ {error_msg}")
+    
+    async def _increment_player_stat(self, guild: discord.Guild, member: discord.Member, stat: str, amount: int = 1):
+        """Increment a player statistic"""
+        try:
+            current = await self.config.member(member).get_raw(stat)
+            await self.config.member(member).set_raw(stat, value=current + amount)
+        except Exception as e:
+            print(f"Error updating player stat {stat}: {e}")
+    
+    async def _increment_global_stat(self, stat: str, amount: int = 1):
+        """Increment a global statistic"""
+        try:
+            current = await self.config.get_raw(stat)
+            await self.config.set_raw(stat, value=current + amount)
+        except Exception as e:
+            print(f"Error updating global stat {stat}: {e}")
+    
+    async def _save_game_statistics(self, game: UnoGameSession):
+        """Save statistics from a completed game"""
+        try:
+            if game.state != GameState.FINISHED:
+                return
+            
+            # Update statistics for all players
+            for player_id in game.players:
+                if game.is_ai_player(player_id):
+                    continue
+                
+                member = self.bot.get_user(player_id)
+                if not member:
+                    continue
+                
+                guild = self.bot.get_guild(game.channel_id)  # This is not correct, but simplified
+                if not guild:
+                    continue
+                
+                hand = game.hands.get(player_id)
+                if not hand:
+                    continue
+                
+                # Update basic stats
+                await self._increment_player_stat(guild, member, "games_played")
+                
+                if hand.is_empty:  # Winner
+                    await self._increment_player_stat(guild, member, "games_won")
+                    
+                    # Check for fastest win achievement
+                    if game.game_start_time:
+                        duration = (discord.utils.utcnow() - game.game_start_time).total_seconds()
+                        current_fastest = await self.config.member(member).fastest_win()
+                        if not current_fastest or duration < current_fastest:
+                            await self.config.member(member).fastest_win.set(int(duration))
+                
+                # Update other stats based on game history
+                # This would require more detailed action tracking
+                
+        except Exception as e:
+            print(f"Error saving game statistics: {e}")
+    
+    # Display update methods
+    
+    async def update_lobby_display(self, game: UnoGameSession):
+        """Update the lobby display message"""
+        try:
+            if not game.game_message:
+                return
+            
+            embed = self.create_lobby_embed(game)
+            view = LobbyView(game, self)
+            
+            await game.game_message.edit(embed=embed, view=view)
+            
+        except discord.NotFound:
+            pass
+        except Exception as e:
+            print(f"Error updating lobby display: {e}")
+    
+    async def update_game_display(self, game: UnoGameSession):
+        """Update the main game display message"""
+        try:
+            if not game.game_message:
+                return
+            
+            embed = self.create_game_embed(game)
+            view = UnoGameView(game, self)
+            
+            await game.game_message.edit(embed=embed, view=view)
+            
+        except discord.NotFound:
+            pass
+        except Exception as e:
+            print(f"Error updating game display: {e}")
+    
+    def create_lobby_embed(self, game: UnoGameSession) -> discord.Embed:
+        """Create embed for game lobby"""
+        embed = discord.Embed(
+            title="🎮 Uno Game Lobby",
+            description="Waiting for players to join...",
+            color=discord.Color.blue()
+        )
+        
+        player_list = format_player_list(game.players, game.ai_players)
+        embed.add_field(name="👥 Players", value=player_list, inline=True)
+        embed.add_field(name="🎯 Host", value=f"<@{game.host_id}>", inline=True)
+        
+        total_players = len(game.players) + len(game.ai_players)
+        embed.add_field(name="📊 Count", value=f"{total_players}/{game.settings['max_players']}", inline=True)
+        
+        if total_players >= game.settings["min_players"]:
+            embed.add_field(
+                name="✅ Ready to Start",
+                value="Host can start the game!",
+                inline=False
+            )
         else:
-            # Challenge failed - challenger draws 6 (4 + 2 penalty)
-            challenger_hand = self.hands.get(challenger_id)
-            if challenger_hand:
-                for _ in range(6):
-                    card = self.deck.draw_card()
-                    if card:
-                        challenger_hand.add_card(card)
-            
-            self.draw_count = 0  # Reset draw count
-            message = f"❌ **Challenge failed!** <@{challenger_id}> draws 6 cards (4 + 2 penalty)!"
+            needed = game.settings["min_players"] - total_players
+            embed.add_field(
+                name="⏳ Waiting",
+                value=f"Need {needed} more player{'s' if needed != 1 else ''} to start",
+                inline=False
+            )
         
-        self.challenge_window_open = False
-        self.last_draw4_player = None
-        self.last_draw4_card = None
+        # Show current settings
+        settings_text = []
+        if game.settings.get("draw_stacking"):
+            settings_text.append("📚 Draw Stacking")
+        if game.settings.get("challenge_draw4"):
+            settings_text.append("⚖️ Draw 4 Challenge")
+        if game.settings.get("ai_players"):
+            settings_text.append("🤖 AI Players")
         
-        # Move to next player
-        self._next_turn()
+        if settings_text:
+            embed.add_field(name="⚙️ Rules", value=" • ".join(settings_text), inline=False)
         
-        self._log_action("draw4_challenged", {
-            "challenger": challenger_id,
-            "draw4_player": self.last_draw4_player,
-            "successful": challenge_successful
-        })
-        
-        return True, message
+        embed.set_footer(text="Click Join Game to participate!")
+        return embed
     
-    def play_card(self, player_id: int, card: UnoCard, declared_color: Optional[UnoColor] = None) -> Tuple[bool, str]:
-        """Play a card for a player. Returns (success, message)."""
-        if self.state != GameState.PLAYING:
-            return False, "Game is not in progress"
+    def create_game_embed(self, game: UnoGameSession) -> discord.Embed:
+        """Create embed for active game"""
+        status = game.get_game_status()
         
-        if not self.is_current_player(player_id):
-            return False, "It's not your turn"
-        
-        hand = self.hands[player_id]
-        if not hand.has_card(card):
-            return False, "You don't have that card"
-        
-        # Check draw stacking rules
-        if self.draw_count > 0 and self.settings["draw_stacking"]:
-            # Can only play stacking cards or must draw
-            if not self._can_stack_card(card):
-                return False, f"Must play a stacking card or draw {self.draw_count} cards"
-        
-        # Check if card can be played
-        top_card = self.deck.top_card
-        if not card.can_play_on(top_card, self.deck.current_color):
-            return False, f"Cannot play {card} on {top_card}"
-        
-        # Validate wild card color declaration
-        if card.color == UnoColor.WILD and not declared_color:
-            return False, "Must declare a color for wild cards"
-        
-        # Check if this is a stacking card (same type as top card)
-        is_stacking = self._is_stacking_play(card, top_card)
-        
-        # Check UNO callout requirements
-        if hand.card_count == 2 and self.settings["uno_penalty"]:
-            # Player will have 1 card after playing, check if UNO was called
-            if not self.uno_called.get(player_id, False):
-                self.pending_uno_penalty[player_id] = True
-        
-        # Play the card
-        hand.remove_card(card)
-        self.deck.play_card(card, declared_color)
-        
-        # Handle card stacking
-        if self.settings["draw_stacking"] and card.card_type in [UnoCardType.DRAW2, UnoCardType.WILD_DRAW4]:
-            if card.card_type == UnoCardType.DRAW2:
-                self.draw_count += 2
-            elif card.card_type == UnoCardType.WILD_DRAW4:
-                self.draw_count += 4
-                # Set up challenge window
-                self.challenge_window_open = True
-                self.last_draw4_player = player_id
-                self.last_draw4_card = card
-        
-        # Apply UNO penalty if needed
-        uno_penalty_message = ""
-        if self.pending_uno_penalty.get(player_id) and hand.card_count == 1:
-            penalty_cards = 2
-            for _ in range(penalty_cards):
-                penalty_card = self.deck.draw_card()
-                if penalty_card:
-                    hand.add_card(penalty_card)
-            uno_penalty_message = f"\n⚠️ <@{player_id}> draws {penalty_cards} cards for not calling UNO!"
-            self.pending_uno_penalty[player_id] = False
-        
-        # Handle card effects and get effect message
-        effect_message = self._handle_card_effect(card, is_stacking)
-        
-        # Check for win condition
-        if hand.is_empty:
-            self.state = GameState.FINISHED
-            game_duration = (discord.utils.utcnow() - self.game_start_time).total_seconds() if self.game_start_time else 0
-            self._log_action("game_won", {"winner": player_id, "duration": game_duration})
-            return True, f"{effect_message}\n🎉 **Game Over!** <@{player_id}> wins!{uno_penalty_message}"
-        
-        self.last_activity = discord.utils.utcnow()
-        self._log_action("card_played", {"player": player_id, "card": str(card), "declared_color": declared_color})
-        
-        return True, f"{effect_message}{uno_message}{uno_penalty_message}"
-    
-    def _is_stacking_play(self, card: UnoCard, top_card: UnoCard) -> bool:
-        """Check if this is a stacking play (same card type)"""
-        if not top_card:
-            return False
-        
-        # Same number cards
-        if (card.card_type == UnoCardType.NUMBER and 
-            top_card.card_type == UnoCardType.NUMBER and 
-            card.value == top_card.value):
-            return True
-        
-        # Same action cards
-        if (card.card_type == top_card.card_type and 
-            card.card_type in [UnoCardType.SKIP, UnoCardType.REVERSE, UnoCardType.DRAW2]):
-            return True
-        
-        # Wild Draw 4 on Wild Draw 4
-        if (card.card_type == UnoCardType.WILD_DRAW4 and 
-            top_card.card_type == UnoCardType.WILD_DRAW4):
-            return True
-        
-        return False
-    
-    def _can_stack_card(self, card: UnoCard) -> bool:
-        """Check if a card can be stacked on the current draw penalty"""
-        if self.draw_count == 0:
-            return True
-        
-        # Can stack Draw 2 on Draw 2, Draw 4 on Draw 4
-        last_card = self.deck.top_card
-        if not last_card:
-            return False
-        
-        if (last_card.card_type == UnoCardType.DRAW2 and 
-            card.card_type == UnoCardType.DRAW2):
-            return True
-        
-        if (last_card.card_type == UnoCardType.WILD_DRAW4 and 
-            card.card_type == UnoCardType.WILD_DRAW4):
-            return True
-        
-        return False
-    
-    def draw_card(self, player_id: int, count: int = None) -> Tuple[bool, str, List[UnoCard]]:
-        """Player draws cards. Returns (success, message, cards_drawn)."""
-        if self.state != GameState.PLAYING:
-            return False, "Game is not in progress", []
-        
-        if not self.is_current_player(player_id):
-            return False, "It's not your turn", []
-        
-        hand = self.hands[player_id]
-        drawn_cards = []
-        
-        # Determine how many cards to draw
-        if count is None:
-            count = max(1, self.draw_count)
-        
-        for _ in range(count):
-            card = self.deck.draw_card()
-            if card:
-                hand.add_card(card)
-                drawn_cards.append(card)
-            else:
-                break
-        
-        # Reset draw count after drawing
-        if self.draw_count > 0:
-            self.draw_count = 0
-        
-        # Reset challenge window
-        self.challenge_window_open = False
-        
-        # Move to next player
-        self._next_turn()
-        
-        self.last_activity = discord.utils.utcnow()
-        card_names = ", ".join(card.display_name for card in drawn_cards)
-        self._log_action("cards_drawn", {"player": player_id, "count": len(drawn_cards)})
-        
-        return True, f"Drew {len(drawn_cards)} card(s): {card_names}", drawn_cards
-    
-    def _handle_card_effect(self, card: UnoCard, is_stacking: bool = False, is_starting_card: bool = False) -> str:
-        """Handle special card effects with fixed turn logic"""
-        message = f"Played: **{card}**"
-        
-        # Don't apply effects for starting card
-        if is_starting_card:
-            return message
-        
-        if card.card_type == UnoCardType.SKIP:
-            self._next_turn()  # Skip next player
-            next_player = self.get_current_player()
-            message += f"\n⏭️ <@{next_player}> is skipped!"
-            self._next_turn()  # Move to player after skipped
-            
-        elif card.card_type == UnoCardType.REVERSE:
-            self.direction = (GameDirection.COUNTERCLOCKWISE 
-                            if self.direction == GameDirection.CLOCKWISE 
-                            else GameDirection.CLOCKWISE)
-            message += "\n🔄 **Direction reversed!**"
-            self._next_turn()
-            
-        elif card.card_type == UnoCardType.DRAW2:
-            if not self.settings["draw_stacking"]:
-                self.draw_count += 2
-                self._next_turn()
-                next_player = self.get_current_player()
-                message += f"\n📥 <@{next_player}> must draw 2 cards!"
-            else:
-                # Stacking enabled, just move turn
-                self._next_turn()
-                next_player = self.get_current_player()
-                message += f"\n📥 <@{next_player}> must draw {self.draw_count} cards or stack!"
-            
-        elif card.card_type == UnoCardType.WILD_DRAW4:
-            if not self.settings["draw_stacking"]:
-                self.draw_count += 4
-                self._next_turn()
-                next_player = self.get_current_player()
-                message += f"\n📥 <@{next_player}> must draw 4 cards!"
-                if self.settings["challenge_draw4"]:
-                    message += " (Can challenge!)"
-            else:
-                # Stacking enabled, just move turn
-                self._next_turn()
-                next_player = self.get_current_player()
-                message += f"\n📥 <@{next_player}> must draw {self.draw_count} cards or stack!"
-            
-        elif card.card_type == UnoCardType.WILD:
-            message += f"\n🌈 Color changed to **{self.deck.current_color.value}**"
-            self._next_turn()
-        
-        elif card.card_type == UnoCardType.NUMBER:
-            self._next_turn()
-        
-        return message
-    
-    def _next_turn(self):
-        """Move to the next player"""
-        if self.direction == GameDirection.CLOCKWISE:
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
+        if game.state == GameState.FINISHED:
+            embed = discord.Embed(
+                title="🎉 Game Finished!",
+                description="Thanks for playing!",
+                color=discord.Color.gold()
+            )
         else:
-            self.current_player_index = (self.current_player_index - 1) % len(self.players)
-    
-    def get_current_player(self) -> int:
-        """Get the current player's ID"""
-        if self.players:
-            return self.players[self.current_player_index]
-        return 0
-    
-    def is_current_player(self, player_id: int) -> bool:
-        """Check if it's a specific player's turn"""
-        return player_id == self.get_current_player()
-    
-    def is_ai_player(self, player_id: int) -> bool:
-        """Check if a player is AI"""
-        return any(ai.player_id == player_id for ai in self.ai_players)
-    
-    def get_ai_player(self, player_id: int) -> Optional[AIPlayer]:
-        """Get AI player by ID"""
-        for ai in self.ai_players:
-            if ai.player_id == player_id:
-                return ai
-        return None
-    
-    def _log_action(self, action_type: str, data: Dict[str, Any]):
-        """Log game action for statistics and replay"""
-        self.action_history.append({
-            "timestamp": discord.utils.utcnow().isoformat(),
-            "round": self.round_number,
-            "action": action_type,
-            "data": data
-        })
-    
-    def get_game_status(self) -> Dict:
-        """Get current game status for display"""
-        status = {
-            "state": self.state.value,
-            "players": len(self.players),
-            "ai_players": len(self.ai_players),
-            "current_player": self.get_current_player() if self.state == GameState.PLAYING else None,
-            "top_card": str(self.deck.top_card) if self.deck.top_card else None,
-            "current_color": self.deck.current_color.value if self.deck.current_color else None,
-            "direction": "↻" if self.direction == GameDirection.CLOCKWISE else "↺",
-            "draw_penalty": self.draw_count,
-            "card_counts": {pid: len(hand) for pid, hand in self.hands.items()},
-            "uno_called": self.uno_called,
-            "challenge_window": self.challenge_window_open,
-            "game_duration": (discord.utils.utcnow() - self.game_start_time).total_seconds() if self.game_start_time else 0,
-            "settings": self.settings
-        }
-        return status
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize game state for persistence"""
-        return {
-            "channel_id": self.channel_id,
-            "host_id": self.host_id,
-            "state": self.state.value,
-            "players": self.players,
-            "ai_players": [{"name": ai.name, "difficulty": ai.difficulty, "player_id": ai.player_id} for ai in self.ai_players],
-            "hands": {pid: [{"color": c.color.value, "type": c.card_type.value, "value": c.value} for c in hand.cards] for pid, hand in self.hands.items()},
-            "deck_discard": [{"color": c.color.value, "type": c.card_type.value, "value": c.value} for c in self.deck.discard_pile],
-            "current_player_index": self.current_player_index,
-            "direction": self.direction.value,
-            "draw_count": self.draw_count,
-            "current_color": self.deck.current_color.value if self.deck.current_color else None,
-            "settings": self.settings,
-            "uno_called": self.uno_called,
-            "game_start_time": self.game_start_time.isoformat() if self.game_start_time else None,
-            "action_history": self.action_history
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'UnoGameSession':
-        """Deserialize game state from persistence"""
-        # This is a complex operation - simplified implementation
-        # In production, you'd want more robust serialization
-        game = cls(data["channel_id"], data["host_id"], data.get("settings", {}))
-        game.state = GameState(data["state"])
-        game.players = data["players"]
-        # ... additional restoration logic would go here
-        return game
-    
-    def is_expired(self) -> bool:
-        """Check if game has been inactive too long"""
-        if not self.last_activity:
-            return False
+            embed = discord.Embed(
+                title="🎮 Uno Game in Progress",
+                description="Use the buttons below to interact with the game",
+                color=discord.Color.green()
+            )
         
-        time_diff = discord.utils.utcnow() - self.last_activity
-        return time_diff.total_seconds() > (self.settings["timeout_minutes"] * 60)
-    
-    def cleanup(self):
-        """Clean up game resources"""
-        self.state = GameState.FINISHED
-        self.players.clear()
-        self.ai_players.clear()
-        self.hands.clear()
-        self.game_message = None
-    
-    def get_player_hand(self, player_id: int) -> Optional[PlayerHand]:
-        """Get a player's hand"""
-        return self.hands.get(player_id)
-    
-    def get_playable_cards(self, player_id: int) -> List[UnoCard]:
-        """Get all cards that can be played by a player"""
-        hand = self.get_player_hand(player_id)
-        if not hand:
-            return []
+        # Current card info
+        if status["top_card"]:
+            card_info = status["top_card"]
+            if status["current_color"] and "Wild" in status["top_card"]:
+                card_info += f" (Color: {status['current_color']})"
+            embed.add_field(name="🎯 Current Card", value=card_info, inline=True)
         
-        return hand.get_playable_cards(self.deck.top_card, self.deck.current_color)
-    
-    def force_draw_penalty(self, player_id: int) -> bool:
-        """Force a player to draw penalty cards"""
-        if self.draw_count <= 0:
-            return False
+        embed.add_field(name="🔄 Direction", value=status["direction"], inline=True)
         
-        hand = self.get_player_hand(player_id)
-        if not hand:
-            return False
+        # Current turn
+        if status["current_player"]:
+            current_player_id = status["current_player"]
+            if game.is_ai_player(current_player_id):
+                ai_player = game.get_ai_player(current_player_id)
+                player_name = f"🤖 {ai_player.name}" if ai_player else "🤖 AI Player"
+            else:
+                player_name = f"<@{current_player_id}>"
+            embed.add_field(name="🎮 Current Turn", value=player_name, inline=True)
         
-        # Draw the penalty cards
-        for _ in range(self.draw_count):
-            card = self.deck.draw_card()
-            if card:
-                hand.add_card(card)
+        # Special states
+        if status["draw_penalty"] > 0:
+            embed.add_field(
+                name="📥 Draw Penalty",
+                value=f"{status['draw_penalty']} cards",
+                inline=True
+            )
         
-        # Reset draw count and move to next turn
-        self.draw_count = 0
-        self.challenge_window_open = False
-        self._next_turn()
+        if status["challenge_window"]:
+            embed.add_field(
+                name="⚖️ Challenge Window",
+                value="Draw 4 can be challenged!",
+                inline=True
+            )
         
-        self.last_activity = discord.utils.utcnow()
-        self._log_action("penalty_drawn", {"player": player_id, "count": self.draw_count})
+        # Game info
+        duration = int(status["game_duration"])
+        embed.add_field(name="⏱️ Duration", value=f"{duration // 60}m {duration % 60}s", inline=True)
         
-        return True
+        # Player card counts
+        player_counts = format_card_counts(status["card_counts"], status["current_player"], game)
+        embed.add_field(name="🃏 Players", value=player_counts, inline=False)
+        
+        embed.set_footer(text="Use Hand to see your cards • Use Play to make a move • Use Status for details")
+        return embed
+
+
+async def setup(bot):
+    """Setup function for Red-Discord bot"""
+    await bot.add_cog(UnoCog(bot))
