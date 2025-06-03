@@ -653,3 +653,40 @@ class UnoGameSession:
         self.ai_players.clear()
         self.hands.clear()
         self.game_message = None
+    
+    def get_player_hand(self, player_id: int) -> Optional[PlayerHand]:
+        """Get a player's hand"""
+        return self.hands.get(player_id)
+    
+    def get_playable_cards(self, player_id: int) -> List[UnoCard]:
+        """Get all cards that can be played by a player"""
+        hand = self.get_player_hand(player_id)
+        if not hand:
+            return []
+        
+        return hand.get_playable_cards(self.deck.top_card, self.deck.current_color)
+    
+    def force_draw_penalty(self, player_id: int) -> bool:
+        """Force a player to draw penalty cards"""
+        if self.draw_count <= 0:
+            return False
+        
+        hand = self.get_player_hand(player_id)
+        if not hand:
+            return False
+        
+        # Draw the penalty cards
+        for _ in range(self.draw_count):
+            card = self.deck.draw_card()
+            if card:
+                hand.add_card(card)
+        
+        # Reset draw count and move to next turn
+        self.draw_count = 0
+        self.challenge_window_open = False
+        self._next_turn()
+        
+        self.last_activity = discord.utils.utcnow()
+        self._log_action("penalty_drawn", {"player": player_id, "count": self.draw_count})
+        
+        return True
