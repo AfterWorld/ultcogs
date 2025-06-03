@@ -28,7 +28,7 @@ from .utils import (
     validate_card_emojis,
     check_bot_emoji_permissions
 )
-from .cards import UnoColor
+from .cards import UnoColor, UnoCard, UnoCardType
 
 
 class UnoCog(commands.Cog):
