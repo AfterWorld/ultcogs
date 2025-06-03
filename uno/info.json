@@ -1,0 +1,28 @@
+{
+    "name": "Uno",
+    "short": "Play Uno card game with Discord UI",
+    "description": "A comprehensive Uno card game implementation with Discord buttons, image-based cards, and modern UI. Features include:\n\n• Full Uno game mechanics with all card types\n• Interactive Discord UI with buttons and dropdowns\n• Image-based card rendering and hand visualization\n• Multiple concurrent games per server\n• Persistent views that survive bot restarts\n• Comprehensive game state management\n• Player hand management with DM/ephemeral support\n• Wild card color selection\n• Draw penalty handling (Draw 2/4 stacking)\n• Game lobby system with join/leave functionality\n• Automatic game cleanup and timeout handling",
+    "author": [
+        "UltPanda"
+    ],
+    "required_cogs": {},
+    "requirements": [
+        "Pillow>=8.0.0"
+    ],
+    "tags": [
+        "game",
+        "uno",
+        "cards",
+        "discord_ui",
+        "buttons",
+        "interactive",
+        "multiplayer"
+    ],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "hidden": false,
+    "disabled": false,
+    "type": "COG",
+    "install_msg": "Thank you for installing the Uno cog!\n\n**Setup Instructions:**\n1. The cog will automatically create an `assets` folder in your bot's data directory\n2. Place your Uno card images in the assets folder following the naming convention\n3. Use `[p]uno start` to create a game and `[p]uno rules` for help\n\n**Card Naming Convention:**\n- Number cards: `Red_5.png`, `Blue_0.png`, etc.\n- Action cards: `Green_skip.png`, `Yellow_reverse.png`, `Red_draw2.png`\n- Wild cards: `Wild_Card.png`, `Wild_draw4.png`\n\n**Commands:**\n- `[p]uno start` - Start a new game\n- `[p]uno join` - Join existing game  \n- `[p]uno status` - Check game status\n- `[p]uno rules` - Show rules and help\n- `[p]uno stats` - Bot statistics\n\nEnjoy playing Uno with your server!",
+    "end_user_data_statement": "This cog stores game session data temporarily while games are active. No persistent user data is stored beyond the current game session. Game data is automatically cleaned up when games end or timeout."
+}
