@@ -4,14 +4,15 @@ Utility functions for the DeathBattle cog.
 import logging
 import random
 import discord
-from typing import Optional, Tuple
+from typing import Optional, Dict, Any
 
 # Handle imports more robustly
 try:
     from .constants import *
+    from .gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS
 except ImportError:
-    # Fallback for when the cog is loaded through CogManager
     from constants import *
+    from gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS
 
 def setup_logger(name: str) -> logging.Logger:
     """Set up a logger for the cog."""
@@ -28,16 +29,32 @@ def setup_logger(name: str) -> logging.Logger:
     
     return logger
 
-def calculate_damage(move: dict, is_crit: bool = False) -> int:
-    """Calculate damage for a battle move."""
-    base_damage = random.randint(move["min_damage"], move["max_damage"])
+def calculate_damage(move: Dict[str, Any], is_crit: bool = False, modifiers: Dict[str, float] = None) -> int:
+    """Calculate damage for a battle move with new system."""
+    move_type = MOVE_TYPES.get(move.get("type", "regular"), MOVE_TYPES["regular"])
+    min_damage, max_damage = move_type["base_damage_range"]
+    
+    base_damage = random.randint(min_damage, max_damage)
+    
     if is_crit:
         base_damage = int(base_damage * CRIT_MULTIPLIER)
-    return base_damage
+    
+    # Apply modifiers
+    if modifiers:
+        for modifier_type, value in modifiers.items():
+            base_damage = int(base_damage * value)
+    
+    return max(1, base_damage)  # Minimum 1 damage
 
-def check_critical_hit(move: dict) -> bool:
+def check_critical_hit(move: Dict[str, Any], attacker: Dict[str, Any] = None) -> bool:
     """Check if an attack is a critical hit."""
-    return random.random() < move.get("crit_chance", CRIT_CHANCE)
+    base_crit = move.get("crit_chance", CRIT_CHANCE)
+    
+    # Add bonuses from status effects or devil fruits
+    if attacker and attacker.get("status", {}).get("attack_boost", 0) > 0:
+        base_crit += 0.1  # 10% bonus crit chance
+    
+    return random.random() < base_crit
 
 def generate_health_bar(current_hp: int, max_hp: int = STARTING_HP) -> str:
     """Generate a visual health bar."""
@@ -55,7 +72,8 @@ def create_battle_embed(
     player2: discord.Member, 
     p1_hp: int, 
     p2_hp: int,
-    turn_info: str = ""
+    turn_info: str = "",
+    environment: str = None
 ) -> discord.Embed:
     """Create a battle status embed."""
     embed = discord.Embed(
@@ -63,6 +81,14 @@ def create_battle_embed(
         description=turn_info,
         color=discord.Color.red()
     )
+    
+    if environment:
+        env_data = ENVIRONMENTS.get(environment, {})
+        embed.add_field(
+            name="🌍 Environment",
+            value=f"**{environment}**\n{env_data.get('description', '')}",
+            inline=False
+        )
     
     embed.add_field(
         name=f"🥊 {player1.display_name}",
@@ -97,9 +123,13 @@ def calculate_robbery_amount(target_balance: int) -> int:
     percentage = random.uniform(0.1, 0.3)
     return int(target_balance * percentage)
 
-def get_random_move() -> dict:
-    """Get a random battle move."""
-    return random.choice(BATTLE_MOVES)
+def get_random_move() -> Dict[str, Any]:
+    """Get a random battle move from the new system."""
+    return random.choice(MOVES)
+
+def get_random_environment() -> str:
+    """Get a random battle environment."""
+    return random.choice(list(ENVIRONMENTS.keys()))
 
 async def safe_send(ctx, content=None, embed=None, file=None) -> Optional[discord.Message]:
     """Safely send a message with error handling."""
@@ -113,3 +143,21 @@ async def safe_send(ctx, content=None, embed=None, file=None) -> Optional[discor
         logger = setup_logger("utils")
         logger.error(f"Unexpected error sending message: {e}")
         return None
+
+def create_character_data(member: discord.Member, devil_fruit: str = None) -> Dict[str, Any]:
+    """Create character data for battle participants."""
+    return {
+        "name": member.display_name,
+        "id": member.id,
+        "hp": STARTING_HP,
+        "max_hp": STARTING_HP,
+        "fruit": devil_fruit,
+        "status": {},
+        "moves_on_cooldown": {},
+        "stats": {
+            "damage_dealt": 0,
+            "damage_taken": 0,
+            "moves_used": 0,
+            "crits_landed": 0
+        }
+    }
