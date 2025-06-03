@@ -5,7 +5,13 @@ import logging
 import random
 import discord
 from typing import Optional, Tuple
-from .constants import *
+
+# Handle imports more robustly
+try:
+    from .constants import *
+except ImportError:
+    # Fallback for when the cog is loaded through CogManager
+    from constants import *
 
 def setup_logger(name: str) -> logging.Logger:
     """Set up a logger for the cog."""
