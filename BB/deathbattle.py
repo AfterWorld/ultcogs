@@ -1,5 +1,5 @@
 """
-DeathBattle system for 1v1 fights.
+DeathBattle system for 1v1 fights with Devil Fruits and Status Effects.
 """
 import discord
 from redbot.core import commands
@@ -9,15 +9,19 @@ from datetime import datetime
 import io
 from PIL import Image, ImageDraw, ImageFont
 import requests
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 # Handle imports more robustly
 try:
     from .utils import (
         setup_logger, calculate_damage, check_critical_hit, 
-        create_battle_embed, get_random_move, safe_send
+        create_battle_embed, get_random_move, safe_send,
+        get_random_environment, create_character_data
     )
     from .constants import *
+    from .gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
+    from .status_manager import StatusEffectManager
+    from .devil_fruit_manager import DevilFruitManager
 except ImportError:
     # Fallback for when the cog is loaded through CogManager
     import sys
@@ -33,21 +37,29 @@ except ImportError:
     try:
         from utils import (
             setup_logger, calculate_damage, check_critical_hit, 
-            create_battle_embed, get_random_move, safe_send
+            create_battle_embed, get_random_move, safe_send,
+            get_random_environment, create_character_data
         )
         from constants import *
+        from gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
+        from status_manager import StatusEffectManager
+        from devil_fruit_manager import DevilFruitManager
     finally:
         # Clean up the path
         if current_dir in sys.path:
             sys.path.remove(current_dir)
 
 class BattleSystem:
-    """Handles battle mechanics and state."""
+    """Handles battle mechanics and state with enhanced devil fruit system."""
     
     def __init__(self, config):
         self.config = config
         self.log = setup_logger("battle")
         self.active_battles = set()  # Track ongoing battles
+        
+        # Initialize managers for enhanced battle system
+        self.status_manager = StatusEffectManager()
+        self.devil_fruit_manager = DevilFruitManager(self.status_manager)
     
     def generate_fight_card(self, user1, user2):
         """
@@ -111,6 +123,33 @@ class BattleSystem:
 
         return output
     
+    async def get_user_devil_fruit(self, user: discord.Member) -> Optional[str]:
+        """Get a user's devil fruit if they have one."""
+        member_data = await self.config.member(user).all()
+        return member_data.get("devil_fruit", None)
+    
+    async def award_devil_fruit(self, user: discord.Member) -> Optional[str]:
+        """Award a random devil fruit to a user with low probability."""
+        if random.random() < DEVIL_FRUIT_DROP_CHANCE:
+            # Check if user already has a fruit
+            current_fruit = await self.get_user_devil_fruit(user)
+            if current_fruit:
+                return None  # Can't have multiple fruits
+            
+            # Determine rarity
+            if random.random() < RARE_FRUIT_CHANCE:
+                fruit_pool = list(DEVIL_FRUITS["Rare"].keys())
+            else:
+                fruit_pool = list(DEVIL_FRUITS["Common"].keys())
+            
+            fruit = random.choice(fruit_pool)
+            await self.config.member(user).devil_fruit.set(fruit)
+            
+            self.log.info(f"Awarded {fruit} to {user.name}")
+            return fruit
+        
+        return None
+    
     async def start_battle(self, ctx, player1: discord.Member, player2: discord.Member):
         """Start a battle between two players."""
         battle_id = f"{player1.id}_{player2.id}_{ctx.channel.id}"
@@ -145,90 +184,284 @@ class BattleSystem:
             self.active_battles.discard(battle_id)
     
     async def _battle_loop(self, ctx, player1: discord.Member, player2: discord.Member) -> Optional[discord.Member]:
-        """Main battle loop."""
-        # Initialize HP
-        p1_hp = STARTING_HP
-        p2_hp = STARTING_HP
+        """Main battle loop with enhanced mechanics."""
+        # Get devil fruits for both players
+        p1_fruit = await self.get_user_devil_fruit(player1)
+        p2_fruit = await self.get_user_devil_fruit(player2)
         
-        # Determine who goes first
-        current_player = random.choice([player1, player2])
-        other_player = player2 if current_player == player1 else player1
+        # Create character data
+        p1_data = create_character_data(player1, p1_fruit)
+        p2_data = create_character_data(player2, p2_fruit)
+        
+        # Choose random environment
+        environment = get_random_environment()
+        
+        # Determine who goes first (Pika Pika no Mi always goes first)
+        if p1_fruit == "Pika Pika no Mi":
+            current_player_data = p1_data
+            other_player_data = p2_data
+            current_member = player1
+            other_member = player2
+        elif p2_fruit == "Pika Pika no Mi":
+            current_player_data = p2_data
+            other_player_data = p1_data
+            current_member = player2
+            other_member = player1
+        else:
+            # Random first turn
+            if random.choice([True, False]):
+                current_player_data = p1_data
+                other_player_data = p2_data
+                current_member = player1
+                other_member = player2
+            else:
+                current_player_data = p2_data
+                other_player_data = p1_data
+                current_member = player2
+                other_member = player1
         
         turn_count = 0
-        max_turns = 20  # Prevent infinite battles
         
-        # Initial battle embed
-        embed = create_battle_embed(player1, player2, p1_hp, p2_hp, "Battle begins! Get ready to fight!")
+        # Initial battle embed with environment
+        embed = create_battle_embed(
+            player1, player2, p1_data["hp"], p2_data["hp"], 
+            f"Battle begins in **{environment}**! Get ready to fight!", 
+            environment
+        )
+        
+        # Add devil fruit info if players have them
+        if p1_fruit or p2_fruit:
+            fruit_info = ""
+            if p1_fruit:
+                fruit_data = DEVIL_FRUITS["Common"].get(p1_fruit) or DEVIL_FRUITS["Rare"].get(p1_fruit)
+                fruit_info += f"**{player1.display_name}**: {p1_fruit} ({fruit_data['type']})\n"
+            if p2_fruit:
+                fruit_data = DEVIL_FRUITS["Common"].get(p2_fruit) or DEVIL_FRUITS["Rare"].get(p2_fruit)
+                fruit_info += f"**{player2.display_name}**: {p2_fruit} ({fruit_data['type']})\n"
+            
+            embed.add_field(name="🍎 Devil Fruits", value=fruit_info, inline=False)
+        
         message = await safe_send(ctx, embed=embed)
         
         if not message:
             return None
         
-        while p1_hp > 0 and p2_hp > 0 and turn_count < max_turns:
+        while p1_data["hp"] > 0 and p2_data["hp"] > 0 and turn_count < MAX_BATTLE_TURNS:
             turn_count += 1
+            
+            # Process status effects at start of turn
+            current_effects = await self.status_manager.process_status_effects(current_player_data)
+            
+            # Check if player is stunned
+            if self.status_manager.is_stunned(current_player_data):
+                turn_info = (
+                    f"Turn {turn_count}: **{current_member.display_name}** is stunned and cannot act!\n"
+                )
+                
+                # Show status effects
+                if current_effects:
+                    effect_text = ", ".join([f"{effect}: {desc}" for effect, desc in current_effects.items()])
+                    turn_info += f"Status: {effect_text}"
+                
+                # Update battle embed
+                embed = create_battle_embed(
+                    player1, player2, p1_data["hp"], p2_data["hp"], 
+                    turn_info, environment
+                )
+                await message.edit(embed=embed)
+                
+                # Switch turns and continue
+                current_player_data, other_player_data = other_player_data, current_player_data
+                current_member, other_member = other_member, current_member
+                await asyncio.sleep(2)
+                continue
             
             # Get a random move for the current player
             move = get_random_move()
-            is_crit = check_critical_hit(move)
-            damage = calculate_damage(move, is_crit)
             
-            # Apply damage
-            if current_player == player1:
-                p2_hp = max(0, p2_hp - damage)
-                current_hp = p1_hp
-                target_hp = p2_hp
+            # Check if move is on cooldown
+            if current_player_data["moves_on_cooldown"].get(move["name"], 0) > 0:
+                # Get a different move that's not on cooldown
+                available_moves = [m for m in MOVES if current_player_data["moves_on_cooldown"].get(m["name"], 0) == 0]
+                if available_moves:
+                    move = random.choice(available_moves)
+            
+            # Calculate dodge chance
+            dodge_chance = self.status_manager.get_dodge_chance(other_player_data)
+            
+            if random.random() < dodge_chance:
+                # Attack was dodged
+                turn_info = (
+                    f"Turn {turn_count}: **{current_member.display_name}** used **{move['name']}**\n"
+                    f"💨 **{other_member.display_name}** dodged the attack!"
+                )
             else:
-                p1_hp = max(0, p1_hp - damage)
-                current_hp = p2_hp
-                target_hp = p1_hp
+                # Attack hits
+                is_crit = check_critical_hit(move, current_player_data)
+                
+                # Get damage modifiers
+                attack_modifier = self.status_manager.get_damage_modifier(current_player_data, is_attack=True)
+                defense_modifier = self.status_manager.get_damage_modifier(other_player_data, is_attack=False)
+                
+                base_damage = calculate_damage(move, is_crit, {
+                    "attack": attack_modifier,
+                    "defense": defense_modifier
+                })
+                
+                # Apply devil fruit effects
+                fruit_damage, fruit_message = await self.devil_fruit_manager.process_devil_fruit_effect(
+                    current_player_data, other_player_data, move, environment
+                )
+                
+                total_damage = base_damage + fruit_damage
+                
+                # Apply environment effects
+                total_damage = self._apply_environment_effects(total_damage, move, environment)
+                
+                # Handle healing moves
+                if move.get("effect") == "heal":
+                    heal_amount = move.get("heal_amount", 20)
+                    # Apply environment healing bonus
+                    if environment in ["Fishman Island", "Whole Cake Island"]:
+                        heal_amount += ENVIRONMENT_EFFECTS.get("heal_boost", 0)
+                    
+                    current_player_data["hp"] = min(current_player_data["max_hp"], current_player_data["hp"] + heal_amount)
+                    
+                    turn_info = (
+                        f"Turn {turn_count}: **{current_member.display_name}** used **{move['name']}**\n"
+                        f"💚 Healed for {heal_amount} HP!"
+                    )
+                else:
+                    # Apply damage
+                    other_player_data["hp"] = max(0, other_player_data["hp"] - total_damage)
+                    other_player_data["stats"]["damage_taken"] += total_damage
+                    current_player_data["stats"]["damage_dealt"] += total_damage
+                    current_player_data["stats"]["moves_used"] += 1
+                    
+                    if is_crit:
+                        current_player_data["stats"]["crits_landed"] += 1
+                    
+                    # Apply move effects (burn, stun, etc.)
+                    await self._apply_move_effects(move, current_player_data, other_player_data)
+                    
+                    # Create turn description
+                    crit_text = " **CRITICAL HIT!**" if is_crit else ""
+                    turn_info = (
+                        f"Turn {turn_count}: **{current_member.display_name}** used **{move['name']}**{crit_text}\n"
+                        f"💥 Dealt {total_damage} damage!"
+                    )
+                    
+                    # Add devil fruit effect message
+                    if fruit_message:
+                        turn_info += f"\n\n{fruit_message}"
+                
+                # Set move cooldown
+                if move.get("cooldown", 0) > 0:
+                    current_player_data["moves_on_cooldown"][move["name"]] = move["cooldown"]
             
-            # Create turn description
-            crit_text = " **CRITICAL HIT!**" if is_crit else ""
-            turn_info = (
-                f"Turn {turn_count}: {current_player.display_name} used **{move['name']}**{crit_text}\n"
-                f"Dealt {damage} damage!"
-            )
+            # Show status effects
+            if current_effects:
+                effect_text = ", ".join([f"{effect}: {desc}" for effect, desc in current_effects.items()])
+                turn_info += f"\n📊 Status: {effect_text}"
             
             # Update battle embed
-            embed = create_battle_embed(player1, player2, p1_hp, p2_hp, turn_info)
+            embed = create_battle_embed(
+                player1, player2, p1_data["hp"], p2_data["hp"], 
+                turn_info, environment
+            )
             await message.edit(embed=embed)
             
             # Check for winner
-            if p1_hp <= 0:
+            if p1_data["hp"] <= 0:
                 await asyncio.sleep(2)
                 embed = discord.Embed(
                     title="🏆 Battle Complete!",
                     description=f"**{player2.display_name}** wins the battle!",
                     color=discord.Color.gold()
                 )
+                embed.add_field(
+                    name="📊 Battle Stats",
+                    value=self._create_battle_stats(p1_data, p2_data),
+                    inline=False
+                )
                 await message.edit(embed=embed)
                 return player2
-            elif p2_hp <= 0:
+            elif p2_data["hp"] <= 0:
                 await asyncio.sleep(2)
                 embed = discord.Embed(
                     title="🏆 Battle Complete!",
                     description=f"**{player1.display_name}** wins the battle!",
                     color=discord.Color.gold()
                 )
+                embed.add_field(
+                    name="📊 Battle Stats",
+                    value=self._create_battle_stats(p1_data, p2_data),
+                    inline=False
+                )
                 await message.edit(embed=embed)
                 return player1
             
+            # Reduce cooldowns
+            for move_name in list(current_player_data["moves_on_cooldown"].keys()):
+                current_player_data["moves_on_cooldown"][move_name] -= 1
+                if current_player_data["moves_on_cooldown"][move_name] <= 0:
+                    del current_player_data["moves_on_cooldown"][move_name]
+            
             # Switch turns
-            current_player, other_player = other_player, current_player
+            current_player_data, other_player_data = other_player_data, current_player_data
+            current_member, other_member = other_member, current_member
             
             # Small delay between turns
             await asyncio.sleep(3)
         
         # Battle timed out
-        if turn_count >= max_turns:
+        if turn_count >= MAX_BATTLE_TURNS:
             embed = discord.Embed(
                 title="⏰ Battle Timeout",
                 description="The battle lasted too long! It's a draw!",
                 color=discord.Color.orange()
             )
+            embed.add_field(
+                name="📊 Final Stats",
+                value=self._create_battle_stats(p1_data, p2_data),
+                inline=False
+            )
             await message.edit(embed=embed)
         
         return None
+    
+    def _apply_environment_effects(self, damage: int, move: Dict[str, Any], environment: str) -> int:
+        """Apply environment effects to damage."""
+        env_data = ENVIRONMENTS.get(environment, {})
+        effect_type = env_data.get("effect")
+        
+        if effect_type == "strong_boost" and move.get("type") == "strong":
+            damage += ENVIRONMENT_EFFECTS.get("strong_boost", 0)
+        elif effect_type == "war_boost":
+            damage += ENVIRONMENT_EFFECTS.get("war_boost", 0)
+        elif effect_type == "ultimate_boost":
+            damage = int(damage * (1 + ENVIRONMENT_EFFECTS.get("ultimate_boost", 0)))
+        
+        return damage
+    
+    async def _apply_move_effects(self, move: Dict[str, Any], attacker: Dict[str, Any], defender: Dict[str, Any]):
+        """Apply move-specific status effects."""
+        effect = move.get("effect")
+        
+        if effect == "burn" and random.random() < move.get("burn_chance", 0):
+            await self.status_manager.apply_effect("burn", defender, value=1)
+        elif effect == "stun" and random.random() < move.get("stun_chance", 0):
+            await self.status_manager.apply_effect("stun", defender, duration=1)
+    
+    def _create_battle_stats(self, p1_data: Dict[str, Any], p2_data: Dict[str, Any]) -> str:
+        """Create battle statistics summary."""
+        stats = (
+            f"**{p1_data['name']}**: {p1_data['stats']['damage_dealt']} damage dealt, "
+            f"{p1_data['stats']['moves_used']} moves used, {p1_data['stats']['crits_landed']} crits\n"
+            f"**{p2_data['name']}**: {p2_data['stats']['damage_dealt']} damage dealt, "
+            f"{p2_data['stats']['moves_used']} moves used, {p2_data['stats']['crits_landed']} crits"
+        )
+        return stats
     
     async def _process_battle_rewards(self, ctx, winner: discord.Member, loser: discord.Member):
         """Process rewards after a battle."""
@@ -241,6 +474,9 @@ class BattleSystem:
         
         # Award berris to winner
         await bank.add_berris(winner, berris_reward)
+        
+        # Check for devil fruit drop
+        new_fruit = await self.award_devil_fruit(winner)
         
         # Update stats
         winner_wins = await self.config.member(winner).wins()
@@ -262,10 +498,18 @@ class BattleSystem:
         )
         
         embed.add_field(
-            name="Reward",
+            name="Berris Reward",
             value=f"💰 {berris_reward} Berris",
             inline=True
         )
+        
+        if new_fruit:
+            fruit_data = DEVIL_FRUITS["Common"].get(new_fruit) or DEVIL_FRUITS["Rare"].get(new_fruit)
+            embed.add_field(
+                name="🍎 Devil Fruit Found!",
+                value=f"**{new_fruit}**\n*{fruit_data['type']}*\n{fruit_data['bonus']}",
+                inline=False
+            )
         
         embed.add_field(
             name="Stats Updated",
@@ -275,10 +519,11 @@ class BattleSystem:
         
         await safe_send(ctx, embed=embed)
         
-        self.log.info(f"Battle complete: {winner.name} beat {loser.name}, earned {berris_reward} berris")
+        self.log.info(f"Battle complete: {winner.name} beat {loser.name}, earned {berris_reward} berris" + 
+                     (f", found {new_fruit}" if new_fruit else ""))
 
 class BattleCommands(commands.Cog):
-    """Battle-related commands."""
+    """Battle-related commands with enhanced devil fruit system."""
     
     def __init__(self, bot, config):
         self.bot = bot
@@ -340,6 +585,7 @@ class BattleCommands(commands.Cog):
         
         wins = await self.config.member(user).wins()
         losses = await self.config.member(user).losses()
+        devil_fruit = await self.config.member(user).devil_fruit()
         total_battles = wins + losses
         
         if total_battles == 0:
@@ -375,5 +621,138 @@ class BattleCommands(commands.Cog):
             value=str(total_battles),
             inline=False
         )
+        
+        if devil_fruit:
+            fruit_data = DEVIL_FRUITS["Common"].get(devil_fruit) or DEVIL_FRUITS["Rare"].get(devil_fruit)
+            if fruit_data:
+                embed.add_field(
+                    name="🍎 Devil Fruit",
+                    value=f"**{devil_fruit}**\n*{fruit_data['type']}*\n{fruit_data['bonus']}",
+                    inline=False
+                )
+        
+        await safe_send(ctx, embed=embed)
+    
+    @commands.command(name="devilfruit", aliases=["df"])
+    async def devil_fruit_info(self, ctx, user: Optional[discord.Member] = None):
+        """Check devil fruit information."""
+        if user is None:
+            user = ctx.author
+        
+        devil_fruit = await self.config.member(user).devil_fruit()
+        
+        if not devil_fruit:
+            await safe_send(ctx, f"❌ {user.display_name} doesn't have a Devil Fruit!")
+            return
+        
+        fruit_data = DEVIL_FRUITS["Common"].get(devil_fruit) or DEVIL_FRUITS["Rare"].get(devil_fruit)
+        
+        if not fruit_data:
+            await safe_send(ctx, "❌ Devil Fruit data not found!")
+            return
+        
+        embed = discord.Embed(
+            title=f"🍎 {devil_fruit}",
+            description=fruit_data["bonus"],
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="Type",
+            value=fruit_data["type"],
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Effect",
+            value=fruit_data["effect"].title(),
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Owner",
+            value=user.display_name,
+            inline=True
+        )
+        
+        # Determine rarity color
+        if devil_fruit in DEVIL_FRUITS["Rare"]:
+            embed.color = discord.Color.gold()
+            embed.add_field(
+                name="Rarity",
+                value="⭐ Rare",
+                inline=False
+            )
+        else:
+            embed.color = discord.Color.blue()
+            embed.add_field(
+                name="Rarity",
+                value="🔹 Common",
+                inline=False
+            )
+        
+        await safe_send(ctx, embed=embed)
+    
+    @commands.command(name="moves")
+    async def show_moves(self, ctx):
+        """Show all available battle moves."""
+        embed = discord.Embed(
+            title="⚔️ Battle Moves",
+            description="Here are all the moves that can be used in battle!",
+            color=discord.Color.red()
+        )
+        
+        # Group moves by type
+        regular_moves = [m for m in MOVES if m["type"] == "regular"]
+        strong_moves = [m for m in MOVES if m["type"] == "strong"]
+        critical_moves = [m for m in MOVES if m["type"] == "critical"]
+        
+        if regular_moves:
+            move_list = "\n".join([f"• **{m['name']}** - {m['description']}" for m in regular_moves[:5]])
+            embed.add_field(
+                name="🥊 Regular Moves (No Cooldown)",
+                value=move_list,
+                inline=False
+            )
+        
+        if strong_moves:
+            move_list = "\n".join([f"• **{m['name']}** - {m['description']}" for m in strong_moves[:5]])
+            embed.add_field(
+                name="💪 Strong Moves (2 Turn Cooldown)",
+                value=move_list,
+                inline=False
+            )
+        
+        if critical_moves:
+            move_list = "\n".join([f"• **{m['name']}** - {m['description']}" for m in critical_moves[:4]])
+            embed.add_field(
+                name="⚡ Critical Moves (4 Turn Cooldown)",
+                value=move_list,
+                inline=False
+            )
+        
+        embed.add_field(
+            name="📝 Note",
+            value="Moves are chosen randomly during battle. Some moves have special effects like burn, stun, or healing!",
+            inline=False
+        )
+        
+        await safe_send(ctx, embed=embed)
+    
+    @commands.command(name="environments")
+    async def show_environments(self, ctx):
+        """Show all battle environments."""
+        embed = discord.Embed(
+            title="🌍 Battle Environments",
+            description="Battles take place in random One Piece locations with special effects!",
+            color=discord.Color.green()
+        )
+        
+        for env_name, env_data in ENVIRONMENTS.items():
+            embed.add_field(
+                name=f"🏝️ {env_name}",
+                value=env_data["description"],
+                inline=False
+            )
         
         await safe_send(ctx, embed=embed)
