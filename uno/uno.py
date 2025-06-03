@@ -452,8 +452,7 @@ class UnoCog(commands.Cog):
 
 async def setup(bot):
     """Setup function for Red-Discord bot"""
-    cog = UnoCog(bot)
-    await bot.add_cog(cog)
+    await bot.add_cog(UnoCog(bot))
 
 
 # For testing or direct import
