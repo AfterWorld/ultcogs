@@ -1,10 +1,13 @@
 """
-Uno Game Cog for Red-Discord Bot
+Uno Game Cog for Red-Discord Bot V3
 """
 import asyncio
 import discord
-from discord.ext import commands, tasks
+from discord.ext import tasks
 from typing import Optional
+
+# Red-DiscordBot V3 specific imports
+from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
 from .game import UnoGameSession, GameState
@@ -65,11 +68,11 @@ class UnoCog(commands.Cog):
         embed.add_field(
             name="📋 Commands",
             value=(
-                "`[p]uno start` - Start a new game\n"
-                "`[p]uno join` - Join existing game\n"
-                "`[p]uno status` - Check game status\n"
-                "`[p]uno rules` - Show game rules\n"
-                "`[p]uno stop` - Stop current game (host/admin only)"
+                f"`{ctx.prefix}uno start` - Start a new game\n"
+                f"`{ctx.prefix}uno join` - Join existing game\n"
+                f"`{ctx.prefix}uno status` - Check game status\n"
+                f"`{ctx.prefix}uno rules` - Show game rules\n"
+                f"`{ctx.prefix}uno stop` - Stop current game (host/admin only)"
             ),
             inline=False
         )
@@ -325,7 +328,7 @@ class UnoCog(commands.Cog):
         embed.add_field(
             name="🎮 How to Play",
             value=(
-                "• Use `uno start` to create a game\n"
+                f"• Use `{ctx.prefix}uno start` to create a game\n"
                 "• Click **Join Game** to join the lobby\n"
                 "• Host clicks **Start Game** when ready\n"
                 "• Use **Hand** button to see your cards\n"
@@ -468,9 +471,3 @@ class UnoCog(commands.Cog):
 async def setup(bot):
     """Setup function for Red-Discord bot"""
     await bot.add_cog(UnoCog(bot))
-
-
-# For testing or direct import
-def setup_cog(bot):
-    """Alternative setup function"""
-    return UnoCog(bot)
