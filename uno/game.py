@@ -263,7 +263,7 @@ class UnoGameSession:
         # Check if first card requires special action
         top_card = self.deck.top_card
         if top_card:
-            self._handle_card_effect(top_card, skip_draw=True, is_starting_card=True)
+            self._handle_card_effect(top_card, is_starting_card=True)
         
         self.last_activity = discord.utils.utcnow()
         self._log_action("game_started", {"players": len(self.players), "ai_players": len(self.ai_players)})
