@@ -1237,4 +1237,4 @@ class UnoCog(commands.Cog):
 
 async def setup(bot):
     """Setup function for Red-Discord bot"""
-    await bot.add_cog(UnoCog(bot
+    await bot.add_cog(UnoCog(bot))
