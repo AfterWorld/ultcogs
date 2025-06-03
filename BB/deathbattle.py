@@ -289,12 +289,33 @@ class BattleCommands(commands.Cog):
     @commands.command(name="db", aliases=["deathbattle", "battle"])
     @commands.cooldown(1, BATTLE_COOLDOWN, commands.BucketType.user)
     async def deathbattle(self, ctx, opponent: Optional[discord.Member] = None):
-        """Challenge someone to a DeathBattle!"""
+        """Challenge someone to a DeathBattle! If no opponent is specified, a random user will be chosen."""
         challenger = ctx.author
         
         if opponent is None:
-            await safe_send(ctx, "❌ You need to mention someone to challenge them to a battle!")
-            return
+            # Get all members in the guild (excluding bots and the challenger)
+            potential_opponents = [
+                member for member in ctx.guild.members 
+                if not member.bot and member != challenger and member.status != discord.Status.offline
+            ]
+            
+            if not potential_opponents:
+                await safe_send(ctx, "❌ No available opponents found! Make sure there are other online users in the server.")
+                return
+            
+            # Pick a random opponent
+            opponent = random.choice(potential_opponents)
+            
+            # Send a message showing who was randomly selected
+            embed = discord.Embed(
+                title="🎲 Random Opponent Selected!",
+                description=f"{challenger.display_name} challenges {opponent.display_name} to a battle!",
+                color=discord.Color.purple()
+            )
+            await safe_send(ctx, embed=embed)
+            
+            # Small delay before starting the battle
+            await asyncio.sleep(2)
         
         if opponent == challenger:
             await safe_send(ctx, "❌ You can't battle yourself!")
