@@ -22,6 +22,7 @@ try:
     from .gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
     from .status_manager import StatusEffectManager
     from .devil_fruit_manager import DevilFruitManager
+    from .starter_system import StarterSystem
 except ImportError:
     # Fallback for when the cog is loaded through CogManager
     import sys
@@ -44,6 +45,7 @@ except ImportError:
         from gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
         from status_manager import StatusEffectManager
         from devil_fruit_manager import DevilFruitManager
+        from starter_system import StarterSystem
     finally:
         # Clean up the path
         if current_dir in sys.path:
@@ -529,13 +531,142 @@ class BattleCommands(commands.Cog):
         self.bot = bot
         self.config = config
         self.battle_system = BattleSystem(config)
+        self.starter_system = StarterSystem(config)  # Add starter system
         self.log = setup_logger("battle_commands")
+    
+    @commands.command(name="start")
+    async def start_journey(self, ctx):
+        """Begin your pirate journey and receive your first Devil Fruit!"""
+        user = ctx.author
+        
+        # Check if user has already started
+        if not await self.starter_system.can_start(user):
+            current_fruit = await self.config.member(user).devil_fruit()
+            embed = discord.Embed(
+                title="🏴‍☠️ Journey Already Begun!",
+                description=f"You've already started your adventure with the **{current_fruit}**!",
+                color=discord.Color.orange()
+            )
+            embed.add_field(
+                name="🎯 Available Commands",
+                value="`!db` - Start a battle\n`!battlestats` - Check your stats\n`!devilfruit` - View your fruit info",
+                inline=False
+            )
+            await safe_send(ctx, embed=embed)
+            return
+        
+        # Assign starter fruit
+        fruit_name, is_rare = await self.starter_system.assign_starter_fruit(user, ctx.guild)
+        
+        if not fruit_name:
+            await safe_send(ctx, "❌ An error occurred while starting your journey. Please try again.")
+            return
+        
+        # Create and send the starter embed
+        embed = await self.starter_system.create_starter_embed(user, fruit_name, is_rare)
+        await safe_send(ctx, embed=embed)
+        
+        # Send special announcement for rare fruits
+        if is_rare:
+            announcement = discord.Embed(
+                title="🌟 LEGENDARY FRUIT DISCOVERED! 🌟",
+                description=f"**{user.display_name}** has discovered the legendary **{fruit_name}**!",
+                color=discord.Color.gold()
+            )
+            announcement.set_thumbnail(url=user.display_avatar.url)
+            await safe_send(ctx, embed=announcement)
+
+    @commands.command(name="fruitstats")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def fruit_distribution_stats(self, ctx):
+        """View rare fruit distribution statistics (Admin only)."""
+        stats = await self.starter_system.get_rare_fruit_stats(ctx.guild)
+        
+        embed = discord.Embed(
+            title="🍎 Rare Devil Fruit Distribution",
+            description="Current distribution of rare fruits in this server:",
+            color=discord.Color.purple()
+        )
+        
+        for fruit_name, data in stats.items():
+            current = data["current"]
+            max_count = data["max"]
+            remaining = max_count - current
+            
+            status = "🔴 FULL" if remaining == 0 else f"🟢 {remaining} left"
+            
+            embed.add_field(
+                name=fruit_name,
+                value=f"{current}/{max_count} assigned\n{status}",
+                inline=True
+            )
+        
+        # Add summary
+        total_given = sum(data["current"] for data in stats.values())
+        total_possible = sum(data["max"] for data in stats.values())
+        
+        embed.add_field(
+            name="📊 Summary",
+            value=f"**{total_given}/{total_possible}** rare fruits distributed",
+            inline=False
+        )
+        
+        await safe_send(ctx, embed=embed)
+
+    @commands.command(name="resetfruit")
+    @commands.is_owner()
+    async def reset_user_fruit(self, ctx, user: discord.Member):
+        """Reset a user's devil fruit and starter status (Owner only)."""
+        # Remove from rare fruit tracking if they had a rare fruit
+        current_fruit = await self.config.member(user).devil_fruit()
+        
+        if current_fruit and current_fruit in DEVIL_FRUITS["Rare"]:
+            rare_fruits_given = await self.config.guild(ctx.guild).rare_fruits_given()
+            if str(user.id) in rare_fruits_given:
+                del rare_fruits_given[str(user.id)]
+                await self.config.guild(ctx.guild).rare_fruits_given.set(rare_fruits_given)
+        
+        # Reset user data
+        await self.config.member(user).devil_fruit.set(None)
+        await self.config.member(user).has_started.set(False)
+        await self.config.member(user).fruit_acquired_date.set(None)
+        
+        embed = discord.Embed(
+            title="🔄 User Reset Complete",
+            description=f"**{user.display_name}** can now use `!start` again.",
+            color=discord.Color.green()
+        )
+        
+        if current_fruit:
+            embed.add_field(
+                name="Previous Fruit",
+                value=current_fruit,
+                inline=True
+            )
+        
+        await safe_send(ctx, embed=embed)
     
     @commands.command(name="db", aliases=["deathbattle", "battle"])
     @commands.cooldown(1, BATTLE_COOLDOWN, commands.BucketType.user)
     async def deathbattle(self, ctx, opponent: Optional[discord.Member] = None):
         """Challenge someone to a DeathBattle! If no opponent is specified, a random user will be chosen."""
         challenger = ctx.author
+        
+        # Check if challenger has started their journey
+        has_started = await self.config.member(challenger).has_started()
+        if not has_started:
+            embed = discord.Embed(
+                title="🏴‍☠️ Start Your Journey First!",
+                description="You need to begin your pirate adventure before battling!",
+                color=discord.Color.red()
+            )
+            embed.add_field(
+                name="🎯 Get Started",
+                value="Use `!start` to receive your Devil Fruit and begin your journey!",
+                inline=False
+            )
+            await safe_send(ctx, embed=embed)
+            return
         
         if opponent is None:
             # Get all members in the guild (excluding bots and the challenger)
@@ -544,12 +675,19 @@ class BattleCommands(commands.Cog):
                 if not member.bot and member != challenger and member.status != discord.Status.offline
             ]
             
-            if not potential_opponents:
-                await safe_send(ctx, "❌ No available opponents found! Make sure there are other online users in the server.")
+            # Filter to only include users who have started
+            started_opponents = []
+            for member in potential_opponents:
+                member_started = await self.config.member(member).has_started()
+                if member_started:
+                    started_opponents.append(member)
+            
+            if not started_opponents:
+                await safe_send(ctx, "❌ No available opponents found! Make sure there are other users who have used `!start`.")
                 return
             
             # Pick a random opponent
-            opponent = random.choice(potential_opponents)
+            opponent = random.choice(started_opponents)
             
             # Send a message showing who was randomly selected
             embed = discord.Embed(
@@ -570,6 +708,12 @@ class BattleCommands(commands.Cog):
             await safe_send(ctx, "❌ You can't battle bots!")
             return
         
+        # Check if opponent has started
+        opponent_started = await self.config.member(opponent).has_started()
+        if not opponent_started:
+            await safe_send(ctx, f"❌ {opponent.display_name} hasn't started their journey yet! They need to use `!start` first.")
+            return
+        
         # Start the battle
         success = await self.battle_system.start_battle(ctx, challenger, opponent)
         
@@ -586,7 +730,22 @@ class BattleCommands(commands.Cog):
         wins = await self.config.member(user).wins()
         losses = await self.config.member(user).losses()
         devil_fruit = await self.config.member(user).devil_fruit()
+        has_started = await self.config.member(user).has_started()
         total_battles = wins + losses
+        
+        if not has_started:
+            embed = discord.Embed(
+                title="🏴‍☠️ No Journey Started",
+                description=f"**{user.display_name}** hasn't started their pirate journey yet!",
+                color=discord.Color.orange()
+            )
+            embed.add_field(
+                name="🎯 Get Started",
+                value="Use `!start` to begin your adventure!",
+                inline=False
+            )
+            await safe_send(ctx, embed=embed)
+            return
         
         if total_battles == 0:
             win_rate = 0
@@ -625,9 +784,10 @@ class BattleCommands(commands.Cog):
         if devil_fruit:
             fruit_data = DEVIL_FRUITS["Common"].get(devil_fruit) or DEVIL_FRUITS["Rare"].get(devil_fruit)
             if fruit_data:
+                rarity = "⭐ Rare" if devil_fruit in DEVIL_FRUITS["Rare"] else "🔹 Common"
                 embed.add_field(
                     name="🍎 Devil Fruit",
-                    value=f"**{devil_fruit}**\n*{fruit_data['type']}*\n{fruit_data['bonus']}",
+                    value=f"**{devil_fruit}** ({rarity})\n*{fruit_data['type']}*\n{fruit_data['bonus']}",
                     inline=False
                 )
         
@@ -638,6 +798,11 @@ class BattleCommands(commands.Cog):
         """Check devil fruit information."""
         if user is None:
             user = ctx.author
+        
+        has_started = await self.config.member(user).has_started()
+        if not has_started:
+            await safe_send(ctx, f"❌ {user.display_name} hasn't started their journey yet! Use `!start` first.")
+            return
         
         devil_fruit = await self.config.member(user).devil_fruit()
         
@@ -756,7 +921,7 @@ class BattleCommands(commands.Cog):
             )
         
         await safe_send(ctx, embed=embed)
-        
+
     @commands.command(name="givefruit", hidden=True)
     @commands.is_owner()
     async def give_devil_fruit(self, ctx, user: discord.Member, *, fruit_name: str):
@@ -776,6 +941,7 @@ class BattleCommands(commands.Cog):
         
         # Give the fruit
         await self.config.member(user).devil_fruit.set(fruit_name)
+        await self.config.member(user).has_started.set(True)
         
         embed = discord.Embed(
             title="🍎 Devil Fruit Granted!",

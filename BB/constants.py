@@ -72,3 +72,11 @@ ENVIRONMENT_EFFECTS = {
     "war_boost": 10,        # +10 damage in war zones
     "ultimate_boost": 0.2   # +20% to everything
 }
+
+# Devil Fruit starter system
+STARTER_COMMON_CHANCE = 0.85  # 85% chance for common fruit
+STARTER_RARE_CHANCE = 0.15    # 15% chance for rare fruit
+STARTER_BERRIES_BONUS = 1000  # Starting berries bonus
+
+# Rare fruit distribution limits
+MAX_RARE_FRUITS_PER_TYPE = 3  # Default max per rare fruit type

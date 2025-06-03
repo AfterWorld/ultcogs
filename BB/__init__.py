@@ -49,7 +49,7 @@ class DeathBattle(BankCommands, BattleCommands):
             force_registration=True
         )
         
-        # Default settings - ADDED devil_fruit field
+        # Default settings - UPDATED with starter tracking
         default_member = {
             "total_berris": 0,
             "bank_balance": 0,
@@ -58,13 +58,17 @@ class DeathBattle(BankCommands, BattleCommands):
             "losses": 0,
             "last_battle": None,
             "last_robbery": None,
-            "devil_fruit": None  # Added this field
+            "devil_fruit": None,
+            "has_started": False,  # Track if user has used .start
+            "fruit_acquired_date": None  # When they got their fruit
         }
         
         default_guild = {
             "battle_channel": None,
             "allow_robberies": True,
-            "announce_battles": True
+            "announce_battles": True,
+            "rare_fruits_given": {},  # Track rare fruits given out {fruit_name: user_id}
+            "rare_fruit_limit": 3  # Max number of each rare fruit that can exist
         }
         
         self.config.register_member(**default_member)
@@ -83,6 +87,7 @@ class DeathBattle(BankCommands, BattleCommands):
         battle_channel_id = await self.config.guild(ctx.guild).battle_channel()
         allow_robberies = await self.config.guild(ctx.guild).allow_robberies()
         announce_battles = await self.config.guild(ctx.guild).announce_battles()
+        rare_fruit_limit = await self.config.guild(ctx.guild).rare_fruit_limit()
         
         battle_channel = None
         if battle_channel_id:
@@ -111,6 +116,12 @@ class DeathBattle(BankCommands, BattleCommands):
             inline=True
         )
         
+        embed.add_field(
+            name="🍎 Rare Fruit Limit",
+            value=f"{rare_fruit_limit} per fruit type",
+            inline=True
+        )
+        
         await ctx.send(embed=embed)
     
     @deathbattle_config.command(name="channel")
@@ -135,6 +146,17 @@ class DeathBattle(BankCommands, BattleCommands):
         await self.config.guild(ctx.guild).allow_robberies.set(enabled)
         status = "enabled" if enabled else "disabled"
         await ctx.send(f"✅ Bank robberies have been {status}.")
+    
+    @deathbattle_config.command(name="rarelimit")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def set_rare_limit(self, ctx, limit: int):
+        """Set the limit for rare devil fruits per type."""
+        if limit < 1:
+            await ctx.send("❌ Limit must be at least 1.")
+            return
+        
+        await self.config.guild(ctx.guild).rare_fruit_limit.set(limit)
+        await ctx.send(f"✅ Rare fruit limit set to {limit} per fruit type.")
     
     @commands.command(name="berris")
     async def check_berris(self, ctx, user: discord.Member = None):
