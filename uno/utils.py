@@ -260,10 +260,11 @@ class GameManager:
         if channel_id in self.games:
             # Check if existing game is finished or expired
             existing_game = self.games[channel_id]
-            if existing_game.state != 'finished' and not existing_game.is_expired():
+            from .game import GameState  # Import here to avoid circular import
+            if existing_game.state != GameState.FINISHED and not existing_game.is_expired():
                 return None  # Game already exists
         
-        from .game import UnoGameSession
+        from .game import UnoGameSession  # Import here to avoid circular import
         game = UnoGameSession(channel_id, host_id)
         self.games[channel_id] = game
         return game
@@ -295,7 +296,8 @@ class GameManager:
     
     def get_active_games_count(self) -> int:
         """Get number of active games"""
-        return len([g for g in self.games.values() if g.state != 'finished'])
+        from .game import GameState  # Import here to avoid circular import
+        return len([g for g in self.games.values() if g.state != GameState.FINISHED])
     
     def get_total_players(self) -> int:
         """Get total number of players across all games"""

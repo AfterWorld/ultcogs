@@ -25,44 +25,81 @@ class UnoCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        # self.assets_path = setup_assets_directory(cog_data_path(self))
+        self.assets_path = setup_assets_directory(cog_data_path(self))
         
         # Start background tasks
-        # self.cleanup_task.start()
+        self.cleanup_task.start()
     
-    # def cog_unload(self):
-    #     """Clean up when cog is unloaded"""
-    #     self.cleanup_task.cancel()
-    #     
-    #     # Clean up all games
-    #     for game in list(game_manager.games.values()):
-    #         game.cleanup()
-    #     game_manager.games.clear()
+    def cog_unload(self):
+        """Clean up when cog is unloaded"""
+        self.cleanup_task.cancel()
+        
+        # Clean up all games
+        for game in list(game_manager.games.values()):
+            game.cleanup()
+        game_manager.games.clear()
     
-    # @tasks.loop(minutes=5)
-    # async def cleanup_task(self):
-    #     """Periodic cleanup task"""
-    #     # Clean up expired games
-    #     expired_count = game_manager.cleanup_expired_games()
-    #     if expired_count > 0:
-    #         print(f"Cleaned up {expired_count} expired Uno games")
-    #     
-    #     # Clean up temporary image files
-    #     await cleanup_temp_files(self.assets_path)
+    @tasks.loop(minutes=5)
+    async def cleanup_task(self):
+        """Periodic cleanup task"""
+        # Clean up expired games
+        expired_count = game_manager.cleanup_expired_games()
+        if expired_count > 0:
+            print(f"Cleaned up {expired_count} expired Uno games")
+        
+        # Clean up temporary image files
+        await cleanup_temp_files(self.assets_path)
     
-    # @cleanup_task.before_loop
-    # async def before_cleanup_task(self):
-    #     await self.bot.wait_until_ready()
+    @cleanup_task.before_loop
+    async def before_cleanup_task(self):
+        await self.bot.wait_until_ready()
     
     @commands.group(name="uno", invoke_without_command=True)
     async def uno_group(self, ctx):
         """Uno card game commands"""
-        await ctx.send("🎮 Uno cog loaded! Use `uno start` to begin.")
+        embed = discord.Embed(
+            title="🎮 Uno Card Game",
+            description="Play Uno with your friends using Discord UI!",
+            color=discord.Color.blue()
+        )
+        embed.add_field(
+            name="📋 Commands",
+            value=(
+                "`[p]uno start` - Start a new game\n"
+                "`[p]uno join` - Join existing game\n"
+                "`[p]uno status` - Check game status\n"
+                "`[p]uno rules` - Show game rules\n"
+                "`[p]uno stop` - Stop current game (host/admin only)"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Use the buttons on game messages to play!")
+        await ctx.send(embed=embed)
     
     @uno_group.command(name="start")
     async def start_game(self, ctx):
         """Start a new Uno game in this channel"""
-        await ctx.send("🎮 Game starting feature coming soon!")
+        # Check if game already exists
+        existing_game = game_manager.get_game(ctx.channel.id)
+        if existing_game and existing_game.state != GameState.FINISHED and not existing_game.is_expired():
+            await ctx.send("❌ A game is already active in this channel! Use `uno stop` to end it first.")
+            return
+        
+        # Create new game
+        game = game_manager.create_game(ctx.channel.id, ctx.author.id)
+        if not game:
+            await ctx.send("❌ Failed to create game. Try again.")
+            return
+        
+        # Create lobby embed and view
+        embed = self.create_lobby_embed(game)
+        view = LobbyView(game, self)
+        
+        # Send the game message
+        message = await ctx.send(embed=embed, view=view)
+        game.game_message = message
+        
+        await ctx.send(f"🎮 **Uno game created!** {ctx.author.mention} is the host.")
     
     @uno_group.command(name="join")
     async def join_game(self, ctx):
