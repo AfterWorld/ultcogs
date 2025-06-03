@@ -9,31 +9,13 @@ from .cards import UnoCard, UnoColor, UnoCardType
 from .utils import stats_manager
 
 
-def get_card_emoji(card: UnoCard, bot: discord.Client) -> str:
-    """Get emoji for a card using the bot's emojis"""
-    # Convert card to filename format (same as asset naming)
-    if card.color == UnoColor.WILD:
-        if card.card_type == UnoCardType.WILD:
-            emoji_name = "Wild_Card"
-        elif card.card_type == UnoCardType.WILD_DRAW4:
-            emoji_name = "Wild_draw4"
+def get_card_emoji(card: UnoCard, cog) -> str:
+    """Get emoji for a card using the cog's cached emoji method"""
+    if hasattr(cog, 'get_card_emoji_cached'):
+        return cog.get_card_emoji_cached(card)
     else:
-        if card.card_type == UnoCardType.NUMBER:
-            emoji_name = f"{card.color.value}_{card.value}"
-        elif card.card_type == UnoCardType.SKIP:
-            emoji_name = f"{card.color.value}_skip"
-        elif card.card_type == UnoCardType.REVERSE:
-            emoji_name = f"{card.color.value}_reverse"
-        elif card.card_type == UnoCardType.DRAW2:
-            emoji_name = f"{card.color.value}_draw2"
-    
-    # Find the emoji in the bot's emojis
-    emoji = discord.utils.get(bot.emojis, name=emoji_name)
-    if emoji:
-        return str(emoji)
-    
-    # Return None if emoji not found (let caller handle fallback)
-    return None
+        # Fallback if method doesn't exist
+        return None
 
 
 def get_card_emoji_fallback(card: UnoCard) -> str:
@@ -122,7 +104,7 @@ class HandButton(discord.ui.Button):
                 if len(cards) > 0:
                     card_display = []
                     for card in cards:
-                        emoji = get_card_emoji(card, self.cog.bot)
+                        emoji = get_card_emoji(card, self.cog)
                         # If custom emoji is available, use it; otherwise use fallback
                         if emoji:
                             card_display.append(emoji)
@@ -147,7 +129,7 @@ class HandButton(discord.ui.Button):
                     # Show which cards are playable with emojis
                     playable_emojis = []
                     for card in playable[:8]:  # Show first 8 to avoid embed limits
-                        emoji = get_card_emoji(card, self.cog.bot)
+                        emoji = get_card_emoji(card, self.cog)
                         if emoji:
                             playable_emojis.append(emoji)
                         else:
@@ -281,7 +263,7 @@ class PlayButton(discord.ui.Button):
             
             # Show current game state for context
             if self.game_session.deck.top_card:
-                current_card_emoji = get_card_emoji(self.game_session.deck.top_card, self.cog.bot)
+                current_card_emoji = get_card_emoji(self.game_session.deck.top_card, self.cog)
                 if current_card_emoji:
                     card_display = f"{current_card_emoji} {self.game_session.deck.top_card}"
                 else:
@@ -545,7 +527,7 @@ class CardTypeDropdown(discord.ui.Select):
         # If it's a wild card, need to select color
         if selected_card.color == UnoColor.WILD:
             view = EnhancedColorSelectionView(self.game_session, selected_card, self.cog)
-            emoji = get_card_emoji(selected_card, self.cog.bot)
+            emoji = get_card_emoji(selected_card, self.cog)
             if emoji:
                 card_display = f"{emoji} **{selected_card.display_name}**"
             else:
@@ -565,7 +547,7 @@ class CardTypeDropdown(discord.ui.Select):
             if success:
                 # Update main game view
                 await self.cog.update_game_display(self.game_session)
-                emoji = get_card_emoji(selected_card, self.cog.bot)
+                emoji = get_card_emoji(selected_card, self.cog)
                 if emoji:
                     card_display = f"{emoji} {message}"
                 else:
@@ -636,7 +618,7 @@ class EnhancedColorButton(discord.ui.Button):
         if success:
             # Update main game view
             await self.cog.update_game_display(self.game_session)
-            wild_emoji = get_card_emoji(self.wild_card, self.cog.bot)
+            wild_emoji = get_card_emoji(self.wild_card, self.cog)
             if wild_emoji:
                 card_display = f"{wild_emoji} {message}"
             else:
@@ -684,7 +666,7 @@ class DrawCardView(discord.ui.View):
             if cards:
                 drawn_display = []
                 for card in cards:
-                    emoji = get_card_emoji(card, self.cog.bot)
+                    emoji = get_card_emoji(card, self.cog)
                     if emoji:
                         drawn_display.append(emoji)
                     else:

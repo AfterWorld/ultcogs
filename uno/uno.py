@@ -38,6 +38,10 @@ class UnoCog(commands.Cog):
         self.bot = bot
         self.assets_path = setup_assets_directory(cog_data_path(self))
         
+        # Cache for application emojis (since discord.py doesn't cache them)
+        self.application_emojis = {}
+        self._emoji_cache_last_update = None
+        
         # Configuration system
         self.config = Config.get_conf(self, identifier=2584931056)
         
@@ -222,6 +226,11 @@ class UnoCog(commands.Cog):
                 if ch_id in active_channels
             }
             
+            # Refresh application emoji cache every hour
+            if (self._emoji_cache_last_update is None or 
+                (discord.utils.utcnow() - self._emoji_cache_last_update).total_seconds() > 3600):
+                await self._cache_application_emojis()
+            
         except Exception as e:
             print(f"Error in cleanup task: {e}")
     
@@ -267,6 +276,50 @@ class UnoCog(commands.Cog):
         await self.bot.wait_until_ready()
         # Load persistent games on startup
         await self._load_persistent_games()
+        # Cache application emojis
+        await self._cache_application_emojis()
+    
+    async def _cache_application_emojis(self):
+        """Cache application emojis for use in views"""
+        try:
+            app_emojis = await self.bot.fetch_application_emojis()
+            self.application_emojis = {emoji.name: emoji for emoji in app_emojis}
+            self._emoji_cache_last_update = discord.utils.utcnow()
+            print(f"Cached {len(self.application_emojis)} application emojis")
+        except Exception as e:
+            print(f"Error caching application emojis: {e}")
+            self.application_emojis = {}
+    
+    def get_card_emoji_cached(self, card: UnoCard) -> Optional[str]:
+        """Get emoji for a card using cached emojis (synchronous for views)"""
+        from .cards import UnoColor, UnoCardType
+        
+        # Convert card to emoji name
+        if card.color == UnoColor.WILD:
+            if card.card_type == UnoCardType.WILD:
+                emoji_name = "Wild_Card"
+            elif card.card_type == UnoCardType.WILD_DRAW4:
+                emoji_name = "Wild_draw4"
+        else:
+            if card.card_type == UnoCardType.NUMBER:
+                emoji_name = f"{card.color.value}_{card.value}"
+            elif card.card_type == UnoCardType.SKIP:
+                emoji_name = f"{card.color.value}_skip"
+            elif card.card_type == UnoCardType.REVERSE:
+                emoji_name = f"{card.color.value}_reverse"
+            elif card.card_type == UnoCardType.DRAW2:
+                emoji_name = f"{card.color.value}_draw2"
+        
+        # Check server emojis first
+        emoji = discord.utils.get(self.bot.emojis, name=emoji_name)
+        if emoji:
+            return str(emoji)
+        
+        # Check cached application emojis
+        if emoji_name in self.application_emojis:
+            return str(self.application_emojis[emoji_name])
+        
+        return None
     
     async def _handle_ai_turn(self, game: UnoGameSession, ai_player: AIPlayer):
         """Handle an AI player's turn"""
@@ -621,8 +674,8 @@ class UnoCog(commands.Cog):
             
             embed.add_field(name="🔐 Bot Permissions", value="\n".join(perm_status), inline=False)
             
-            # Check emoji availability
-            missing_emojis, existing_emojis = validate_card_emojis(self.bot)
+            # Check emoji availability (async version)
+            missing_emojis, existing_emojis = await validate_card_emojis(self.bot)
             
             embed.add_field(
                 name="📊 Emoji Status", 
@@ -662,10 +715,11 @@ class UnoCog(commands.Cog):
                 )
             
             # Debug info: Show total emojis bot has access to
-            total_bot_emojis = len(self.bot.emojis)
+            total_server_emojis = len(self.bot.emojis)
+            total_app_emojis = len(self.application_emojis)
             embed.add_field(
                 name="🔍 Debug Info",
-                value=f"Bot has access to {total_bot_emojis} total emojis across all servers",
+                value=f"Server emojis: {total_server_emojis}\nApplication emojis: {total_app_emojis}",
                 inline=False
             )
             
@@ -674,12 +728,15 @@ class UnoCog(commands.Cog):
                 embed.add_field(
                     name="📋 Setup Instructions",
                     value=(
-                        "1. Get 54 Uno card images\n"
-                        "2. Go to Server Settings > Emoji\n"
-                        "3. Upload each image as custom emoji\n"
-                        "4. Name emojis exactly as shown above\n"
-                        "5. Use `uno emojis` to check progress\n"
-                        "6. Use `uno debug` to see bot's emoji list"
+                        "**For Application Emojis (Recommended):**\n"
+                        "1. Go to https://discord.dev/applications\n"
+                        "2. Select your bot > Emojis tab\n"
+                        "3. Upload 54 Uno card images\n"
+                        "4. Name them exactly as shown above\n"
+                        "5. Use `uno emojis` to check progress\n\n"
+                        "**For Server Emojis:**\n"
+                        "6. Go to Server Settings > Emoji\n"
+                        "7. Upload and name as above"
                     ),
                     inline=False
                 )
@@ -979,21 +1036,48 @@ class UnoCog(commands.Cog):
         except Exception as e:
             await self._handle_error(ctx, e, "setting configuration")
     
+    @uno_group.command(name="refresh")
+    @commands.is_owner() 
+    async def refresh_emojis(self, ctx):
+        """Refresh the application emoji cache (Owner only)"""
+        try:
+            await self._cache_application_emojis()
+            embed = discord.Embed(
+                title="✅ Emoji Cache Refreshed",
+                description=f"Cached {len(self.application_emojis)} application emojis",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await self._handle_error(ctx, e, "refreshing emoji cache")
+    
     @uno_group.command(name="debug")
     @commands.is_owner()
     async def debug_emojis(self, ctx):
         """Debug command to see bot's available emojis (Owner only)"""
         try:
-            # Get all bot emojis
-            all_emojis = list(self.bot.emojis)
+            # Get server emojis
+            server_emojis = list(self.bot.emojis)
             
-            # Filter for potential Uno emojis (containing color names or "Wild")
-            potential_uno_emojis = []
+            # Get application emojis
+            try:
+                app_emojis = await self.bot.fetch_application_emojis()
+            except Exception as e:
+                app_emojis = []
+                print(f"Could not fetch application emojis: {e}")
+            
+            # Filter for potential Uno emojis
+            potential_server_emojis = []
+            potential_app_emojis = []
             uno_keywords = ["Red", "Green", "Yellow", "Blue", "Wild", "red", "green", "yellow", "blue", "wild"]
             
-            for emoji in all_emojis:
+            for emoji in server_emojis:
                 if any(keyword in emoji.name for keyword in uno_keywords):
-                    potential_uno_emojis.append(emoji)
+                    potential_server_emojis.append(emoji)
+            
+            for emoji in app_emojis:
+                if any(keyword in emoji.name for keyword in uno_keywords):
+                    potential_app_emojis.append(emoji)
             
             embed = discord.Embed(
                 title="🔍 Bot Emoji Debug",
@@ -1002,31 +1086,47 @@ class UnoCog(commands.Cog):
             
             embed.add_field(
                 name="📊 Total Emojis",
-                value=f"Bot has access to {len(all_emojis)} total emojis",
+                value=f"Server emojis: {len(server_emojis)}\nApplication emojis: {len(app_emojis)}",
                 inline=True
             )
             
             embed.add_field(
                 name="🎴 Potential Uno Emojis",
-                value=f"Found {len(potential_uno_emojis)} emojis with Uno keywords",
+                value=f"Server: {len(potential_server_emojis)}\nApplication: {len(potential_app_emojis)}",
                 inline=True
             )
             
-            # Show potential Uno emojis
-            if potential_uno_emojis:
+            # Show potential server Uno emojis
+            if potential_server_emojis:
                 emoji_list = []
-                for emoji in potential_uno_emojis[:20]:  # Show first 20
+                for emoji in potential_server_emojis[:10]:
                     emoji_list.append(f"`{emoji.name}` {emoji}")
                 
-                if len(potential_uno_emojis) > 20:
-                    emoji_list.append(f"... and {len(potential_uno_emojis) - 20} more")
+                if len(potential_server_emojis) > 10:
+                    emoji_list.append(f"... and {len(potential_server_emojis) - 10} more")
                 
                 embed.add_field(
-                    name="🎯 Potential Uno Emojis Found",
+                    name="🎯 Server Uno Emojis Found",
                     value="\n".join(emoji_list),
                     inline=False
                 )
-            else:
+            
+            # Show potential application Uno emojis
+            if potential_app_emojis:
+                emoji_list = []
+                for emoji in potential_app_emojis[:10]:
+                    emoji_list.append(f"`{emoji.name}` {emoji}")
+                
+                if len(potential_app_emojis) > 10:
+                    emoji_list.append(f"... and {len(potential_app_emojis) - 10} more")
+                
+                embed.add_field(
+                    name="🎯 Application Uno Emojis Found",
+                    value="\n".join(emoji_list),
+                    inline=False
+                )
+            
+            if not potential_server_emojis and not potential_app_emojis:
                 embed.add_field(
                     name="❌ No Potential Uno Emojis",
                     value="No emojis found containing Uno-related keywords",
@@ -1041,6 +1141,16 @@ class UnoCog(commands.Cog):
                     "`Red_0`, `Red_1`, `Red_skip`, `Red_reverse`, `Red_draw2`\n"
                     "`Green_0`, `Green_1`, `Green_skip`, etc.\n"
                     "`Wild_Card`, `Wild_draw4`"
+                ),
+                inline=False
+            )
+            
+            # Application emoji info
+            embed.add_field(
+                name="ℹ️ Application Emojis",
+                value=(
+                    "Application emojis are bot-owned and work across all servers.\n"
+                    "Upload at: https://discord.dev/applications > Your Bot > Emojis"
                 ),
                 inline=False
             )

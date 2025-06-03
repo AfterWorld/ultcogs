@@ -233,9 +233,10 @@ def validate_card_files(assets_path: Path) -> Tuple[List[str], List[str]]:
     return missing_files, existing_files
 
 
-def validate_card_emojis(bot: discord.Client) -> Tuple[List[str], List[str]]:
+async def validate_card_emojis(bot: discord.Client) -> Tuple[List[str], List[str]]:
     """
     Validate that all required card emojis exist in the bot's available emojis.
+    Checks both server emojis and application emojis.
     Returns (missing_emojis, existing_emojis)
     """
     from .cards import UnoColor, UnoCardType
@@ -258,19 +259,67 @@ def validate_card_emojis(bot: discord.Client) -> Tuple[List[str], List[str]]:
     unique_emoji_names.add("Wild_Card")
     unique_emoji_names.add("Wild_draw4")
     
+    # Get all available emojis (server + application)
+    all_available_emojis = {}
+    
+    # Add server emojis
+    for emoji in bot.emojis:
+        all_available_emojis[emoji.name] = emoji
+    
+    # Add application emojis (requires discord.py 2.5+)
+    try:
+        app_emojis = await bot.fetch_application_emojis()
+        for emoji in app_emojis:
+            all_available_emojis[emoji.name] = emoji
+    except Exception as e:
+        print(f"Could not fetch application emojis: {e}")
+    
     missing_emojis = []
     existing_emojis = []
     
     # Check each unique emoji name
     for emoji_name in sorted(unique_emoji_names):
-        emoji = discord.utils.get(bot.emojis, name=emoji_name)
-        
-        if emoji:
+        if emoji_name in all_available_emojis:
             existing_emojis.append(emoji_name)
         else:
             missing_emojis.append(emoji_name)
     
     return missing_emojis, existing_emojis
+
+
+async def get_card_emoji_async(card: UnoCard, bot: discord.Client) -> Optional[str]:
+    """Get emoji for a card using both server and application emojis"""
+    # Convert card to filename format (same as asset naming)
+    if card.color == UnoColor.WILD:
+        if card.card_type == UnoCardType.WILD:
+            emoji_name = "Wild_Card"
+        elif card.card_type == UnoCardType.WILD_DRAW4:
+            emoji_name = "Wild_draw4"
+    else:
+        if card.card_type == UnoCardType.NUMBER:
+            emoji_name = f"{card.color.value}_{card.value}"
+        elif card.card_type == UnoCardType.SKIP:
+            emoji_name = f"{card.color.value}_skip"
+        elif card.card_type == UnoCardType.REVERSE:
+            emoji_name = f"{card.color.value}_reverse"
+        elif card.card_type == UnoCardType.DRAW2:
+            emoji_name = f"{card.color.value}_draw2"
+    
+    # Check server emojis first (cached)
+    emoji = discord.utils.get(bot.emojis, name=emoji_name)
+    if emoji:
+        return str(emoji)
+    
+    # Check application emojis (requires API call)
+    try:
+        app_emojis = await bot.fetch_application_emojis()
+        emoji = discord.utils.get(app_emojis, name=emoji_name)
+        if emoji:
+            return str(emoji)
+    except Exception:
+        pass
+    
+    return None
 
 
 async def cleanup_temp_files(assets_path: Path, max_age_minutes: int = 60):
