@@ -649,6 +649,26 @@ class UnoCog(commands.Cog):
                     inline=False
                 )
             
+            # Show some found emojis if any
+            if existing_emojis:
+                found_sample = existing_emojis[:5]
+                if len(existing_emojis) > 5:
+                    found_sample.append(f"... and {len(existing_emojis) - 5} more")
+                
+                embed.add_field(
+                    name="✅ Found Emojis (sample)",
+                    value="`" + "`, `".join(found_sample) + "`",
+                    inline=False
+                )
+            
+            # Debug info: Show total emojis bot has access to
+            total_bot_emojis = len(self.bot.emojis)
+            embed.add_field(
+                name="🔍 Debug Info",
+                value=f"Bot has access to {total_bot_emojis} total emojis across all servers",
+                inline=False
+            )
+            
             # Setup instructions
             if missing_emojis:
                 embed.add_field(
@@ -658,7 +678,8 @@ class UnoCog(commands.Cog):
                         "2. Go to Server Settings > Emoji\n"
                         "3. Upload each image as custom emoji\n"
                         "4. Name emojis exactly as shown above\n"
-                        "5. Use `uno emojis` to check progress"
+                        "5. Use `uno emojis` to check progress\n"
+                        "6. Use `uno debug` to see bot's emoji list"
                     ),
                     inline=False
                 )
@@ -958,8 +979,131 @@ class UnoCog(commands.Cog):
         except Exception as e:
             await self._handle_error(ctx, e, "setting configuration")
     
+    @uno_group.command(name="debug")
+    @commands.is_owner()
+    async def debug_emojis(self, ctx):
+        """Debug command to see bot's available emojis (Owner only)"""
+        try:
+            # Get all bot emojis
+            all_emojis = list(self.bot.emojis)
+            
+            # Filter for potential Uno emojis (containing color names or "Wild")
+            potential_uno_emojis = []
+            uno_keywords = ["Red", "Green", "Yellow", "Blue", "Wild", "red", "green", "yellow", "blue", "wild"]
+            
+            for emoji in all_emojis:
+                if any(keyword in emoji.name for keyword in uno_keywords):
+                    potential_uno_emojis.append(emoji)
+            
+            embed = discord.Embed(
+                title="🔍 Bot Emoji Debug",
+                color=discord.Color.orange()
+            )
+            
+            embed.add_field(
+                name="📊 Total Emojis",
+                value=f"Bot has access to {len(all_emojis)} total emojis",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="🎴 Potential Uno Emojis",
+                value=f"Found {len(potential_uno_emojis)} emojis with Uno keywords",
+                inline=True
+            )
+            
+            # Show potential Uno emojis
+            if potential_uno_emojis:
+                emoji_list = []
+                for emoji in potential_uno_emojis[:20]:  # Show first 20
+                    emoji_list.append(f"`{emoji.name}` {emoji}")
+                
+                if len(potential_uno_emojis) > 20:
+                    emoji_list.append(f"... and {len(potential_uno_emojis) - 20} more")
+                
+                embed.add_field(
+                    name="🎯 Potential Uno Emojis Found",
+                    value="\n".join(emoji_list),
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="❌ No Potential Uno Emojis",
+                    value="No emojis found containing Uno-related keywords",
+                    inline=False
+                )
+            
+            # Show expected naming format
+            embed.add_field(
+                name="📋 Expected Emoji Names",
+                value=(
+                    "Examples of correct naming:\n"
+                    "`Red_0`, `Red_1`, `Red_skip`, `Red_reverse`, `Red_draw2`\n"
+                    "`Green_0`, `Green_1`, `Green_skip`, etc.\n"
+                    "`Wild_Card`, `Wild_draw4`"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "debugging emojis")
+    
     @uno_group.command(name="rules")
     async def show_rules(self, ctx):
+        """Show Uno game rules and how to play"""
+        try:
+            embed = discord.Embed(title="📋 Uno Rules & How to Play", color=discord.Color.purple())
+            
+            embed.add_field(
+                name="🎯 Objective",
+                value="Be the first player to play all your cards!",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="🎮 How to Play",
+                value=(
+                    f"• Use `{ctx.prefix}uno start` to create a game\n"
+                    "• Click **Join Game** to join the lobby\n"
+                    "• Host clicks **Start Game** when ready\n"
+                    "• Use **Hand** button to see your cards\n"
+                    "• Use **Play** button to play a card on your turn\n"
+                    "• Use **Status** button to see game info"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="🃏 Card Types",
+                value=(
+                    "• **Number Cards** (0-9): Play matching color or number\n"
+                    "• **Skip**: Next player loses their turn\n"
+                    "• **Reverse**: Change direction of play\n"
+                    "• **Draw 2**: Next player draws 2 cards\n"
+                    "• **Wild**: Change color to any color\n"
+                    "• **Wild Draw 4**: Change color, next player draws 4"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="📏 Special Rules",
+                value=(
+                    "• **Call UNO** when you have one card left!\n"
+                    "• **Draw Stacking**: Stack Draw 2s and Draw 4s\n"
+                    "• **Challenge Draw 4**: Challenge illegal Draw 4 plays\n"
+                    "• **AI Players**: Add computer players to fill games\n"
+                    "• If you can't play, you must draw a card"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            await self._handle_error(ctx, e, "showing rules")
         """Show Uno game rules and how to play"""
         try:
             embed = discord.Embed(title="📋 Uno Rules & How to Play", color=discord.Color.purple())

@@ -238,18 +238,31 @@ def validate_card_emojis(bot: discord.Client) -> Tuple[List[str], List[str]]:
     Validate that all required card emojis exist in the bot's available emojis.
     Returns (missing_emojis, existing_emojis)
     """
-    from .cards import UnoDeck
+    from .cards import UnoColor, UnoCardType
     
-    # Create a deck to get all possible cards
-    deck = UnoDeck()
-    all_cards = deck.draw_pile.copy()
+    # Generate all unique card combinations (54 total)
+    unique_emoji_names = set()
+    
+    # Number cards (40 unique)
+    for color in [UnoColor.RED, UnoColor.GREEN, UnoColor.YELLOW, UnoColor.BLUE]:
+        for value in range(10):  # 0-9
+            unique_emoji_names.add(f"{color.value}_{value}")
+    
+    # Action cards (12 unique)
+    for color in [UnoColor.RED, UnoColor.GREEN, UnoColor.YELLOW, UnoColor.BLUE]:
+        unique_emoji_names.add(f"{color.value}_skip")
+        unique_emoji_names.add(f"{color.value}_reverse")
+        unique_emoji_names.add(f"{color.value}_draw2")
+    
+    # Wild cards (2 unique)
+    unique_emoji_names.add("Wild_Card")
+    unique_emoji_names.add("Wild_draw4")
     
     missing_emojis = []
     existing_emojis = []
     
-    # Check each card emoji
-    for card in all_cards:
-        emoji_name = get_card_emoji_name(card)
+    # Check each unique emoji name
+    for emoji_name in sorted(unique_emoji_names):
         emoji = discord.utils.get(bot.emojis, name=emoji_name)
         
         if emoji:
