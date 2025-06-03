@@ -49,7 +49,7 @@ class DeathBattle(BankCommands, BattleCommands):
             force_registration=True
         )
         
-        # Default settings - UPDATED with starter tracking
+        # Default settings - UPDATED with fruit management tracking
         default_member = {
             "total_berris": 0,
             "bank_balance": 0,
@@ -59,16 +59,19 @@ class DeathBattle(BankCommands, BattleCommands):
             "last_battle": None,
             "last_robbery": None,
             "devil_fruit": None,
-            "has_started": False,  # Track if user has used .start
-            "fruit_acquired_date": None  # When they got their fruit
+            "has_started": False,
+            "fruit_acquired_date": None,
+            "last_fruit_remove": None,   # Track when they last removed a fruit
+            "last_fruit_buy": None,      # Track when they last bought a fruit
+            "fruits_removed_count": 0    # Track total fruits removed
         }
         
         default_guild = {
             "battle_channel": None,
             "allow_robberies": True,
             "announce_battles": True,
-            "rare_fruits_given": {},  # Track rare fruits given out {fruit_name: user_id}
-            "rare_fruit_limit": 3  # Max number of each rare fruit that can exist
+            "rare_fruits_given": {},  # Track rare fruits given out {user_id: fruit_name}
+            "rare_fruit_limit": 3     # Max number of each rare fruit that can exist
         }
         
         self.config.register_member(**default_member)
@@ -79,6 +82,8 @@ class DeathBattle(BankCommands, BattleCommands):
         BattleCommands.__init__(self, bot, self.config)
         
         self.log.info("DeathBattle cog initialized successfully")
+    
+    # ... rest of the existing code stays the same ...
     
     @commands.group(name="dbconfig", invoke_without_command=True)
     @commands.admin_or_permissions(manage_guild=True)
@@ -119,6 +124,13 @@ class DeathBattle(BankCommands, BattleCommands):
         embed.add_field(
             name="🍎 Rare Fruit Limit",
             value=f"{rare_fruit_limit} per fruit type",
+            inline=True
+        )
+        
+        # Add fruit management costs
+        embed.add_field(
+            name="💸 Fruit Management Costs",
+            value=f"Remove: {REMOVE_FRUIT_COST:,} Berris\nBuy New: {BUY_FRUIT_COST:,} Berris",
             inline=True
         )
         

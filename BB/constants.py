@@ -42,11 +42,30 @@ MIN_ROBBERY_AMOUNT = 50  # Increased minimum
 DEVIL_FRUIT_DROP_CHANCE = 0.05  # 5% chance after battle
 RARE_FRUIT_CHANCE = 0.2  # 20% of drops are rare
 
+# Devil Fruit starter system
+STARTER_COMMON_CHANCE = 0.85  # 85% chance for common fruit
+STARTER_RARE_CHANCE = 0.15    # 15% chance for rare fruit
+STARTER_BERRIES_BONUS = 1000  # Starting berries bonus
+
+# Devil Fruit management costs
+REMOVE_FRUIT_COST = 5000      # Cost to remove current fruit
+BUY_FRUIT_COST = 10000        # Cost to buy a random new fruit
+BUY_RARE_FRUIT_COST = 25000   # Cost to buy specifically a rare fruit (if available)
+
+# Fruit purchase chances (when buying)
+BUY_COMMON_CHANCE = 0.70      # 70% chance for common when buying
+BUY_RARE_CHANCE = 0.30        # 30% chance for rare when buying
+
+# Rare fruit distribution limits
+MAX_RARE_FRUITS_PER_TYPE = 3  # Default max per rare fruit type
+
 # Cooldowns (in seconds)
 BATTLE_COOLDOWN = 300  # 5 minutes
 BANK_ROBBERY_COOLDOWN = 1800  # 30 minutes
 BANK_DEPOSIT_COOLDOWN = 60  # 1 minute
 DEVIL_FRUIT_USE_COOLDOWN = 3600  # 1 hour for special abilities
+FRUIT_REMOVE_COOLDOWN = 86400  # 24 hours to remove fruit again
+FRUIT_BUY_COOLDOWN = 3600     # 1 hour to buy fruit again
 
 # Bank security levels
 BANK_SECURITY_LEVELS = {
@@ -72,11 +91,3 @@ ENVIRONMENT_EFFECTS = {
     "war_boost": 10,        # +10 damage in war zones
     "ultimate_boost": 0.2   # +20% to everything
 }
-
-# Devil Fruit starter system
-STARTER_COMMON_CHANCE = 0.85  # 85% chance for common fruit
-STARTER_RARE_CHANCE = 0.15    # 15% chance for rare fruit
-STARTER_BERRIES_BONUS = 1000  # Starting berries bonus
-
-# Rare fruit distribution limits
-MAX_RARE_FRUITS_PER_TYPE = 3  # Default max per rare fruit type

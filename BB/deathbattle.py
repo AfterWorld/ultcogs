@@ -23,6 +23,7 @@ try:
     from .status_manager import StatusEffectManager
     from .devil_fruit_manager import DevilFruitManager
     from .starter_system import StarterSystem
+    from .fruit_manager import FruitManager
 except ImportError:
     # Fallback for when the cog is loaded through CogManager
     import sys
@@ -46,6 +47,7 @@ except ImportError:
         from status_manager import StatusEffectManager
         from devil_fruit_manager import DevilFruitManager
         from starter_system import StarterSystem
+        from fruit_manager import FruitManager
     finally:
         # Clean up the path
         if current_dir in sys.path:
@@ -531,7 +533,8 @@ class BattleCommands(commands.Cog):
         self.bot = bot
         self.config = config
         self.battle_system = BattleSystem(config)
-        self.starter_system = StarterSystem(config)  # Add starter system
+        self.starter_system = StarterSystem(config)
+        self.fruit_manager = FruitManager(config)
         self.log = setup_logger("battle_commands")
     
     @commands.command(name="start")
@@ -575,6 +578,354 @@ class BattleCommands(commands.Cog):
             )
             announcement.set_thumbnail(url=user.display_avatar.url)
             await safe_send(ctx, embed=announcement)
+
+    @commands.command(name="removefruit")
+    @commands.cooldown(1, FRUIT_REMOVE_COOLDOWN, commands.BucketType.user)
+    async def remove_fruit(self, ctx):
+        """Remove your current Devil Fruit for a cost."""
+        user = ctx.author
+        
+        # Check if user has started
+        has_started = await self.config.member(user).has_started()
+        if not has_started:
+            await safe_send(ctx, "❌ You must start your journey first! Use `.start` to begin.")
+            return
+        
+        # Get current fruit for display
+        current_fruit = await self.config.member(user).devil_fruit()
+        if not current_fruit:
+            await safe_send(ctx, "❌ You don't have a Devil Fruit to remove!")
+            return
+        
+        # Show confirmation
+        fruit_data = DEVIL_FRUITS["Common"].get(current_fruit) or DEVIL_FRUITS["Rare"].get(current_fruit)
+        is_rare = current_fruit in DEVIL_FRUITS["Rare"]
+        
+        embed = discord.Embed(
+            title="⚠️ Remove Devil Fruit",
+            description=f"Are you sure you want to remove **{current_fruit}**?",
+            color=discord.Color.orange()
+        )
+        
+        embed.add_field(
+            name="🍎 Current Fruit",
+            value=f"**{current_fruit}**\n*{fruit_data['type']}*\n{fruit_data['bonus']}",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💰 Cost",
+            value=format_berris(REMOVE_FRUIT_COST),
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏰ Cooldown",
+            value="24 hours before you can remove another",
+            inline=True
+        )
+        
+        if is_rare:
+            embed.add_field(
+                name="⚠️ WARNING",
+                value="This is a **RARE** fruit! Once removed, you may not get another rare fruit easily!",
+                inline=False
+            )
+        
+        embed.add_field(
+            name="🤔 Confirmation",
+            value="React with ✅ to confirm or ❌ to cancel",
+            inline=False
+        )
+        
+        message = await safe_send(ctx, embed=embed)
+        if not message:
+            return
+        
+        # Add reactions
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
+        
+        def check(reaction, reaction_user):
+            return (reaction_user == user and 
+                    reaction.message.id == message.id and 
+                    str(reaction.emoji) in ["✅", "❌"])
+        
+        try:
+            reaction, _ = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+            
+            if str(reaction.emoji) == "✅":
+                # Handle rare fruit tracking
+                if is_rare:
+                    rare_fruits_given = await self.config.guild(ctx.guild).rare_fruits_given()
+                    if str(user.id) in rare_fruits_given:
+                        del rare_fruits_given[str(user.id)]
+                        await self.config.guild(ctx.guild).rare_fruits_given.set(rare_fruits_given)
+                
+                # Remove the fruit
+                success, msg, removed_fruit = await self.fruit_manager.remove_fruit(user)
+                
+                if success:
+                    embed = discord.Embed(
+                        title="🗑️ Devil Fruit Removed",
+                        description=msg,
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(
+                        name="💡 Next Steps",
+                        value="You can now use `.buyfruit` to purchase a new random Devil Fruit!",
+                        inline=False
+                    )
+                    await message.edit(embed=embed)
+                else:
+                    await safe_send(ctx, f"❌ {msg}")
+            else:
+                embed = discord.Embed(
+                    title="❌ Removal Cancelled",
+                    description="Your Devil Fruit remains intact.",
+                    color=discord.Color.blue()
+                )
+                await message.edit(embed=embed)
+                
+        except asyncio.TimeoutError:
+            embed = discord.Embed(
+                title="⏰ Confirmation Timeout",
+                description="Removal cancelled due to no response.",
+                color=discord.Color.gray()
+            )
+            await message.edit(embed=embed)
+
+    @commands.command(name="buyfruit")
+    @commands.cooldown(1, FRUIT_BUY_COOLDOWN, commands.BucketType.user)
+    async def buy_fruit(self, ctx, fruit_type: str = None):
+        """Buy a random Devil Fruit. Use 'rare' to specifically buy a rare fruit."""
+        user = ctx.author
+        
+        # Check if user has started
+        has_started = await self.config.member(user).has_started()
+        if not has_started:
+            await safe_send(ctx, "❌ You must start your journey first! Use `.start` to begin.")
+            return
+        
+        # Check if they already have a fruit
+        current_fruit = await self.config.member(user).devil_fruit()
+        if current_fruit:
+            await safe_send(ctx, f"❌ You already have **{current_fruit}**! Use `.removefruit` first to get a new one.")
+            return
+        
+        # Determine if they want to force a rare fruit
+        force_rare = fruit_type and fruit_type.lower() == "rare"
+        cost = BUY_RARE_FRUIT_COST if force_rare else BUY_FRUIT_COST
+        
+        # Check if they have enough berries
+        total_berries = await self.config.member(user).total_berris()
+        if total_berries < cost:
+            embed = discord.Embed(
+                title="💰 Insufficient Berris",
+                description=f"You need {format_berris(cost)} but only have {format_berris(total_berries)}!",
+                color=discord.Color.red()
+            )
+            
+            embed.add_field(
+                name="💡 How to Earn Berris",
+                value="• Win battles with `.db`\n• Complete daily activities\n• Bank robberies with `.rob`",
+                inline=False
+            )
+            
+            await safe_send(ctx, embed=embed)
+            return
+        
+        # Show available rare fruits if forcing rare
+        if force_rare:
+            available_rares = await self.fruit_manager._get_available_rare_fruits(ctx.guild)
+            if not available_rares:
+                await safe_send(ctx, "❌ No rare fruits are currently available for purchase!")
+                return
+            
+            embed = discord.Embed(
+                title="⭐ Available Rare Fruits",
+                description=f"Available rare fruits: {len(available_rares)}\nCost: {format_berris(cost)}",
+                color=discord.Color.gold()
+            )
+        else:
+            embed = discord.Embed(
+                title="🍎 Buy Devil Fruit",
+                description=f"Purchase a random Devil Fruit for {format_berris(cost)}",
+                color=discord.Color.purple()
+            )
+            
+            embed.add_field(
+                name="🎲 Chances",
+                value=f"• {int(BUY_COMMON_CHANCE * 100)}% Common Fruit\n• {int(BUY_RARE_CHANCE * 100)}% Rare Fruit",
+                inline=True
+            )
+        
+        embed.add_field(
+            name="🤔 Confirmation",
+            value="React with ✅ to confirm or ❌ to cancel",
+            inline=False
+        )
+        
+        message = await safe_send(ctx, embed=embed)
+        if not message:
+            return
+        
+        # Add reactions
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
+        
+        def check(reaction, reaction_user):
+            return (reaction_user == user and 
+                    reaction.message.id == message.id and 
+                    str(reaction.emoji) in ["✅", "❌"])
+        
+        try:
+            reaction, _ = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+            
+            if str(reaction.emoji) == "✅":
+                # Buy the fruit
+                success, msg, fruit_name, is_rare = await self.fruit_manager.buy_fruit(user, ctx.guild, force_rare)
+                
+                if success:
+                    # Create purchase embed
+                    embed = await self.fruit_manager.create_fruit_purchase_embed(user, fruit_name, is_rare, cost)
+                    await message.edit(embed=embed)
+                    
+                    # Send special announcement for rare fruits
+                    if is_rare:
+                        announcement = discord.Embed(
+                            title="🌟 RARE FRUIT PURCHASED! 🌟",
+                            description=f"**{user.display_name}** has purchased the legendary **{fruit_name}**!",
+                            color=discord.Color.gold()
+                        )
+                        announcement.set_thumbnail(url=user.display_avatar.url)
+                        await safe_send(ctx, embed=announcement)
+                else:
+                    await safe_send(ctx, f"❌ {msg}")
+            else:
+                embed = discord.Embed(
+                    title="❌ Purchase Cancelled",
+                    description="Devil Fruit purchase cancelled.",
+                    color=discord.Color.blue()
+                )
+                await message.edit(embed=embed)
+                
+        except asyncio.TimeoutError:
+            embed = discord.Embed(
+                title="⏰ Purchase Timeout",
+                description="Purchase cancelled due to no response.",
+                color=discord.Color.gray()
+            )
+            await message.edit(embed=embed)
+
+    @commands.command(name="changefruit")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def change_user_fruit(self, ctx, user: discord.Member, *, fruit_name: str):
+        """Change a user's Devil Fruit to a specific one (Admin only)."""
+        # Check if fruit exists
+        fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+        
+        if not fruit_data:
+            # Show available fruits
+            embed = discord.Embed(
+                title="❌ Devil Fruit Not Found",
+                description=f"'{fruit_name}' is not a valid Devil Fruit name.",
+                color=discord.Color.red()
+            )
+            
+            # Show some examples
+            common_examples = list(DEVIL_FRUITS["Common"].keys())[:5]
+            rare_examples = list(DEVIL_FRUITS["Rare"].keys())[:5]
+            
+            embed.add_field(
+                name="🔹 Common Examples",
+                value="\n".join([f"• {fruit}" for fruit in common_examples]),
+                inline=True
+            )
+            
+            embed.add_field(
+                name="⭐ Rare Examples", 
+                value="\n".join([f"• {fruit}" for fruit in rare_examples]),
+                inline=True
+            )
+            
+            await safe_send(ctx, embed=embed)
+            return
+        
+        # Change the fruit
+        success, msg = await self.fruit_manager.change_fruit(user, ctx.guild, fruit_name)
+        
+        if success:
+            is_rare = fruit_name in DEVIL_FRUITS["Rare"]
+            
+            embed = discord.Embed(
+                title="🔄 Devil Fruit Changed",
+                description=msg,
+                color=discord.Color.gold() if is_rare else discord.Color.blue()
+            )
+            
+            embed.add_field(
+                name="🍎 New Fruit",
+                value=f"**{fruit_name}**",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="📝 Type",
+                value=fruit_data["type"],
+                inline=True
+            )
+            
+            embed.add_field(
+                name="⚡ Rarity",
+                value="⭐ Rare" if is_rare else "🔹 Common",
+                inline=True
+            )
+            
+            embed.add_field(
+                name="💫 Power",
+                value=fruit_data["bonus"],
+                inline=False
+            )
+            
+            await safe_send(ctx, embed=embed)
+        else:
+            await safe_send(ctx, f"❌ {msg}")
+
+    @commands.command(name="fruitshop")
+    async def fruit_shop(self, ctx):
+        """View the Devil Fruit shop and pricing."""
+        embed = discord.Embed(
+            title="🍎 Devil Fruit Shop",
+            description="Manage your Devil Fruit powers here!",
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="🗑️ Remove Current Fruit",
+            value=f"**Cost:** {format_berris(REMOVE_FRUIT_COST)}\n**Cooldown:** 24 hours\n**Command:** `.removefruit`",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎲 Buy Random Fruit",
+            value=f"**Cost:** {format_berris(BUY_FRUIT_COST)}\n**Chances:** {int(BUY_COMMON_CHANCE * 100)}% Common, {int(BUY_RARE_CHANCE * 100)}% Rare\n**Command:** `.buyfruit`",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⭐ Buy Rare Fruit",
+            value=f"**Cost:** {format_berris(BUY_RARE_FRUIT_COST)}\n**Guaranteed:** Rare fruit (if available)\n**Command:** `.buyfruit rare`",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📝 Notes",
+            value="• You must remove your current fruit before buying a new one\n• Rare fruits are limited per server\n• All purchases are final!",
+            inline=False
+        )
+        
+        await safe_send(ctx, embed=embed)
 
     @commands.command(name="fruitstats")
     @commands.admin_or_permissions(manage_guild=True)
@@ -922,7 +1273,7 @@ class BattleCommands(commands.Cog):
         
         await safe_send(ctx, embed=embed)
 
-    @commands.command(name="givefruit", hidden=True)
+    @commands.command(name="givedevilfruit", hidden=True)
     @commands.is_owner()
     async def give_devil_fruit(self, ctx, user: discord.Member, *, fruit_name: str):
         """Give a devil fruit to a user (Owner only)."""
