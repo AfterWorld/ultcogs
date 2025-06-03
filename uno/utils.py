@@ -125,9 +125,9 @@ def create_placeholder_card(card: UnoCard, width: int = 100, height: int = 140) 
     return img
 
 
-def setup_assets_directory(bot_data_path: Path) -> Path:
+def setup_assets_directory(cog_data_path: Path) -> Path:
     """Setup and return the assets directory path"""
-    assets_path = bot_data_path / "uno" / "assets"
+    assets_path = cog_data_path / "assets"
     assets_path.mkdir(parents=True, exist_ok=True)
     
     # Create a readme file explaining the card naming convention

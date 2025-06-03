@@ -5,7 +5,7 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 from typing import Optional
-from pathlib import Path
+from redbot.core.data_manager import cog_data_path
 
 from .game import UnoGameSession, GameState
 from .views import UnoGameView, LobbyView
@@ -25,7 +25,7 @@ class UnoCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        self.assets_path = setup_assets_directory(Path(bot.data_path))
+        self.assets_path = setup_assets_directory(cog_data_path(self))
         
         # Start background tasks
         self.cleanup_task.start()
@@ -190,7 +190,7 @@ class UnoCog(commands.Cog):
         await ctx.send(embed=embed)
     
     @uno_group.command(name="stats")
-    async def uno_stats(self, ctx):
+    async def show_stats(self, ctx):
         """Show bot-wide Uno statistics"""
         embed = discord.Embed(title="📈 Uno Bot Statistics", color=discord.Color.gold())
         
@@ -215,6 +215,90 @@ class UnoCog(commands.Cog):
             )
         
         await ctx.send(embed=embed)
+    
+    @uno_group.command(name="download_assets")
+    async def download_assets(self, ctx):
+        """Download Uno card assets from GitHub repository"""
+        try:
+            import aiohttp
+        except ImportError:
+            await ctx.send("❌ `aiohttp` is required for downloading assets. Please install it with `pip install aiohttp`")
+            return
+        
+        base_url = "https://raw.githubusercontent.com/AfterWorld/ultcogs/main/uno/assets/"
+        
+        # List of all required card files based on Uno deck
+        card_files = []
+        
+        # Number cards for each color
+        colors = ["Red", "Green", "Yellow", "Blue"]
+        for color in colors:
+            for num in range(10):  # 0-9
+                card_files.append(f"{color}_{num}.png")
+            # Action cards
+            card_files.extend([
+                f"{color}_skip.png",
+                f"{color}_reverse.png", 
+                f"{color}_draw2.png"
+            ])
+        
+        # Wild cards
+        card_files.extend(["Wild_Card.png", "Wild_draw4.png"])
+        
+        embed = discord.Embed(
+            title="🎴 Downloading Card Assets",
+            description=f"Downloading {len(card_files)} card images...",
+            color=discord.Color.blue()
+        )
+        message = await ctx.send(embed=embed)
+        
+        downloaded = 0
+        failed = []
+        
+        async with aiohttp.ClientSession() as session:
+            for filename in card_files:
+                try:
+                    url = base_url + filename
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            file_path = self.assets_path / filename
+                            with open(file_path, 'wb') as f:
+                                f.write(await response.read())
+                            downloaded += 1
+                        else:
+                            failed.append(f"{filename} (Status: {response.status})")
+                except Exception as e:
+                    failed.append(f"{filename} (Error: {str(e)})")
+                
+                # Update progress every 10 files
+                if downloaded % 10 == 0:
+                    embed.description = f"Downloaded {downloaded}/{len(card_files)} files..."
+                    try:
+                        await message.edit(embed=embed)
+                    except:
+                        pass
+        
+        # Final result
+        if downloaded == len(card_files):
+            embed = discord.Embed(
+                title="✅ Assets Downloaded Successfully!",
+                description=f"Downloaded all {downloaded} card images to assets folder.",
+                color=discord.Color.green()
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Download Completed with Issues",
+                description=f"Downloaded {downloaded}/{len(card_files)} files.",
+                color=discord.Color.orange()
+            )
+            if failed:
+                failed_list = "\n".join(failed[:10])  # Show first 10 failures
+                if len(failed) > 10:
+                    failed_list += f"\n... and {len(failed) - 10} more"
+                embed.add_field(name="Failed Downloads", value=failed_list, inline=False)
+        
+        embed.set_footer(text="You can now use 'uno start' to begin playing!")
+        await message.edit(embed=embed)
     
     @uno_group.command(name="rules")
     async def show_rules(self, ctx):
@@ -374,3 +458,4 @@ async def setup(bot):
     """Setup function for Red-Discord bot"""
     cog = UnoCog(bot)
     await bot.add_cog(cog)
+
