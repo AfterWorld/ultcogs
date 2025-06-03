@@ -190,7 +190,7 @@ class UnoCog(commands.Cog):
         await ctx.send(embed=embed)
     
     @uno_group.command(name="stats")
-    async def bot_stats(self, ctx):
+    async def uno_stats(self, ctx):
         """Show bot-wide Uno statistics"""
         embed = discord.Embed(title="📈 Uno Bot Statistics", color=discord.Color.gold())
         
@@ -374,9 +374,3 @@ async def setup(bot):
     """Setup function for Red-Discord bot"""
     cog = UnoCog(bot)
     await bot.add_cog(cog)
-
-
-# For testing or direct import
-def setup_cog(bot):
-    """Alternative setup function"""
-    return UnoCog(bot)
