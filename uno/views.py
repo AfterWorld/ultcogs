@@ -32,8 +32,8 @@ def get_card_emoji(card: UnoCard, bot: discord.Client) -> str:
     if emoji:
         return str(emoji)
     
-    # Fallback to text if emoji not found
-    return f"`{card.display_name}`"
+    # Return None if emoji not found (let caller handle fallback)
+    return None
 
 
 def get_card_emoji_fallback(card: UnoCard) -> str:
@@ -120,16 +120,18 @@ class HandButton(discord.ui.Button):
             # Add organized card list with emojis
             for color, cards in color_groups.items():
                 if len(cards) > 0:
-                    card_emojis = []
+                    card_display = []
                     for card in cards:
                         emoji = get_card_emoji(card, self.cog.bot)
-                        card_emojis.append(emoji)
+                        # If custom emoji is available, use it; otherwise use fallback
+                        if emoji:
+                            card_display.append(emoji)
+                        else:
+                            # Fallback: show colored emoji + text
+                            fallback_emoji = get_card_emoji_fallback(card)
+                            card_display.append(f"{fallback_emoji}`{card.display_name}`")
                     
-                    # Create field value with emojis and text
-                    emoji_line = " ".join(card_emojis)
-                    text_line = ", ".join([card.display_name for card in cards])
-                    
-                    field_value = f"{emoji_line}\n`{text_line}`"
+                    field_value = " ".join(card_display)
                     embed.add_field(name=f"{color} Cards ({len(cards)})", value=field_value, inline=False)
             
             # Check if it's player's turn and what cards they can play
@@ -146,7 +148,11 @@ class HandButton(discord.ui.Button):
                     playable_emojis = []
                     for card in playable[:8]:  # Show first 8 to avoid embed limits
                         emoji = get_card_emoji(card, self.cog.bot)
-                        playable_emojis.append(emoji)
+                        if emoji:
+                            playable_emojis.append(emoji)
+                        else:
+                            fallback = get_card_emoji_fallback(card)
+                            playable_emojis.append(f"{fallback}`{card.display_name}`")
                     
                     playable_display = " ".join(playable_emojis)
                     if len(playable) > 8:
@@ -192,7 +198,7 @@ class HandButton(discord.ui.Button):
                 color=discord.Color.red()
             )
             
-            card_list = "\n".join([f"{get_card_emoji_fallback(card)} {card.display_name}" for card in hand.cards])
+            card_list = "\n".join([f"{get_card_emoji_fallback(card)} `{card.display_name}`" for card in hand.cards])
             embed.add_field(name="Your Cards", value=card_list, inline=False)
             
             view = DismissView()
@@ -276,9 +282,15 @@ class PlayButton(discord.ui.Button):
             # Show current game state for context
             if self.game_session.deck.top_card:
                 current_card_emoji = get_card_emoji(self.game_session.deck.top_card, self.cog.bot)
+                if current_card_emoji:
+                    card_display = f"{current_card_emoji} {self.game_session.deck.top_card}"
+                else:
+                    fallback = get_card_emoji_fallback(self.game_session.deck.top_card)
+                    card_display = f"{fallback} {self.game_session.deck.top_card}"
+                
                 embed.add_field(
                     name="Current Card",
-                    value=f"{current_card_emoji} {self.game_session.deck.top_card}",
+                    value=card_display,
                     inline=True
                 )
             
@@ -534,9 +546,15 @@ class CardTypeDropdown(discord.ui.Select):
         if selected_card.color == UnoColor.WILD:
             view = EnhancedColorSelectionView(self.game_session, selected_card, self.cog)
             emoji = get_card_emoji(selected_card, self.cog.bot)
+            if emoji:
+                card_display = f"{emoji} **{selected_card.display_name}**"
+            else:
+                fallback = get_card_emoji_fallback(selected_card)
+                card_display = f"{fallback} **{selected_card.display_name}**"
+            
             embed = discord.Embed(
                 title="🌈 Choose Color",
-                description=f"You're playing {emoji} **{selected_card.display_name}**. Choose the new color:",
+                description=f"You're playing {card_display}. Choose the new color:",
                 color=discord.Color.purple()
             )
             await interaction.edit_original_response(embed=embed, view=view)
@@ -548,9 +566,15 @@ class CardTypeDropdown(discord.ui.Select):
                 # Update main game view
                 await self.cog.update_game_display(self.game_session)
                 emoji = get_card_emoji(selected_card, self.cog.bot)
+                if emoji:
+                    card_display = f"{emoji} {message}"
+                else:
+                    fallback = get_card_emoji_fallback(selected_card)
+                    card_display = f"{fallback} {message}"
+                
                 embed = discord.Embed(
                     title="✅ Card Played!",
-                    description=f"{emoji} {message}",
+                    description=card_display,
                     color=discord.Color.green()
                 )
             else:
@@ -613,9 +637,15 @@ class EnhancedColorButton(discord.ui.Button):
             # Update main game view
             await self.cog.update_game_display(self.game_session)
             wild_emoji = get_card_emoji(self.wild_card, self.cog.bot)
+            if wild_emoji:
+                card_display = f"{wild_emoji} {message}"
+            else:
+                fallback = get_card_emoji_fallback(self.wild_card)
+                card_display = f"{fallback} {message}"
+            
             embed = discord.Embed(
                 title="✅ Wild Card Played!",
-                description=f"{wild_emoji} {message}",
+                description=card_display,
                 color=discord.Color.green()
             )
         else:
@@ -652,16 +682,17 @@ class DrawCardView(discord.ui.View):
             
             # Show what was drawn with emojis
             if cards:
-                drawn_emojis = []
-                drawn_names = []
+                drawn_display = []
                 for card in cards:
                     emoji = get_card_emoji(card, self.cog.bot)
-                    drawn_emojis.append(emoji)
-                    drawn_names.append(card.display_name)
+                    if emoji:
+                        drawn_display.append(emoji)
+                    else:
+                        fallback = get_card_emoji_fallback(card)
+                        drawn_display.append(f"{fallback}`{card.display_name}`")
                 
-                emoji_line = " ".join(drawn_emojis)
-                text_line = ", ".join(drawn_names)
-                embed.add_field(name="Cards Drawn", value=f"{emoji_line}\n`{text_line}`", inline=False)
+                display_line = " ".join(drawn_display)
+                embed.add_field(name="Cards Drawn", value=display_line, inline=False)
         else:
             embed = discord.Embed(
                 title="❌ Cannot Draw",
