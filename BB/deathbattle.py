@@ -16,7 +16,7 @@ try:
     from .utils import (
         setup_logger, calculate_damage, check_critical_hit, 
         create_battle_embed, get_random_move, safe_send,
-        get_random_environment, create_character_data
+        get_random_environment, create_character_data, format_berris  # Add this
     )
     from .constants import *
     from .gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
@@ -40,7 +40,7 @@ except ImportError:
         from utils import (
             setup_logger, calculate_damage, check_critical_hit, 
             create_battle_embed, get_random_move, safe_send,
-            get_random_environment, create_character_data
+            get_random_environment, create_character_data, format_berris  # Add this
         )
         from constants import *
         from gamedata import MOVES, MOVE_TYPES, ENVIRONMENTS, DEVIL_FRUITS
