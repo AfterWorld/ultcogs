@@ -3,7 +3,7 @@ Uno Game Cog Package
 A comprehensive Uno card game implementation for Red-Discord bots
 """
 
-from .uno import UnoCog, setup
+from .uno_backup import UnoCog, setup
 
 __version__ = "1.0.0"
 __author__ = "Uno Cog Developer"
