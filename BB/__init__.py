@@ -5,9 +5,30 @@ import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 
-from .bank import BankCommands
-from .deathbattle import BattleCommands
-from .utils import setup_logger
+# Import with absolute path handling
+import sys
+import os
+
+# Get the directory of this __init__.py file
+cog_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Temporarily add to path for imports
+if cog_dir not in sys.path:
+    sys.path.insert(0, cog_dir)
+
+try:
+    from .bank import BankCommands
+    from .deathbattle import BattleCommands
+    from .utils import setup_logger
+except ImportError:
+    # Fallback imports
+    from bank import BankCommands
+    from deathbattle import BattleCommands
+    from utils import setup_logger
+finally:
+    # Clean up path
+    if cog_dir in sys.path:
+        sys.path.remove(cog_dir)
 
 class DeathBattle(BankCommands, BattleCommands):
     """

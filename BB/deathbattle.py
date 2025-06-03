@@ -11,11 +11,35 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from typing import Optional, Tuple
 
-from .utils import (
-    setup_logger, calculate_damage, check_critical_hit, 
-    create_battle_embed, get_random_move, safe_send
-)
-from .constants import *
+# Handle imports more robustly
+try:
+    from .utils import (
+        setup_logger, calculate_damage, check_critical_hit, 
+        create_battle_embed, get_random_move, safe_send
+    )
+    from .constants import *
+except ImportError:
+    # Fallback for when the cog is loaded through CogManager
+    import sys
+    import os
+    
+    # Get the current directory of this file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Add the BB directory to the Python path temporarily
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
+    try:
+        from utils import (
+            setup_logger, calculate_damage, check_critical_hit, 
+            create_battle_embed, get_random_move, safe_send
+        )
+        from constants import *
+    finally:
+        # Clean up the path
+        if current_dir in sys.path:
+            sys.path.remove(current_dir)
 
 class BattleSystem:
     """Handles battle mechanics and state."""

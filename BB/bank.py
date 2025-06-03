@@ -9,8 +9,14 @@ import random
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .utils import setup_logger, format_berris, calculate_robbery_amount, safe_send
-from .constants import *
+# Handle imports more robustly
+try:
+    from .utils import setup_logger, format_berris, calculate_robbery_amount, safe_send
+    from .constants import *
+except ImportError:
+    # Fallback for when the cog is loaded through CogManager
+    from utils import setup_logger, format_berris, calculate_robbery_amount, safe_send
+    from constants import *
 
 class BankSystem:
     """Handles all banking operations for Berris."""
