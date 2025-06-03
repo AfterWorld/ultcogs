@@ -1,25 +1,39 @@
 """
 Enhanced utility functions for Uno game
-Features: Statistics Management, Performance Optimizations, Better Visualization
+Features: Statistics Management, Performance Optimizations, Emoji Card Display
 """
 import os
 import asyncio
 import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
-from PIL import Image, ImageDraw, ImageFont
 import discord
 from datetime import datetime, timedelta
 from .cards import UnoCard, UnoColor, UnoCardType
 
 
-# Performance caching
-_card_image_cache: Dict[str, Image.Image] = {}
-_font_cache: Dict[int, ImageFont.FreeTypeFont] = {}
+def get_card_emoji_name(card: UnoCard) -> str:
+    """Get the emoji name for a card (matches asset file naming)"""
+    if card.color == UnoColor.WILD:
+        if card.card_type == UnoCardType.WILD:
+            return "Wild_Card"
+        elif card.card_type == UnoCardType.WILD_DRAW4:
+            return "Wild_draw4"
+    else:
+        if card.card_type == UnoCardType.NUMBER:
+            return f"{card.color.value}_{card.value}"
+        elif card.card_type == UnoCardType.SKIP:
+            return f"{card.color.value}_skip"
+        elif card.card_type == UnoCardType.REVERSE:
+            return f"{card.color.value}_reverse"
+        elif card.card_type == UnoCardType.DRAW2:
+            return f"{card.color.value}_draw2"
+    
+    return "Unknown_Card"
 
 
-def get_card_emoji(card: UnoCard) -> str:
-    """Get emoji representation for a card"""
+def get_card_emoji_fallback(card: UnoCard) -> str:
+    """Get emoji representation for a card (fallback method)"""
     color_emojis = {
         UnoColor.RED: "🔴",
         UnoColor.GREEN: "🟢",
@@ -40,233 +54,6 @@ def get_card_emoji(card: UnoCard) -> str:
     return color_emojis.get(card.color, "🎴")
 
 
-def _load_cached_image(file_path: Path) -> Optional[Image.Image]:
-    """Load and cache card images for performance"""
-    cache_key = str(file_path)
-    
-    if cache_key in _card_image_cache:
-        return _card_image_cache[cache_key].copy()
-    
-    if file_path.exists():
-        try:
-            img = Image.open(file_path)
-            # Cache the image
-            _card_image_cache[cache_key] = img.copy()
-            return img
-        except Exception as e:
-            print(f"Error loading image {file_path}: {e}")
-    
-    return None
-
-
-def _get_font(size: int) -> Optional[ImageFont.FreeTypeFont]:
-    """Get cached font for text rendering"""
-    if size in _font_cache:
-        return _font_cache[size]
-    
-    try:
-        # Try to load a nice font, fallback to default
-        font_paths = [
-            "/System/Library/Fonts/Arial.ttf",  # macOS
-            "/Windows/Fonts/arial.ttf",         # Windows
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
-        ]
-        
-        font = None
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, size)
-                break
-        
-        if not font:
-            font = ImageFont.load_default()
-        
-        _font_cache[size] = font
-        return font
-        
-    except Exception:
-        return ImageFont.load_default()
-
-
-async def create_hand_image(cards: List[UnoCard], assets_path: Path, organize_by_color: bool = True) -> Optional[str]:
-    """
-    Create an enhanced composite image showing all cards in a hand.
-    Returns the path to the generated image file.
-    """
-    if not cards:
-        return None
-    
-    try:
-        start_time = time.time()
-        
-        # Organize cards by color for better visualization
-        if organize_by_color:
-            cards = _organize_cards_by_color(cards)
-        
-        # Load all card images with caching
-        card_images = []
-        card_width = 0
-        card_height = 0
-        
-        for card in cards:
-            card_path = assets_path / card.filename
-            img = _load_cached_image(card_path)
-            
-            if img:
-                card_images.append(img)
-                if card_width == 0:  # Set dimensions from first card
-                    card_width, card_height = img.size
-            else:
-                # Create placeholder image if card file doesn't exist
-                placeholder = create_enhanced_placeholder_card(card, card_width or 100, card_height or 140)
-                card_images.append(placeholder)
-                if card_width == 0:
-                    card_width, card_height = placeholder.size
-        
-        if not card_images:
-            return None
-        
-        # Calculate final image dimensions with improved spacing
-        overlap = max(20, card_width // 5)  # Better overlap ratio
-        final_width = card_width + (len(card_images) - 1) * overlap + 20  # Add padding
-        final_height = card_height + 40  # Add top/bottom padding
-        
-        # Create the composite image with background
-        hand_image = Image.new('RGBA', (final_width, final_height), (40, 40, 40, 0))
-        
-        # Add subtle background
-        bg = Image.new('RGBA', (final_width, final_height), (20, 20, 20, 180))
-        hand_image = Image.alpha_composite(hand_image, bg)
-        
-        # Paste each card with overlap and slight rotation for visual appeal
-        for i, card_img in enumerate(card_images):
-            x_pos = 10 + i * overlap
-            y_pos = 20
-            
-            # Add slight rotation for visual interest (optional)
-            if len(card_images) > 5:
-                rotation = (i - len(card_images) // 2) * 2  # Max 2 degrees rotation
-                if rotation != 0:
-                    card_img = card_img.rotate(rotation, expand=True, fillcolor=(0, 0, 0, 0))
-            
-            # Add drop shadow
-            shadow = Image.new('RGBA', card_img.size, (0, 0, 0, 100))
-            hand_image.paste(shadow, (x_pos + 2, y_pos + 2), shadow)
-            
-            # Paste the card
-            hand_image.paste(card_img, (x_pos, y_pos), card_img if card_img.mode == 'RGBA' else None)
-        
-        # Add card count overlay
-        draw = ImageDraw.Draw(hand_image)
-        font = _get_font(16)
-        text = f"{len(cards)} cards"
-        
-        # Get text size for positioning
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Draw text with outline
-        text_x = final_width - text_width - 10
-        text_y = 5
-        
-        # Outline
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                draw.text((text_x + dx, text_y + dy), text, font=font, fill=(0, 0, 0, 255))
-        
-        # Main text
-        draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255, 255))
-        
-        # Save the composite image
-        timestamp = int(time.time())
-        output_path = assets_path / f"temp_hand_{timestamp}.png"
-        hand_image.save(output_path, "PNG", optimize=True)
-        
-        # Performance logging
-        end_time = time.time()
-        print(f"Hand image created in {end_time - start_time:.2f}s ({len(cards)} cards)")
-        
-        return str(output_path)
-        
-    except Exception as e:
-        print(f"Error creating hand image: {e}")
-        return None
-
-
-def _organize_cards_by_color(cards: List[UnoCard]) -> List[UnoCard]:
-    """Organize cards by color for better hand visualization"""
-    color_order = [UnoColor.RED, UnoColor.GREEN, UnoColor.YELLOW, UnoColor.BLUE, UnoColor.WILD]
-    organized = []
-    
-    for color in color_order:
-        color_cards = [card for card in cards if card.color == color]
-        # Sort number cards numerically, action cards after
-        color_cards.sort(key=lambda c: (
-            c.card_type != UnoCardType.NUMBER,  # Numbers first
-            c.value if c.card_type == UnoCardType.NUMBER else 100,  # Then by value
-            c.card_type.value  # Then by type
-        ))
-        organized.extend(color_cards)
-    
-    return organized
-
-
-def create_enhanced_placeholder_card(card: UnoCard, width: int = 100, height: int = 140) -> Image.Image:
-    """Create an enhanced placeholder image for a missing card file"""
-    # Color mapping with better colors
-    color_map = {
-        UnoColor.RED: (220, 20, 20),
-        UnoColor.GREEN: (20, 180, 20),
-        UnoColor.YELLOW: (255, 200, 20),
-        UnoColor.BLUE: (20, 100, 220),
-        UnoColor.WILD: (80, 80, 80)
-    }
-    
-    # Create image with colored background
-    bg_color = color_map.get(card.color, (150, 150, 150))
-    img = Image.new('RGB', (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
-    
-    # Draw rounded rectangle border
-    border_color = tuple(max(0, c - 50) for c in bg_color)
-    draw.rounded_rectangle([(2, 2), (width-3, height-3)], radius=8, outline=border_color, width=3)
-    
-    # Add card text
-    if card.card_type == UnoCardType.NUMBER:
-        main_text = str(card.value)
-        sub_text = card.color.value[:3].upper()
-    else:
-        main_text = card.card_type.value.replace('_', '\n').upper()
-        sub_text = card.color.value[:3].upper()
-    
-    # Draw main text (large)
-    font_large = _get_font(min(width // 3, 24))
-    font_small = _get_font(min(width // 6, 12))
-    
-    # Main text
-    bbox = draw.textbbox((0, 0), main_text, font=font_large)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    text_x = (width - text_width) // 2
-    text_y = (height - text_height) // 2 - 10
-    
-    # Text with shadow
-    draw.text((text_x + 1, text_y + 1), main_text, font=font_large, fill=(0, 0, 0, 128))
-    draw.text((text_x, text_y), main_text, font=font_large, fill=(255, 255, 255))
-    
-    # Sub text
-    bbox = draw.textbbox((0, 0), sub_text, font=font_small)
-    sub_width = bbox[2] - bbox[0]
-    sub_x = (width - sub_width) // 2
-    sub_y = text_y + text_height + 5
-    
-    draw.text((sub_x + 1, sub_y + 1), sub_text, font=font_small, fill=(0, 0, 0, 128))
-    draw.text((sub_x, sub_y), sub_text, font=font_small, fill=(255, 255, 255))
-    
-    return img
-
-
 def setup_assets_directory(cog_data_path: Path) -> Path:
     """Setup and return the assets directory path"""
     assets_path = cog_data_path / "assets"
@@ -275,11 +62,34 @@ def setup_assets_directory(cog_data_path: Path) -> Path:
     # Create a comprehensive readme file
     readme_path = assets_path / "README.md"
     if not readme_path.exists():
-        readme_content = """# Uno Card Assets
+        readme_content = """# Uno Card Assets & Emojis
 
-Place your Uno card images in this directory using the following naming convention:
+## Emoji Setup (Recommended)
+The bot now uses Discord emojis for cards instead of images. Upload the card images as custom emojis to your server with these exact names:
 
-## Naming Convention:
+### Required Emoji Names:
+```
+Number Cards (40 total):
+Red_0, Red_1, Red_2, ..., Red_9
+Green_0, Green_1, Green_2, ..., Green_9
+Yellow_0, Yellow_1, Yellow_2, ..., Yellow_9
+Blue_0, Blue_1, Blue_2, ..., Blue_9
+
+Action Cards (24 total):
+Red_skip, Red_reverse, Red_draw2
+Green_skip, Green_reverse, Green_draw2
+Yellow_skip, Yellow_reverse, Yellow_draw2
+Blue_skip, Blue_reverse, Blue_draw2
+
+Wild Cards (8 total):
+Wild_Card
+Wild_draw4
+```
+
+## Image Assets (Legacy/Fallback)
+If you prefer using image files instead of emojis, place your Uno card images in this directory using the following naming convention:
+
+### Naming Convention:
 - Number cards: `{Color}_{Number}.png` (e.g., `Red_5.png`, `Blue_0.png`)
 - Skip cards: `{Color}_skip.png` (e.g., `Green_skip.png`)
 - Reverse cards: `{Color}_reverse.png` (e.g., `Yellow_reverse.png`)
@@ -287,44 +97,41 @@ Place your Uno card images in this directory using the following naming conventi
 - Wild cards: `Wild_Card.png`
 - Wild Draw 4 cards: `Wild_draw4.png`
 
-## Colors:
+### Colors:
 - Red
 - Green  
 - Yellow
 - Blue
 - Wild (for wild cards)
 
-## Image Requirements:
-- Format: PNG (recommended) or JPG
-- Size: 100x140 pixels (recommended)
-- Transparent background preferred for PNG files
-- High quality for best visual results
+## Setup Instructions:
 
-## Performance Tips:
-- Optimize images to reduce file size
-- Use consistent dimensions across all cards
-- PNG format with transparency works best
+### Method 1: Discord Emojis (Recommended)
+1. Get Uno card images
+2. Upload each image as a custom emoji to your Discord server
+3. Name each emoji exactly as shown above (case-sensitive)
+4. The bot will automatically use these emojis for card display
 
-## Complete File List:
-```
-Number Cards (40 total):
-Red_0.png, Red_1.png, Red_2.png, ..., Red_9.png
-Green_0.png, Green_1.png, Green_2.png, ..., Green_9.png
-Yellow_0.png, Yellow_1.png, Yellow_2.png, ..., Yellow_9.png
-Blue_0.png, Blue_1.png, Blue_2.png, ..., Blue_9.png
+### Method 2: Image Files (Legacy)
+1. Place card image files in this assets directory
+2. Use the naming convention above
+3. Format: PNG (recommended) or JPG
+4. Size: 100x140 pixels (recommended)
 
-Action Cards (24 total):
-Red_skip.png, Red_reverse.png, Red_draw2.png
-Green_skip.png, Green_reverse.png, Green_draw2.png
-Yellow_skip.png, Yellow_reverse.png, Yellow_draw2.png
-Blue_skip.png, Blue_reverse.png, Blue_draw2.png
+## Performance Benefits:
+- Emojis load faster than images
+- No file storage requirements
+- Consistent sizing across all cards
+- Better mobile experience
+- Instant loading in hands and game displays
 
-Wild Cards (8 total):
-Wild_Card.png
-Wild_draw4.png
-```
+## Troubleshooting:
+- If emojis don't appear, check that they're uploaded to the same server as the bot
+- Emoji names must match exactly (case-sensitive)
+- Bot needs access to use external emojis if emojis are from other servers
+- Fallback will show colored circles if emojis are missing
 
-Total: 108 card files (matching standard Uno deck)
+Total: 108 emojis needed (matching standard Uno deck)
 
 Note: All names are case-sensitive and use underscores as separators.
 """
@@ -402,8 +209,9 @@ def format_card_counts(card_counts: dict, current_player: Optional[int] = None, 
 
 def validate_card_files(assets_path: Path) -> Tuple[List[str], List[str]]:
     """
-    Validate that all required card files exist with enhanced checking.
+    Validate that all required card files exist.
     Returns (missing_files, existing_files)
+    Note: This is now mainly for legacy image support
     """
     from .cards import UnoDeck
     
@@ -413,24 +221,43 @@ def validate_card_files(assets_path: Path) -> Tuple[List[str], List[str]]:
     
     missing_files = []
     existing_files = []
-    corrupted_files = []
     
     # Check each card file
     for card in all_cards:
         card_path = assets_path / card.filename
         if card_path.exists():
-            # Check if file is valid image
-            try:
-                with Image.open(card_path) as img:
-                    img.verify()  # Verify it's a valid image
-                existing_files.append(card.filename)
-            except Exception:
-                corrupted_files.append(card.filename)
-                missing_files.append(f"{card.filename} (corrupted)")
+            existing_files.append(card.filename)
         else:
             missing_files.append(card.filename)
     
     return missing_files, existing_files
+
+
+def validate_card_emojis(bot: discord.Client) -> Tuple[List[str], List[str]]:
+    """
+    Validate that all required card emojis exist in the bot's available emojis.
+    Returns (missing_emojis, existing_emojis)
+    """
+    from .cards import UnoDeck
+    
+    # Create a deck to get all possible cards
+    deck = UnoDeck()
+    all_cards = deck.draw_pile.copy()
+    
+    missing_emojis = []
+    existing_emojis = []
+    
+    # Check each card emoji
+    for card in all_cards:
+        emoji_name = get_card_emoji_name(card)
+        emoji = discord.utils.get(bot.emojis, name=emoji_name)
+        
+        if emoji:
+            existing_emojis.append(emoji_name)
+        else:
+            missing_emojis.append(emoji_name)
+    
+    return missing_emojis, existing_emojis
 
 
 async def cleanup_temp_files(assets_path: Path, max_age_minutes: int = 60):
@@ -439,7 +266,9 @@ async def cleanup_temp_files(assets_path: Path, max_age_minutes: int = 60):
         current_time = time.time()
         max_age_seconds = max_age_minutes * 60
         
+        # Look for any temporary files
         temp_files = list(assets_path.glob("temp_*.png"))
+        temp_files.extend(list(assets_path.glob("temp_*.jpg")))
         cleaned_count = 0
         
         for temp_file in temp_files:
@@ -456,13 +285,6 @@ async def cleanup_temp_files(assets_path: Path, max_age_minutes: int = 60):
             
     except Exception as e:
         print(f"Error during temp file cleanup: {e}")
-
-
-def clear_image_cache():
-    """Clear the image cache to free memory"""
-    global _card_image_cache
-    _card_image_cache.clear()
-    print("Image cache cleared")
 
 
 class StatisticsManager:
@@ -661,14 +483,89 @@ class EnhancedGameManager:
             "games_completed": self.performance_stats["games_completed"],
             "average_game_duration": avg_duration,
             "peak_concurrent_games": self.performance_stats["peak_concurrent_games"],
-            "game_history_size": len(self.game_history),
-            "memory_usage": {
-                "cached_images": len(_card_image_cache),
-                "cached_fonts": len(_font_cache)
-            }
+            "game_history_size": len(self.game_history)
         }
 
 
 # Global instances
 game_manager = EnhancedGameManager()
 stats_manager = StatisticsManager()
+
+
+# Emoji setup utility functions
+def generate_emoji_upload_guide(assets_path: Path) -> str:
+    """Generate a guide for uploading emojis"""
+    from .cards import UnoDeck
+    
+    deck = UnoDeck()
+    all_cards = deck.draw_pile.copy()
+    
+    guide = """# Uno Card Emoji Upload Guide
+
+## Quick Setup Commands (if you have card images):
+If you have image files, you can use Discord's Server Settings > Emoji to bulk upload:
+
+"""
+    
+    # Group by type for easier uploading
+    number_cards = []
+    action_cards = []
+    wild_cards = []
+    
+    for card in all_cards:
+        emoji_name = get_card_emoji_name(card)
+        if card.card_type == UnoCardType.NUMBER:
+            number_cards.append(emoji_name)
+        elif card.color == UnoColor.WILD:
+            wild_cards.append(emoji_name)
+        else:
+            action_cards.append(emoji_name)
+    
+    guide += "### Number Cards (40 emojis):\n"
+    for emoji in sorted(set(number_cards)):
+        guide += f"- {emoji}\n"
+    
+    guide += "\n### Action Cards (24 emojis):\n"
+    for emoji in sorted(set(action_cards)):
+        guide += f"- {emoji}\n"
+    
+    guide += "\n### Wild Cards (8 emojis):\n"
+    for emoji in sorted(set(wild_cards)):
+        guide += f"- {emoji}\n"
+    
+    guide += f"""
+### Total: {len(set([get_card_emoji_name(card) for card in all_cards]))} unique emojis needed
+
+## Upload Instructions:
+1. Go to Server Settings > Emoji
+2. Click "Upload Emoji" 
+3. Select image file
+4. Enter exact emoji name from list above
+5. Repeat for all cards
+
+## Notes:
+- Emoji names are case-sensitive
+- Use underscores, not spaces
+- Bot needs "Use External Emojis" permission if emojis are from other servers
+- Standard Discord servers support 50 static emojis (need Nitro boost for more)
+- Consider using multiple servers if you hit the limit
+"""
+    
+    return guide
+
+
+def check_bot_emoji_permissions(bot: discord.Client, guild: discord.Guild) -> Dict[str, bool]:
+    """Check if bot has necessary emoji permissions"""
+    bot_member = guild.get_member(bot.user.id)
+    if not bot_member:
+        return {"in_guild": False}
+    
+    permissions = bot_member.guild_permissions
+    
+    return {
+        "in_guild": True,
+        "use_external_emojis": permissions.use_external_emojis,
+        "manage_emojis": permissions.manage_emojis_and_stickers,
+        "embed_links": permissions.embed_links,
+        "send_messages": permissions.send_messages
+    }

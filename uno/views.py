@@ -1,12 +1,52 @@
 """
 Enhanced Discord UI Views and Components for Uno Game
-Features: Advanced Interactions, Statistics Views, Configuration UI
+Features: Advanced Interactions, Statistics Views, Configuration UI, Emoji Card Display
 """
 import discord
 from typing import List, Optional, Dict, Any
 from .game import UnoGameSession, GameState, AIPlayer
 from .cards import UnoCard, UnoColor, UnoCardType
-from .utils import create_hand_image, get_card_emoji, stats_manager
+from .utils import stats_manager
+
+
+def get_card_emoji(card: UnoCard, bot: discord.Client) -> str:
+    """Get emoji for a card using the bot's emojis"""
+    # Convert card to filename format (same as asset naming)
+    if card.color == UnoColor.WILD:
+        if card.card_type == UnoCardType.WILD:
+            emoji_name = "Wild_Card"
+        elif card.card_type == UnoCardType.WILD_DRAW4:
+            emoji_name = "Wild_draw4"
+    else:
+        if card.card_type == UnoCardType.NUMBER:
+            emoji_name = f"{card.color.value}_{card.value}"
+        elif card.card_type == UnoCardType.SKIP:
+            emoji_name = f"{card.color.value}_skip"
+        elif card.card_type == UnoCardType.REVERSE:
+            emoji_name = f"{card.color.value}_reverse"
+        elif card.card_type == UnoCardType.DRAW2:
+            emoji_name = f"{card.color.value}_draw2"
+    
+    # Find the emoji in the bot's emojis
+    emoji = discord.utils.get(bot.emojis, name=emoji_name)
+    if emoji:
+        return str(emoji)
+    
+    # Fallback to text if emoji not found
+    return f"`{card.display_name}`"
+
+
+def get_card_emoji_fallback(card: UnoCard) -> str:
+    """Get emoji representation for a card (fallback method)"""
+    color_emojis = {
+        UnoColor.RED: "🔴",
+        UnoColor.GREEN: "🟢",
+        UnoColor.YELLOW: "🟡", 
+        UnoColor.BLUE: "🔵",
+        UnoColor.WILD: "🌈"
+    }
+    
+    return color_emojis.get(card.color, "🎴")
 
 
 class UnoGameView(discord.ui.View):
@@ -40,7 +80,7 @@ class UnoGameView(discord.ui.View):
 
 
 class HandButton(discord.ui.Button):
-    """Enhanced hand viewing button"""
+    """Enhanced hand viewing button with emoji display"""
     
     def __init__(self, game_session: UnoGameSession, cog):
         super().__init__(label="🃏 Hand", style=discord.ButtonStyle.primary, row=0)
@@ -62,17 +102,14 @@ class HandButton(discord.ui.Button):
             return
         
         try:
-            # Create enhanced hand image with organization
-            image_path = await create_hand_image(hand.cards, self.cog.assets_path, organize_by_color=True)
-            
-            # Create enhanced embed
+            # Create enhanced hand display using emojis
             embed = discord.Embed(
                 title="🃏 Your Hand",
                 description=f"You have {len(hand.cards)} cards",
                 color=discord.Color.blue()
             )
             
-            # Organize cards by color for text display
+            # Organize cards by color for display
             color_groups = {}
             for card in hand.cards:
                 color_name = card.color.value
@@ -80,11 +117,20 @@ class HandButton(discord.ui.Button):
                     color_groups[color_name] = []
                 color_groups[color_name].append(card)
             
-            # Add organized card list
+            # Add organized card list with emojis
             for color, cards in color_groups.items():
                 if len(cards) > 0:
-                    card_list = ", ".join([f"{get_card_emoji(card)} {card.display_name}" for card in cards])
-                    embed.add_field(name=f"{color} Cards ({len(cards)})", value=card_list, inline=False)
+                    card_emojis = []
+                    for card in cards:
+                        emoji = get_card_emoji(card, self.cog.bot)
+                        card_emojis.append(emoji)
+                    
+                    # Create field value with emojis and text
+                    emoji_line = " ".join(card_emojis)
+                    text_line = ", ".join([card.display_name for card in cards])
+                    
+                    field_value = f"{emoji_line}\n`{text_line}`"
+                    embed.add_field(name=f"{color} Cards ({len(cards)})", value=field_value, inline=False)
             
             # Check if it's player's turn and what cards they can play
             if self.game_session.is_current_player(player_id):
@@ -96,13 +142,19 @@ class HandButton(discord.ui.Button):
                         inline=True
                     )
                     
-                    # Show which cards are playable
-                    playable_names = [card.display_name for card in playable[:5]]  # Show first 5
-                    if len(playable) > 5:
-                        playable_names.append(f"... and {len(playable) - 5} more")
+                    # Show which cards are playable with emojis
+                    playable_emojis = []
+                    for card in playable[:8]:  # Show first 8 to avoid embed limits
+                        emoji = get_card_emoji(card, self.cog.bot)
+                        playable_emojis.append(emoji)
+                    
+                    playable_display = " ".join(playable_emojis)
+                    if len(playable) > 8:
+                        playable_display += f"\n... and {len(playable) - 8} more"
+                    
                     embed.add_field(
                         name="Playable", 
-                        value=", ".join(playable_names),
+                        value=playable_display,
                         inline=True
                     )
                 else:
@@ -127,25 +179,36 @@ class HandButton(discord.ui.Button):
                 else:
                     embed.add_field(name="🔥 UNO Status", value="⚠️ Remember to call UNO!", inline=True)
             
-            if image_path:
-                file = discord.File(image_path, filename="hand.png")
-                embed.set_image(url="attachment://hand.png")
-                await interaction.followup.send(embed=embed, file=file, ephemeral=True)
-            else:
-                await interaction.followup.send(embed=embed, ephemeral=True)
+            # Create dismiss button view
+            view = DismissView()
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
                 
         except Exception as e:
+            print(f"Error displaying hand: {e}")
             # Enhanced fallback
             embed = discord.Embed(
                 title="❌ Error Loading Hand",
-                description="Could not generate hand image. Here's your card list:",
+                description="Could not generate hand display. Here's your card list:",
                 color=discord.Color.red()
             )
             
-            card_list = "\n".join([f"{get_card_emoji(card)} {card.display_name}" for card in hand.cards])
+            card_list = "\n".join([f"{get_card_emoji_fallback(card)} {card.display_name}" for card in hand.cards])
             embed.add_field(name="Your Cards", value=card_list, inline=False)
             
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            view = DismissView()
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+
+class DismissView(discord.ui.View):
+    """Simple view with dismiss button for ephemeral messages"""
+    
+    def __init__(self):
+        super().__init__(timeout=300)
+    
+    @discord.ui.button(label="✖️ Dismiss", style=discord.ButtonStyle.secondary)
+    async def dismiss(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        await interaction.delete_original_response()
 
 
 class PlayButton(discord.ui.Button):
@@ -212,9 +275,10 @@ class PlayButton(discord.ui.Button):
             
             # Show current game state for context
             if self.game_session.deck.top_card:
+                current_card_emoji = get_card_emoji(self.game_session.deck.top_card, self.cog.bot)
                 embed.add_field(
                     name="Current Card",
-                    value=str(self.game_session.deck.top_card),
+                    value=f"{current_card_emoji} {self.game_session.deck.top_card}",
                     inline=True
                 )
             
@@ -262,7 +326,8 @@ class UnoButton(discord.ui.Button):
                 color=discord.Color.red()
             )
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 class ChallengeButton(discord.ui.Button):
@@ -293,7 +358,8 @@ class ChallengeButton(discord.ui.Button):
                 color=discord.Color.red()
             )
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 class StatusButton(discord.ui.Button):
@@ -390,11 +456,12 @@ class StatusButton(discord.ui.Button):
             if settings:
                 embed.add_field(name="⚙️ Active Rules", value=" • ".join(settings), inline=False)
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 class EnhancedCardSelectionView(discord.ui.View):
-    """Enhanced view for selecting which card to play"""
+    """Enhanced view for selecting which card to play with emoji display"""
     
     def __init__(self, game_session: UnoGameSession, playable_cards: List[UnoCard], cog):
         super().__init__(timeout=300)  # 5 minutes
@@ -424,21 +491,30 @@ class EnhancedCardSelectionView(discord.ui.View):
 
 
 class CardTypeDropdown(discord.ui.Select):
-    """Dropdown for specific card types"""
+    """Dropdown for specific card types with emoji display"""
     
     def __init__(self, category: str, cards: List[UnoCard], game_session: UnoGameSession, cog):
         self.game_session = game_session
         self.cog = cog
         self.cards = cards
         
-        # Create options for each card
+        # Create options for each card with emojis
         options = []
         for i, card in enumerate(cards):
-            emoji = get_card_emoji(card)
+            emoji = get_card_emoji(card, cog.bot)
+            # Discord select options don't support custom emojis in the emoji field
+            # So we'll put the emoji in the label instead
+            label = f"{card.display_name}"
+            if isinstance(emoji, str) and emoji.startswith('<'):
+                # It's a custom emoji, put it in description
+                description = f"{emoji} Play this {card.color.value.lower()} card"
+            else:
+                # It's a unicode emoji, we can use it
+                description = f"Play this {card.color.value.lower()} card"
+            
             options.append(discord.SelectOption(
-                label=card.display_name,
-                description=f"Play this {card.color.value.lower()} card",
-                emoji=emoji,
+                label=label,
+                description=description,
                 value=str(i)
             ))
         
@@ -457,9 +533,10 @@ class CardTypeDropdown(discord.ui.Select):
         # If it's a wild card, need to select color
         if selected_card.color == UnoColor.WILD:
             view = EnhancedColorSelectionView(self.game_session, selected_card, self.cog)
+            emoji = get_card_emoji(selected_card, self.cog.bot)
             embed = discord.Embed(
                 title="🌈 Choose Color",
-                description=f"You're playing **{selected_card.display_name}**. Choose the new color:",
+                description=f"You're playing {emoji} **{selected_card.display_name}**. Choose the new color:",
                 color=discord.Color.purple()
             )
             await interaction.edit_original_response(embed=embed, view=view)
@@ -470,9 +547,10 @@ class CardTypeDropdown(discord.ui.Select):
             if success:
                 # Update main game view
                 await self.cog.update_game_display(self.game_session)
+                emoji = get_card_emoji(selected_card, self.cog.bot)
                 embed = discord.Embed(
                     title="✅ Card Played!",
-                    description=message,
+                    description=f"{emoji} {message}",
                     color=discord.Color.green()
                 )
             else:
@@ -534,9 +612,10 @@ class EnhancedColorButton(discord.ui.Button):
         if success:
             # Update main game view
             await self.cog.update_game_display(self.game_session)
+            wild_emoji = get_card_emoji(self.wild_card, self.cog.bot)
             embed = discord.Embed(
                 title="✅ Wild Card Played!",
-                description=message,
+                description=f"{wild_emoji} {message}",
                 color=discord.Color.green()
             )
         else:
@@ -571,10 +650,18 @@ class DrawCardView(discord.ui.View):
                 color=discord.Color.blue()
             )
             
-            # Show what was drawn
+            # Show what was drawn with emojis
             if cards:
-                card_list = "\n".join([f"{get_card_emoji(card)} {card.display_name}" for card in cards])
-                embed.add_field(name="Cards Drawn", value=card_list, inline=False)
+                drawn_emojis = []
+                drawn_names = []
+                for card in cards:
+                    emoji = get_card_emoji(card, self.cog.bot)
+                    drawn_emojis.append(emoji)
+                    drawn_names.append(card.display_name)
+                
+                emoji_line = " ".join(drawn_emojis)
+                text_line = ", ".join(drawn_names)
+                embed.add_field(name="Cards Drawn", value=f"{emoji_line}\n`{text_line}`", inline=False)
         else:
             embed = discord.Embed(
                 title="❌ Cannot Draw",
@@ -594,14 +681,8 @@ class DrawStackingView(discord.ui.View):
         self.cog = cog
         
         # Check if player has stacking cards
-        player_id = None  # This would need to be passed or determined
-        if player_id:
-            hand = self.game_session.get_player_hand(player_id)
-            if hand:
-                stackable_cards = [c for c in hand.cards if self.game_session._can_stack_card(c)]
-                if stackable_cards:
-                    # Add stacking option
-                    self.add_item(StackCardButton(stackable_cards, self.game_session, self.cog))
+        # Note: We'd need to get the player_id somehow for this to work properly
+        # For now, we'll just add the draw button
     
     @discord.ui.button(label="📥 Draw Cards", style=discord.ButtonStyle.danger)
     async def draw_penalty(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -627,29 +708,6 @@ class DrawStackingView(discord.ui.View):
             )
         
         await interaction.edit_original_response(embed=embed, view=None)
-
-
-class StackCardButton(discord.ui.Button):
-    """Button for playing stacking cards"""
-    
-    def __init__(self, stackable_cards: List[UnoCard], game_session: UnoGameSession, cog):
-        super().__init__(label="🔁 Stack Card", style=discord.ButtonStyle.secondary)
-        self.stackable_cards = stackable_cards
-        self.game_session = game_session
-        self.cog = cog
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        
-        # Show card selection for stacking
-        view = EnhancedCardSelectionView(self.game_session, self.stackable_cards, self.cog)
-        embed = discord.Embed(
-            title="🔁 Stack a Card",
-            description="Choose a card to stack:",
-            color=discord.Color.orange()
-        )
-        
-        await interaction.edit_original_response(embed=embed, view=view)
 
 
 class DrawPenaltyView(discord.ui.View):
@@ -854,7 +912,8 @@ class StatsView(discord.ui.View):
                 inline=False
             )
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
     
     @discord.ui.button(label="📊 Detailed Stats", style=discord.ButtonStyle.secondary)
     async def show_detailed_stats(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -891,7 +950,8 @@ class StatsView(discord.ui.View):
         embed.add_field(name="🔥 UNO Calls", value=f"{self.user_stats.get('uno_calls', 0):,}", inline=True)
         embed.add_field(name="⚠️ UNO Penalties", value=f"{self.user_stats.get('uno_penalties', 0):,}", inline=True)
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 class ConfigView(discord.ui.View):
@@ -917,7 +977,8 @@ class ConfigView(discord.ui.View):
         
         embed.set_footer(text="Use 'uno set <setting> <value>' to change these settings")
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
     
     @discord.ui.button(label="📏 Rule Settings", style=discord.ButtonStyle.secondary)
     async def rule_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -934,7 +995,8 @@ class ConfigView(discord.ui.View):
         
         embed.set_footer(text="Use 'uno set <setting> true/false' to change these settings")
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
     
     @discord.ui.button(label="🤖 AI Settings", style=discord.ButtonStyle.success)
     async def ai_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -951,4 +1013,5 @@ class ConfigView(discord.ui.View):
         
         embed.set_footer(text="Use 'uno set <setting> <value>' to change these settings")
         
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = DismissView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)

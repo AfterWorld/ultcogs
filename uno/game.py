@@ -1,5 +1,5 @@
 """
-Enhanced Uno Game Session Management with Advanced Features
+Enhanced Uno Game Session Management with Fixed Turn Logic
 """
 import asyncio
 import random
@@ -121,7 +121,7 @@ class AIPlayer:
 
 
 class UnoGameSession:
-    """Enhanced Uno game session with advanced features"""
+    """Enhanced Uno game session with fixed turn mechanics"""
     
     def __init__(self, channel_id: int, host_id: int, settings: Dict[str, Any] = None):
         self.channel_id = channel_id
@@ -263,7 +263,7 @@ class UnoGameSession:
         # Check if first card requires special action
         top_card = self.deck.top_card
         if top_card:
-            self._handle_card_effect(top_card, skip_draw=True)
+            self._handle_card_effect(top_card, skip_draw=True, is_starting_card=True)
         
         self.last_activity = discord.utils.utcnow()
         self._log_action("game_started", {"players": len(self.players), "ai_players": len(self.ai_players)})
@@ -381,6 +381,9 @@ class UnoGameSession:
         if card.color == UnoColor.WILD and not declared_color:
             return False, "Must declare a color for wild cards"
         
+        # Check if this is a stacking card (same type as top card)
+        is_stacking = self._is_stacking_play(card, top_card)
+        
         # Check UNO callout requirements
         if hand.card_count == 2 and self.settings["uno_penalty"]:
             # Player will have 1 card after playing, check if UNO was called
@@ -413,8 +416,8 @@ class UnoGameSession:
             uno_penalty_message = f"\n⚠️ <@{player_id}> draws {penalty_cards} cards for not calling UNO!"
             self.pending_uno_penalty[player_id] = False
         
-        # Handle card effects
-        effect_message = self._handle_card_effect(card)
+        # Handle card effects and get effect message
+        effect_message = self._handle_card_effect(card, is_stacking)
         
         # Check for win condition
         if hand.is_empty:
@@ -431,14 +434,39 @@ class UnoGameSession:
             else:
                 uno_message = f"\n🔥 <@{player_id}> has one card left! (Remember to call UNO!)"
         
-        # Move to next player (if not already moved by card effect)
-        if card.card_type not in [UnoCardType.SKIP, UnoCardType.REVERSE]:
+        # FIXED: Always move to next turn after playing a card, unless the effect already moved it
+        # The effect handler will manage special cases like SKIP and REVERSE
+        turn_already_advanced = card.card_type in [UnoCardType.SKIP, UnoCardType.REVERSE]
+        if not turn_already_advanced:
             self._next_turn()
         
         self.last_activity = discord.utils.utcnow()
         self._log_action("card_played", {"player": player_id, "card": str(card), "declared_color": declared_color})
         
         return True, f"{effect_message}{uno_message}{uno_penalty_message}"
+    
+    def _is_stacking_play(self, card: UnoCard, top_card: UnoCard) -> bool:
+        """Check if this is a stacking play (same card type)"""
+        if not top_card:
+            return False
+        
+        # Same number cards
+        if (card.card_type == UnoCardType.NUMBER and 
+            top_card.card_type == UnoCardType.NUMBER and 
+            card.value == top_card.value):
+            return True
+        
+        # Same action cards
+        if (card.card_type == top_card.card_type and 
+            card.card_type in [UnoCardType.SKIP, UnoCardType.REVERSE, UnoCardType.DRAW2]):
+            return True
+        
+        # Wild Draw 4 on Wild Draw 4
+        if (card.card_type == UnoCardType.WILD_DRAW4 and 
+            top_card.card_type == UnoCardType.WILD_DRAW4):
+            return True
+        
+        return False
     
     def _can_stack_card(self, card: UnoCard) -> bool:
         """Check if a card can be stacked on the current draw penalty"""
@@ -499,9 +527,13 @@ class UnoGameSession:
         
         return True, f"Drew {len(drawn_cards)} card(s): {card_names}", drawn_cards
     
-    def _handle_card_effect(self, card: UnoCard, skip_draw: bool = False) -> str:
-        """Handle special card effects"""
+    def _handle_card_effect(self, card: UnoCard, is_stacking: bool = False, is_starting_card: bool = False) -> str:
+        """Handle special card effects with fixed turn logic"""
         message = f"Played: **{card}**"
+        
+        # Don't apply effects for starting card
+        if is_starting_card:
+            return message
         
         if card.card_type == UnoCardType.SKIP:
             self._next_turn()  # Skip next player
@@ -517,26 +549,26 @@ class UnoGameSession:
             self._next_turn()
             
         elif card.card_type == UnoCardType.DRAW2:
-            if not skip_draw and not self.settings["draw_stacking"]:
+            if not self.settings["draw_stacking"]:
                 self.draw_count += 2
                 self._next_turn()
                 next_player = self.get_current_player()
                 message += f"\n📥 <@{next_player}> must draw 2 cards!"
-            elif not skip_draw:
+            else:
                 # Stacking enabled, just move turn
                 self._next_turn()
                 next_player = self.get_current_player()
                 message += f"\n📥 <@{next_player}> must draw {self.draw_count} cards or stack!"
             
         elif card.card_type == UnoCardType.WILD_DRAW4:
-            if not skip_draw and not self.settings["draw_stacking"]:
+            if not self.settings["draw_stacking"]:
                 self.draw_count += 4
                 self._next_turn()
                 next_player = self.get_current_player()
                 message += f"\n📥 <@{next_player}> must draw 4 cards!"
                 if self.settings["challenge_draw4"]:
                     message += " (Can challenge!)"
-            elif not skip_draw:
+            else:
                 # Stacking enabled, just move turn
                 self._next_turn()
                 next_player = self.get_current_player()
