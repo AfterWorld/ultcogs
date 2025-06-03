@@ -11,29 +11,11 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from typing import Optional, Tuple
 
-# Handle imports more robustly
-try:
-    from .utils import (
-        setup_logger, calculate_damage, check_critical_hit, 
-        create_battle_embed, get_random_move, safe_send
-    )
-    from .constants import *
-except (ImportError, ModuleNotFoundError):
-    # If relative imports fail, try absolute imports
-    import utils
-    import constants
-    
-    setup_logger = utils.setup_logger
-    calculate_damage = utils.calculate_damage
-    check_critical_hit = utils.check_critical_hit
-    create_battle_embed = utils.create_battle_embed
-    get_random_move = utils.get_random_move
-    safe_send = utils.safe_send
-    
-    # Import all constants
-    for attr in dir(constants):
-        if not attr.startswith('_'):
-            globals()[attr] = getattr(constants, attr)
+from .utils import (
+    setup_logger, calculate_damage, check_critical_hit, 
+    create_battle_embed, get_random_move, safe_send
+)
+from .constants import *
 
 class BattleSystem:
     """Handles battle mechanics and state."""
