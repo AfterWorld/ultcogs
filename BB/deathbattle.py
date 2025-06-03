@@ -549,7 +549,7 @@ class BattleCommands(commands.Cog):
             )
             embed.add_field(
                 name="🎯 Available Commands",
-                value="`!db` - Start a battle\n`!battlestats` - Check your stats\n`!devilfruit` - View your fruit info",
+                value="`.db` - Start a battle\n`.battlestats` - Check your stats\n`.devilfruit` - View your fruit info",
                 inline=False
             )
             await safe_send(ctx, embed=embed)
@@ -633,7 +633,7 @@ class BattleCommands(commands.Cog):
         
         embed = discord.Embed(
             title="🔄 User Reset Complete",
-            description=f"**{user.display_name}** can now use `!start` again.",
+            description=f"**{user.display_name}** can now use `.start` again.",
             color=discord.Color.green()
         )
         
@@ -662,7 +662,7 @@ class BattleCommands(commands.Cog):
             )
             embed.add_field(
                 name="🎯 Get Started",
-                value="Use `!start` to receive your Devil Fruit and begin your journey!",
+                value="Use `.start` to receive your Devil Fruit and begin your journey!",
                 inline=False
             )
             await safe_send(ctx, embed=embed)
@@ -683,7 +683,7 @@ class BattleCommands(commands.Cog):
                     started_opponents.append(member)
             
             if not started_opponents:
-                await safe_send(ctx, "❌ No available opponents found! Make sure there are other users who have used `!start`.")
+                await safe_send(ctx, "❌ No available opponents found! Make sure there are other users who have used `.start`.")
                 return
             
             # Pick a random opponent
@@ -711,7 +711,7 @@ class BattleCommands(commands.Cog):
         # Check if opponent has started
         opponent_started = await self.config.member(opponent).has_started()
         if not opponent_started:
-            await safe_send(ctx, f"❌ {opponent.display_name} hasn't started their journey yet! They need to use `!start` first.")
+            await safe_send(ctx, f"❌ {opponent.display_name} hasn't started their journey yet! They need to use `.start` first.")
             return
         
         # Start the battle
@@ -741,7 +741,7 @@ class BattleCommands(commands.Cog):
             )
             embed.add_field(
                 name="🎯 Get Started",
-                value="Use `!start` to begin your adventure!",
+                value="Use `.start` to begin your adventure!",
                 inline=False
             )
             await safe_send(ctx, embed=embed)
@@ -801,7 +801,7 @@ class BattleCommands(commands.Cog):
         
         has_started = await self.config.member(user).has_started()
         if not has_started:
-            await safe_send(ctx, f"❌ {user.display_name} hasn't started their journey yet! Use `!start` first.")
+            await safe_send(ctx, f"❌ {user.display_name} hasn't started their journey yet! Use `.start` first.")
             return
         
         devil_fruit = await self.config.member(user).devil_fruit()
