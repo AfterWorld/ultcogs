@@ -1,5 +1,5 @@
 """
-crewbattles/crew.py
+crewbattles/crew.py - WITH BASIC COMMANDS FOR TESTING
 Main crew management cog with all enhanced functionality
 """
 
@@ -64,6 +64,75 @@ class CrewManagement(commands.Cog):
         # Start background tasks
         self.bot.loop.create_task(self.initialize())
         self.cleanup_expired_invitations.start()
+
+    # --- Test Commands ---
+    @commands.command(name="crewtest")
+    async def test_command(self, ctx):
+        """Test command to verify the cog is working"""
+        await ctx.send("✅ CrewBattles cog is loaded and working!")
+
+    @commands.group(name="crew")
+    @commands.guild_only()
+    async def crew_commands(self, ctx):
+        """Commands for managing crews"""
+        if ctx.invoked_subcommand is None:
+            embed = EmbedBuilder.create_info_embed(
+                "Crew Commands",
+                "Available crew management commands"
+            )
+            embed.add_field(
+                name="Basic Commands",
+                value=(
+                    "`crew test` - Test crew functionality\n"
+                    "`crew list` - List all crews\n"
+                    "`crew create <name>` - Create a new crew (Admin)\n"
+                    "`crew join <name>` - Join a crew"
+                ),
+                inline=False
+            )
+            await ctx.send(embed=embed)
+
+    @crew_commands.command(name="test")
+    async def crew_test(self, ctx):
+        """Test crew functionality"""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        embed = EmbedBuilder.create_success_embed(
+            "Crew System Test",
+            f"Guild ID: {guild_id}\nCrews loaded: {len(crews)}"
+        )
+        await ctx.send(embed=embed)
+
+    @crew_commands.command(name="list")
+    async def crew_list(self, ctx):
+        """List all available crews"""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if not crews:
+            embed = EmbedBuilder.create_warning_embed(
+                "No Crews Found",
+                "No crews have been created yet. Use `crew create` to create one!"
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        embed = EmbedBuilder.create_info_embed(
+            "Available Crews",
+            f"Found {len(crews)} crews in this server"
+        )
+        
+        for crew_name, crew_data in crews.items():
+            emoji = crew_data.get('emoji', '🏴‍☠️')
+            members = len(crew_data.get('members', []))
+            embed.add_field(
+                name=f"{emoji} {crew_name}",
+                value=f"Members: {members}",
+                inline=True
+            )
+        
+        await ctx.send(embed=embed)
 
     # --- Core Utility Methods ---
     def get_guild_lock(self, guild_id: str) -> asyncio.Lock:
@@ -194,143 +263,9 @@ class CrewManagement(commands.Cog):
         await self.bot.wait_until_ready()
 
     # --- Utility Methods ---
-    async def fetch_custom_emoji(self, emoji_url: str, guild: discord.Guild) -> str:
-        """Fetch and upload a custom emoji to the guild"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(emoji_url) as response:
-                    if response.status == 200:
-                        image_data = await response.read()
-                        try:
-                            emoji = await guild.create_custom_emoji(name="crew_emoji", image=image_data)
-                            return str(emoji)
-                        except discord.Forbidden:
-                            return CrewSettings.DEFAULT_EMOJI
-                        except Exception as e:
-                            self.enhanced_logger.error(f"Error creating custom emoji: {e}")
-                            return CrewSettings.DEFAULT_EMOJI
-                    return CrewSettings.DEFAULT_EMOJI
-        except Exception as e:
-            self.enhanced_logger.error(f"Error fetching custom emoji: {e}")
-            return CrewSettings.DEFAULT_EMOJI
-
     def get_crews_for_guild(self, guild_id: str) -> Dict[str, Dict[str, Any]]:
         """Get crews for a specific guild"""
         return self.crews.get(str(guild_id), {})
-
-    async def create_enhanced_crew_embed(self, guild: discord.Guild, crew_name: str, crew_data: Dict[str, Any]) -> discord.Embed:
-        """Create an enhanced crew information embed"""
-        try:
-            # Create color based on crew name
-            color_hash = int(hashlib.md5(crew_name.encode()).hexdigest()[:6], 16)
-            
-            # Create stats object
-            stats = CrewStats.from_dict(crew_data.get("stats", {}))
-            
-            embed = discord.Embed(
-                title=f"{crew_data.get('emoji', '🏴‍☠️')} {crew_name} [{crew_data.get('tag', 'N/A')}]",
-                color=color_hash,
-                timestamp=datetime.datetime.now()
-            )
-            
-            # Get role objects and member counts
-            captain_role = guild.get_role(crew_data.get("captain_role"))
-            vice_captain_role = guild.get_role(crew_data.get("vice_captain_role"))
-            crew_role = guild.get_role(crew_data.get("crew_role"))
-            
-            total_members = len(crew_data.get("members", []))
-            captains = len(captain_role.members) if captain_role else 0
-            vice_captains = len(vice_captain_role.members) if vice_captain_role else 0
-            regular_members = total_members - captains - vice_captains
-            
-            embed.add_field(
-                name="👥 Membership",
-                value=(
-                    f"**Total:** {total_members}\n"
-                    f"**Captains:** {captains}\n"
-                    f"**Vice Captains:** {vice_captains}\n"
-                    f"**Members:** {regular_members}"
-                ),
-                inline=True
-            )
-            
-            # Enhanced statistics
-            embed.add_field(
-                name="📊 Battle Stats",
-                value=(
-                    f"**Win Rate:** {stats.win_rate:.1f}%\n"
-                    f"**Total Battles:** {stats.total_battles}\n"
-                    f"**Wins:** {stats.wins} | **Losses:** {stats.losses}"
-                ),
-                inline=True
-            )
-            
-            embed.add_field(
-                name="🏆 Tournament Stats",
-                value=(
-                    f"**Tournaments Won:** {stats.tournaments_won}\n"
-                    f"**Tournaments Entered:** {stats.tournaments_participated}\n"
-                    f"**Tournament Win Rate:** {stats.tournament_win_rate:.1f}%"
-                ),
-                inline=True
-            )
-            
-            # Creation info
-            try:
-                created_date = datetime.datetime.fromisoformat(
-                    crew_data.get("created_at", datetime.datetime.now().isoformat())
-                )
-                days_active = (datetime.datetime.now() - created_date).days
-                
-                embed.add_field(
-                    name="📅 Crew Info",
-                    value=(
-                        f"**Created:** {created_date.strftime('%Y-%m-%d')}\n"
-                        f"**Days Active:** {days_active}\n"
-                        f"**Activity Level:** {stats.get_activity_level()}"
-                    ),
-                    inline=False
-                )
-            except:
-                embed.add_field(
-                    name="📅 Crew Info",
-                    value=f"**Tag:** `{crew_data.get('tag', 'N/A')}`",
-                    inline=False
-                )
-            
-            # Show leadership
-            leadership = []
-            if captain_role:
-                captains_list = [m.display_name for m in captain_role.members[:3]]
-                if captains_list:
-                    leadership.append(f"👑 **Captains:** {', '.join(captains_list)}")
-            
-            if vice_captain_role:
-                vice_captains_list = [m.display_name for m in vice_captain_role.members[:3]]
-                if vice_captains_list:
-                    leadership.append(f"⭐ **Vice Captains:** {', '.join(vice_captains_list)}")
-            
-            if leadership:
-                embed.add_field(
-                    name="👑 Leadership",
-                    value="\n".join(leadership),
-                    inline=False
-                )
-            
-            embed.set_footer(text="Enhanced Crew System v2.0")
-            return embed
-            
-        except Exception as e:
-            self.enhanced_logger.log_error_with_context(
-                e, "create_enhanced_crew_embed", guild.id,
-                crew_name=crew_name
-            )
-            
-            # Fallback to basic embed
-            return EmbedBuilder.create_error_embed(
-                f"Crew: {crew_name}",
-                "Error loading detailed information"
-            )
 
     # --- Event Listeners ---
     @commands.Cog.listener()
@@ -344,35 +279,6 @@ class CrewManagement(commands.Cog):
             self.enhanced_logger.log_system_event("bot_joined_guild", guild_id=guild.id)
         except Exception as e:
             self.enhanced_logger.log_error_with_context(e, "on_guild_join", guild.id)
-            
-    @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
-        """Handle members leaving the server"""
-        try:
-            guild = member.guild
-            guild_id = str(guild.id)
-            
-            if guild_id not in self.crews:
-                return
-            
-            async with self.get_guild_lock(guild_id):
-                removed_from_crews = []
-                
-                for crew_name, crew in self.crews[guild_id].items():
-                    if member.id in crew.get("members", []):
-                        crew["members"].remove(member.id)
-                        removed_from_crews.append(crew_name)
-                        
-                        self.enhanced_logger.log_user_action(
-                            "member_left_server", member.id, guild.id,
-                            crew_name=crew_name
-                        )
-                
-                if removed_from_crews:
-                    await self.save_crews(guild)
-                    
-        except Exception as e:
-            self.enhanced_logger.log_error_with_context(e, "on_member_remove", guild.id, member.id)
 
     # --- Cog Lifecycle ---
     async def cog_unload(self):
@@ -382,15 +288,3 @@ class CrewManagement(commands.Cog):
             self.enhanced_logger.log_system_event("cog_unloaded")
         except Exception as e:
             self.enhanced_logger.error(f"Error during cog unload: {e}")
-
-    def cog_unload_sync(self):
-        """Synchronous cleanup when cog is unloaded"""
-        try:
-            self.cleanup_expired_invitations.cancel()
-            print("CrewManagement cog unloaded")
-        except Exception as e:
-            print(f"Error during cog unload: {e}")
-
-# FIXED: Import setup commands at the end of the file
-from .setup import setup_commands
-setup_commands(CrewManagement)
