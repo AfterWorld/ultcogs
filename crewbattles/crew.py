@@ -482,6 +482,115 @@ class CrewManagement(commands.Cog):
                 "An error occurred while checking system status."
             ))
 
+    @crew_setup.command(name="finish")
+    async def setup_finish(self, ctx):
+        """Post interactive crew selection interfaces for users to join crews."""
+        try:
+            # Validate setup
+            finished_setup = await self.config.guild(ctx.guild).finished_setup()
+            if not finished_setup:
+                await ctx.send(embed=EmbedBuilder.create_error_embed(
+                    "Setup Not Complete",
+                    "Crew system is not set up yet. Run `crewsetup init` first."
+                ))
+                return
+                
+            guild_id = str(ctx.guild.id)
+            crews = self.crews.get(guild_id, {})
+            
+            if not crews:
+                await ctx.send(embed=EmbedBuilder.create_warning_embed(
+                    "No Crews Available",
+                    "No crews have been created yet. You need existing crews to post selection interfaces."
+                ))
+                return
+            
+            # Create header embed
+            header_embed = EmbedBuilder.create_info_embed(
+                "🏴‍☠️ Join a Crew Today! 🏴‍☠️",
+                "Choose your crew wisely - you can't switch once you join!"
+            )
+            header_embed.color = discord.Color.gold()
+            
+            # Add crew overview
+            crew_list = []
+            for crew_name, crew_data in crews.items():
+                emoji = crew_data.get('emoji', '🏴‍☠️')
+                tag = crew_data.get('tag', '')
+                member_count = len(crew_data.get('members', []))
+                crew_list.append(f"{emoji} **{crew_name}** [{tag}] - {member_count} members")
+            
+            header_embed.add_field(
+                name="Available Crews",
+                value="\n".join(crew_list),
+                inline=False
+            )
+            
+            header_embed.add_field(
+                name="How to Join",
+                value="Use `.crew join <crew name>` to join any of these crews!",
+                inline=False
+            )
+            
+            await ctx.send(embed=header_embed)
+            
+            # Post each crew with detailed info
+            posted_crews = 0
+            for crew_name, crew_data in crews.items():
+                try:
+                    # Create detailed crew embed
+                    embed = await self.create_enhanced_crew_embed(ctx.guild, crew_name, crew_data)
+                    
+                    # Add join instructions
+                    embed.add_field(
+                        name="💫 How to Join",
+                        value=f"Use `.crew join {crew_name}` to join this crew!",
+                        inline=False
+                    )
+                    
+                    await ctx.send(embed=embed)
+                    posted_crews += 1
+                    
+                except Exception as e:
+                    self.enhanced_logger.log_error_with_context(
+                        e, "setup_finish_crew_post", ctx.guild.id, ctx.author.id,
+                        crew_name=crew_name
+                    )
+                    continue
+            
+            # Send completion message
+            completion_embed = EmbedBuilder.create_success_embed(
+                "Setup Complete!",
+                f"✅ Crew selection interfaces have been posted!\n\n"
+                f"**{posted_crews}** crews are now available for users to join.\n"
+                f"Users can join using the `.crew join <name>` command."
+            )
+            completion_embed.add_field(
+                name="Available Commands",
+                value=(
+                    "`.crew join <name>` - Join a specific crew\n"
+                    "`.crew list` - View all available crews\n"
+                    "`.crew view <name>` - View detailed crew information"
+                ),
+                inline=False
+            )
+            
+            await ctx.send(embed=completion_embed)
+            
+            self.enhanced_logger.log_crew_action(
+                "setup_finished", ctx.guild.id, ctx.author.id, 
+                crews_posted=posted_crews, total_crews=len(crews)
+            )
+            
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "setup_finish", ctx.guild.id, ctx.author.id
+            )
+            await ctx.send(embed=EmbedBuilder.create_error_embed(
+                "Setup Finish Failed",
+                "An error occurred while posting crew selection interfaces."
+            ))
+
     # --- Event Listeners ---
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
@@ -503,3 +612,4 @@ class CrewManagement(commands.Cog):
             self.enhanced_logger.log_system_event("cog_unloaded")
         except Exception as e:
             self.enhanced_logger.error(f"Error during cog unload: {e}")
+
