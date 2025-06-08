@@ -534,6 +534,58 @@ class CrewManagement(commands.Cog):
             
             await ctx.send(embed=header_embed)
             
+            # Create reaction-based crew selection
+            reaction_embed = EmbedBuilder.create_info_embed(
+                "🎯 Quick Join with Reactions",
+                "Click the emoji below to instantly join that crew!"
+            )
+            
+            # Add crew list with emojis for reactions
+            crew_reaction_list = []
+            crew_emojis = []
+            for crew_name, crew_data in crews.items():
+                emoji = crew_data.get('emoji', '🏴‍☠️')
+                tag = crew_data.get('tag', '')
+                member_count = len(crew_data.get('members', []))
+                crew_reaction_list.append(f"{emoji} **{crew_name}** [{tag}]")
+                crew_emojis.append((emoji, crew_name))
+            
+            reaction_embed.add_field(
+                name="Available Crews",
+                value="\n".join(crew_reaction_list),
+                inline=False
+            )
+            
+            reaction_embed.add_field(
+                name="How It Works",
+                value="1️⃣ Click a crew emoji below\n2️⃣ You'll be instantly added to that crew!\n3️⃣ You can only join one crew, so choose wisely!",
+                inline=False
+            )
+            
+            # Post the reaction message
+            reaction_message = await ctx.send(embed=reaction_embed)
+            
+            # Add reactions for each crew
+            for emoji, crew_name in crew_emojis:
+                try:
+                    await reaction_message.add_reaction(emoji)
+                except discord.HTTPException:
+                    # If custom emoji fails, continue with others
+                    self.enhanced_logger.warning(f"Failed to add reaction {emoji} for crew {crew_name}")
+                    continue
+            
+            # Store the message for reaction handling
+            guild_id = str(ctx.guild.id)
+            if guild_id not in self.active_crew_messages:
+                self.active_crew_messages[guild_id] = {}
+            
+            self.active_crew_messages[guild_id][reaction_message.id] = {
+                "type": "crew_selection",
+                "crews": {emoji: crew_name for emoji, crew_name in crew_emojis},
+                "channel_id": ctx.channel.id,
+                "created_at": datetime.datetime.now().isoformat()
+            }
+            
             # Post each crew with detailed info
             posted_crews = 0
             for crew_name, crew_data in crews.items():
@@ -593,6 +645,139 @@ class CrewManagement(commands.Cog):
 
     # --- Event Listeners ---
     @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        """Handle crew joining via reactions"""
+        # Ignore bot reactions
+        if user.bot:
+            return
+        
+        guild = reaction.message.guild
+        if not guild:
+            return
+            
+        guild_id = str(guild.id)
+        message_id = reaction.message.id
+        
+        # Check if this is a crew selection message
+        if (guild_id not in self.active_crew_messages or 
+            message_id not in self.active_crew_messages[guild_id]):
+            return
+        
+        message_data = self.active_crew_messages[guild_id][message_id]
+        if message_data["type"] != "crew_selection":
+            return
+        
+        # Get the crew for this emoji
+        emoji_str = str(reaction.emoji)
+        crew_name = message_data["crews"].get(emoji_str)
+        
+        if not crew_name:
+            return
+        
+        try:
+            # Process the crew join
+            success = await self._process_crew_join_reaction(user, guild, crew_name, reaction)
+            
+            if success:
+                # Remove the user's reaction to keep the message clean
+                try:
+                    await reaction.remove(user)
+                except discord.Forbidden:
+                    pass  # Can't remove reactions, but that's okay
+                    
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "on_reaction_add", guild.id, user.id,
+                crew_name=crew_name
+            )
+    
+    async def _process_crew_join_reaction(self, user, guild, crew_name: str, reaction) -> bool:
+        """Process a crew join via reaction"""
+        guild_id = str(guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if crew_name not in crews:
+            return False
+        
+        crew = crews[crew_name]
+        member = guild.get_member(user.id)
+        
+        if not member:
+            return False
+        
+        # Check if already in this crew
+        if member.id in crew.get("members", []):
+            try:
+                await user.send(f"⚠️ You are already a member of **{crew_name}**!")
+            except discord.Forbidden:
+                pass
+            return False
+        
+        # Check if in another crew
+        for other_name, other_crew in crews.items():
+            if member.id in other_crew.get("members", []):
+                try:
+                    await user.send(f"⚠️ You are already in the crew **{other_name}**. You cannot switch crews once you join one.")
+                except discord.Forbidden:
+                    pass
+                return False
+        
+        # Add to crew
+        async with self.get_guild_lock(guild_id):
+            crew["members"].append(member.id)
+            
+            # Assign crew role
+            crew_role = guild.get_role(crew.get("crew_role"))
+            role_assigned = False
+            
+            if crew_role:
+                try:
+                    await member.add_roles(crew_role)
+                    role_assigned = True
+                except discord.Forbidden:
+                    pass
+            
+            # Update nickname
+            nickname_success = False
+            if hasattr(self, 'nickname_manager'):
+                nickname_success, _ = await self.nickname_manager.set_crew_nickname(
+                    member, crew.get("emoji", "🏴‍☠️"), crew.get("tag"), CrewRole.MEMBER
+                )
+            
+            await self.save_crews(guild)
+        
+        # Log the action
+        self.enhanced_logger.log_user_action(
+            "joined_crew_via_reaction", member.id, guild.id,
+            crew_name=crew_name
+        )
+        
+        # Send success message
+        try:
+            success_message = f"🎉 Welcome to **{crew_name}**! {crew.get('emoji', '🏴‍☠️')}"
+            
+            warnings = []
+            if not role_assigned:
+                warnings.append("⚠️ Couldn't assign crew role due to permission issues")
+            if not nickname_success:
+                warnings.append("⚠️ Couldn't update nickname due to permission issues")
+            
+            if warnings:
+                success_message += "\n\n" + "\n".join(warnings)
+            
+            await user.send(success_message)
+        except discord.Forbidden:
+            # Can't DM user, try to send in channel
+            try:
+                channel = guild.get_channel(reaction.message.channel.id)
+                if channel:
+                    await channel.send(f"🎉 {member.mention} has joined **{crew_name}**! {crew.get('emoji', '🏴‍☠️')}", delete_after=5)
+            except:
+                pass
+        
+        return True
+
+    @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
         """Initialize data storage when bot joins a guild"""
         try:
@@ -612,4 +797,3 @@ class CrewManagement(commands.Cog):
             self.enhanced_logger.log_system_event("cog_unloaded")
         except Exception as e:
             self.enhanced_logger.error(f"Error during cog unload: {e}")
-
