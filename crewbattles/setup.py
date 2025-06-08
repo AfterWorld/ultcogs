@@ -7,8 +7,8 @@ import asyncio
 import discord
 from discord.ext import commands
 
-from ..utils import EmbedBuilder, PermissionUtils
-from ..ui import CrewButton
+from .utils import EmbedBuilder, PermissionUtils
+from .ui import CrewButton
 
 
 def setup_commands(cog_class):

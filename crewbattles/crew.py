@@ -16,13 +16,13 @@ from redbot.core import Config
 from redbot.core.data_manager import cog_data_path
 
 # Import our enhanced components
-from constants import CrewRole, CrewSettings, EMBED_COLORS, CREW_COLORS
-from exceptions import *
-from models import CrewData, CrewStats, CrewMember, InviteData
-from logger import EnhancedCrewLogger
-from utils import NicknameManager, EmbedBuilder, ValidationUtils, PermissionUtils
-from data_manager import DataManager
-from ui import CrewManagementView, CrewInviteView, CrewButton, CrewView
+from .constants import CrewRole, CrewSettings, EMBED_COLORS, CREW_COLORS
+from .exceptions import *
+from .models import CrewData, CrewStats, CrewMember, InviteData
+from .logger import EnhancedCrewLogger
+from .utils import NicknameManager, EmbedBuilder, ValidationUtils, PermissionUtils
+from .data_manager import DataManager
+from .ui import CrewManagementView, CrewInviteView, CrewButton, CrewView
 
 # Import tournament system
 try:

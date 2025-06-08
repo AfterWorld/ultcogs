@@ -1,7 +1,7 @@
 """
 migration.py
 Data migration utility for upgrading legacy crew data to enhanced format
-Updated for root directory structure
+Updated for package structure with relative imports
 """
 
 import json
@@ -11,8 +11,8 @@ from typing import Dict, List, Any, Tuple
 from pathlib import Path
 import shutil
 
-from utils import EmbedBuilder
-from utils import NicknameManager
+from .utils import EmbedBuilder
+from .utils import NicknameManager
 
 
 class CrewDataMigrator:

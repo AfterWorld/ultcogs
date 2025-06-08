@@ -1,6 +1,7 @@
+
 """
-crewbattles/ui.py
-User interface components for crew management (buttons, views, modals)
+ui.py - FIXED imports
+Replace the imports at the top of your ui.py file with these
 """
 
 from typing import Optional, TYPE_CHECKING
