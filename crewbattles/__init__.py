@@ -6,10 +6,11 @@ Package initialization and main cog setup for root directory structure
 from .crew import CrewManagement
 
 # Import migration setup
-from .migration import setup_migration
-
-# Import command modules
-from .commands.setup import setup_commands
+try:
+    from .migration import setup_migration
+    MIGRATION_AVAILABLE = True
+except ImportError:
+    MIGRATION_AVAILABLE = False
 
 try:
     from .tournament import TournamentSystem
@@ -35,14 +36,12 @@ async def setup(bot):
     # Create and setup the main crew management cog
     crew_cog = CrewManagement(bot)
     
-    # Add migration functionality
-    setup_migration(crew_cog)
-    
-    # Add command groups (if using modular commands)
-    try:
-        setup_commands(crew_cog)
-    except:
-        pass  # Commands might be integrated directly in crew.py
+    # Add migration functionality if available
+    if MIGRATION_AVAILABLE:
+        try:
+            setup_migration(crew_cog)
+        except Exception as e:
+            print(f"Failed to setup migration: {e}")
     
     # Add the cog to the bot
     await bot.add_cog(crew_cog)

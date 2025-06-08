@@ -16,13 +16,13 @@ from redbot.core import Config
 from redbot.core.data_manager import cog_data_path
 
 # Import our enhanced components
-from .constants import CrewRole, CrewSettings, EMBED_COLORS, CREW_COLORS
-from .exceptions import *
-from .models import CrewData, CrewStats, CrewMember, InviteData
-from .logger import EnhancedCrewLogger
-from .utils import NicknameManager, EmbedBuilder, ValidationUtils, PermissionUtils
-from .data_manager import DataManager
-from .ui import CrewManagementView, CrewInviteView, CrewButton, CrewView
+from constants import CrewRole, CrewSettings, EMBED_COLORS, CREW_COLORS
+from exceptions import *
+from models import CrewData, CrewStats, CrewMember, InviteData
+from logger import EnhancedCrewLogger
+from utils import NicknameManager, EmbedBuilder, ValidationUtils, PermissionUtils
+from data_manager import DataManager
+from ui import CrewManagementView, CrewInviteView, CrewButton, CrewView
 
 # Import tournament system
 try:
@@ -391,20 +391,5 @@ class CrewManagement(commands.Cog):
         except Exception as e:
             print(f"Error during cog unload: {e}")
 
-
-# Import command modules
-from .commands.setup import setup_commands
-from .commands.crew_management import crew_management_commands  
-from .commands.enhanced import enhanced_commands
-from .commands.admin import admin_commands
-
-# Add command groups to the main cog
-def setup_command_groups(cog_class):
-    """Setup all command groups on the cog class"""
-    setup_commands(cog_class)
-    crew_management_commands(cog_class)
-    enhanced_commands(cog_class)
-    admin_commands(cog_class)
-
-# Apply command groups
-setup_command_groups(CrewManagement)
+from setup import setup_commands
+setup_commands(CrewManagement)
