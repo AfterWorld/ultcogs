@@ -11,8 +11,8 @@ import hashlib
 
 import aiohttp
 import discord
-from discord.ext import commands, tasks
-from redbot.core import Config
+from discord.ext import tasks
+from redbot.core import commands, Config
 from redbot.core.data_manager import cog_data_path
 
 # Import our enhanced components
