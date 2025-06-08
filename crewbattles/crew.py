@@ -166,26 +166,28 @@ class CrewManagement(commands.Cog):
         
         crew = crews[crew_name]
         
-        # Check if already in this crew
-        if member.id in crew.get("members", []):
-            await ctx.send(embed=EmbedBuilder.create_warning_embed(
-                "Already in Crew",
-                f"You are already a member of `{crew_name}`."
-            ))
-            return
+        # ENHANCED: Check Discord roles first to detect current crew membership
+        current_crew = await self._get_member_current_crew(member, crews)
         
-        # Check if in another crew
-        for other_name, other_crew in crews.items():
-            if member.id in other_crew.get("members", []):
+        if current_crew:
+            if current_crew == crew_name:
+                await ctx.send(embed=EmbedBuilder.create_warning_embed(
+                    "Already in Crew",
+                    f"You are already a member of **{crew_name}**."
+                ))
+                return
+            else:
                 await ctx.send(embed=EmbedBuilder.create_warning_embed(
                     "Already in a Crew",
-                    f"You are already in the crew `{other_name}`. You cannot switch crews once you join one."
+                    f"You are already a member of **{current_crew}**. You cannot switch crews once you join one."
                 ))
                 return
         
         # Add to crew
         async with self.get_guild_lock(guild_id):
-            crew["members"].append(member.id)
+            # Ensure member is in the list (in case of data sync issues)
+            if member.id not in crew.get("members", []):
+                crew["members"].append(member.id)
             
             # Assign crew role
             crew_role = ctx.guild.get_role(crew.get("crew_role"))
@@ -705,26 +707,28 @@ class CrewManagement(commands.Cog):
         if not member:
             return False
         
-        # Check if already in this crew
-        if member.id in crew.get("members", []):
-            try:
-                await user.send(f"⚠️ You are already a member of **{crew_name}**!")
-            except discord.Forbidden:
-                pass
-            return False
+        # ENHANCED: Check Discord roles first to detect current crew membership
+        current_crew = await self._get_member_current_crew(member, crews)
         
-        # Check if in another crew
-        for other_name, other_crew in crews.items():
-            if member.id in other_crew.get("members", []):
+        if current_crew:
+            if current_crew == crew_name:
                 try:
-                    await user.send(f"⚠️ You are already in the crew **{other_name}**. You cannot switch crews once you join one.")
+                    await user.send(f"⚠️ You are already a member of **{crew_name}**!")
+                except discord.Forbidden:
+                    pass
+                return False
+            else:
+                try:
+                    await user.send(f"⚠️ You are already a member of **{current_crew}**. You cannot switch crews once you join one.")
                 except discord.Forbidden:
                     pass
                 return False
         
         # Add to crew
         async with self.get_guild_lock(guild_id):
-            crew["members"].append(member.id)
+            # Ensure member is in the list (in case of data sync issues)
+            if member.id not in crew.get("members", []):
+                crew["members"].append(member.id)
             
             # Assign crew role
             crew_role = guild.get_role(crew.get("crew_role"))
@@ -777,6 +781,22 @@ class CrewManagement(commands.Cog):
         
         return True
 
+    async def _get_member_current_crew(self, member: discord.Member, crews: Dict[str, Dict[str, Any]]) -> Optional[str]:
+        """Get the crew a member is currently in by checking their Discord roles"""
+        for crew_name, crew_data in crews.items():
+            # Check all crew roles (captain, vice captain, regular crew)
+            crew_roles = [
+                crew_data.get("captain_role"),
+                crew_data.get("vice_captain_role"), 
+                crew_data.get("crew_role")
+            ]
+            
+            for role_id in crew_roles:
+                if role_id and any(role.id == role_id for role in member.roles):
+                    return crew_name
+        
+        return None
+
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
         """Initialize data storage when bot joins a guild"""
@@ -797,3 +817,7 @@ class CrewManagement(commands.Cog):
             self.enhanced_logger.log_system_event("cog_unloaded")
         except Exception as e:
             self.enhanced_logger.error(f"Error during cog unload: {e}")
+
+# DON'T load setup commands for now - test basic functionality first
+# from .setup import setup_commands
+# setup_commands(CrewManagement)
