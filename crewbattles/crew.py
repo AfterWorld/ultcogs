@@ -391,5 +391,6 @@ class CrewManagement(commands.Cog):
         except Exception as e:
             print(f"Error during cog unload: {e}")
 
-from setup import setup_commands
+# FIXED: Import setup commands at the end of the file
+from .setup import setup_commands
 setup_commands(CrewManagement)
