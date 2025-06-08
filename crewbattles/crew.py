@@ -134,6 +134,106 @@ class CrewManagement(commands.Cog):
         
         await ctx.send(embed=embed)
 
+    @crew_commands.command(name="view")
+    async def crew_view(self, ctx, *, crew_name: str):
+        """View detailed information about a specific crew"""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        
+        if crew_name not in crews:
+            await ctx.send(embed=EmbedBuilder.create_error_embed(
+                "Crew Not Found",
+                f"No crew named `{crew_name}` exists."
+            ))
+            return
+        
+        embed = await self.create_enhanced_crew_embed(ctx.guild, crew_name, crews[crew_name])
+        await ctx.send(embed=embed)
+
+    @crew_commands.command(name="join")
+    async def crew_join(self, ctx, *, crew_name: str):
+        """Join a specific crew"""
+        guild_id = str(ctx.guild.id)
+        crews = self.crews.get(guild_id, {})
+        member = ctx.author
+        
+        if crew_name not in crews:
+            await ctx.send(embed=EmbedBuilder.create_error_embed(
+                "Crew Not Found",
+                f"No crew named `{crew_name}` exists."
+            ))
+            return
+        
+        crew = crews[crew_name]
+        
+        # Check if already in this crew
+        if member.id in crew.get("members", []):
+            await ctx.send(embed=EmbedBuilder.create_warning_embed(
+                "Already in Crew",
+                f"You are already a member of `{crew_name}`."
+            ))
+            return
+        
+        # Check if in another crew
+        for other_name, other_crew in crews.items():
+            if member.id in other_crew.get("members", []):
+                await ctx.send(embed=EmbedBuilder.create_warning_embed(
+                    "Already in a Crew",
+                    f"You are already in the crew `{other_name}`. You cannot switch crews once you join one."
+                ))
+                return
+        
+        # Add to crew
+        async with self.get_guild_lock(guild_id):
+            crew["members"].append(member.id)
+            
+            # Assign crew role
+            crew_role = ctx.guild.get_role(crew.get("crew_role"))
+            role_assigned = False
+            
+            if crew_role:
+                try:
+                    await member.add_roles(crew_role)
+                    role_assigned = True
+                except discord.Forbidden:
+                    pass
+            
+            # Update nickname
+            nickname_success = False
+            if hasattr(self, 'nickname_manager'):
+                nickname_success, _ = await self.nickname_manager.set_crew_nickname(
+                    member, crew.get("emoji", "🏴‍☠️"), crew.get("tag"), CrewRole.MEMBER
+                )
+            
+            await self.save_crews(ctx.guild)
+        
+        # Log the action
+        self.enhanced_logger.log_user_action(
+            "joined_crew", member.id, ctx.guild.id,
+            crew_name=crew_name
+        )
+        
+        # Create response
+        embed = EmbedBuilder.create_success_embed(
+            "Successfully Joined Crew",
+            f"Welcome to **{crew_name}**! {crew.get('emoji', '🏴‍☠️')}"
+        )
+        
+        warnings = []
+        if not role_assigned:
+            warnings.append("⚠️ Couldn't assign crew role due to permission issues")
+        if not nickname_success:
+            warnings.append("⚠️ Couldn't update nickname due to permission issues")
+        
+        if warnings:
+            embed.add_field(
+                name="Warnings",
+                value="\n".join(warnings),
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
+
     # --- Core Utility Methods ---
     def get_guild_lock(self, guild_id: str) -> asyncio.Lock:
         """Get or create a thread-safe lock for a specific guild"""
@@ -262,10 +362,125 @@ class CrewManagement(commands.Cog):
     async def before_cleanup(self):
         await self.bot.wait_until_ready()
 
-    # --- Utility Methods ---
-    def get_crews_for_guild(self, guild_id: str) -> Dict[str, Dict[str, Any]]:
-        """Get crews for a specific guild"""
-        return self.crews.get(str(guild_id), {})
+    # --- Setup Commands Group ---
+    @commands.group(name="crewsetup")
+    @commands.guild_only()
+    @commands.admin_or_permissions(administrator=True)
+    async def crew_setup(self, ctx):
+        """Commands for setting up the crew system."""
+        if ctx.invoked_subcommand is None:
+            embed = EmbedBuilder.create_info_embed(
+                "Crew Setup Commands",
+                "Available setup commands for the crew system"
+            )
+            embed.add_field(
+                name="📝 Basic Setup",
+                value=(
+                    "`crewsetup init` - Initialize the crew system\n"
+                    "`crewsetup status` - Check setup status\n"
+                    "`crewsetup finish` - Post crew selection interface"
+                ),
+                inline=False
+            )
+            await ctx.send(embed=embed)
+
+    @crew_setup.command(name="init")
+    async def setup_init(self, ctx):
+        """Initialize the crew system for this server."""
+        try:
+            guild_id = str(ctx.guild.id)
+            
+            # Initialize guild namespaces if they don't exist
+            if guild_id not in self.crews:
+                self.crews[guild_id] = {}
+            
+            # Create data directories
+            self.data_manager.crews_dir.mkdir(exist_ok=True)
+            self.data_manager.backup_dir.mkdir(exist_ok=True)
+            
+            await self.config.guild(ctx.guild).finished_setup.set(True)
+            await self.save_data(ctx.guild)
+            
+            self.enhanced_logger.log_crew_action("system_initialized", ctx.guild.id, ctx.author.id)
+            
+            embed = EmbedBuilder.create_success_embed(
+                "Crew System Initialized",
+                "✅ The crew system has been successfully initialized for this server."
+            )
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "setup_init", ctx.guild.id, ctx.author.id
+            )
+            await ctx.send(embed=EmbedBuilder.create_error_embed(
+                "Initialization Failed",
+                "An error occurred while initializing the crew system."
+            ))
+
+    @crew_setup.command(name="status")
+    async def setup_status(self, ctx):
+        """Show the current status of the crew system setup."""
+        try:
+            guild_id = str(ctx.guild.id)
+            
+            # Check setup status
+            finished_setup = await self.config.guild(ctx.guild).finished_setup()
+            crews = self.crews.get(guild_id, {})
+            
+            # Create status embed
+            embed = EmbedBuilder.create_info_embed(
+                "Crew System Status",
+                f"Current setup status for **{ctx.guild.name}**"
+            )
+            
+            # Basic setup status
+            setup_status = "✅ Initialized" if finished_setup else "❌ Not Initialized"
+            embed.add_field(
+                name="🔧 System Status",
+                value=f"**Setup:** {setup_status}",
+                inline=True
+            )
+            
+            # Crew count
+            embed.add_field(
+                name="🏴‍☠️ Crews",
+                value=f"**Count:** {len(crews)}",
+                inline=True
+            )
+            
+            # Next steps
+            next_steps = []
+            if not finished_setup:
+                next_steps.append("• Run `crewsetup init` to initialize the system")
+            if not crews:
+                next_steps.append("• Create crews (you may have legacy crews)")
+            else:
+                next_steps.append("• Use `crewsetup finish` to post crew selection interface")
+            
+            if next_steps:
+                embed.add_field(
+                    name="📝 Next Steps",
+                    value="\n".join(next_steps),
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="✅ Setup Complete",
+                    value="Your crew system is fully configured!",
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "setup_status", ctx.guild.id, ctx.author.id
+            )
+            await ctx.send(embed=EmbedBuilder.create_error_embed(
+                "Status Check Failed",
+                "An error occurred while checking system status."
+            ))
 
     # --- Event Listeners ---
     @commands.Cog.listener()
