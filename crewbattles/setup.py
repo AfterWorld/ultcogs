@@ -1,11 +1,12 @@
 """
-crewbattles/commands/setup.py - COMPLETE
+crewbattles/setup.py - FIXED IMPORTS
 Setup and initialization commands for the crew system
 """
 
 import asyncio
 import discord
 from discord.ext import commands
+from redbot.core import commands as red_commands  # Import Red-DiscordBot commands
 
 from .utils import EmbedBuilder, PermissionUtils
 from .ui import CrewButton
@@ -14,9 +15,9 @@ from .ui import CrewButton
 def setup_commands(cog_class):
     """Add setup commands to the CrewManagement cog"""
     
-    @commands.group(name="crewsetup")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
+    @red_commands.group(name="crewsetup")
+    @red_commands.guild_only()
+    @red_commands.admin_or_permissions(administrator=True)
     async def crew_setup(self, ctx):
         """Commands for setting up the crew system."""
         if ctx.invoked_subcommand is None:
@@ -250,7 +251,7 @@ def setup_commands(cog_class):
             ))
 
     @crew_setup.command(name="reorganize")
-    @commands.admin_or_permissions(administrator=True)
+    @red_commands.admin_or_permissions(administrator=True)
     async def reorganize_roles(self, ctx):
         """Reorganize all crew roles between separators."""
         try:
