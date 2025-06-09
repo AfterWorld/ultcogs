@@ -1,1 +1,169 @@
+# Wednesday - What-If Wednesday Theme
+# Focus: Alternate timelines, scenarios, and creative thinking
 
+theme_info:
+  name: "What-If Wednesday"
+  emoji: "❓"
+  description: "Explore alternate timelines and scenarios"
+  focus: "alternate scenarios, creative thinking, what-if discussions"
+
+# Alternate timeline scenarios
+scenario:
+  - prompt: "What if Ace never died? How would the story change?"
+    category: "alternate_timeline"
+    difficulty: "medium"
+    
+  - prompt: "What if Luffy ate a different Devil Fruit as a child?"
+    category: "alternate_powers"
+    difficulty: "easy"
+    
+  - prompt: "What if Sabo never lost his memory?"
+    category: "alternate_timeline"
+    difficulty: "medium"
+    
+  - prompt: "What if the Straw Hats met 10 years earlier?"
+    category: "alternate_timeline"
+    difficulty: "easy"
+    
+  - prompt: "What if Zoro joined the Marines instead of becoming a pirate?"
+    category: "alternate_paths"
+    difficulty: "medium"
+    
+  - prompt: "What if Robin never joined the Straw Hats?"
+    category: "alternate_crew"
+    difficulty: "hard"
+    
+  - prompt: "What if Whitebeard survived Marineford?"
+    category: "alternate_timeline"
+    difficulty: "hard"
+    
+  - prompt: "What if Crocodile successfully took over Alabasta?"
+    category: "villain_victory"
+    difficulty: "medium"
+    
+  - prompt: "What if Luffy failed to save Sanji from Big Mom?"
+    category: "mission_failure"
+    difficulty: "hard"
+    
+  - prompt: "What if the Going Merry never broke?"
+    category: "alternate_ships"
+    difficulty: "easy"
+    
+  - prompt: "What if Shanks never lost his arm?"
+    category: "alternate_timeline"
+    difficulty: "medium"
+    
+  - prompt: "What if Garp raised Luffy to be a Marine?"
+    category: "alternate_upbringing"
+    difficulty: "medium"
+    
+  - prompt: "What if Law never formed an alliance with Luffy?"
+    category: "alternate_alliances"
+    difficulty: "medium"
+    
+  - prompt: "What if Doflamingo successfully killed everyone in Dressrosa?"
+    category: "villain_victory"
+    difficulty: "hard"
+    
+  - prompt: "What if Jinbe joined the crew earlier?"
+    category: "alternate_crew"
+    difficulty: "easy"
+
+# Alternate character development
+alternate:
+  - prompt: "Create an alternate version of your favorite arc with a different outcome"
+    category: "story_rewrite"
+    difficulty: "hard"
+    
+  - prompt: "What if the Straw Hats were Marines? What would their ranks be?"
+    category: "role_reversal"
+    difficulty: "medium"
+    
+  - prompt: "Design an alternate path for Luffy to become Pirate King"
+    category: "alternate_journey"
+    difficulty: "hard"
+    
+  - prompt: "What if Blackbeard was actually a good guy?"
+    category: "character_reversal"
+    difficulty: "medium"
+    
+  - prompt: "Alternate world where Devil Fruits never existed"
+    category: "world_changes"
+    difficulty: "expert"
+    
+  - prompt: "What if the World Government was actually benevolent?"
+    category: "organization_flip"
+    difficulty: "hard"
+
+# Power and ability what-ifs
+powers:
+  - prompt: "What if Haki didn't exist in the One Piece world?"
+    category: "power_removal"
+    difficulty: "hard"
+    
+  - prompt: "What if everyone could eat multiple Devil Fruits?"
+    category: "power_amplification"
+    difficulty: "medium"
+    
+  - prompt: "What if Logia fruits didn't have weaknesses?"
+    category: "power_changes"
+    difficulty: "medium"
+    
+  - prompt: "What if Conqueror's Haki was more common?"
+    category: "ability_frequency"
+    difficulty: "medium"
+
+# Relationship what-ifs
+relationships:
+  - prompt: "What if Luffy and Blackbeard were brothers instead of Ace?"
+    category: "family_changes"
+    difficulty: "hard"
+    
+  - prompt: "What if Nami never forgave the Straw Hats for Arlong Park?"
+    category: "trust_issues"
+    difficulty: "medium"
+    
+  - prompt: "What if Sanji chose his family over the Straw Hats?"
+    category: "loyalty_conflicts"
+    difficulty: "medium"
+
+# World-building what-ifs
+world:
+  - prompt: "What if the Grand Line wasn't so dangerous?"
+    category: "world_safety"
+    difficulty: "medium"
+    
+  - prompt: "What if there were more than four seas?"
+    category: "geography_changes"
+    difficulty: "hard"
+    
+  - prompt: "What if the Red Line didn't exist?"
+    category: "structural_changes"
+    difficulty: "expert"
+    
+  - prompt: "What if pirates were the good guys and Marines were corrupt?"
+    category: "moral_reversal"
+    difficulty: "medium"
+
+# Technology what-ifs
+technology:
+  - prompt: "What if One Piece had modern technology from the start?"
+    category: "tech_advancement"
+    difficulty: "medium"
+    
+  - prompt: "What if Vegapunk's inventions were available to everyone?"
+    category: "tech_distribution"
+    difficulty: "hard"
+    
+  - prompt: "What if there were no Sea-Prism Stone?"
+    category: "material_absence"
+    difficulty: "medium"
+
+# Categories that trivia should focus on for Wednesday
+trivia_focus:
+  - "story"
+  - "plot_points"
+  - "key_events"
+  - "character_development"
+  - "turning_points"
+  - "what_if_scenarios"
