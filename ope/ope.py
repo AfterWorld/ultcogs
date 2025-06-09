@@ -46,7 +46,7 @@ class OPE(commands.Cog):
             "trivia_leaderboard": {},
             "challenge_rewards": True,
             "points_per_daily": 10,
-            "points_per_trivia": 15,
+            "points_per_weekly": 50,
             "weekly_tournament": False,
             "tournament_day": 6
         }
@@ -106,7 +106,7 @@ class OPE(commands.Cog):
                 "straw_hats": ["luffy", "zoro", "nami", "usopp", "sanji", "chopper", "robin", "franky", "brook", "jinbe"],
                 "emperors": ["shanks", "kaido", "big mom", "blackbeard"],
                 "admirals": ["akainu", "kizaru", "aokiji", "fujitora", "ryokugyu"],
-                "warlords": ["mihawk", "crocodile", "doflamingo", "hancock", "jinbe", "law", "weevil", "buggy"]
+                "warlords": ["mihawk", "crocodile", "doflamingo", "hancock", "jinbe", "law", "weevil"]
             },
             "locations": {
                 "islands": ["alabasta", "skypiea", "water 7", "thriller bark", "sabaody", "amazon lily", "impel down", "marineford", "fishman island", "punk hazard", "dressrosa", "zou", "whole cake island", "wano"],
@@ -494,6 +494,71 @@ class OPE(commands.Cog):
         except discord.Forbidden:
             pass
 
+    async def post_weekly_challenge(self, guild: discord.Guild):
+        """Post this week's challenge"""
+        guild_config = await self.config.guild(guild).all()
+        channel_id = guild_config["challenge_channel"]
+        
+        if not channel_id:
+            return
+            
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            return
+            
+        # Select random weekly challenge
+        if not self.weekly_challenges:
+            return
+            
+        challenge_type = random.choice(list(self.weekly_challenges.keys()))
+        challenge = random.choice(self.weekly_challenges[challenge_type])
+        this_week = datetime.now().strftime("%Y-W%U")
+        
+        # Create challenge embed
+        embed = discord.Embed(
+            title="🌊 Weekly Grand Line Challenge!",
+            description=challenge.get("description", challenge.get("title", "Weekly Challenge")),
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        
+        embed.add_field(
+            name="📅 Duration",
+            value=f"{challenge.get('duration', 7)} days",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🏆 Reward",
+            value=f"{guild_config.get('points_per_weekly', 75)} Berries",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🎭 Theme",
+            value=challenge.get("theme", "Adventure"),
+            inline=True
+        )
+        
+        embed.add_field(
+            name="📝 How to Participate",
+            value="React with 🏴‍☠️ and submit your entry!",
+            inline=False
+        )
+        
+        embed.set_footer(text=f"Challenge Type: {challenge.get('category', 'Contest').title()}")
+        
+        try:
+            message = await channel.send(embed=embed)
+            await message.add_reaction("🏴‍☠️")
+            
+            # Update config
+            await self.config.guild(guild).current_weekly.set(this_week)
+            await self.config.guild(guild).weekly_participants.set({})
+            
+        except discord.Forbidden:
+            pass
+
     async def post_auto_trivia(self, guild: discord.Guild):
         """Post automatic trivia question"""
         guild_config = await self.config.guild(guild).all()
@@ -840,6 +905,83 @@ class OPE(commands.Cog):
             await ctx.send("✅ All data files reloaded successfully!")
         except Exception as e:
             await ctx.send(f"❌ Error reloading data: {str(e)}")
+
+    @challenges_admin.command(name="time")
+    async def set_challenge_time(self, ctx, time: str):
+        """Set daily challenge time (24hr format: HH:MM)"""
+        try:
+            datetime.strptime(time, "%H:%M")
+            await self.config.guild(ctx.guild).challenge_time.set(time)
+            await ctx.send(f"✅ Daily challenge time set to {time}")
+        except ValueError:
+            await ctx.send("❌ Invalid time format. Use HH:MM (24hr format)")
+
+    @challenges_admin.command(name="toggle")
+    async def toggle_challenges(self, ctx, challenge_type: str):
+        """Toggle daily or weekly challenges"""
+        if challenge_type.lower() == "daily":
+            current = await self.config.guild(ctx.guild).daily_challenges()
+            await self.config.guild(ctx.guild).daily_challenges.set(not current)
+            status = "enabled" if not current else "disabled"
+            await ctx.send(f"✅ Daily challenges {status}")
+        elif challenge_type.lower() == "weekly":
+            current = await self.config.guild(ctx.guild).weekly_challenges()
+            await self.config.guild(ctx.guild).weekly_challenges.set(not current)
+            status = "enabled" if not current else "disabled"
+            await ctx.send(f"✅ Weekly challenges {status}")
+        else:
+            await ctx.send("❌ Use 'daily' or 'weekly'")
+
+    @challenges_admin.command(name="force")
+    async def force_challenge(self, ctx, challenge_type: str):
+        """Force post a challenge now"""
+        if challenge_type.lower() == "daily":
+            await self.post_daily_challenge(ctx.guild)
+            await ctx.send("✅ Daily challenge posted!")
+        elif challenge_type.lower() == "weekly":
+            await self.post_weekly_challenge(ctx.guild)
+            await ctx.send("✅ Weekly challenge posted!")
+        else:
+            await ctx.send("❌ Use 'daily' or 'weekly'")
+
+    @challenges_admin.command(name="status")
+    async def challenge_status(self, ctx):
+        """Show current challenge settings"""
+        config = await self.config.guild(ctx.guild).all()
+        
+        embed = discord.Embed(
+            title="🏴‍☠️ One Piece Challenges Status",
+            color=discord.Color.gold()
+        )
+        
+        channel = ctx.guild.get_channel(config["challenge_channel"])
+        embed.add_field(
+            name="📍 Channel",
+            value=channel.mention if channel else "Not set",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏰ Daily Time",
+            value=config["challenge_time"],
+            inline=True
+        )
+        
+        embed.add_field(
+            name="📅 Status",
+            value=f"Daily: {'✅' if config['daily_challenges'] else '❌'}\n"
+                  f"Weekly: {'✅' if config['weekly_challenges'] else '❌'}",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🏆 Rewards",
+            value=f"Daily: {config['points_per_daily']} Berries\n"
+                  f"Weekly: {config['points_per_weekly']} Berries",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
 
     @onepiece.group(name="trivia_admin", aliases=["tadmin"])
     @checks.admin_or_permissions(manage_guild=True)
