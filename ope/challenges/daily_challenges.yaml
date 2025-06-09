@@ -1,0 +1,141 @@
+# One Piece Daily Challenges Database
+
+# Discussion-based challenges - get people talking
+discussion:
+  - prompt: "What's your favorite Devil Fruit power and why?"
+    category: "powers"
+    difficulty: "easy"
+    
+  - prompt: "If you could join any pirate crew, which would it be and why?"
+    category: "crews"
+    difficulty: "easy"
+    
+  - prompt: "What do you think is the most emotional One Piece moment?"
+    category: "emotions"
+    difficulty: "medium"
+    
+  - prompt: "Who would make the best Pirate King besides Luffy?"
+    category: "characters"
+    difficulty: "medium"
+    
+  - prompt: "What's your theory about the Will of D?"
+    category: "mysteries"
+    difficulty: "hard"
+    
+  - prompt: "How do you think One Piece will end?"
+    category: "theories"
+    difficulty: "hard"
+
+# Creative challenges - art, writing, imagination
+creative:
+  - prompt: "Draw or describe your own pirate flag design!"
+    category: "art"
+    difficulty: "medium"
+    
+  - prompt: "Create a new Devil Fruit and describe its powers!"
+    category: "powers"
+    difficulty: "medium"
+    
+  - prompt: "Design a new island for the Straw Hats to visit!"
+    category: "worldbuilding"
+    difficulty: "hard"
+    
+  - prompt: "Write a short story about your favorite character!"
+    category: "writing"
+    difficulty: "medium"
+    
+  - prompt: "Create a new fighting technique for any Straw Hat!"
+    category: "combat"
+    difficulty: "medium"
+    
+  - prompt: "Design a restaurant menu for Sanji's dream restaurant!"
+    category: "food"
+    difficulty: "easy"
+
+# Knowledge-based challenges (mini trivia)
+trivia:
+  - prompt: "Name 3 members of the Worst Generation"
+    answers: ["luffy", "zoro", "law", "kidd", "killer", "hawkins", "drake", "apoo", "bonney", "bege", "urouge"]
+    min_correct: 3
+    difficulty: "medium"
+    category: "characters"
+    
+  - prompt: "List 5 Straw Hat Pirates in order of joining"
+    answers: ["luffy", "zoro", "nami", "usopp", "sanji", "chopper", "robin", "franky", "brook", "jinbe"]
+    min_correct: 5
+    difficulty: "easy"
+    category: "crew"
+    
+  - prompt: "Name 4 islands in the Grand Line"
+    answers: ["alabasta", "skypiea", "water 7", "thriller bark", "sabaody", "amazon lily", "impel down", "marineford", "fishman island", "punk hazard", "dressrosa", "zou", "whole cake island", "wano"]
+    min_correct: 4
+    difficulty: "medium"
+    category: "locations"
+
+# Scenario-based challenges
+scenario:
+  - prompt: "You're stuck on a deserted island with one Straw Hat member. Who do you choose and why?"
+    category: "survival"
+    difficulty: "easy"
+    
+  - prompt: "You have to defend your hometown from pirates. Which 3 One Piece characters do you recruit?"
+    category: "strategy"
+    difficulty: "medium"
+    
+  - prompt: "You find a Devil Fruit but don't know what it does. Do you eat it? Why or why not?"
+    category: "decision"
+    difficulty: "easy"
+    
+  - prompt: "You're offered a spot in any crew in One Piece. Which do you choose and what role would you want?"
+    category: "roleplay"
+    difficulty: "easy"
+
+# Debate/Opinion challenges
+debate:
+  - prompt: "Who would win: Pre-timeskip Crocodile vs Current Buggy?"
+    category: "powerscaling"
+    difficulty: "medium"
+    
+  - prompt: "What's the most overpowered Devil Fruit in the series?"
+    category: "powers"
+    difficulty: "medium"
+    
+  - prompt: "Best arc in One Piece and why?"
+    category: "story"
+    difficulty: "easy"
+    
+  - prompt: "Who has the best character development in the series?"
+    category: "characters"
+    difficulty: "medium"
+
+# Memory/Knowledge challenges
+memory:
+  - prompt: "What was the first Devil Fruit shown in the series?"
+    answers: ["gomu gomu", "rubber fruit", "gum gum"]
+    category: "firsts"
+    difficulty: "easy"
+    
+  - prompt: "What was Zoro's bounty after Enies Lobby?"
+    answers: ["120 million", "120,000,000"]
+    category: "bounties"
+    difficulty: "hard"
+    
+  - prompt: "Name Luffy's first three crew members in order"
+    answers: ["zoro", "nami", "usopp"]
+    min_correct: 3
+    category: "crew"
+    difficulty: "easy"
+
+# Photo/Screenshot challenges
+visual:
+  - prompt: "Post your favorite One Piece screenshot and explain why it's meaningful!"
+    category: "moments"
+    difficulty: "easy"
+    
+  - prompt: "Find and share the funniest One Piece panel/scene!"
+    category: "humor"
+    difficulty: "easy"
+    
+  - prompt: "Share a screenshot that shows the best example of friendship in One Piece!"
+    category: "friendship"
+    difficulty: "medium"
