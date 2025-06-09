@@ -1,0 +1,160 @@
+# Medium One Piece Trivia Questions
+# For fans who know more than the basics
+
+# Story and plot details
+story:
+  - question: "Which Straw Hat joined the crew at Water 7?"
+    answers: ["franky"]
+    category: "crew"
+    
+  - question: "What is the name of Law's submarine?"
+    answers: ["polar tang"]
+    category: "ships"
+    
+  - question: "Which island is known as the 'Island of Women'?"
+    answers: ["amazon lily"]
+    category: "locations"
+    
+  - question: "What was the name of the ship that brought Tom to Water 7?"
+    answers: ["puffing tom", "sea train"]
+    category: "vehicles"
+    
+  - question: "Who killed Thatch of the Whitebeard Pirates?"
+    answers: ["blackbeard", "marshall d teach"]
+    category: "plot"
+
+# Character relationships and backstories  
+characters:
+  - question: "Who trained Luffy during the timeskip?"
+    answers: ["rayleigh", "silvers rayleigh"]
+    category: "training"
+    
+  - question: "What is Sanji's real last name?"
+    answers: ["vinsmoke"]
+    category: "family"
+    
+  - question: "Who is Ace's biological father?"
+    answers: ["gol d roger", "roger"]
+    category: "family"
+    
+  - question: "What is Robin's bounty nickname?"
+    answers: ["demon child", "devil child"]
+    category: "nicknames"
+    
+  - question: "Who taught Nami about weather science?"
+    answers: ["haredas"]
+    category: "training"
+
+# Powers and abilities
+powers:
+  - question: "What type of Devil Fruit did Ace eat?"
+    answers: ["logia", "fire logia", "mera mera no mi"]
+    category: "devil_fruits"
+    
+  - question: "What is the name of Zoro's cursed sword?"
+    answers: ["sandai kitetsu", "kitetsu"]
+    category: "weapons"
+    
+  - question: "What Haki can Luffy use that most people can't?"
+    answers: ["conqueror's haki", "conquerors haki", "haoshoku"]
+    category: "haki"
+    
+  - question: "What is the name of Sanji's fighting style?"
+    answers: ["black leg style", "black leg"]
+    category: "combat"
+    
+  - question: "What is Chopper's strongest form called?"
+    answers: ["monster point"]
+    category: "transformations"
+
+# Organizations and groups
+organizations:
+  - question: "What does CP9 stand for?"
+    answers: ["cipher pol number 9", "cipher pol 9"]
+    category: "government"
+    
+  - question: "Who is the leader of the Revolutionary Army?"
+    answers: ["dragon", "monkey d dragon"]
+    category: "revolutionaries"
+    
+  - question: "What is the name of Big Mom's crew?"
+    answers: ["big mom pirates"]
+    category: "pirate_crews"
+    
+  - question: "Which Warlord was known as the 'Tyrant'?"
+    answers: ["kuma", "bartholomew kuma"]
+    category: "warlords"
+
+# Locations and geography
+locations:
+  - question: "What is the name of the final island?"
+    answers: ["raftel", "laugh tale"]
+    category: "islands"
+    
+  - question: "Which island did the Straw Hats visit right after Alabasta?"
+    answers: ["jaya"]
+    category: "journey"
+    
+  - question: "What is the name of the prison where Ace was held?"
+    answers: ["impel down"]
+    category: "facilities"
+    
+  - question: "Where is the Marine Headquarters located?"
+    answers: ["marineford"]
+    category: "marine_bases"
+
+# Bounties and numbers
+bounties:
+  - question: "What was Luffy's bounty after Dressrosa?"
+    answers: ["500 million", "500,000,000"]
+    category: "bounties"
+    
+  - question: "What was Ace's final bounty?"
+    answers: ["550 million", "550,000,000"]
+    category: "bounties"
+    
+  - question: "How many members are in the Worst Generation?"
+    answers: ["12", "twelve"]
+    category: "groups"
+
+# Devil Fruits and abilities
+devil_fruits:
+  - question: "What Devil Fruit does Marco have?"
+    answers: ["tori tori no mi model phoenix", "phoenix fruit"]
+    category: "mythical_zoan"
+    
+  - question: "What is the weakness of all Devil Fruit users?"
+    answers: ["sea water", "water", "sea"]
+    category: "weaknesses"
+    
+  - question: "What Devil Fruit did Whitebeard have?"
+    answers: ["gura gura no mi", "quake fruit"]
+    category: "paramecia"
+
+# Events and battles
+events:
+  - question: "What war was fought to save Ace?"
+    answers: ["marineford war", "paramount war"]
+    category: "wars"
+    
+  - question: "Which arc featured the Going Merry's funeral?"
+    answers: ["water 7", "enies lobby"]
+    category: "emotional_moments"
+    
+  - question: "Who defeated Crocodile in Alabasta?"
+    answers: ["luffy"]
+    category: "victories"
+
+# Technical details
+technical:
+  - question: "What is the currency used in One Piece?"
+    answers: ["berries", "belly"]
+    category: "world_building"
+    
+  - question: "What are the three types of Haki?"
+    answers: ["observation", "armament", "conqueror's"]
+    category: "haki"
+    
+  - question: "What do you call the special water that weakens Devil Fruit users?"
+    answers: ["seastone", "sea prism stone"]
+    category: "materials"
