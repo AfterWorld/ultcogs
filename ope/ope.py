@@ -15,7 +15,7 @@ from redbot.core.utils.chat_formatting import box, pagify
 
 
 class OPE(commands.Cog):
-    """One Piece Engagement - Master One Piece engagement system with daily challenges and trivia!"""
+    """One Piece Engagement - Enhanced with automatic themed daily rotation!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -24,32 +24,37 @@ class OPE(commands.Cog):
         # Paths for data files
         self.cog_data_path = Path(data_manager.cog_data_path(self))
         self.challenges_path = self.cog_data_path / "challenges"
+        self.themes_path = self.cog_data_path / "themes"  # New themed content
         self.trivia_path = self.cog_data_path / "trivia"
         self.constants_path = self.cog_data_path / "constants.yaml"
         
-        # Create directories if they don't exist
+        # Create directories
         self.challenges_path.mkdir(parents=True, exist_ok=True)
+        self.themes_path.mkdir(parents=True, exist_ok=True)
         self.trivia_path.mkdir(parents=True, exist_ok=True)
         
-        # Default guild settings
+        # Enhanced guild settings with theme support
         default_guild = {
             "challenge_channel": None,
             "trivia_channel": None,
             "daily_challenges": True,
-            "weekly_challenges": False,  
+            "themed_days": True,  # New: Enable themed daily rotation
             "auto_trivia": False,
             "challenge_time": "12:00",
             "trivia_interval": 3600,
             "current_daily": None,
             "current_weekly": None,
+            "current_theme": None,  # Track current day's theme
             "weekly_day": 1,
             "participants": {},
             "trivia_leaderboard": {},
             "challenge_rewards": True,
             "points_per_daily": 10,
-            "points_per_weekly": 50,  
+            "points_per_weekly": 50,
             "weekly_tournament": False,
-            "tournament_day": 6
+            "tournament_day": 6,
+            "theme_override": None,  # Admin can override theme for special events
+            "trivia_boost_days": [1, 4],  # Tuesday=1, Friday=4 get extra trivia
         }
         
         # Default user settings
@@ -59,7 +64,8 @@ class OPE(commands.Cog):
             "trivia_correct": 0,
             "trivia_attempted": 0,
             "favorite_category": None,
-            "achievements": []
+            "achievements": [],
+            "theme_participation": {}  # Track participation by theme
         }
         
         self.config.register_guild(**default_guild)
@@ -69,7 +75,19 @@ class OPE(commands.Cog):
         self.constants = {}
         self.daily_challenges = {}
         self.weekly_challenges = {}
+        self.themed_challenges = {}  # New: themed content cache
         self.trivia_data = {}
+        
+        # Weekly theme schedule
+        self.weekly_themes = {
+            0: "theory_monday",      # Monday
+            1: "trivia_tuesday",     # Tuesday  
+            2: "whatif_wednesday",   # Wednesday
+            3: "throwback_thursday", # Thursday
+            4: "fight_friday",       # Friday
+            5: "creative_saturday",  # Saturday
+            6: "summary_sunday"      # Sunday
+        }
         
         # Load all data files
         self.load_all_data()
@@ -86,6 +104,7 @@ class OPE(commands.Cog):
         """Load all data files into memory"""
         self.load_constants()
         self.load_challenges()
+        self.load_themed_challenges()  # New: load themed content
         self.load_trivia_data()
 
     def load_constants(self):
@@ -377,9 +396,383 @@ class OPE(commands.Cog):
         with open(self.trivia_path / "hard.yaml", 'w', encoding='utf-8') as f:
             yaml.dump(hard_trivia, f, default_flow_style=False, allow_unicode=True)
 
+    def load_themed_challenges(self):
+        """Load themed challenge files for each day"""
+        self.create_default_themed_challenges()
+        
+        for day_num, theme_name in self.weekly_themes.items():
+            theme_file = self.themes_path / f"{theme_name}.yaml"
+            if theme_file.exists():
+                with open(theme_file, 'r', encoding='utf-8') as f:
+                    self.themed_challenges[theme_name] = yaml.safe_load(f)
+
+    def create_default_themed_challenges(self):
+        """Create ALL themed challenge files for each day - COMPLETE VERSION"""
+        
+        # Monday - Theory Monday
+        theory_monday = {
+            "theme_info": {
+                "name": "Theory Monday",
+                "emoji": "🧭",
+                "description": "Dive deep into One Piece mysteries and theories",
+                "focus": "predictions, theories, mysteries, lore"
+            },
+            "discussion": [
+                {"prompt": "What do you think the One Piece treasure actually is?", "category": "mysteries", "difficulty": "medium"},
+                {"prompt": "What's your theory about the Will of D?", "category": "ancient_history", "difficulty": "hard"},
+                {"prompt": "How do you think the final war will unfold?", "category": "predictions", "difficulty": "expert"},
+                {"prompt": "What's the connection between Joy Boy and Luffy?", "category": "mysteries", "difficulty": "hard"},
+                {"prompt": "What happened during the Void Century?", "category": "ancient_history", "difficulty": "expert"},
+                {"prompt": "Is Im-sama the final villain or something bigger?", "category": "predictions", "difficulty": "hard"},
+                {"prompt": "What's the true power of the Ancient Weapons?", "category": "mysteries", "difficulty": "hard"},
+                {"prompt": "How will the World Government fall?", "category": "predictions", "difficulty": "medium"},
+                {"prompt": "What's Blackbeard's ultimate plan?", "category": "villains", "difficulty": "medium"},
+                {"prompt": "Is Laugh Tale on the moon or underwater?", "category": "mysteries", "difficulty": "medium"}
+            ],
+            "trivia_focus": ["mysteries", "ancient_history", "void_century", "poneglyphs"]
+        }
+        
+        # Tuesday - Trivia Tuesday  
+        trivia_tuesday = {
+            "theme_info": {
+                "name": "Trivia Tuesday",
+                "emoji": "🎯", 
+                "description": "Test your One Piece knowledge with intensive trivia",
+                "focus": "knowledge testing, competitions, brain challenges"
+            },
+            "knowledge": [
+                {"prompt": "Name all 11 members of the Worst Generation", "answers": ["luffy", "zoro", "law", "kidd", "killer", "hawkins", "drake", "apoo", "bonney", "bege", "urouge"], "min_correct": 8, "category": "characters", "difficulty": "medium"},
+                {"prompt": "List the first 5 Straw Hat Pirates in joining order", "answers": ["luffy", "zoro", "nami", "usopp", "sanji"], "min_correct": 5, "category": "crew", "difficulty": "easy"},
+                {"prompt": "Name 5 Whitebeard Pirates division commanders", "answers": ["marco", "ace", "vista", "thatch", "jozu", "blamenco", "rakuyo", "namule", "blenheim", "curiel"], "min_correct": 5, "category": "crews", "difficulty": "hard"},
+                {"prompt": "List all current Yonko in order of bounty", "answers": ["whitebeard", "kaido", "big mom", "shanks", "blackbeard"], "min_correct": 4, "category": "emperors", "difficulty": "medium"},
+                {"prompt": "Name 3 Logia Devil Fruit users", "answers": ["ace", "smoker", "crocodile", "enel", "aokiji", "kizaru", "akainu", "blackbeard", "caesar"], "min_correct": 3, "category": "powers", "difficulty": "easy"},
+                {"prompt": "List 5 Grand Line islands in story order", "answers": ["reverse mountain", "whisky peak", "little garden", "drum island", "alabasta", "jaya", "skypiea"], "min_correct": 5, "category": "locations", "difficulty": "hard"}
+            ],
+            "quiz": [
+                {"prompt": "Quick Fire Round: Name as many One Piece islands as you can in 60 seconds!", "category": "speed_round", "difficulty": "medium"},
+                {"prompt": "Bounty Challenge: Order these bounties from highest to lowest", "category": "bounties", "difficulty": "hard"},
+                {"prompt": "Devil Fruit Speed Round: Name the user for each fruit!", "category": "powers", "difficulty": "medium"}
+            ],
+            "trivia_boost": True,
+            "trivia_focus": ["general", "characters", "crews", "bounties"]
+        }
+        
+        # Wednesday - What-If Wednesday
+        whatif_wednesday = {
+            "theme_info": {
+                "name": "What-If Wednesday", 
+                "emoji": "❓",
+                "description": "Explore alternate timelines and scenarios",
+                "focus": "alternate scenarios, creative thinking, what-if discussions"
+            },
+            "scenario": [
+                {"prompt": "What if Ace never died? How would the story change?", "category": "alternate_timeline", "difficulty": "medium"},
+                {"prompt": "What if Luffy ate a different Devil Fruit as a child?", "category": "alternate_powers", "difficulty": "easy"},
+                {"prompt": "What if Sabo never lost his memory?", "category": "alternate_timeline", "difficulty": "medium"},
+                {"prompt": "What if the Straw Hats met 10 years earlier?", "category": "alternate_timeline", "difficulty": "easy"},
+                {"prompt": "What if Zoro joined the Marines instead of becoming a pirate?", "category": "alternate_paths", "difficulty": "medium"},
+                {"prompt": "What if Robin never joined the Straw Hats?", "category": "alternate_crew", "difficulty": "hard"},
+                {"prompt": "What if Whitebeard survived Marineford?", "category": "alternate_timeline", "difficulty": "hard"},
+                {"prompt": "What if Crocodile successfully took over Alabasta?", "category": "villain_victory", "difficulty": "medium"},
+                {"prompt": "What if Luffy failed to save Sanji from Big Mom?", "category": "mission_failure", "difficulty": "hard"},
+                {"prompt": "What if the Going Merry never broke?", "category": "alternate_ships", "difficulty": "easy"},
+                {"prompt": "What if Shanks never lost his arm?", "category": "alternate_timeline", "difficulty": "medium"},
+                {"prompt": "What if Garp raised Luffy to be a Marine?", "category": "alternate_upbringing", "difficulty": "medium"},
+                {"prompt": "What if Law never formed an alliance with Luffy?", "category": "alternate_alliances", "difficulty": "medium"},
+                {"prompt": "What if Doflamingo successfully killed everyone in Dressrosa?", "category": "villain_victory", "difficulty": "hard"},
+                {"prompt": "What if Jinbe joined the crew earlier?", "category": "alternate_crew", "difficulty": "easy"}
+            ],
+            "alternate": [
+                {"prompt": "Create an alternate version of your favorite arc with a different outcome", "category": "story_rewrite", "difficulty": "hard"},
+                {"prompt": "What if the Straw Hats were Marines? What would their ranks be?", "category": "role_reversal", "difficulty": "medium"},
+                {"prompt": "Design an alternate path for Luffy to become Pirate King", "category": "alternate_journey", "difficulty": "hard"}
+            ],
+            "trivia_focus": ["story", "plot_points", "key_events"]
+        }
+        
+        # Thursday - Throwback Thursday
+        throwback_thursday = {
+            "theme_info": {
+                "name": "Throwback Thursday",
+                "emoji": "⏪", 
+                "description": "Celebrate classic One Piece moments and nostalgia",
+                "focus": "classic moments, early arcs, nostalgic content, memories"
+            },
+            "memory": [
+                {"prompt": "Share your favorite moment from the East Blue saga", "category": "early_arcs", "difficulty": "easy"},
+                {"prompt": "What was the most emotional scene in Alabasta?", "category": "classic_moments", "difficulty": "easy"},
+                {"prompt": "Best Going Merry moment that made you cry?", "category": "emotional_moments", "difficulty": "medium"},
+                {"prompt": "Most shocking moment in Enies Lobby?", "category": "classic_moments", "difficulty": "medium"},
+                {"prompt": "Your favorite Skypiea moment that everyone forgets?", "category": "underrated_moments", "difficulty": "medium"},
+                {"prompt": "What made you fall in love with One Piece initially?", "category": "first_impressions", "difficulty": "easy"},
+                {"prompt": "Best pre-timeskip fight scene?", "category": "classic_battles", "difficulty": "easy"},
+                {"prompt": "Most nostalgic One Piece opening song?", "category": "music_nostalgia", "difficulty": "easy"},
+                {"prompt": "Funniest early series moment?", "category": "comedy_classics", "difficulty": "easy"},
+                {"prompt": "Which early villain do you miss most?", "category": "classic_villains", "difficulty": "medium"},
+                {"prompt": "Best character introduction in the early series?", "category": "character_debuts", "difficulty": "medium"},
+                {"prompt": "Most quotable line from pre-timeskip?", "category": "memorable_quotes", "difficulty": "medium"}
+            ],
+            "visual": [
+                {"prompt": "Share a screenshot of your favorite classic One Piece moment!", "category": "screenshots", "difficulty": "easy"},
+                {"prompt": "Post your favorite old-school One Piece art style panel", "category": "art_nostalgia", "difficulty": "easy"},
+                {"prompt": "Show us your favorite Going Merry scene", "category": "ship_nostalgia", "difficulty": "easy"}
+            ],
+            "nostalgia": [
+                {"prompt": "What classic One Piece moment hits different now that you're older?", "category": "perspective_change", "difficulty": "medium"},
+                {"prompt": "Which early series prediction of yours came true?", "category": "old_predictions", "difficulty": "hard"},
+                {"prompt": "What do you miss most about pre-timeskip One Piece?", "category": "series_evolution", "difficulty": "medium"}
+            ],
+            "trivia_focus": ["early_arcs", "classic_moments", "east_blue", "alabasta"]
+        }
+        
+        # Friday - Fight Friday
+        fight_friday = {
+            "theme_info": {
+                "name": "Fight Friday",
+                "emoji": "⚔️",
+                "description": "Battle discussions, power scaling, and combat analysis", 
+                "focus": "battles, power scaling, combat, strength debates"
+            },
+            "debate": [
+                {"prompt": "Who would win: Current Luffy vs Prime Whitebeard?", "category": "powerscaling", "difficulty": "medium"},
+                {"prompt": "Rank the Admirals by overall strength", "category": "powerscaling", "difficulty": "medium"}, 
+                {"prompt": "Best fighting technique in all of One Piece?", "category": "techniques", "difficulty": "easy"},
+                {"prompt": "Create the ultimate tournament bracket with current fighters", "category": "tournaments", "difficulty": "hard"},
+                {"prompt": "Mihawk vs Shanks - who really wins?", "category": "legendary_battles", "difficulty": "hard"},
+                {"prompt": "Strongest Straw Hat in a 1v1 (excluding Luffy)?", "category": "crew_battles", "difficulty": "medium"},
+                {"prompt": "Which Emperor has the most devastating attack?", "category": "ultimate_attacks", "difficulty": "medium"},
+                {"prompt": "Best Devil Fruit for pure combat?", "category": "combat_fruits", "difficulty": "medium"},
+                {"prompt": "Who has the most broken Haki abilities?", "category": "haki_debate", "difficulty": "hard"},
+                {"prompt": "Create the perfect fighting crew from any series characters", "category": "dream_teams", "difficulty": "hard"}
+            ],
+            "ranking": [
+                {"prompt": "Rank all Conqueror's Haki users by mastery level", "category": "haki", "difficulty": "hard"},
+                {"prompt": "Top 10 strongest characters currently alive", "category": "power_rankings", "difficulty": "expert"},
+                {"prompt": "Rank the Worst Generation by current power level", "category": "supernova_ranking", "difficulty": "medium"},
+                {"prompt": "Best to worst: All Warlord combat abilities", "category": "warlord_ranking", "difficulty": "medium"}
+            ],
+            "analysis": [
+                {"prompt": "Break down the perfect counter to Kaido's fighting style", "category": "combat_analysis", "difficulty": "expert"},
+                {"prompt": "Most underrated fighter who deserves respect", "category": "underrated_fighters", "difficulty": "medium"},
+                {"prompt": "Predict the fighting style of the final boss", "category": "final_boss", "difficulty": "expert"}
+            ],
+            "trivia_boost": True,
+            "trivia_focus": ["combat", "techniques", "powers", "battles"]
+        }
+        
+        # Saturday - Creative Saturday
+        creative_saturday = {
+            "theme_info": {
+                "name": "Creative Saturday", 
+                "emoji": "🎨",
+                "description": "Art, writing, and creative expression showcase",
+                "focus": "creativity, art, writing, original content"
+            },
+            "creative": [
+                {"prompt": "Design a new Devil Fruit and describe its powers!", "category": "original_content", "difficulty": "medium"},
+                {"prompt": "Create your own pirate crew with unique members", "category": "original_content", "difficulty": "medium"},
+                {"prompt": "Draw or describe your interpretation of Laugh Tale", "category": "art", "difficulty": "hard"},
+                {"prompt": "Write a short adventure featuring any One Piece character", "category": "writing", "difficulty": "medium"},
+                {"prompt": "Design a new island with unique culture and challenges", "category": "worldbuilding", "difficulty": "hard"},
+                {"prompt": "Create an original Marine Admiral with unique powers", "category": "character_creation", "difficulty": "medium"},
+                {"prompt": "Invent a new fighting style combining existing techniques", "category": "technique_creation", "difficulty": "medium"},
+                {"prompt": "Design the perfect ship for your dream crew", "category": "ship_design", "difficulty": "medium"},
+                {"prompt": "Create a new race for the One Piece world", "category": "worldbuilding", "difficulty": "hard"},
+                {"prompt": "Invent a Revolutionary Army member with a tragic backstory", "category": "character_creation", "difficulty": "hard"}
+            ],
+            "art": [
+                {"prompt": "Share your One Piece fan art or describe a scene you'd love to draw!", "category": "art_showcase", "difficulty": "easy"},
+                {"prompt": "Design a new Jolly Roger for your favorite character", "category": "flag_design", "difficulty": "easy"},
+                {"prompt": "Create a movie poster for a One Piece film starring your favorite character", "category": "poster_design", "difficulty": "medium"},
+                {"prompt": "Design costume variants for the Straw Hats", "category": "costume_design", "difficulty": "medium"}
+            ],
+            "writing": [
+                {"prompt": "Write a diary entry from any One Piece character's perspective", "category": "character_writing", "difficulty": "medium"},
+                {"prompt": "Create a news article about a major One Piece event", "category": "news_writing", "difficulty": "medium"},
+                {"prompt": "Write a letter between two characters who haven't met yet", "category": "creative_writing", "difficulty": "hard"},
+                {"prompt": "Compose a sea shanty that the Straw Hats would sing", "category": "song_writing", "difficulty": "hard"}
+            ],
+            "showcase": [
+                {"prompt": "Share any One Piece related creation you've made!", "category": "community_showcase", "difficulty": "easy"},
+                {"prompt": "Show off your One Piece collection or setup", "category": "collection_showcase", "difficulty": "easy"}
+            ],
+            "trivia_focus": ["characters", "world_building", "creative"]
+        }
+        
+        # Sunday - Summary Sunday
+        summary_sunday = {
+            "theme_info": {
+                "name": "Summary Sunday",
+                "emoji": "🏆",
+                "description": "Week recap, community highlights, and celebrations",
+                "focus": "community highlights, week review, achievements"
+            },
+            "community": [
+                {"prompt": "What was the best theory shared this week?", "category": "community_highlight", "difficulty": "easy"},
+                {"prompt": "Most creative idea from this week's challenges?", "category": "community_highlight", "difficulty": "easy"}, 
+                {"prompt": "Share your favorite community contribution from this week", "category": "appreciation", "difficulty": "easy"},
+                {"prompt": "What One Piece topic should we explore more next week?", "category": "planning", "difficulty": "easy"},
+                {"prompt": "Which daily theme did you enjoy most this week?", "category": "theme_feedback", "difficulty": "easy"},
+                {"prompt": "Highlight someone who had great participation this week", "category": "member_spotlight", "difficulty": "easy"},
+                {"prompt": "What was the most interesting debate from Fight Friday?", "category": "weekly_recap", "difficulty": "easy"},
+                {"prompt": "Best creative work shared on Creative Saturday?", "category": "art_highlight", "difficulty": "easy"}
+            ],
+            "reflection": [
+                {"prompt": "How did this week's One Piece discussions change your perspective?", "category": "reflection", "difficulty": "medium"},
+                {"prompt": "What new One Piece knowledge did you learn this week?", "category": "learning", "difficulty": "easy"},
+                {"prompt": "Which challenge made you think the hardest?", "category": "mental_challenge", "difficulty": "medium"},
+                {"prompt": "How has your One Piece journey evolved lately?", "category": "personal_growth", "difficulty": "medium"}
+            ],
+            "planning": [
+                {"prompt": "What special events should we plan for next month?", "category": "event_planning", "difficulty": "medium"},
+                {"prompt": "Suggest improvements for any of our themed days", "category": "system_feedback", "difficulty": "medium"},
+                {"prompt": "What One Piece milestone should we celebrate next?", "category": "celebration_planning", "difficulty": "easy"}
+            ],
+            "achievements": [
+                {"prompt": "Celebrate your One Piece knowledge growth this week!", "category": "personal_achievement", "difficulty": "easy"},
+                {"prompt": "Share a One Piece goal you're working towards", "category": "future_goals", "difficulty": "easy"},
+                {"prompt": "What One Piece skill have you improved on recently?", "category": "skill_development", "difficulty": "medium"}
+            ],
+            "trivia_focus": ["mixed_review", "weekly_highlights"]
+        }
+        
+        # Save all theme files
+        themes = {
+            "theory_monday": theory_monday,
+            "trivia_tuesday": trivia_tuesday,
+            "whatif_wednesday": whatif_wednesday,
+            "throwback_thursday": throwback_thursday,
+            "fight_friday": fight_friday,
+            "creative_saturday": creative_saturday,
+            "summary_sunday": summary_sunday
+        }
+        
+        for theme_name, theme_data in themes.items():
+            theme_file = self.themes_path / f"{theme_name}.yaml"
+            with open(theme_file, 'w', encoding='utf-8') as f:
+                yaml.dump(theme_data, f, default_flow_style=False, allow_unicode=True)
+
+    def get_current_theme(self, override_theme: str = None) -> str:
+        """Get current day's theme or override"""
+        if override_theme:
+            return override_theme
+        
+        current_day = datetime.now().weekday()  # 0=Monday, 6=Sunday
+        return self.weekly_themes.get(current_day, "theory_monday")
+
+    async def post_daily_challenge(self, guild: discord.Guild):
+        """Enhanced daily challenge posting with theme awareness"""
+        guild_config = await self.config.guild(guild).all()
+        channel_id = guild_config["challenge_channel"]
+        
+        if not channel_id:
+            return
+            
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            return
+        
+        # Get current theme
+        override_theme = guild_config.get("theme_override")
+        current_theme = self.get_current_theme(override_theme)
+        theme_data = self.themed_challenges.get(current_theme, {})
+        
+        # Check if themed days are enabled
+        if guild_config.get("themed_days", True) and theme_data:
+            challenge = await self.select_themed_challenge(theme_data)
+        else:
+            # Fall back to regular challenges
+            if not self.daily_challenges:
+                return
+            challenge_type = random.choice(list(self.daily_challenges.keys()))
+            challenge = random.choice(self.daily_challenges[challenge_type])
+            challenge["theme"] = "random"
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Create themed challenge embed
+        theme_info = theme_data.get("theme_info", {})
+        theme_emoji = theme_info.get("emoji", "🏴‍☠️")
+        theme_name = theme_info.get("name", "Daily Challenge")
+        
+        embed = discord.Embed(
+            title=f"{theme_emoji} {theme_name}!",
+            description=challenge["prompt"],
+            color=self.get_theme_color(current_theme),
+            timestamp=datetime.now()
+        )
+        
+        if theme_info.get("description"):
+            embed.add_field(
+                name="📋 Today's Theme",
+                value=theme_info["description"],
+                inline=False
+            )
+        
+        embed.add_field(
+            name="📝 How to Participate",
+            value="React with ⚓ and share your response!",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🏆 Reward",
+            value=f"{guild_config['points_per_daily']} Berries",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="⏰ Deadline",
+            value="Before tomorrow's challenge!",
+            inline=True
+        )
+        
+        embed.set_footer(text=f"Category: {challenge.get('category', 'General').title()} | Theme: {current_theme.replace('_', ' ').title()}")
+        
+        try:
+            message = await channel.send(embed=embed)
+            await message.add_reaction("⚓")
+            
+            # Update config with current theme
+            await self.config.guild(guild).current_daily.set(today)
+            await self.config.guild(guild).current_theme.set(current_theme)
+            
+        except discord.Forbidden:
+            pass
+
+    async def select_themed_challenge(self, theme_data: dict) -> dict:
+        """Select appropriate challenge from themed data"""
+        # Get all challenge categories for this theme
+        challenge_categories = [key for key in theme_data.keys() 
+                              if key not in ["theme_info", "trivia_focus", "trivia_boost"]]
+        
+        if not challenge_categories:
+            return {"prompt": "What's your favorite One Piece moment?", "category": "general"}
+        
+        # Select random category and challenge
+        category = random.choice(challenge_categories)
+        challenges = theme_data[category]
+        challenge = random.choice(challenges)
+        challenge["theme_category"] = category
+        
+        return challenge
+
+    def get_theme_color(self, theme_name: str) -> discord.Color:
+        """Get color for each theme"""
+        theme_colors = {
+            "theory_monday": discord.Color.purple(),      # Purple for mystery
+            "trivia_tuesday": discord.Color.blue(),       # Blue for knowledge
+            "whatif_wednesday": discord.Color.orange(),   # Orange for creativity
+            "throwback_thursday": discord.Color.green(),  # Green for nostalgia
+            "fight_friday": discord.Color.red(),          # Red for battles
+            "creative_saturday": discord.Color.gold(),    # Gold for creativity
+            "summary_sunday": discord.Color.blurple()     # Discord blurple for community
+        }
+        return theme_colors.get(theme_name, discord.Color.red())
+
     @tasks.loop(minutes=5)
     async def daily_challenge_task(self):
-        """Check for daily challenge time"""
+        """Enhanced daily challenge task with theme awareness"""
         for guild_id in await self.config.all_guilds():
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -401,7 +794,7 @@ class OPE(commands.Cog):
 
     @tasks.loop(minutes=30)
     async def auto_trivia_task(self):
-        """Auto trivia posting"""
+        """Enhanced auto trivia with theme awareness and boost days"""
         for guild_id in await self.config.all_guilds():
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -411,32 +804,37 @@ class OPE(commands.Cog):
             if not guild_config["auto_trivia"]:
                 continue
                 
+            # Check theme boost days (Tuesday=1, Friday=4)
+            current_day = datetime.now().weekday()
+            boost_days = guild_config.get("trivia_boost_days", [1, 4])
+            
+            # Adjust interval for boost days
+            base_interval = guild_config["trivia_interval"]
+            if current_day in boost_days:
+                interval = base_interval // 2  # Double frequency on boost days
+            else:
+                interval = base_interval
+            
             # Check if enough time has passed since last trivia
             now = datetime.now()
-            last_trivia_key = f"last_auto_trivia_{guild_id}"
-            
-            # Get last trivia time from config
             last_trivia = await self.config.guild(guild).get_raw("last_auto_trivia", default=None)
             
             if last_trivia is None:
-                # First time - post trivia and set timestamp
-                await self.post_auto_trivia(guild)
+                await self.post_themed_auto_trivia(guild)
                 await self.config.guild(guild).set_raw("last_auto_trivia", value=now.timestamp())
                 continue
             
-            # Convert timestamp back to datetime
             last_trivia_time = datetime.fromtimestamp(last_trivia)
             time_diff = (now - last_trivia_time).total_seconds()
             
-            # Check if enough time has passed (default 1 hour)
-            if time_diff >= guild_config["trivia_interval"]:
-                await self.post_auto_trivia(guild)
+            if time_diff >= interval:
+                await self.post_themed_auto_trivia(guild)
                 await self.config.guild(guild).set_raw("last_auto_trivia", value=now.timestamp())
 
-    async def post_daily_challenge(self, guild: discord.Guild):
-        """Post today's daily challenge"""
+    async def post_themed_auto_trivia(self, guild: discord.Guild):
+        """Post auto trivia with theme awareness"""
         guild_config = await self.config.guild(guild).all()
-        channel_id = guild_config["challenge_channel"]
+        channel_id = guild_config["trivia_channel"]
         
         if not channel_id:
             return
@@ -444,54 +842,97 @@ class OPE(commands.Cog):
         channel = guild.get_channel(channel_id)
         if not channel:
             return
+        
+        # Get current theme and focus
+        current_theme = self.get_current_theme(guild_config.get("theme_override"))
+        theme_data = self.themed_challenges.get(current_theme, {})
+        trivia_focus = theme_data.get("trivia_focus", [])
+        
+        # Select difficulty and category
+        difficulties = list(self.trivia_data.keys())
+        if not difficulties:
+            return
             
-        # Select random challenge type and challenge
-        challenge_type = random.choice(list(self.daily_challenges.keys()))
-        challenge = random.choice(self.daily_challenges[challenge_type])
+        difficulty = random.choice(difficulties)
+        trivia_set = self.trivia_data[difficulty]
         
-        today = datetime.now().strftime("%Y-%m-%d")
+        # Try to use themed category if available
+        if trivia_focus:
+            available_categories = [cat for cat in trivia_focus if cat in trivia_set]
+            if available_categories:
+                category = random.choice(available_categories)
+            else:
+                category = random.choice(list(trivia_set.keys()))
+        else:
+            category = random.choice(list(trivia_set.keys()))
         
-        # Create challenge embed
+        question_data = random.choice(trivia_set[category])
+        
+        # Enhanced embed for themed trivia
+        theme_info = theme_data.get("theme_info", {})
+        theme_emoji = theme_info.get("emoji", "🧠")
+        
         embed = discord.Embed(
-            title="🏴‍☠️ Straw Hat Challenge of the Day!",
-            description=challenge["prompt"],
-            color=discord.Color(self.constants["difficulty_colors"][challenge.get("difficulty", "easy")]),
-            timestamp=datetime.now()
+            title=f"{theme_emoji} Themed Auto Trivia!",
+            description=question_data["question"],
+            color=self.get_theme_color(current_theme)
         )
+        embed.add_field(name="⏰ Time Limit", value="45 seconds", inline=True)
+        embed.add_field(name="🏆 Points", value=str(self.constants["point_values"][f"{difficulty}_trivia"]), inline=True)
+        embed.add_field(name="🎯 Difficulty", value=difficulty.title(), inline=True)
+        embed.add_field(name="📂 Category", value=question_data.get("category", "General").title(), inline=True)
         
-        embed.add_field(
-            name="📝 Challenge Type",
-            value=challenge_type.title(),
-            inline=True
-        )
+        if theme_info.get("name"):
+            embed.add_field(name="🎭 Today's Theme", value=theme_info["name"], inline=True)
         
-        embed.add_field(
-            name="🏆 Reward",
-            value=f"{guild_config['points_per_daily']} Berries",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⏰ Deadline",
-            value="Before tomorrow's challenge!",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📝 How to Participate",
-            value="React with ⚓ and share your response!",
-            inline=False
-        )
-        
-        embed.set_footer(text=f"Category: {challenge.get('category', 'General').title()}")
+        embed.set_footer(text="First to answer correctly wins! 🏴‍☠️")
         
         try:
-            message = await channel.send(embed=embed)
-            await message.add_reaction("⚓")
+            message = await channel.send("🚨 **THEMED TRIVIA ATTACK!** 🚨", embed=embed)
             
-            # Update config
-            await self.config.guild(guild).current_daily.set(today)
+            def check(m):
+                return (m.channel == channel and 
+                       any(answer.lower() in m.content.lower() 
+                           for answer in question_data["answers"]))
             
+            try:
+                response = await self.bot.wait_for('message', timeout=45.0, check=check)
+                
+                # Award points with theme bonus
+                base_points = self.constants["point_values"][f"{difficulty}_trivia"]
+                theme_bonus = 5 if current_theme in ["trivia_tuesday", "fight_friday"] else 0
+                total_points = base_points + theme_bonus + 5  # +5 speed bonus
+                
+                await self.add_user_points(response.author, total_points)
+                
+                # Update user stats
+                user_data = await self.config.user(response.author).all()
+                await self.config.user(response.author).trivia_correct.set(user_data["trivia_correct"] + 1)
+                await self.config.user(response.author).trivia_attempted.set(user_data["trivia_attempted"] + 1)
+                
+                # Winner embed
+                win_embed = discord.Embed(
+                    title="🎉 Themed Trivia Winner!",
+                    description=f"{response.author.mention} got it right!",
+                    color=discord.Color.green()
+                )
+                win_embed.add_field(name="✅ Answer", value=question_data["answers"][0].title(), inline=True)
+                win_embed.add_field(name="🏆 Points Earned", value=str(total_points), inline=True)
+                
+                if theme_bonus > 0:
+                    win_embed.add_field(name="🎭 Theme Bonus", value=f"+{theme_bonus} points", inline=True)
+                
+                await channel.send(embed=win_embed)
+                
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⏰ No One Got It!",
+                    description=f"The answer was: **{question_data['answers'][0].title()}**",
+                    color=discord.Color.orange()
+                )
+                timeout_embed.add_field(name="🤔 Better luck next time!", value="Stay sharp for the next themed trivia!", inline=False)
+                await channel.send(embed=timeout_embed)
+                
         except discord.Forbidden:
             pass
 
@@ -555,7 +996,6 @@ class OPE(commands.Cog):
             
             # Update config
             await self.config.guild(guild).current_weekly.set(this_week)
-            await self.config.guild(guild).weekly_participants.set({})
             
         except discord.Forbidden:
             pass
@@ -647,32 +1087,84 @@ class OPE(commands.Cog):
 
     @commands.group(name="onepiece", aliases=["op"])
     async def onepiece(self, ctx):
-        """One Piece engagement system commands"""
+        """One Piece engagement system with automatic themed daily rotation!"""
         if ctx.invoked_subcommand is None:
+            # Get current theme info
+            current_theme = self.get_current_theme()
+            theme_data = self.themed_challenges.get(current_theme, {})
+            theme_info = theme_data.get("theme_info", {})
+            
             embed = discord.Embed(
                 title="🏴‍☠️ One Piece Engagement Hub",
-                description="Welcome to the ultimate One Piece server experience!",
-                color=discord.Color.red()
+                description="Welcome to the ultimate themed One Piece experience!",
+                color=self.get_theme_color(current_theme)
             )
+            
+            if theme_info:
+                embed.add_field(
+                    name=f"{theme_info.get('emoji', '🎯')} Today's Theme: {theme_info.get('name', 'Daily Challenge')}",
+                    value=theme_info.get("description", "Themed One Piece content"),
+                    inline=False
+                )
+            
             embed.add_field(
                 name="🎯 Daily Challenges",
-                value="`[p]op challenge` - Today's challenge\n"
-                      "`[p]op challenges` - Challenge commands",
+                value="`[p]op challenge` - Today's themed challenge\n"
+                      "`[p]op challenges` - Challenge management\n"
+                      "`[p]op themes` - Theme information",
                 inline=True
             )
             embed.add_field(
                 name="🧠 Trivia Games",
-                value="`[p]op trivia` - Start trivia\n"
+                value="`[p]op trivia` - Start themed trivia\n"
                       "`[p]op quiz [difficulty]` - Quick quiz",
                 inline=True
             )
             embed.add_field(
-                name="📊 Stats & Leaderboards",
+                name="📊 Stats & Info",
                 value="`[p]op stats` - Your stats\n"
-                      "`[p]op leaderboard` - Top players",
+                      "`[p]op leaderboard` - Top players\n"
+                      "`[p]op schedule` - Weekly schedule",
                 inline=True
             )
             await ctx.send(embed=embed)
+
+    @onepiece.command(name="themes")
+    async def show_themes(self, ctx):
+        """Show the weekly themed schedule"""
+        embed = discord.Embed(
+            title="🗓️ Weekly Themed Schedule",
+            description="Each day has a special theme with curated content!",
+            color=discord.Color.blurple()
+        )
+        
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        
+        for day_num, day_name in enumerate(days):
+            theme_name = self.weekly_themes[day_num]
+            theme_data = self.themed_challenges.get(theme_name, {})
+            theme_info = theme_data.get("theme_info", {})
+            
+            emoji = theme_info.get("emoji", "🎯")
+            name = theme_info.get("name", theme_name.replace("_", " ").title())
+            description = theme_info.get("description", "Themed content")
+            focus = theme_info.get("focus", "One Piece discussions")
+            
+            embed.add_field(
+                name=f"{emoji} **{day_name}** - {name}",
+                value=f"{description}\n*Focus: {focus}*",
+                inline=False
+            )
+        
+        current_theme = self.get_current_theme()
+        embed.set_footer(text=f"Today's theme: {current_theme.replace('_', ' ').title()}")
+        
+        await ctx.send(embed=embed)
+
+    @onepiece.command(name="schedule")
+    async def show_schedule(self, ctx):
+        """Show the weekly schedule (alias for themes)"""
+        await self.show_themes(ctx)
 
     @onepiece.command(name="leaderboard", aliases=["lb", "top"])
     async def leaderboard(self, ctx, scope: str = "server"):
