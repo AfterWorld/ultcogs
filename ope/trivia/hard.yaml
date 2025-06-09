@@ -1,0 +1,196 @@
+# Hard One Piece Trivia Questions
+# For true One Piece experts and hardcore fans
+
+# Advanced story details
+story:
+  - question: "What was the first island the Straw Hats visited in the New World?"
+    answers: ["fishman island", "fish-man island"]
+    category: "locations"
+    
+  - question: "Who was the first person to call Luffy 'Straw Hat'?"
+    answers: ["mihawk", "dracule mihawk"]
+    category: "nicknames"
+    
+  - question: "What was the name of Gol D. Roger's ship?"
+    answers: ["oro jackson"]
+    category: "ships"
+    
+  - question: "Which Vice Admiral is Luffy's grandfather?"
+    answers: ["garp", "monkey d garp"]
+    category: "family"
+    
+  - question: "What was the name of the doctor who inspired Chopper?"
+    answers: ["dr hiluluk", "hiluluk"]
+    category: "backstory"
+
+# Obscure character details
+characters:
+  - question: "What is the real name of the Revolutionary Army's Flame Emperor?"
+    answers: ["sabo"]
+    category: "revolutionaries"
+    
+  - question: "Who was the previous user of the Mera Mera no Mi before Ace?"
+    answers: ["unknown", "not revealed"]
+    category: "devil_fruits"
+    
+  - question: "What is Buggy's bounty after becoming a Warlord?"
+    answers: ["15 million", "15,000,000"]
+    category: "bounties"
+    
+  - question: "Who is the shipwright of the Roger Pirates?"
+    answers: ["tom"]
+    category: "roger_pirates"
+    
+  - question: "What is the name of Whitebeard's bisento?"
+    answers: ["murakumogiri"]
+    category: "weapons"
+
+# Complex world-building
+world_building:
+  - question: "How many levels does Impel Down have?"
+    answers: ["6", "six"]
+    category: "facilities"
+    
+  - question: "What is the name of the current Fleet Admiral?"
+    answers: ["akainu", "sakazuki"]
+    category: "marines"
+    
+  - question: "Which Celestial Dragon did Luffy punch at Sabaody?"
+    answers: ["saint charlos", "charlos"]
+    category: "celestial_dragons"
+    
+  - question: "What is the name of the Tree of Knowledge?"
+    answers: ["tree of knowledge"]
+    category: "ohara"
+    
+  - question: "Who is the King of Dressrosa after Doflamingo?"
+    answers: ["riku doldo iii", "riku"]
+    category: "royalty"
+
+# Advanced Devil Fruit knowledge
+devil_fruits:
+  - question: "What Devil Fruit allows the user to turn into diamond?"
+    answers: ["kira kira no mi"]
+    category: "paramecia"
+    
+  - question: "Who has the Yami Yami no Mi?"
+    answers: ["blackbeard", "marshall d teach"]
+    category: "logia"
+    
+  - question: "What mythical zoan does Sengoku have?"
+    answers: ["hito hito no mi model daibutsu", "buddha fruit"]
+    category: "mythical_zoan"
+    
+  - question: "Which Devil Fruit can control shadows?"
+    answers: ["kage kage no mi"]
+    category: "paramecia"
+    
+  - question: "What fruit allows the user to turn anything into a toy?"
+    answers: ["hobi hobi no mi"]
+    category: "paramecia"
+
+# Historical events and timeline
+history:
+  - question: "How long ago was the Void Century?"
+    answers: ["800 years", "800 years ago"]
+    category: "ancient_history"
+    
+  - question: "What was the name of the ancient kingdom?"
+    answers: ["unknown", "not revealed"]
+    category: "void_century"
+    
+  - question: "How many years did Roger's crew take to reach Raftel?"
+    answers: ["3 years", "three years"]
+    category: "roger_pirates"
+    
+  - question: "When did the Great Pirate Era begin?"
+    answers: ["22 years ago"]
+    category: "timeline"
+
+# Technical combat details
+combat:
+  - question: "What is the advanced form of Armament Haki called?"
+    answers: ["ryou", "emission"]
+    category: "haki"
+    
+  - question: "Which Admiral has the Pika Pika no Mi?"
+    answers: ["kizaru", "borsalino"]
+    category: "admirals"
+    
+  - question: "What is the name of Mihawk's sword?"
+    answers: ["yoru", "kokuto yoru"]
+    category: "supreme_grade_swords"
+    
+  - question: "How many Supreme Grade swords exist?"
+    answers: ["12", "twelve"]
+    category: "weapons"
+
+# Rare bounty knowledge
+bounties:
+  - question: "What was Nico Robin's bounty as a child?"
+    answers: ["79 million", "79,000,000"]
+    category: "child_bounties"
+    
+  - question: "What was Doflamingo's bounty when he was a Warlord?"
+    answers: ["340 million", "340,000,000"]
+    category: "former_warlords"
+    
+  - question: "Which Emperor has the highest known bounty?"
+    answers: ["whitebeard"]
+    category: "emperors"
+
+# Organization hierarchy
+organizations:
+  - question: "Who is the head of CP0?"
+    answers: ["not revealed", "unknown"]
+    category: "cipher_pol"
+    
+  - question: "What is the highest rank in the Marines below Fleet Admiral?"
+    answers: ["admiral"]
+    category: "marine_ranks"
+    
+  - question: "Who leads the God's Knights?"
+    answers: ["not revealed", "unknown"]
+    category: "celestial_dragons"
+
+# Ancient weapons and poneglyphs
+ancient_weapons:
+  - question: "What are the three Ancient Weapons?"
+    answers: ["pluton", "poseidon", "uranus"]
+    category: "ancient_weapons"
+    
+  - question: "Who can currently read Poneglyphs?"
+    answers: ["nico robin"]
+    category: "poneglyphs"
+    
+  - question: "How many Road Poneglyphs lead to Raftel?"
+    answers: ["4", "four"]
+    category: "road_poneglyphs"
+
+# Advanced crew details
+crews:
+  - question: "Who was the first division commander of the Whitebeard Pirates?"
+    answers: ["marco"]
+    category: "whitebeard_pirates"
+    
+  - question: "What is the name of Shanks' ship?"
+    answers: ["red force"]
+    category: "red_hair_pirates"
+    
+  - question: "Who is the cook of the Heart Pirates?"
+    answers: ["unknown", "not revealed"]
+    category: "heart_pirates"
+
+# Rare abilities and techniques
+abilities:
+  - question: "What is the rarest type of Haki?"
+    answers: ["conqueror's haki", "haoshoku haki"]
+    category: "haki"
+    
+  - question: "What technique allows someone to predict the future?"
+    answers: ["future sight", "katakuri's observation haki"]
+    category: "advanced_haki"
+    
+  - question: "What is the name of Luffy's Gear Fourth forms?"
+    answers: ["boundman", "tankman", "snakeman"]
+    category: "gear_fourth"
