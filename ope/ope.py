@@ -36,6 +36,7 @@ class OPE(commands.Cog):
             "challenge_channel": None,
             "trivia_channel": None,
             "daily_challenges": True,
+            "weekly_challenges": False,  
             "auto_trivia": False,
             "challenge_time": "12:00",
             "trivia_interval": 3600,
@@ -46,7 +47,7 @@ class OPE(commands.Cog):
             "trivia_leaderboard": {},
             "challenge_rewards": True,
             "points_per_daily": 10,
-            "points_per_weekly": 50,
+            "points_per_weekly": 50,  
             "weekly_tournament": False,
             "tournament_day": 6
         }
@@ -954,7 +955,7 @@ class OPE(commands.Cog):
             color=discord.Color.gold()
         )
         
-        channel = ctx.guild.get_channel(config["challenge_channel"])
+        channel = ctx.guild.get_channel(config.get("challenge_channel"))
         embed.add_field(
             name="📍 Channel",
             value=channel.mention if channel else "Not set",
@@ -963,21 +964,23 @@ class OPE(commands.Cog):
         
         embed.add_field(
             name="⏰ Daily Time",
-            value=config["challenge_time"],
+            value=config.get("challenge_time", "12:00"),
             inline=True
         )
         
+        # Use .get() with defaults to handle missing keys
+        daily_status = "✅" if config.get("daily_challenges", True) else "❌"
+        weekly_status = "✅" if config.get("weekly_challenges", False) else "❌"
+        
         embed.add_field(
             name="📅 Status",
-            value=f"Daily: {'✅' if config['daily_challenges'] else '❌'}\n"
-                  f"Weekly: {'✅' if config['weekly_challenges'] else '❌'}",
+            value=f"Daily: {daily_status}\nWeekly: {weekly_status}",
             inline=True
         )
         
         embed.add_field(
             name="🏆 Rewards",
-            value=f"Daily: {config['points_per_daily']} Berries\n"
-                  f"Weekly: {config['points_per_weekly']} Berries",
+            value=f"Daily: {config.get('points_per_daily', 10)} Berries\nWeekly: {config.get('points_per_weekly', 50)} Berries",
             inline=False
         )
         
