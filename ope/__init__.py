@@ -1,5 +1,5 @@
 """
-One Piece Master - Ultimate One Piece Engagement System 
+OPE (One Piece Engagement) - Ultimate One Piece Engagement System for Red-DiscordBot
 
 A comprehensive One Piece themed engagement system featuring:
 - Daily challenges with themed content
@@ -13,7 +13,7 @@ Author: UltPanda
 Version: 1.0.0
 """
 
-from .onepiece_master import OnePieceMaster
+from .ope import OnePieceMaster
 
 __red_end_user_data_statement__ = (
     "This cog stores user data including points earned, trivia statistics, "
@@ -24,14 +24,14 @@ __red_end_user_data_statement__ = (
 
 
 async def setup(bot):
-    """Load the One Piece Master cog"""
-    cog = OnePieceMaster(bot)
+    """Load the OPE (One Piece Engagement) cog"""
+    cog = OPE(bot)
     await bot.add_cog(cog)
 
 
 async def teardown(bot):
     """Clean up when unloading the cog"""
-    cog = bot.get_cog("OnePieceMaster")
+    cog = bot.get_cog("OPE")
     if cog:
         # Cancel any running tasks
         if hasattr(cog, 'daily_challenge_task'):
