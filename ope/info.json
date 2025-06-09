@@ -1,6 +1,6 @@
 {
-    "name": "OnePieceMaster",
-    "short": "Ultimate One Piece engagement system with challenges and trivia",
+    "name": "OPE",
+    "short": "One Piece Engagement - Ultimate One Piece system with challenges and trivia",
     "description": "A comprehensive One Piece themed engagement system that brings your server to life with daily challenges, multi-difficulty trivia, auto-posting features, point systems, leaderboards, and achievements. Features 300+ pieces of pre-loaded content including challenges for every day of the week, trivia questions from easy to legendary difficulty, and a massive database of One Piece characters and Devil Fruits. Perfect for One Piece servers looking to maximize member engagement with minimal setup and maintenance.",
     "author": [
         "UltPanda"
@@ -25,7 +25,7 @@
     "min_bot_version": "3.5.0",
     "min_python_version": [3, 8, 0],
     "end_user_data_statement": "This cog stores user data including points earned, trivia statistics (correct/attempted answers), daily participation streaks, earned achievements, and challenge participation history. This data is used to track user progress, calculate rankings, display leaderboards, and provide a gamified experience. Users can request deletion of their data through the bot owner or by leaving all servers where the bot is present.",
-    "install_msg": "🏴‍☠️ **Welcome to the Grand Line!** 🏴‍☠️\n\nOne Piece Master has been installed successfully! This cog brings the ultimate One Piece experience to your server with:\n\n📅 **Daily Challenges** - Themed prompts, discussions, and activities\n🧠 **Multi-Difficulty Trivia** - From rookie to Pirate King level\n⚡ **Auto Trivia** - Automatic surprise trivia sessions\n🏆 **Rankings & Achievements** - Earn berries and climb the ranks\n📊 **Leaderboards** - Compete with your nakama\n\n**Quick Setup:**\n1. `[p]op challenges channel #your-challenge-channel`\n2. `[p]op trivia_admin channel #your-trivia-channel`\n3. `[p]op challenges force daily` (to test)\n4. `[p]op trivia_admin toggle` (to enable auto trivia)\n\n**Pre-loaded Content:**\n✅ 75+ Daily Challenges across 7 categories\n✅ 200+ Trivia Questions (4 difficulty levels)\n✅ 150+ Characters in database\n✅ 100+ Devil Fruits catalogued\n✅ Themed weeks and seasonal events\n\nUse `[p]help OnePieceMaster` to see all commands. Set sail and become the Pirate King! ⚓",
+    "install_msg": "🏴‍☠️ **Welcome to the Grand Line!** 🏴‍☠️\n\nOPE (One Piece Engagement) has been installed successfully! This cog brings the ultimate One Piece experience to your server with:\n\n📅 **Daily Challenges** - Themed prompts, discussions, and activities\n🧠 **Multi-Difficulty Trivia** - From rookie to Pirate King level\n⚡ **Auto Trivia** - Automatic surprise trivia sessions\n🏆 **Rankings & Achievements** - Earn berries and climb the ranks\n📊 **Leaderboards** - Compete with your nakama\n\n**Quick Setup:**\n1. `[p]op challenges channel #your-challenge-channel`\n2. `[p]op trivia_admin channel #your-trivia-channel`\n3. `[p]op challenges force daily` (to test)\n4. `[p]op trivia_admin toggle` (to enable auto trivia)\n\n**Pre-loaded Content:**\n✅ 75+ Daily Challenges across 7 categories\n✅ 200+ Trivia Questions (4 difficulty levels)\n✅ 150+ Characters in database\n✅ 100+ Devil Fruits catalogued\n✅ Themed weeks and seasonal events\n\nUse `[p]help OPE` to see all commands. Set sail and become the Pirate King! ⚓",
     "hidden": false,
     "disabled": false,
     "type": "COG"
