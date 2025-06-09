@@ -48,7 +48,7 @@ characters:
 # Powers and abilities
 powers:
   - question: "What type of Devil Fruit did Ace eat?"
-    answers: ["logia", "fire logia", "mera mera no mi"]
+    answers: ["logia", "fire logia"]
     category: "devil_fruits"
     
   - question: "What is the name of Zoro's cursed sword?"
