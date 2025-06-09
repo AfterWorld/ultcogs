@@ -1,0 +1,202 @@
+# Expert/Legendary One Piece Trivia Questions
+# Only for the most dedicated One Piece scholars
+
+# Extremely obscure details
+legendary:
+  - question: "What was the name of Gol D. Roger's ship?"
+    answers: ["oro jackson"]
+    category: "history"
+    
+  - question: "What is the full name of the technique 'Rokushiki'?"
+    answers: ["six powers", "six styles"]
+    category: "techniques"
+    
+  - question: "Who was the previous owner of the Tori Tori no Mi Model Phoenix?"
+    answers: ["unknown", "not revealed"]
+    category: "devil_fruit_history"
+    
+  - question: "What is the exact bounty of Gol D. Roger?"
+    answers: ["5,564,800,000", "5.5 billion"]
+    category: "legendary_bounties"
+    
+  - question: "What was the name of the ship Tom built for the Sea Train?"
+    answers: ["rocketman"]
+    category: "water_seven"
+
+# Ultra-rare character knowledge
+characters:
+  - question: "What is Dr. Vegapunk's full name?"
+    answers: ["vegapunk", "dr vegapunk"]
+    category: "scientists"
+    
+  - question: "Who was the captain before Whitebeard in the Rocks Pirates?"
+    answers: ["rocks d xebec"]
+    category: "rocks_pirates"
+    
+  - question: "What is the name of Shanks' daughter?"
+    answers: ["uta"]
+    category: "film_characters"
+    
+  - question: "Who taught Koby and Helmeppo?"
+    answers: ["garp", "monkey d garp"]
+    category: "marine_training"
+    
+  - question: "What is the real name of 'Corazon'?"
+    answers: ["donquixote rosinante"]
+    category: "donquixote_family"
+
+# Ancient history and lore
+ancient_lore:
+  - question: "What happened 800 years ago during the Void Century?"
+    answers: ["unknown", "ancient kingdom fell"]
+    category: "void_century"
+    
+  - question: "Who was Joy Boy?"
+    answers: ["unknown ancient figure", "ancient figure"]
+    category: "joy_boy"
+    
+  - question: "What promise did Joy Boy make to the Fish-men?"
+    answers: ["to bring them to the surface", "unknown promise"]
+    category: "fishman_island_history"
+    
+  - question: "Which clan can hear the Voice of All Things?"
+    answers: ["d clan", "clan of d"]
+    category: "will_of_d"
+
+# Technical Devil Fruit mechanics
+devil_fruit_mechanics:
+  - question: "What happens when a Devil Fruit user dies?"
+    answers: ["fruit reincarnates", "fruit respawns"]
+    category: "devil_fruit_science"
+    
+  - question: "Can two people have the same Devil Fruit power simultaneously?"
+    answers: ["no", "impossible"]
+    category: "devil_fruit_rules"
+    
+  - question: "What is the artificial Devil Fruit called?"
+    answers: ["smile", "sad"]
+    category: "artificial_fruits"
+    
+  - question: "Who created the SMILE fruits?"
+    answers: ["caesar clown"]
+    category: "smile_creation"
+
+# Advanced Haki knowledge
+advanced_haki:
+  - question: "What is the most advanced form of Conqueror's Haki?"
+    answers: ["coating", "infusion"]
+    category: "conquerors_haki"
+    
+  - question: "Who first taught Luffy about Haki?"
+    answers: ["rayleigh", "silvers rayleigh"]
+    category: "haki_training"
+    
+  - question: "What is Katakuri's special Observation Haki ability?"
+    answers: ["future sight"]
+    category: "future_sight"
+    
+  - question: "Can you use Conqueror's Haki while unconscious?"
+    answers: ["yes", "luffy did it"]
+    category: "unconscious_haki"
+
+# Poneglyph and ancient weapon specifics
+poneglyphs:
+  - question: "How many types of Poneglyphs are there?"
+    answers: ["4", "four"]
+    category: "poneglyph_types"
+    
+  - question: "What language are Poneglyphs written in?"
+    answers: ["ancient script", "ancient language"]
+    category: "ancient_language"
+    
+  - question: "Who taught Robin to read Poneglyphs?"
+    answers: ["clover", "professor clover"]
+    category: "ohara_scholars"
+    
+  - question: "Which Ancient Weapon is a person?"
+    answers: ["poseidon"]
+    category: "ancient_weapons"
+
+# Extremely specific bounties
+rare_bounties:
+  - question: "What was Chopper's bounty before the timeskip?"
+    answers: ["50", "50 berries"]
+    category: "joke_bounties"
+    
+  - question: "What was Nico Robin's first bounty at age 8?"
+    answers: ["79,000,000", "79 million"]
+    category: "child_bounties"
+    
+  - question: "What was Sanji's first bounty poster problem?"
+    answers: ["drawing instead of photo", "bad drawing"]
+    category: "bounty_mishaps"
+
+# Revolutionary Army secrets
+revolutionary_army:
+  - question: "What is Dragon's full name?"
+    answers: ["monkey d dragon"]
+    category: "revolutionary_leaders"
+    
+  - question: "Which Revolutionary Army commander controls the West?"
+    answers: ["morley"]
+    category: "revolutionary_commanders"
+    
+  - question: "What is Ivankov's Devil Fruit power?"
+    answers: ["horu horu no mi", "hormone fruit"]
+    category: "revolutionary_powers"
+
+# CP Organization details
+cipher_pol:
+  - question: "What does the 'CP' in CP9 stand for?"
+    answers: ["cipher pol"]
+    category: "government_agencies"
+    
+  - question: "Who is the strongest member of CP9?"
+    answers: ["rob lucci"]
+    category: "cp9_power_ranking"
+    
+  - question: "What is Rob Lucci's Doriki power level?"
+    answers: ["4000"]
+    category: "power_measurements"
+
+# Wano Country specifics
+wano_secrets:
+  - question: "What is Kaido's Devil Fruit?"
+    answers: ["uo uo no mi model seiryu", "fish fruit model azure dragon"]
+    category: "kaido_powers"
+    
+  - question: "Who opened Wano's borders originally?"
+    answers: ["kozuki oden"]
+    category: "wano_history"
+    
+  - question: "What is the name of Oden's two-sword style?"
+    answers: ["oden nitoryu", "two-sword style"]
+    category: "oden_techniques"
+
+# Film and special content
+film_knowledge:
+  - question: "In which movie does Shiki appear?"
+    answers: ["strong world", "film strong world"]
+    category: "movie_villains"
+    
+  - question: "What is the name of the floating island in Strong World?"
+    answers: ["merveille"]
+    category: "movie_locations"
+    
+  - question: "Who directed most One Piece movies?"
+    answers: ["mamoru hosoda", "various directors"]
+    category: "production"
+
+# Ultra-technical details
+technical_mastery:
+  - question: "What chapter did Gear 2 first appear?"
+    answers: ["387"]
+    category: "manga_chapters"
+    
+  - question: "In what year did One Piece manga start?"
+    answers: ["1997"]
+    category: "publication_history"
+    
+  - question: "How many chapters are there as of 2023?"
+    answers: ["1000+", "over 1000"]
+    category: "current_status"
