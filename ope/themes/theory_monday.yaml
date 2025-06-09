@@ -1,0 +1,115 @@
+# Monday - Theory Monday Theme
+# Focus: Mysteries, predictions, theories, and deep lore discussions
+
+theme_info:
+  name: "Theory Monday"
+  emoji: "🧭"
+  description: "Dive deep into One Piece mysteries and theories"
+  focus: "predictions, theories, mysteries, lore"
+
+# Discussion-based theory challenges
+discussion:
+  - prompt: "What do you think the One Piece treasure actually is?"
+    category: "mysteries"
+    difficulty: "medium"
+    
+  - prompt: "What's your theory about the Will of D?"
+    category: "ancient_history"
+    difficulty: "hard"
+    
+  - prompt: "How do you think the final war will unfold?"
+    category: "predictions"
+    difficulty: "expert"
+    
+  - prompt: "What's the connection between Joy Boy and Luffy?"
+    category: "mysteries"
+    difficulty: "hard"
+    
+  - prompt: "What happened during the Void Century?"
+    category: "ancient_history"
+    difficulty: "expert"
+    
+  - prompt: "What's your theory about Im-sama's identity?"
+    category: "mysteries"
+    difficulty: "hard"
+    
+  - prompt: "How will Luffy's Devil Fruit awaken further?"
+    category: "power_development"
+    difficulty: "medium"
+    
+  - prompt: "What's the significance of the Ancient Weapons?"
+    category: "ancient_history"
+    difficulty: "hard"
+    
+  - prompt: "What role will the Revolutionary Army play in the final arc?"
+    category: "predictions"
+    difficulty: "medium"
+    
+  - prompt: "What's your theory about the location of Laugh Tale?"
+    category: "mysteries"
+    difficulty: "medium"
+
+# Deep lore theory challenges
+theory:
+  - prompt: "Create a theory connecting Vegapunk's research to the Void Century"
+    category: "advanced_theory"
+    difficulty: "expert"
+    
+  - prompt: "Explain your theory about why the World Government fears the Poneglyphs"
+    category: "government_secrets"
+    difficulty: "hard"
+    
+  - prompt: "What's your theory about the relationship between Devil Fruits and the sea?"
+    category: "devil_fruit_theory"
+    difficulty: "hard"
+    
+  - prompt: "Theorize about the true purpose of the Red Line"
+    category: "world_structure"
+    difficulty: "expert"
+
+# Prediction challenges for future events
+predictions:
+  - prompt: "Predict the order in which the Straw Hats will achieve their dreams"
+    category: "future_events"
+    difficulty: "medium"
+    
+  - prompt: "What will be the final matchup between Luffy and Blackbeard?"
+    category: "future_battles"
+    difficulty: "medium"
+    
+  - prompt: "How will the World Government fall?"
+    category: "endgame"
+    difficulty: "hard"
+    
+  - prompt: "What role will Shanks play in the final arc?"
+    category: "character_futures"
+    difficulty: "medium"
+
+# Mystery solving challenges
+mysteries:
+  - prompt: "What's the secret behind Blackbeard's ability to have multiple Devil Fruits?"
+    category: "character_mysteries"
+    difficulty: "hard"
+    
+  - prompt: "Why did Roger laugh when he found the One Piece?"
+    category: "laugh_tale_mystery"
+    difficulty: "medium"
+    
+  - prompt: "What's the true nature of Haki and where does it come from?"
+    category: "power_mysteries"
+    difficulty: "hard"
+    
+  - prompt: "What happened to the people of Ohara who weren't on the island?"
+    category: "historical_mysteries"
+    difficulty: "medium"
+
+# Categories for trivia focus on Monday
+trivia_focus:
+  - "mysteries"
+  - "ancient_history" 
+  - "void_century"
+  - "poneglyphs"
+  - "government_secrets"
+  - "roger_pirates"
+  - "revolutionary_army"
+  - "ancient_weapons"
