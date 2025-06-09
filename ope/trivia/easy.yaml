@@ -1,0 +1,120 @@
+# Easy One Piece Trivia Questions
+# Perfect for new fans and casual viewers
+
+# General One Piece knowledge
+general:
+  - question: "What is Luffy's dream?"
+    answers: ["to become pirate king", "pirate king", "become the pirate king", "king of the pirates"]
+    category: "dreams"
+    
+  - question: "Who is the navigator of the Straw Hat Pirates?"
+    answers: ["nami"]
+    category: "crew"
+    
+  - question: "What Devil Fruit did Luffy eat?"
+    answers: ["gomu gomu no mi", "rubber fruit", "gum gum fruit", "gomu gomu"]
+    category: "powers"
+    
+  - question: "What is the name of Luffy's ship?"
+    answers: ["thousand sunny", "going merry"]
+    category: "ships"
+    
+  - question: "What does 'nakama' mean?"
+    answers: ["friend", "crewmate", "companion", "comrade"]
+    category: "terms"
+
+# Character-focused questions
+characters:
+  - question: "What color is Zoro's hair?"
+    answers: ["green"]
+    category: "appearance"
+    
+  - question: "Who is the cook of the Straw Hat Pirates?"
+    answers: ["sanji"]
+    category: "crew"
+    
+  - question: "What animal does Chopper resemble?"
+    answers: ["reindeer", "deer"]
+    category: "appearance"
+    
+  - question: "Who is known as 'Pirate Hunter'?"
+    answers: ["zoro", "roronoa zoro"]
+    category: "nicknames"
+    
+  - question: "What does Usopp always claim to be?"
+    answers: ["brave", "captain", "great warrior", "warrior"]
+    category: "personality"
+
+# Locations and world
+locations:
+  - question: "What sea did Luffy start his journey in?"
+    answers: ["east blue"]
+    category: "geography"
+    
+  - question: "What is the name of Luffy's home village?"
+    answers: ["fushia village", "windmill village"]
+    category: "hometowns"
+    
+  - question: "What is the treasure that pirates search for called?"
+    answers: ["one piece"]
+    category: "treasure"
+    
+  - question: "What are the two main parts of the Grand Line called?"
+    answers: ["paradise", "new world"]
+    category: "geography"
+
+# Powers and abilities
+powers:
+  - question: "What are Devil Fruit users afraid of?"
+    answers: ["water", "sea water", "ocean", "drowning"]
+    category: "weaknesses"
+    
+  - question: "What are the three types of Devil Fruits?"
+    answers: ["paramecia", "zoan", "logia"]
+    category: "classification"
+    
+  - question: "What fighting style does Zoro use?"
+    answers: ["three sword style", "santoryu", "three swords"]
+    category: "combat"
+
+# Simple story questions
+story:
+  - question: "Who saved Luffy when he was drowning as a child?"
+    answers: ["shanks"]
+    category: "backstory"
+    
+  - question: "What did Shanks give to Luffy?"
+    answers: ["straw hat", "hat"]
+    category: "items"
+    
+  - question: "Who was the first crew member to join Luffy?"
+    answers: ["zoro"]
+    category: "crew"
+    
+  - question: "What is Ace's relation to Luffy?"
+    answers: ["brother", "sworn brother", "adoptive brother"]
+    category: "family"
+
+# Basic bounties (round numbers)
+bounties:
+  - question: "What was Luffy's first bounty?"
+    answers: ["30 million", "30,000,000"]
+    category: "first_bounty"
+    
+  - question: "Whose bounty is higher: Luffy or Zoro?"
+    answers: ["luffy"]
+    category: "comparison"
+
+# Fun facts
+fun_facts:
+  - question: "What is Luffy's favorite food?"
+    answers: ["meat"]
+    category: "food"
+    
+  - question: "What does Brook always ask when meeting ladies?"
+    answers: ["to see their panties", "panties"]
+    category: "humor"
+    
+  - question: "What is Sanji's weakness?"
+    answers: ["women", "ladies", "beautiful women"]
+    category: "personality"
