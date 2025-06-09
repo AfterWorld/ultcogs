@@ -1,1 +1,253 @@
+# Sunday - Summary Sunday Theme
+# Focus: Week recap, community highlights, and celebrations
 
+theme_info:
+  name: "Summary Sunday"
+  emoji: "🏆"
+  description: "Week recap, community highlights, and celebrations"
+  focus: "community highlights, week review, achievements"
+
+# Community highlights and appreciation
+community:
+  - prompt: "What was the best theory shared this week?"
+    category: "community_highlight"
+    difficulty: "easy"
+    
+  - prompt: "Most creative idea from this week's challenges?"
+    category: "community_highlight"
+    difficulty: "easy"
+    
+  - prompt: "Share your favorite community contribution from this week"
+    category: "appreciation"
+    difficulty: "easy"
+    
+  - prompt: "What One Piece topic should we explore more next week?"
+    category: "planning"
+    difficulty: "easy"
+    
+  - prompt: "Which daily theme did you enjoy most this week?"
+    category: "theme_feedback"
+    difficulty: "easy"
+    
+  - prompt: "Highlight someone who had great participation this week"
+    category: "member_spotlight"
+    difficulty: "easy"
+    
+  - prompt: "What was the most interesting debate from Fight Friday?"
+    category: "weekly_recap"
+    difficulty: "easy"
+    
+  - prompt: "Best creative work shared on Creative Saturday?"
+    category: "art_highlight"
+    difficulty: "easy"
+    
+  - prompt: "Most mind-blowing theory from Theory Monday?"
+    category: "theory_highlight"
+    difficulty: "easy"
+    
+  - prompt: "Funniest moment from this week's discussions?"
+    category: "humor_highlight"
+    difficulty: "easy"
+
+# Weekly reflection challenges
+reflection:
+  - prompt: "How did this week's One Piece discussions change your perspective?"
+    category: "reflection"
+    difficulty: "medium"
+    
+  - prompt: "What new One Piece knowledge did you learn this week?"
+    category: "learning"
+    difficulty: "easy"
+    
+  - prompt: "Which challenge made you think the hardest?"
+    category: "mental_challenge"
+    difficulty: "medium"
+    
+  - prompt: "How has your One Piece journey evolved lately?"
+    category: "personal_growth"
+    difficulty: "medium"
+    
+  - prompt: "What surprised you most in this week's discussions?"
+    category: "surprises"
+    difficulty: "easy"
+    
+  - prompt: "Which day's theme taught you something new?"
+    category: "educational_value"
+    difficulty: "medium"
+
+# Planning and future focus
+planning:
+  - prompt: "What special events should we plan for next month?"
+    category: "event_planning"
+    difficulty: "medium"
+    
+  - prompt: "Suggest improvements for any of our themed days"
+    category: "system_feedback"
+    difficulty: "medium"
+    
+  - prompt: "What One Piece milestone should we celebrate next?"
+    category: "celebration_planning"
+    difficulty: "easy"
+    
+  - prompt: "Ideas for new weekly themes or special days?"
+    category: "theme_expansion"
+    difficulty: "medium"
+    
+  - prompt: "What type of challenges would you like to see more of?"
+    category: "content_requests"
+    difficulty: "easy"
+
+# Personal achievements and goals
+achievements:
+  - prompt: "Celebrate your One Piece knowledge growth this week!"
+    category: "personal_achievement"
+    difficulty: "easy"
+    
+  - prompt: "Share a One Piece goal you're working towards"
+    category: "future_goals"
+    difficulty: "easy"
+    
+  - prompt: "What One Piece skill have you improved on recently?"
+    category: "skill_development"
+    difficulty: "medium"
+    
+  - prompt: "Biggest One Piece realization you had this week?"
+    category: "epiphanies"
+    difficulty: "medium"
+    
+  - prompt: "How many points did you earn this week?"
+    category: "point_tracking"
+    difficulty: "easy"
+
+# Community building
+building:
+  - prompt: "Welcome any new nakama who joined us this week!"
+    category: "welcoming"
+    difficulty: "easy"
+    
+  - prompt: "Share appreciation for our active community members"
+    category: "gratitude"
+    difficulty: "easy"
+    
+  - prompt: "What makes our One Piece community special?"
+    category: "community_identity"
+    difficulty: "medium"
+    
+  - prompt: "How can we make newcomers feel more welcome?"
+    category: "inclusivity"
+    difficulty: "medium"
+
+# Weekly statistics and fun facts
+statistics:
+  - prompt: "Guess which theme had the most participation this week!"
+    category: "participation_stats"
+    difficulty: "easy"
+    
+  - prompt: "What was the week's most popular trivia category?"
+    category: "trivia_stats"
+    difficulty: "easy"
+    
+  - prompt: "Which day generated the most discussion?"
+    category: "engagement_stats"
+    difficulty: "easy"
+
+# Cross-theme connections
+connections:
+  - prompt: "Connect this week's theory with a creative Saturday idea"
+    category: "theme_synthesis"
+    difficulty: "medium"
+    
+  - prompt: "How did Thursday's nostalgia relate to Monday's theories?"
+    category: "temporal_connections"
+    difficulty: "hard"
+    
+  - prompt: "Which fight from Friday would work in a What-If scenario?"
+    category: "cross_theme_ideas"
+    difficulty: "medium"
+
+# Seasonal and special recognition
+recognition:
+  - prompt: "Crown this week's 'Most Valuable Pirate' (MVP)"
+    category: "weekly_awards"
+    difficulty: "easy"
+    
+  - prompt: "Best newcomer contribution this week"
+    category: "newcomer_spotlight"
+    difficulty: "easy"
+    
+  - prompt: "Most helpful community member this week"
+    category: "helpfulness_award"
+    difficulty: "easy"
+    
+  - prompt: "Biggest plot twist in someone's theory this week"
+    category: "surprise_award"
+    difficulty: "medium"
+
+# Meta discussions about One Piece
+meta:
+  - prompt: "How did this week's content compare to the actual manga/anime?"
+    category: "content_relevance"
+    difficulty: "medium"
+    
+  - prompt: "What real One Piece news excited the community this week?"
+    category: "news_discussion"
+    difficulty: "easy"
+    
+  - prompt: "How do our theories hold up against recent chapters?"
+    category: "theory_validation"
+    difficulty: "hard"
+
+# Fun weekly challenges
+fun:
+  - prompt: "Create a title for this week: 'The Week of...'"
+    category: "week_naming"
+    difficulty: "easy"
+    
+  - prompt: "If this week was a One Piece arc, what would it be called?"
+    category: "arc_comparison"
+    difficulty: "medium"
+    
+  - prompt: "Assign each day's theme to a Straw Hat member"
+    category: "character_assignment"
+    difficulty: "medium"
+    
+  - prompt: "Rate this week's themes from 1-10 and explain"
+    category: "theme_rating"
+    difficulty: "medium"
+
+# Looking ahead
+future:
+  - prompt: "Predictions for next week's community discussions"
+    category: "community_predictions"
+    difficulty: "medium"
+    
+  - prompt: "What One Piece topic should dominate next week?"
+    category: "topic_planning"
+    difficulty: "easy"
+    
+  - prompt: "Set a community goal for next week"
+    category: "goal_setting"
+    difficulty: "medium"
+
+# Gratitude and positivity
+gratitude:
+  - prompt: "Thank someone who made your week better"
+    category: "appreciation"
+    difficulty: "easy"
+    
+  - prompt: "Share the most wholesome moment from this week"
+    category: "positivity"
+    difficulty: "easy"
+    
+  - prompt: "What made you smile the most this week?"
+    category: "joy_sharing"
+    difficulty: "easy"
+
+# Categories that trivia should focus on for Sunday
+trivia_focus:
+  - "mixed_review"
+  - "weekly_highlights"
+  - "community_favorites"
+  - "recap_questions"
+  - "cross_theme_content"
+  - "member_contributions"
