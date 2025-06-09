@@ -1,1 +1,204 @@
+# Saturday - Creative Saturday Theme
+# Focus: Art, writing, original content creation, and creative expression
 
+theme_info:
+  name: "Creative Saturday"
+  emoji: "🎨"
+  description: "Art, writing, and creative expression showcase"
+  focus: "creativity, art, writing, original content"
+
+# Original content creation challenges
+creative:
+  - prompt: "Design a new Devil Fruit and describe its powers!"
+    category: "original_content"
+    difficulty: "medium"
+    
+  - prompt: "Create your own pirate crew with unique members and backstories"
+    category: "crew_creation"
+    difficulty: "medium"
+    
+  - prompt: "Design a new island for the Grand Line - what makes it special?"
+    category: "world_building"
+    difficulty: "hard"
+    
+  - prompt: "Invent a new fighting technique for any Straw Hat member"
+    category: "technique_creation"
+    difficulty: "medium"
+    
+  - prompt: "Create a new type of Haki or expand on existing ones"
+    category: "power_creation"
+    difficulty: "hard"
+    
+  - prompt: "Design the ultimate pirate ship with unique features"
+    category: "ship_design"
+    difficulty: "medium"
+    
+  - prompt: "Create a new Marine rank between Admiral and Fleet Admiral"
+    category: "organization_expansion"
+    difficulty: "medium"
+
+# Art and visual creation
+art:
+  - prompt: "Share your One Piece fan art or describe a scene you'd love to draw!"
+    category: "art_showcase"
+    difficulty: "easy"
+    
+  - prompt: "Design a wanted poster for yourself as a One Piece character"
+    category: "poster_design"
+    difficulty: "easy"
+    
+  - prompt: "Redesign any One Piece character in your own style"
+    category: "character_redesign" 
+    difficulty: "medium"
+    
+  - prompt: "Create a movie poster for a One Piece film you'd want to see"
+    category: "poster_creation"
+    difficulty: "medium"
+    
+  - prompt: "Design emblems/logos for different One Piece organizations"
+    category: "logo_design"
+    difficulty: "medium"
+    
+  - prompt: "Draw or describe your interpretation of Laugh Tale"
+    category: "location_art"
+    difficulty: "hard"
+
+# Writing and storytelling
+writing:
+  - prompt: "Write a short adventure featuring any One Piece character"
+    category: "fanfiction"
+    difficulty: "medium"
+    
+  - prompt: "Create a backstory for a minor One Piece character"
+    category: "character_development"
+    difficulty: "medium"
+    
+  - prompt: "Write a diary entry from any character's perspective"
+    category: "character_voice"
+    difficulty: "easy"
+    
+  - prompt: "Create an alternate ending to any One Piece arc"
+    category: "alternate_writing"
+    difficulty: "hard"
+    
+  - prompt: "Write a conversation between two characters who never met"
+    category: "dialogue_creation"
+    difficulty: "medium"
+    
+  - prompt: "Create a legend or myth from the One Piece world"
+    category: "mythology_creation"
+    difficulty: "hard"
+
+# Character creation challenges
+characters:
+  - prompt: "Create a new Straw Hat member - what's their role and dream?"
+    category: "crew_expansion"
+    difficulty: "medium"
+    
+  - prompt: "Design a villain for the Straw Hats to face"
+    category: "antagonist_creation"
+    difficulty: "medium"
+    
+  - prompt: "Create a Revolutionary Army commander we haven't seen"
+    category: "organization_member"
+    difficulty: "medium"
+    
+  - prompt: "Design a new Admiral with unique powers and personality"
+    category: "marine_creation"
+    difficulty: "medium"
+
+# Menu and recipe creation
+culinary:
+  - prompt: "Design a restaurant menu for Sanji's dream restaurant"
+    category: "food_creation"
+    difficulty: "easy"
+    
+  - prompt: "Create recipes inspired by One Piece characters"
+    category: "character_food"
+    difficulty: "medium"
+    
+  - prompt: "Design the menu for a One Piece themed café"
+    category: "restaurant_concept"
+    difficulty: "medium"
+
+# Music and performance
+music:
+  - prompt: "Write lyrics for Brook's next song"
+    category: "song_creation"
+    difficulty: "medium"
+    
+  - prompt: "Create a One Piece themed playlist and explain your choices"
+    category: "music_curation"
+    difficulty: "easy"
+    
+  - prompt: "Design a performance for Brook at a major event"
+    category: "performance_concept"
+    difficulty: "medium"
+
+# Game and activity design  
+games:
+  - prompt: "Create a One Piece board game concept"
+    category: "game_design"
+    difficulty: "hard"
+    
+  - prompt: "Design a One Piece themed escape room"
+    category: "puzzle_design"
+    difficulty: "hard"
+    
+  - prompt: "Create a One Piece trivia category we don't have yet"
+    category: "trivia_expansion"
+    difficulty: "medium"
+
+# Fashion and design
+fashion:
+  - prompt: "Design new outfits for the Straw Hats' next adventure"
+    category: "costume_design"
+    difficulty: "medium"
+    
+  - prompt: "Create a One Piece fashion line inspired by different crews"
+    category: "fashion_line"
+    difficulty: "medium"
+    
+  - prompt: "Design formal wear for the Straw Hats attending a royal event"
+    category: "formal_design"
+    difficulty: "medium"
+
+# Architecture and environment
+architecture:
+  - prompt: "Design the layout of Luffy's ideal adventure park"
+    category: "attraction_design"
+    difficulty: "medium"
+    
+  - prompt: "Create blueprints for the perfect pirate base"
+    category: "base_design"
+    difficulty: "hard"
+    
+  - prompt: "Design a One Piece themed city district"
+    category: "urban_planning"
+    difficulty: "expert"
+
+# Technology and innovation
+technology:
+  - prompt: "Invent new technology for the One Piece world"
+    category: "tech_innovation"
+    difficulty: "hard"
+    
+  - prompt: "Design improvements to existing One Piece vehicles"
+    category: "vehicle_upgrade"
+    difficulty: "medium"
+    
+  - prompt: "Create new communication methods for pirates"
+    category: "communication_tech"
+    difficulty: "medium"
+
+# Categories that trivia should focus on for Saturday
+trivia_focus:
+  - "characters"
+  - "world_building"
+  - "creative"
+  - "design"
+  - "art_references"
+  - "character_design"
+  - "locations"
+  - "ships"
+  - "organizations"
