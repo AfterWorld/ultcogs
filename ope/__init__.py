@@ -13,7 +13,7 @@ Author: UltPanda
 Version: 1.0.0
 """
 
-from .ope import OnePieceMaster
+from .ope import OPE
 
 __red_end_user_data_statement__ = (
     "This cog stores user data including points earned, trivia statistics, "
