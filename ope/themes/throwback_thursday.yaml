@@ -1,1 +1,239 @@
+# Thursday - Throwback Thursday Theme
+# Focus: Classic One Piece moments, nostalgia, and early series content
 
+theme_info:
+  name: "Throwback Thursday"
+  emoji: "⏪"
+  description: "Celebrate classic One Piece moments and nostalgia"
+  focus: "classic moments, early arcs, nostalgic content, memories"
+
+# Memory and nostalgia challenges
+memory:
+  - prompt: "Share your favorite moment from the East Blue saga"
+    category: "early_arcs"
+    difficulty: "easy"
+    
+  - prompt: "What was the most emotional scene in Alabasta?"
+    category: "classic_moments"
+    difficulty: "easy"
+    
+  - prompt: "Best Going Merry moment that made you cry?"
+    category: "emotional_moments"
+    difficulty: "medium"
+    
+  - prompt: "Most shocking moment in Enies Lobby?"
+    category: "classic_moments"
+    difficulty: "medium"
+    
+  - prompt: "Your favorite Skypiea moment that everyone forgets?"
+    category: "underrated_moments"
+    difficulty: "medium"
+    
+  - prompt: "What made you fall in love with One Piece initially?"
+    category: "first_impressions"
+    difficulty: "easy"
+    
+  - prompt: "Best pre-timeskip fight scene?"
+    category: "classic_battles"
+    difficulty: "easy"
+    
+  - prompt: "Most nostalgic One Piece opening song?"
+    category: "music_nostalgia"
+    difficulty: "easy"
+    
+  - prompt: "Funniest early series moment?"
+    category: "comedy_classics"
+    difficulty: "easy"
+    
+  - prompt: "Which early villain do you miss most?"
+    category: "classic_villains"
+    difficulty: "medium"
+    
+  - prompt: "Best character introduction in the early series?"
+    category: "character_debuts"
+    difficulty: "medium"
+    
+  - prompt: "Most quotable line from pre-timeskip?"
+    category: "memorable_quotes"
+    difficulty: "medium"
+
+# Visual nostalgia challenges
+visual:
+  - prompt: "Share a screenshot of your favorite classic One Piece moment!"
+    category: "screenshots"
+    difficulty: "easy"
+    
+  - prompt: "Post your favorite old-school One Piece art style panel"
+    category: "art_nostalgia"
+    difficulty: "easy"
+    
+  - prompt: "Show us your favorite Going Merry scene"
+    category: "ship_nostalgia"
+    difficulty: "easy"
+    
+  - prompt: "Best classic One Piece color spread or cover?"
+    category: "art_appreciation"
+    difficulty: "medium"
+    
+  - prompt: "Most iconic panel from the first 500 chapters"
+    category: "iconic_moments"
+    difficulty: "medium"
+
+# Nostalgia and perspective challenges
+nostalgia:
+  - prompt: "What classic One Piece moment hits different now that you're older?"
+    category: "perspective_change"
+    difficulty: "medium"
+    
+  - prompt: "Which early series prediction of yours came true?"
+    category: "old_predictions"
+    difficulty: "hard"
+    
+  - prompt: "What do you miss most about pre-timeskip One Piece?"
+    category: "series_evolution"
+    difficulty: "medium"
+    
+  - prompt: "How has your favorite character changed since their introduction?"
+    category: "character_growth"
+    difficulty: "medium"
+    
+  - prompt: "What early series mystery took forever to be resolved?"
+    category: "long_mysteries"
+    difficulty: "hard"
+
+# Early arc appreciation
+early_arcs:
+  - prompt: "Defend an early arc that people call 'boring'"
+    category: "arc_defense"
+    difficulty: "medium"
+    
+  - prompt: "Best lesson learned in the East Blue saga"
+    category: "moral_lessons"
+    difficulty: "easy"
+    
+  - prompt: "Most underrated early series character"
+    category: "character_appreciation"
+    difficulty: "medium"
+    
+  - prompt: "Why Arlong Park is still one of the best arcs"
+    category: "arc_analysis"
+    difficulty: "medium"
+    
+  - prompt: "Hidden details you noticed on your reread/rewatch"
+    category: "easter_eggs"
+    difficulty: "hard"
+
+# Classic character moments
+characters:
+  - prompt: "Luffy's best early series moment of leadership"
+    category: "leadership_moments"
+    difficulty: "medium"
+    
+  - prompt: "Zoro's most badass pre-timeskip moment"
+    category: "badass_moments"
+    difficulty: "easy"
+    
+  - prompt: "Nami's character development before the timeskip"
+    category: "character_growth"
+    difficulty: "medium"
+    
+  - prompt: "Usopp's most heroic early moment"
+    category: "heroic_moments"
+    difficulty: "medium"
+    
+  - prompt: "Sanji's best pre-timeskip fight"
+    category: "fight_nostalgia"
+    difficulty: "easy"
+
+# Music and atmosphere
+atmosphere:
+  - prompt: "Most atmospheric early One Piece moment"
+    category: "atmosphere"
+    difficulty: "medium"
+    
+  - prompt: "Which early OST track gives you the most nostalgia?"
+    category: "music_nostalgia"
+    difficulty: "easy"
+    
+  - prompt: "Best 'quiet' moment from classic One Piece"
+    category: "peaceful_moments"
+    difficulty: "medium"
+    
+  - prompt: "Most epic early series entrance"
+    category: "epic_entrances"
+    difficulty: "medium"
+
+# Animation and style nostalgia
+animation:
+  - prompt: "Favorite thing about the old animation style"
+    category: "animation_style"
+    difficulty: "easy"
+    
+  - prompt: "Best animated sequence from pre-timeskip"
+    category: "animation_quality"
+    difficulty: "medium"
+    
+  - prompt: "How the art style evolution affected your viewing"
+    category: "style_evolution"
+    difficulty: "medium"
+
+# First time experiences
+first_time:
+  - prompt: "Your reaction to your first One Piece episode/chapter"
+    category: "first_impressions"
+    difficulty: "easy"
+    
+  - prompt: "When did you realize One Piece was special?"
+    category: "realization_moments"
+    difficulty: "medium"
+    
+  - prompt: "First One Piece character you fell in love with"
+    category: "character_attachment"
+    difficulty: "easy"
+    
+  - prompt: "Your biggest early series theory that was wrong"
+    category: "wrong_theories"
+    difficulty: "medium"
+
+# Classic villains appreciation
+villains:
+  - prompt: "Why Crocodile is still one of the best villains"
+    category: "villain_appreciation"
+    difficulty: "medium"
+    
+  - prompt: "Most terrifying early series villain moment"
+    category: "scary_moments"
+    difficulty: "medium"
+    
+  - prompt: "Early villain with the best motivation"
+    category: "villain_psychology"
+    difficulty: "hard"
+
+# Ship and crew nostalgia
+crew:
+  - prompt: "Best early crew bonding moment"
+    category: "crew_bonding"
+    difficulty: "easy"
+    
+  - prompt: "When the crew felt most like a family pre-timeskip"
+    category: "family_feelings"
+    difficulty: "medium"
+    
+  - prompt: "Going Merry's most heartbreaking moment"
+    category: "ship_emotions"
+    difficulty: "medium"
+
+# Categories that trivia should focus on for Thursday
+trivia_focus:
+  - "early_arcs"
+  - "classic_moments"
+  - "east_blue"
+  - "alabasta"
+  - "skypiea"
+  - "water_seven"
+  - "enies_lobby"
+  - "thriller_bark"
+  - "pre_timeskip"
+  - "classic_villains"
+  - "going_merry"
+  - "character_introductions"
