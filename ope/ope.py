@@ -14,8 +14,8 @@ from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import box, pagify
 
 
-class OnePieceMaster(commands.Cog):
-    """Master One Piece engagement system with daily challenges and trivia!"""
+class OPE(commands.Cog):
+    """One Piece Engagement - Master One Piece engagement system with daily challenges and trivia!"""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -106,7 +106,7 @@ class OnePieceMaster(commands.Cog):
                 "straw_hats": ["luffy", "zoro", "nami", "usopp", "sanji", "chopper", "robin", "franky", "brook", "jinbe"],
                 "emperors": ["shanks", "kaido", "big mom", "blackbeard"],
                 "admirals": ["akainu", "kizaru", "aokiji", "fujitora", "ryokugyu"],
-                "warlords": ["mihawk", "crocodile", "doflamingo", "hancock", "jinbe", "law", "weevil"]
+                "warlords": ["mihawk", "crocodile", "doflamingo", "hancock", "jinbe", "law", "weevil", "buggy"]
             },
             "locations": {
                 "islands": ["alabasta", "skypiea", "water 7", "thriller bark", "sabaody", "amazon lily", "impel down", "marineford", "fishman island", "punk hazard", "dressrosa", "zou", "whole cake island", "wano"],
