@@ -1,0 +1,473 @@
+# One Piece Constants - Shared across all features
+
+# Character databases
+characters:
+  straw_hats:
+    - luffy
+    - zoro  
+    - nami
+    - usopp
+    - sanji
+    - chopper
+    - robin
+    - franky
+    - brook
+    - jinbe
+    
+  emperors:
+    - shanks
+    - kaido
+    - big mom
+    - blackbeard
+    
+  former_emperors:
+    - whitebeard
+    - rocks d xebec
+    
+  admirals:
+    - akainu
+    - kizaru
+    - aokiji
+    - fujitora
+    - ryokugyu
+    
+  former_admirals:
+    - sengoku
+    - zephyr
+    
+  warlords:
+    - mihawk
+    - crocodile
+    - doflamingo
+    - hancock
+    - jinbe
+    - law
+    - weevil
+    - buggy
+    
+  former_warlords:
+    - moriah
+    - kuma
+    - flamingo
+    
+  worst_generation:
+    - luffy
+    - zoro
+    - law
+    - kidd
+    - killer
+    - hawkins
+    - drake
+    - apoo
+    - bonney
+    - bege
+    - urouge
+    
+  revolutionary_army:
+    - dragon
+    - sabo
+    - ivankov
+    - kuma
+    - inazuma
+    - hack
+    - koala
+    - betty
+    - morley
+    - lindbergh
+    - karasu
+    
+  marines:
+    - garp
+    - smoker
+    - tashigi
+    - hina
+    - coby
+    - helmeppo
+    - bogard
+    - tsuru
+    - onigumo
+    - momousagi
+    - chaton
+    
+  cp_agents:
+    - rob lucci
+    - kaku
+    - kalifa
+    - jabra
+    - blueno
+    - kumadori
+    - fukurou
+    - nero
+    - spandam
+    - spandine
+    
+  whitebeard_pirates:
+    - whitebeard
+    - ace
+    - marco
+    - vista
+    - jozu
+    - thatch
+    - izo
+    - blamenco
+    - rakuyo
+    - namule
+    - blenheim
+    - curiel
+    - kingdew
+    - haruta
+    - atmos
+    - speed jiru
+    - fossa
+    
+  red_hair_pirates:
+    - shanks
+    - benn beckman
+    - lucky roux
+    - yasopp
+    - rockstar
+    
+  blackbeard_pirates:
+    - blackbeard
+    - burgess
+    - shiryu
+    - van augur
+    - doc q
+    - laffitte
+    - catarina devon
+    - sanjuan wolf
+    - vasco shot
+    - avalo pizarro
+    - stronger
+    
+  big_mom_pirates:
+    - big mom
+    - katakuri
+    - smoothie
+    - cracker
+    - perospero
+    - compote
+    - daifuku
+    - oven
+    - galette
+    - opera
+    - counter
+    - cadenza
+    - cabaletta
+    - gala
+    - moscato
+    - mont d or
+    - custard
+    - angel
+    - broyé
+    - nusstorte
+    
+  beast_pirates:
+    - kaido
+    - king
+    - queen
+    - jack
+    - who's who
+    - sasaki
+    - black maria
+    - ulti
+    - page one
+    - yamato
+    - x drake
+    
+  donquixote_pirates:
+    - doflamingo
+    - trebol
+    - diamante
+    - pica
+    - vergo
+    - sugar
+    - jora
+    - lao g
+    - senor pink
+    - machvise
+    - dellinger
+    - gladius
+    - buffalo
+    - baby 5
+    - violet
+
+# Location databases
+locations:
+  islands:
+    - alabasta
+    - skypiea
+    - water 7
+    - thriller bark
+    - sabaody
+    - amazon lily
+    - impel down
+    - marineford
+    - fishman island
+    - punk hazard
+    - dressrosa
+    - zou
+    - whole cake island
+    - wano
+    - egghead
+    
+  seas:
+    - east blue
+    - west blue
+    - north blue
+    - south blue
+    - grand line
+    - new world
+    
+  special_places:
+    - reverse mountain
+    - calm belt
+    - red line
+    - marie geoise
+    - enies lobby
+    - raftel
+    - laugh tale
+
+# Devil Fruit classifications
+devil_fruits:
+  paramecia:
+    - gomu gomu
+    - bara bara
+    - sube sube
+    - bomu bomu
+    - kiro kiro
+    - hana hana
+    - doru doru
+    - baku baku
+    - mane mane
+    - supa supa
+    - toge toge
+    - ori ori
+    - bane bane
+    - noro noro
+    - doa doa
+    - awa awa
+    - beri beri
+    - sabi sabi
+    - shari shari
+    - yomi yomi
+    - kage kage
+    - horo horo
+    - suke suke
+    - nikyu nikyu
+    - mero mero
+    - doku doku
+    - horu horu
+    - choki choki
+    - gura gura
+    - kira kira
+    - woshu woshu
+    - fuwa fuwa
+    - mato mato
+    - fuku fuku
+    - buki buki
+    - guru guru
+    - zushi zushi
+    - bato bato
+    - nui nui
+    - giro giro
+    - ato ato
+    - hobi hobi
+    - sui sui
+    - ton ton
+    - hira hira
+    - ishi ishi
+    - nagi nagi
+    - chiyu chiyu
+    - soru soru
+    - mira mira
+    - pero pero
+    - bisu bisu
+    - bata bata
+    - buku buku
+    - kuri kuri
+    - shibo shibo
+    - memo memo
+    - mochi mochi
+    - hoya hoya
+    - netsu netsu
+    - kuku kuku
+    - gocha gocha
+    - oshi oshi
+    - kobu kobu
+    - toki toki
+    - juku juku
+    - maki maki
+    - fude fude
+    - bari bari
+    - nuke nuke
+    - jake jake
+    - suke suke
+    - gasu gasu
+    
+  zoan:
+    - hito hito
+    - tori tori
+    - inu inu
+    - neko neko
+    - ushi ushi
+    - hito hito model nika
+    - zou zou
+    - inu inu model wolf
+    - inu inu model jackal
+    - inu inu model dachshund
+    - neko neko model leopard
+    - neko neko model saber tiger
+    - tori tori model falcon
+    - tori tori model albatross
+    - tori tori model phoenix
+    - ushi ushi model bison
+    - ushi ushi model giraffe
+    - uma uma
+    - mogu mogu
+    - inu inu model tanuki
+    - hito hito model daibutsu
+    - sara sara model axolotl
+    - mushi mushi model kabutomushi
+    - mushi mushi model suzumebachi
+    - hebi hebi model anaconda
+    - hebi hebi model king cobra
+    - hebi hebi model yamata no orochi
+    - tori tori model pteranodon
+    - ryu ryu model allosaurus
+    - ryu ryu model spinosaurus
+    - ryu ryu model brachiosaurus
+    - ryu ryu model pteranodon
+    - ryu ryu model triceratops
+    - ryu ryu model pachycephalosaurus
+    - inu inu model okuchi no makami
+    - neko neko model saber tooth
+    - zou zou model mammoth
+    - kumo kumo model rosamygale grauvogeli
+    
+  logia:
+    - moku moku
+    - mera mera
+    - suna suna
+    - goro goro
+    - hie hie
+    - yami yami
+    - pika pika
+    - magu magu
+    - numa numa
+    - gasu gasu
+    - yuki yuki
+    - beta beta
+    - mori mori
+
+# Character emoji representations (for games)
+emojis:
+  luffy: "🍖"
+  zoro: "⚔️"
+  nami: "🍊"
+  usopp: "🎯"
+  sanji: "🚬"
+  chopper: "🦌"
+  robin: "📚"
+  franky: "🤖"
+  brook: "💀"
+  jinbe: "🐠"
+  ace: "🔥"
+  sabo: "🔥"
+  law: "⚕️"
+  kidd: "🧲"
+  shanks: "🦾"
+  whitebeard: "⚡"
+  kaido: "🐉"
+  big_mom: "🍰"
+  blackbeard: "🌑"
+  mihawk: "🗡️"
+
+# Color schemes for different difficulties/categories
+difficulty_colors:
+  easy: 0x00ff00      # Green
+  medium: 0xff8000    # Orange  
+  hard: 0xff0000      # Red
+  expert: 0x8b00ff    # Purple
+  legendary: 0xffd700 # Gold
+
+category_colors:
+  crew: 0xff6b6b      # Red
+  powers: 0x4ecdc4    # Teal
+  locations: 0x45b7d1 # Blue
+  story: 0x96ceb4     # Green
+  characters: 0xffeaa7 # Yellow
+  combat: 0xfd79a8    # Pink
+
+# Point values for different activities
+point_values:
+  easy_trivia: 10
+  medium_trivia: 20
+  hard_trivia: 30
+  expert_trivia: 50
+  legendary_trivia: 100
+  
+  daily_challenge: 15
+  weekly_challenge: 75
+  monthly_challenge: 200
+  
+  streak_bonus: 5
+  perfect_score_bonus: 25
+  first_answer_bonus: 10
+
+# Achievement thresholds
+achievements:
+  trivia_master: 1000        # Points from trivia
+  challenge_champion: 500    # Points from challenges
+  streak_legend: 30          # Day streak
+  perfect_student: 50        # Perfect trivia answers
+  theory_crafter: 10         # Theory challenges completed
+  artist: 5                  # Art challenges completed
+
+# Time settings (in seconds)
+time_limits:
+  easy_trivia: 30
+  medium_trivia: 25
+  hard_trivia: 20
+  expert_trivia: 15
+  
+  daily_challenge: 86400     # 24 hours
+  weekly_challenge: 604800   # 7 days
+
+# Special event multipliers
+event_multipliers:
+  double_points_weekend: 2.0
+  birthday_bonus: 1.5        # Character birthday events
+  arc_celebration: 1.3       # New chapter/episode releases
+  anniversary: 3.0           # One Piece anniversary
+
+# Fun response templates
+responses:
+  correct_answers:
+    - "Excellent! You're a true nakama!"
+    - "Perfect! Luffy would be proud!"
+    - "Outstanding! You know your One Piece!"
+    - "Incredible! Future Pirate King material!"
+    
+  wrong_answers:
+    - "Not quite! Keep studying, future pirate!"
+    - "Close, but not quite there yet!"
+    - "Don't give up! Even Luffy makes mistakes!"
+    - "Keep trying! The Grand Line is full of challenges!"
+    
+  timeout_responses:
+    - "Time's up! Even pirates need to think fast!"
+    - "Too slow! The seas wait for no one!"
+    - "Speed is key on the Grand Line!"
+
+# Rank titles based on points
+rank_titles:
+  0: "Rookie Pirate"
+  100: "East Blue Veteran" 
+  300: "Grand Line Traveler"
+  500: "New World Pirate"
+  1000: "Supernova"
+  2000: "Warlord Level"
+  5000: "Emperor Commander"
+  10000: "Yonko Level"
+  20000: "Pirate King Candidate"
