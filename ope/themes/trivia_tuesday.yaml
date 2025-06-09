@@ -1,0 +1,137 @@
+# Tuesday - Trivia Tuesday Theme
+# Focus: Knowledge testing, competitions, and intensive trivia
+
+theme_info:
+  name: "Trivia Tuesday"
+  emoji: "🎯"
+  description: "Test your One Piece knowledge with intensive trivia competitions"
+  focus: "knowledge testing, competitions, brain challenges"
+
+# Knowledge-based challenges that test facts
+knowledge:
+  - prompt: "Name all 11 members of the Worst Generation"
+    answers: ["luffy", "zoro", "law", "kidd", "killer", "hawkins", "drake", "apoo", "bonney", "bege", "urouge"]
+    min_correct: 8
+    category: "characters"
+    difficulty: "medium"
+    
+  - prompt: "List the first 5 Straw Hat Pirates in joining order"
+    answers: ["luffy", "zoro", "nami", "usopp", "sanji"]
+    min_correct: 5
+    category: "crew"
+    difficulty: "easy"
+    
+  - prompt: "Name 5 Whitebeard Pirates division commanders"
+    answers: ["marco", "ace", "vista", "thatch", "jozu", "blamenco", "rakuyo", "namule", "blenheim", "curiel", "kingdew", "haruta", "atmos", "speed jiru", "fossa", "izo"]
+    min_correct: 5
+    category: "crews"
+    difficulty: "hard"
+    
+  - prompt: "List 6 islands in the Grand Line Paradise"
+    answers: ["reverse mountain", "whisky peak", "little garden", "drum island", "alabasta", "jaya", "skypiea", "long ring long land", "water 7", "enies lobby", "thriller bark", "sabaody archipelago"]
+    min_correct: 6
+    category: "locations"
+    difficulty: "medium"
+    
+  - prompt: "Name 4 Marine Admirals (current and former)"
+    answers: ["akainu", "kizaru", "aokiji", "fujitora", "ryokugyu", "sengoku", "zephyr"]
+    min_correct: 4
+    category: "marines"
+    difficulty: "easy"
+
+# Quick-fire trivia challenges
+rapid_fire:
+  - prompt: "Lightning Round: Answer as many One Piece questions as you can in your next message!"
+    category: "speed_round"
+    difficulty: "medium"
+    
+  - prompt: "Chain Challenge: Name a character, then the next person names a character whose name starts with the last letter!"
+    category: "word_chain"
+    difficulty: "easy"
+    
+  - prompt: "Bounty Guessing: I'll name a character, you guess their current bounty!"
+    category: "bounty_game"
+    difficulty: "medium"
+
+# Memory challenges
+memory:
+  - prompt: "Recite the order of islands the Straw Hats visited in the East Blue"
+    answers: ["dawn island", "shells town", "orange town", "syrup village", "baratie", "arlong park", "loguetown"]
+    min_correct: 5
+    category: "early_journey"
+    difficulty: "medium"
+    
+  - prompt: "Name the original 7 Warlords of the Sea"
+    answers: ["mihawk", "crocodile", "doflamingo", "hancock", "jinbe", "moriah", "kuma"]
+    min_correct: 6
+    category: "warlords"
+    difficulty: "medium"
+    
+  - prompt: "List Luffy's Gear 4 forms"
+    answers: ["boundman", "tankman", "snakeman"]
+    min_correct: 3
+    category: "techniques"
+    difficulty: "easy"
+
+# Number-based challenges
+numbers:
+  - prompt: "How many total members does the Straw Hat Pirates have?"
+    answers: ["10", "ten"]
+    category: "crew_size"
+    difficulty: "easy"
+    
+  - prompt: "What chapter did Ace first appear in?"
+    answers: ["154"]
+    category: "manga_trivia"
+    difficulty: "expert"
+    
+  - prompt: "How many levels does Impel Down have?"
+    answers: ["6", "six"]
+    category: "locations"
+    difficulty: "medium"
+
+# Quote identification challenges
+quotes:
+  - prompt: "Who said: 'I want to be a true man!'?"
+    answers: ["usopp"]
+    category: "famous_quotes"
+    difficulty: "easy"
+    
+  - prompt: "Complete the quote: 'When do you think people die?'"
+    answers: ["when they are forgotten", "when people forget them", "when they are shot in the heart", "when they eat a poisonous mushroom"]
+    category: "deep_quotes"
+    difficulty: "hard"
+    
+  - prompt: "Who said: 'Inherited will, the destiny of age, the dreams of people...'?"
+    answers: ["gol d roger", "roger"]
+    category: "legendary_quotes"
+    difficulty: "medium"
+
+# Devil Fruit knowledge
+devil_fruits:
+  - prompt: "Name 5 Logia-type Devil Fruits"
+    answers: ["moku moku", "mera mera", "suna suna", "goro goro", "hie hie", "yami yami", "pika pika", "magu magu", "numa numa", "gasu gasu"]
+    min_correct: 5
+    category: "devil_fruits"
+    difficulty: "medium"
+    
+  - prompt: "Which Devil Fruit allows the user to turn into diamond?"
+    answers: ["kira kira no mi"]
+    category: "devil_fruits"
+    difficulty: "hard"
+
+# Special Tuesday features
+trivia_boost: true  # This day gets double trivia frequency
+
+# Categories that trivia should focus on for Tuesday
+trivia_focus:
+  - "general"
+  - "characters" 
+  - "crews"
+  - "bounties"
+  - "locations"
+  - "devil_fruits"
+  - "techniques"
+  - "quotes"
+  - "numbers"
+  - "timeline"
