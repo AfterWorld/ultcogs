@@ -1,1 +1,184 @@
+# Friday - Fight Friday Theme
+# Focus: Battles, power scaling, combat analysis, and strength debates
 
+theme_info:
+  name: "Fight Friday"
+  emoji: "⚔️"
+  description: "Battle discussions, power scaling, and combat analysis"
+  focus: "battles, power scaling, combat, strength debates"
+
+# Power scaling and versus debates
+debate:
+  - prompt: "Who would win: Current Luffy vs Prime Whitebeard?"
+    category: "powerscaling"
+    difficulty: "medium"
+    
+  - prompt: "Rank the current Emperors by overall strength"
+    category: "emperor_ranking"
+    difficulty: "medium"
+    
+  - prompt: "Who would win: Mihawk vs Shanks?"
+    category: "legendary_matchup"
+    difficulty: "hard"
+    
+  - prompt: "Current Zoro vs Katakuri - who takes it?"
+    category: "current_matchup"
+    difficulty: "medium"
+    
+  - prompt: "Prime Garp vs Current Akainu - analyze this fight"
+    category: "marine_battle"
+    difficulty: "hard"
+    
+  - prompt: "Who's stronger: King or Queen?"
+    category: "commander_battle"
+    difficulty: "easy"
+    
+  - prompt: "Ultimate showdown: All Admirals vs All Emperors"
+    category: "faction_battle"
+    difficulty: "expert"
+    
+  - prompt: "Who would win: Kaido vs Big Mom in a 1v1?"
+    category: "emperor_battle"
+    difficulty: "medium"
+
+# Combat technique analysis
+techniques:
+  - prompt: "What's the most powerful attack in all of One Piece?"
+    category: "ultimate_techniques"
+    difficulty: "medium"
+    
+  - prompt: "Best Haki technique we've seen so far?"
+    category: "haki_mastery"
+    difficulty: "medium"
+    
+  - prompt: "Most underrated fighting technique in the series?"
+    category: "hidden_gems"
+    difficulty: "hard"
+    
+  - prompt: "Create the ultimate combination attack using any two characters"
+    category: "combo_techniques"
+    difficulty: "medium"
+    
+  - prompt: "Which fighting style would you want to learn in real life?"
+    category: "real_world"
+    difficulty: "easy"
+
+# Tournament and ranking challenges  
+ranking:
+  - prompt: "Rank all Conqueror's Haki users by mastery level"
+    category: "haki_ranking"
+    difficulty: "hard"
+    
+  - prompt: "Create the ultimate 16-fighter tournament bracket"
+    category: "tournament_creation"
+    difficulty: "medium"
+    
+  - prompt: "Rank the Straw Hats by pure physical strength"
+    category: "crew_ranking"
+    difficulty: "easy"
+    
+  - prompt: "Top 5 fastest characters in One Piece"
+    category: "speed_ranking" 
+    difficulty: "medium"
+    
+  - prompt: "Rank all Worst Generation members by combat ability"
+    category: "generation_ranking"
+    difficulty: "hard"
+
+# Battle analysis challenges
+analysis:
+  - prompt: "Best strategic mind in combat: Who's the smartest fighter?"
+    category: "tactical_analysis"
+    difficulty: "medium"
+    
+  - prompt: "Most brutal fight in One Piece and why?"
+    category: "fight_analysis"
+    difficulty: "easy"
+    
+  - prompt: "Which fight had the best character development moments?"
+    category: "story_impact"
+    difficulty: "medium"
+    
+  - prompt: "Analyze Luffy's growth through his major fights"
+    category: "progression_analysis"
+    difficulty: "hard"
+    
+  - prompt: "What makes a fight 'epic' in One Piece?"
+    category: "fight_philosophy"
+    difficulty: "medium"
+
+# Hypothetical battle scenarios
+scenarios:
+  - prompt: "Marineford but with current Straw Hat crew - how does it change?"
+    category: "alternate_battles"
+    difficulty: "hard"
+    
+  - prompt: "All Straw Hats vs all CP9 members at current power levels"
+    category: "crew_battle"
+    difficulty: "medium"
+    
+  - prompt: "What if Ace had Conqueror's Haki at Marineford?"
+    category: "what_if_battles"
+    difficulty: "medium"
+    
+  - prompt: "Revolutionary Army vs World Government all-out war"
+    category: "faction_war"
+    difficulty: "expert"
+
+# Weapon and equipment discussions
+equipment:
+  - prompt: "Best weapon in One Piece (excluding Devil Fruits)"
+    category: "weapons"
+    difficulty: "easy"
+    
+  - prompt: "Rank the Supreme Grade swords we've seen"
+    category: "sword_ranking"
+    difficulty: "hard"
+    
+  - prompt: "Most creative use of a weapon in battle?"
+    category: "weapon_creativity"
+    difficulty: "medium"
+
+# Combat prediction challenges
+predictions:
+  - prompt: "Predict Luffy's next major power-up"
+    category: "future_power"
+    difficulty: "medium"
+    
+  - prompt: "What will Zoro's next sword upgrade be?"
+    category: "equipment_upgrade"
+    difficulty: "medium"
+    
+  - prompt: "Who will be Sanji's toughest future opponent?"
+    category: "future_matchup"
+    difficulty: "hard"
+
+# Fighting spirit and motivation
+spirit:
+  - prompt: "Which character has the strongest fighting spirit?"
+    category: "determination"
+    difficulty: "easy"
+    
+  - prompt: "Best 'never give up' moment in a fight?"
+    category: "perseverance"
+    difficulty: "medium"
+    
+  - prompt: "Who fights for the most noble cause?"
+    category: "motivation"
+    difficulty: "medium"
+
+# Special Friday features  
+trivia_boost: true  # This day gets double trivia frequency and combat focus
+
+# Categories that trivia should focus on for Friday
+trivia_focus:
+  - "combat"
+  - "techniques"
+  - "powers"
+  - "battles"
+  - "haki"
+  - "weapons"
+  - "fighting_styles"
+  - "powerscaling"
+  - "famous_fights"
+  - "strength_feats"
