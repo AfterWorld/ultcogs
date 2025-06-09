@@ -1,0 +1,323 @@
+# Weekly One Piece Challenges Database
+# Longer-form challenges that run for a full week
+
+# Art and Creative Contests
+art_contests:
+  - title: "Best One Piece Fan Art Contest"
+    description: "Create original One Piece artwork in any style"
+    theme: "Adventure on the High Seas"
+    duration: 7
+    category: "art"
+    
+  - title: "Character Redesign Challenge"
+    description: "Redesign any One Piece character in your own style"
+    theme: "Character Redesign"
+    duration: 7
+    category: "art"
+    
+  - title: "Devil Fruit Design Contest"
+    description: "Create and illustrate a completely new Devil Fruit"
+    theme: "Original Devil Fruits"
+    duration: 7
+    category: "art"
+    
+  - title: "Ship Design Competition"
+    description: "Design the ultimate pirate ship"
+    theme: "Dream Vessels"
+    duration: 7
+    category: "art"
+    
+  - title: "Island Creation Challenge"
+    description: "Design a new island for the Grand Line"
+    theme: "Uncharted Islands"
+    duration: 7
+    category: "art"
+
+# Writing and Story Contests
+writing_contests:
+  - title: "One Piece Fan Fiction Week"
+    description: "Write an original One Piece story"
+    theme: "Untold Adventures"
+    duration: 7
+    category: "writing"
+    
+  - title: "Character Backstory Contest"
+    description: "Create a detailed backstory for a minor character"
+    theme: "Hidden Histories"
+    duration: 7
+    category: "writing"
+    
+  - title: "What If Story Challenge"
+    description: "Write an alternate timeline One Piece story"
+    theme: "Alternate Realities"
+    duration: 7
+    category: "writing"
+    
+  - title: "Diary Entry Week"
+    description: "Write diary entries from any character's perspective"
+    theme: "Personal Chronicles"
+    duration: 7
+    category: "writing"
+
+# Competition and Tournament Weeks
+tournaments:
+  - title: "Ultimate Fight Tournament"
+    description: "Vote and debate the best battles in One Piece"
+    theme: "Epic Showdowns"
+    duration: 7
+    category: "tournament"
+    
+  - title: "Best Arc Championship"
+    description: "Tournament-style voting for the greatest One Piece arc"
+    theme: "Arc Supremacy"
+    duration: 7
+    category: "tournament"
+    
+  - title: "Character Popularity Contest"
+    description: "Vote for the most beloved One Piece characters"
+    theme: "Fan Favorites"
+    duration: 7
+    category: "tournament"
+    
+  - title: "Devil Fruit Power Rankings"
+    description: "Rank and debate the strongest Devil Fruit abilities"
+    theme: "Power Scaling"
+    duration: 7
+    category: "tournament"
+    
+  - title: "Crew vs Crew Championship"
+    description: "Debate which pirate crew would win in various scenarios"
+    theme: "Crew Battles"
+    duration: 7
+    category: "tournament"
+
+# Analysis and Discussion Weeks
+analysis_weeks:
+  - title: "Character Deep Dive Week"
+    description: "Comprehensive analysis of character development"
+    theme: "Character Growth"
+    duration: 7
+    category: "analysis"
+    
+  - title: "Arc Breakdown Week"
+    description: "Detailed discussion of storytelling elements in major arcs"
+    theme: "Narrative Analysis"
+    duration: 7
+    category: "analysis"
+    
+  - title: "Symbolism and Themes Week"
+    description: "Explore deeper meanings and symbolism in One Piece"
+    theme: "Hidden Meanings"
+    duration: 7
+    category: "analysis"
+    
+  - title: "World Building Appreciation"
+    description: "Analyze Oda's incredible world construction"
+    theme: "World Design"
+    duration: 7
+    category: "analysis"
+
+# Theory and Prediction Weeks
+theory_weeks:
+  - title: "Theory Crafting Week"
+    description: "Share and discuss your wildest One Piece theories"
+    theme: "Future Predictions"
+    duration: 7
+    category: "theory"
+    
+  - title: "Final Arc Speculation"
+    description: "Predict how One Piece will conclude"
+    theme: "Endgame Theories"
+    duration: 7
+    category: "theory"
+    
+  - title: "Mystery Solving Week"
+    description: "Tackle unsolved mysteries in the One Piece world"
+    theme: "Unsolved Puzzles"
+    duration: 7
+    category: "theory"
+    
+  - title: "Power-Up Predictions"
+    description: "Theorize about future character developments"
+    theme: "Future Growth"
+    duration: 7
+    category: "theory"
+
+# Themed Discussion Weeks
+themed_weeks:
+  wano_celebration:
+    - title: "Wano Country Appreciation Week"
+      description: "Celebrate everything about the Wano arc"
+      theme: "Land of Samurai"
+      duration: 7
+      category: "themed"
+      
+  marineford_memorial:
+    - title: "Marineford Memorial Week"
+      description: "Remember the war that changed everything"
+      theme: "The Paramount War"
+      duration: 7
+      category: "themed"
+      
+  straw_hat_spotlight:
+    - title: "Straw Hat Crew Appreciation"
+      description: "Dedicate each day to a different crew member"
+      theme: "Nakama Bonds"
+      duration: 7
+      category: "themed"
+      
+  villain_appreciation:
+    - title: "Antagonist Appreciation Week"
+      description: "Discuss the complex villains of One Piece"
+      theme: "Complex Enemies"
+      duration: 7
+      category: "themed"
+
+# Collaborative Projects
+collaborative_projects:
+  - title: "Community One Piece Timeline"
+    description: "Work together to create a comprehensive timeline"
+    theme: "Collaborative History"
+    duration: 7
+    category: "collaborative"
+    
+  - title: "Server Crew Creation"
+    description: "Design a pirate crew made up of server members"
+    theme: "Our Pirate Crew"
+    duration: 7
+    category: "collaborative"
+    
+  - title: "Collective Theory Building"
+    description: "Build upon each other's theories throughout the week"
+    theme: "Theory Evolution"
+    duration: 7
+    category: "collaborative"
+    
+  - title: "Community Devil Fruit Encyclopedia"
+    description: "Create a comprehensive guide to all Devil Fruits"
+    theme: "Fruit Compendium"
+    duration: 7
+    category: "collaborative"
+
+# Trivia and Knowledge Weeks
+knowledge_weeks:
+  - title: "One Piece Trivia Championship"
+    description: "Week-long trivia competition with daily rounds"
+    theme: "Ultimate Knowledge Test"
+    duration: 7
+    category: "trivia"
+    
+  - title: "Obscure Facts Week"
+    description: "Share and learn lesser-known One Piece facts"
+    theme: "Hidden Knowledge"
+    duration: 7
+    category: "trivia"
+    
+  - title: "Quote Master Challenge"
+    description: "Identify and share memorable One Piece quotes"
+    theme: "Memorable Words"
+    duration: 7
+    category: "trivia"
+
+# Seasonal and Special Event Weeks
+seasonal_events:
+  anniversary_celebration:
+    - title: "One Piece Anniversary Celebration"
+      description: "Celebrate One Piece's publication anniversary"
+      theme: "25+ Years of Adventure"
+      duration: 7
+      category: "anniversary"
+      
+  new_chapter_hype:
+    - title: "New Chapter Prediction Week"
+      description: "Predict and discuss upcoming manga developments"
+      theme: "What's Next?"
+      duration: 7
+      category: "current_events"
+      
+  holiday_specials:
+    - title: "One Piece Christmas Special"
+      description: "Imagine how the Straw Hats would celebrate Christmas"
+      theme: "Holiday Celebration"
+      duration: 7
+      category: "holiday"
+      
+    - title: "Halloween Horror Week"
+      description: "Create spooky One Piece content and stories"
+      theme: "Thriller Bark Vibes"
+      duration: 7
+      category: "holiday"
+
+# Challenge Series (Multi-week events)
+challenge_series:
+  grand_line_journey:
+    - title: "Grand Line Journey - Week 1: Paradise"
+      description: "Focus on the first half of the Grand Line"
+      theme: "Paradise Adventures"
+      duration: 7
+      category: "series"
+      
+    - title: "Grand Line Journey - Week 2: New World"
+      description: "Explore the dangers of the New World"
+      theme: "New World Perils"
+      duration: 7
+      category: "series"
+      
+  devil_fruit_mastery:
+    - title: "Devil Fruit Mastery - Week 1: Paramecia"
+      description: "Deep dive into Paramecia-type Devil Fruits"
+      theme: "Paramecia Powers"
+      duration: 7
+      category: "series"
+      
+    - title: "Devil Fruit Mastery - Week 2: Zoan"
+      description: "Explore the animal kingdom of Zoan fruits"
+      theme: "Beast Transformations"
+      duration: 7
+      category: "series"
+      
+    - title: "Devil Fruit Mastery - Week 3: Logia"
+      description: "Master the elements with Logia fruits"
+      theme: "Elemental Forces"
+      duration: 7
+      category: "series"
+
+# Interactive Challenges
+interactive_challenges:
+  - title: "Choose Your Own Adventure Week"
+    description: "Community votes determine the direction of a story"
+    theme: "Interactive Storytelling"
+    duration: 7
+    category: "interactive"
+    
+  - title: "Server Member Battle Royale"
+    description: "Members create characters and battle throughout the week"
+    theme: "Original Character Tournament"
+    duration: 7
+    category: "interactive"
+    
+  - title: "Pirate Crew Recruitment Drive"
+    description: "Members form crews and compete in various challenges"
+    theme: "Crew Formation"
+    duration: 7
+    category: "interactive"
+
+# Educational Weeks
+educational_weeks:
+  - title: "Real World Inspiration Week"
+    description: "Explore the real-world inspirations behind One Piece"
+    theme: "Historical Connections"
+    duration: 7
+    category: "educational"
+    
+  - title: "Japanese Culture in One Piece"
+    description: "Learn about Japanese cultural elements in the series"
+    theme: "Cultural Exploration"
+    duration: 7
+    category: "educational"
+    
+  - title: "Pirate History Week"
+    description: "Discover real pirate history that inspired the series"
+    theme: "Historical Pirates"
+    duration: 7
+    category: "educational"
