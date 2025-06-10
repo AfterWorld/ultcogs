@@ -277,6 +277,39 @@ class CrewManagement(commands.Cog):
                 e, "save_data", guild.id
             )
             return False
+    
+    async def load_data(self, guild: discord.Guild) -> bool:
+        """Enhanced load_data with migration support"""
+        if not guild:
+            return False
+    
+        finished_setup = await self.config.guild(guild).finished_setup()
+        if not finished_setup:
+            return True
+    
+        try:
+            guild_id = str(guild.id)
+            crews_data = await self.data_manager.load_crew_data(guild)
+            
+            # Initialize guild namespace
+            if guild_id not in self.crews:
+                self.crews[guild_id] = {}
+            
+            # Load data into memory
+            self.crews[guild_id] = crews_data
+            
+            self.enhanced_logger.info(f"Loaded {len(crews_data)} crews for guild {guild.name}")
+            return True
+            
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "load_data", guild.id
+            )
+            return False
+
+    async def save_crews(self, guild: discord.Guild):
+        """Wrapper for save_data to maintain compatibility"""
+        await self.save_data(guild)
 
     async def create_enhanced_crew_embed(self, guild: discord.Guild, crew_name: str, crew_data: dict) -> discord.Embed:
         """Create an enhanced embed showing detailed crew information"""
@@ -423,39 +456,6 @@ class CrewManagement(commands.Cog):
                 f"Members: {len(crew_data.get('members', []))}",
                 crew_name=crew_name
             )
-    
-    async def load_data(self, guild: discord.Guild) -> bool:
-        """Enhanced load_data with migration support"""
-        if not guild:
-            return False
-    
-        finished_setup = await self.config.guild(guild).finished_setup()
-        if not finished_setup:
-            return True
-    
-        try:
-            guild_id = str(guild.id)
-            crews_data = await self.data_manager.load_crew_data(guild)
-            
-            # Initialize guild namespace
-            if guild_id not in self.crews:
-                self.crews[guild_id] = {}
-            
-            # Load data into memory
-            self.crews[guild_id] = crews_data
-            
-            self.enhanced_logger.info(f"Loaded {len(crews_data)} crews for guild {guild.name}")
-            return True
-            
-        except Exception as e:
-            self.enhanced_logger.log_error_with_context(
-                e, "load_data", guild.id
-            )
-            return False
-
-    async def save_crews(self, guild: discord.Guild):
-        """Wrapper for save_data to maintain compatibility"""
-        await self.save_data(guild)
 
     # --- Preserved Original Methods (Enhanced) ---
     def truncate_nickname(self, original_name: str, emoji_prefix: str) -> str:
