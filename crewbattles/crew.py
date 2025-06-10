@@ -278,6 +278,152 @@ class CrewManagement(commands.Cog):
             )
             return False
 
+    async def create_enhanced_crew_embed(self, guild: discord.Guild, crew_name: str, crew_data: dict) -> discord.Embed:
+        """Create an enhanced embed showing detailed crew information"""
+        try:
+            # Get crew information
+            emoji = crew_data.get('emoji', '🏴‍☠️')
+            tag = crew_data.get('tag', 'N/A')
+            members = crew_data.get('members', [])
+            
+            # Get role objects
+            captain_role = guild.get_role(crew_data.get("captain_role"))
+            vice_captain_role = guild.get_role(crew_data.get("vice_captain_role"))
+            crew_role = guild.get_role(crew_data.get("crew_role"))
+            
+            # Count members by role
+            total_members = len(members)
+            captains = len(captain_role.members) if captain_role else 0
+            vice_captains = len(vice_captain_role.members) if vice_captain_role else 0
+            regular_members = total_members - captains - vice_captains
+            
+            # Find captain
+            captain = next((m for m in guild.members if captain_role and captain_role in m.roles), None)
+            
+            # Get statistics
+            stats = crew_data.get('stats', {})
+            wins = stats.get('wins', 0)
+            losses = stats.get('losses', 0)
+            tournaments_won = stats.get('tournaments_won', 0)
+            tournaments_participated = stats.get('tournaments_participated', 0)
+            
+            # Calculate rates
+            total_battles = wins + losses
+            win_rate = (wins / total_battles * 100) if total_battles > 0 else 0.0
+            tournament_win_rate = (tournaments_won / tournaments_participated * 100) if tournaments_participated > 0 else 0.0
+            
+            # Create embed
+            embed = discord.Embed(
+                title=f"{emoji} {crew_name} [{tag}]",
+                description=crew_data.get('description', 'A mighty crew ready for battle!'),
+                color=crew_data.get('color') or discord.Color.blue()
+            )
+            
+            # Add crew information
+            embed.add_field(
+                name="👥 Membership",
+                value=(
+                    f"**Total:** {total_members}\n"
+                    f"**Captain:** {captain.display_name if captain else 'None'}\n"
+                    f"**Vice Captains:** {vice_captains}\n"
+                    f"**Members:** {regular_members}"
+                ),
+                inline=True
+            )
+            
+            embed.add_field(
+                name="📊 Battle Statistics",
+                value=(
+                    f"**Win Rate:** {win_rate:.1f}%\n"
+                    f"**Total Battles:** {total_battles}\n"
+                    f"**Wins:** {wins}\n"
+                    f"**Losses:** {losses}"
+                ),
+                inline=True
+            )
+            
+            # Add tournament info if there are tournaments
+            if tournaments_participated > 0:
+                embed.add_field(
+                    name="🏆 Tournament Record",
+                    value=(
+                        f"**Tournament Win Rate:** {tournament_win_rate:.1f}%\n"
+                        f"**Tournaments Won:** {tournaments_won}\n"
+                        f"**Tournaments Played:** {tournaments_participated}"
+                    ),
+                    inline=True
+                )
+            
+            # Add role information
+            role_info = []
+            if captain_role:
+                role_info.append(f"**Captain Role:** {captain_role.mention}")
+            if vice_captain_role:
+                role_info.append(f"**Vice Captain Role:** {vice_captain_role.mention}")
+            if crew_role:
+                role_info.append(f"**Crew Role:** {crew_role.mention}")
+            
+            if role_info:
+                embed.add_field(
+                    name="🎭 Discord Roles",
+                    value="\n".join(role_info),
+                    inline=False
+                )
+            
+            # Add creation date if available
+            if 'created_at' in crew_data:
+                try:
+                    created_date = datetime.datetime.fromisoformat(crew_data['created_at'])
+                    embed.add_field(
+                        name="📅 Crew Founded",
+                        value=created_date.strftime("%B %d, %Y"),
+                        inline=True
+                    )
+                    
+                    # Calculate days active
+                    days_active = (datetime.datetime.now() - created_date).days
+                    embed.add_field(
+                        name="⏰ Days Active",
+                        value=f"{days_active} days",
+                        inline=True
+                    )
+                except:
+                    pass  # Skip if date parsing fails
+            
+            # Add performance level based on stats
+            if total_battles > 0:
+                if win_rate >= 70:
+                    performance = "🔥 Excellent"
+                elif win_rate >= 50:
+                    performance = "✅ Good"
+                elif win_rate >= 30:
+                    performance = "⚖️ Average"
+                else:
+                    performance = "📈 Improving"
+                
+                embed.add_field(
+                    name="📈 Performance Level",
+                    value=performance,
+                    inline=True
+                )
+            
+            # Set footer
+            embed.set_footer(text=f"Enhanced Crew System • Use 'crew join {crew_name}' to join!")
+            
+            return embed
+            
+        except Exception as e:
+            self.enhanced_logger.log_error_with_context(
+                e, "create_enhanced_crew_embed", guild.id, crew_name=crew_name
+            )
+            
+            # Return a basic fallback embed
+            return EmbedBuilder.create_crew_embed(
+                f"{crew_data.get('emoji', '🏴‍☠️')} {crew_name}",
+                f"Members: {len(crew_data.get('members', []))}",
+                crew_name=crew_name
+            )
+    
     async def load_data(self, guild: discord.Guild) -> bool:
         """Enhanced load_data with migration support"""
         if not guild:
