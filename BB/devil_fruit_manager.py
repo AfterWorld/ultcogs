@@ -14,7 +14,7 @@ except ImportError:
     from status_manager import StatusEffectManager
     from utils import setup_logger
 
-class EnhancedDevilFruitManager:
+class DevilFruitManager:
     """Enhanced manager for Devil Fruit effects with unique abilities for each fruit."""
     
     def __init__(self, status_manager: StatusEffectManager):
@@ -45,7 +45,6 @@ class EnhancedDevilFruitManager:
                                        move: Dict[str, Any], environment: str) -> Tuple[int, Optional[str]]:
         """Process Devil Fruit effects with enhanced individual fruit abilities."""
         if not attacker.get("fruit"):
-            return 0, None
         # ADDITIONAL MYTHICAL ZOAN EFFECTS
     async def _nue_effect(self, attacker, defender, base_damage):
         """Tori Tori no Mi: Model Nue - Mythical Chimera"""
