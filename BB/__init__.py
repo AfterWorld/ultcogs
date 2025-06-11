@@ -20,11 +20,19 @@ try:
     from .bank import BankCommands
     from .deathbattle import BattleCommands
     from .utils import setup_logger
+    from .constants import (
+        REMOVE_FRUIT_COST, BUY_FRUIT_COST, BUY_RARE_FRUIT_COST,
+        FRUIT_REMOVE_COOLDOWN, FRUIT_BUY_COOLDOWN
+    )
 except ImportError:
     # Fallback imports
     from bank import BankCommands
     from deathbattle import BattleCommands
     from utils import setup_logger
+    from constants import (
+        REMOVE_FRUIT_COST, BUY_FRUIT_COST, BUY_RARE_FRUIT_COST,
+        FRUIT_REMOVE_COOLDOWN, FRUIT_BUY_COOLDOWN
+    )
 finally:
     # Clean up path
     if cog_dir in sys.path:
@@ -83,8 +91,6 @@ class DeathBattle(BankCommands, BattleCommands):
         
         self.log.info("DeathBattle cog initialized successfully")
     
-    # ... rest of the existing code stays the same ...
-    
     @commands.group(name="dbconfig", invoke_without_command=True)
     @commands.admin_or_permissions(manage_guild=True)
     async def deathbattle_config(self, ctx):
@@ -130,7 +136,14 @@ class DeathBattle(BankCommands, BattleCommands):
         # Add fruit management costs
         embed.add_field(
             name="💸 Fruit Management Costs",
-            value=f"Remove: {REMOVE_FRUIT_COST:,} Berris\nBuy New: {BUY_FRUIT_COST:,} Berris",
+            value=f"Remove: {REMOVE_FRUIT_COST:,} Berris\nBuy New: {BUY_FRUIT_COST:,} Berris\nBuy Rare: {BUY_RARE_FRUIT_COST:,} Berris",
+            inline=True
+        )
+        
+        # Add cooldown info
+        embed.add_field(
+            name="⏰ Cooldowns",
+            value=f"Remove Fruit: {FRUIT_REMOVE_COOLDOWN // 3600} hours\nBuy Fruit: {FRUIT_BUY_COOLDOWN // 60} minutes",
             inline=True
         )
         
