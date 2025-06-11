@@ -1,5 +1,5 @@
 """
-Constants and configuration for the DeathBattle cog.
+Enhanced constants and configuration for the DeathBattle cog with expanded features.
 """
 import os
 from datetime import timedelta
@@ -19,75 +19,281 @@ HEALTH_EMOJIS = {
     "gone": "<:gone:1379318910809018408>"
 }
 
-# Battle constants - Updated for new system
-STARTING_HP = 250  # Increased from 100 for more complex battles
-MAX_HP = 250
+# Battle constants - Enhanced system
+STARTING_HP = 275  # Increased for longer battles
+MAX_HP = 275
 MIN_DAMAGE = 5
-MAX_DAMAGE = 35  # Increased for critical attacks
+MAX_DAMAGE = 40  # Increased for critical attacks
 CRIT_CHANCE = 0.15
 CRIT_MULTIPLIER = 1.5
 
-# New battle constants
-TURN_TIMEOUT = 30  # seconds per turn
-MAX_BATTLE_TURNS = 25  # prevent infinite battles
+# Enhanced battle constants
+TURN_TIMEOUT = 35  # seconds per turn (slightly increased)
+MAX_BATTLE_TURNS = 30  # prevent infinite battles
 STATUS_EFFECT_DURATION = 3  # default duration for effects
 
-# Economy constants
-MIN_BERRIS_REWARD = 100  # Increased rewards
-MAX_BERRIS_REWARD = 500
-ROBBERY_SUCCESS_RATE = 0.6
-MIN_ROBBERY_AMOUNT = 50  # Increased minimum
+# Devil Fruit effect chances
+DEVIL_FRUIT_ACTIVATION_RATE = 0.45  # Base chance for fruit effects
+RARE_FRUIT_BONUS_RATE = 0.15  # Additional chance for rare fruits
+ENVIRONMENT_BOOST_MULTIPLIER = 1.25  # Environment effect multiplier
 
-# Devil Fruit acquisition chances
-DEVIL_FRUIT_DROP_CHANCE = 0.05  # 5% chance after battle
-RARE_FRUIT_CHANCE = 0.2  # 20% of drops are rare
+# Economy constants - Enhanced rewards
+MIN_BERRIS_REWARD = 150  # Increased base rewards
+MAX_BERRIS_REWARD = 750  # Higher max rewards
+WIN_STREAK_BONUS = 50   # Bonus per consecutive win
+RARE_FRUIT_BONUS = 200  # Extra berris for having rare fruit
 
-# Devil Fruit starter system
-STARTER_COMMON_CHANCE = 0.85  # 85% chance for common fruit
-STARTER_RARE_CHANCE = 0.15    # 15% chance for rare fruit
-STARTER_BERRIES_BONUS = 1000  # Starting berries bonus
+# Robbery system
+ROBBERY_SUCCESS_RATE = 0.55
+MIN_ROBBERY_AMOUNT = 100  # Increased minimum
+MAX_ROBBERY_PERCENTAGE = 0.35  # Max 35% can be stolen
 
-# Devil Fruit management costs
-REMOVE_FRUIT_COST = 5000      # Cost to remove current fruit
-BUY_FRUIT_COST = 10000        # Cost to buy a random new fruit
-BUY_RARE_FRUIT_COST = 25000   # Cost to buy specifically a rare fruit (if available)
+# Devil Fruit acquisition chances - Rebalanced
+DEVIL_FRUIT_DROP_CHANCE = 0.06  # 6% chance after battle (increased)
+RARE_FRUIT_CHANCE = 0.25  # 25% of drops are rare (increased)
 
-# Fruit purchase chances (when buying)
-BUY_COMMON_CHANCE = 0.70      # 70% chance for common when buying
-BUY_RARE_CHANCE = 0.30        # 30% chance for rare when buying
+# Devil Fruit starter system - Enhanced
+STARTER_COMMON_CHANCE = 0.80  # 80% chance for common fruit
+STARTER_RARE_CHANCE = 0.20    # 20% chance for rare fruit (increased)
+STARTER_BERRIES_BONUS = 1500  # Starting berries bonus (increased)
 
-# Rare fruit distribution limits
-MAX_RARE_FRUITS_PER_TYPE = 3  # Default max per rare fruit type
+# Devil Fruit management costs - Adjusted
+REMOVE_FRUIT_COST = 4000      # Cost to remove current fruit (reduced)
+BUY_FRUIT_COST = 8000         # Cost to buy a random new fruit (reduced)
+BUY_RARE_FRUIT_COST = 20000   # Cost to buy specifically a rare fruit
 
-# Cooldowns (in seconds)
-BATTLE_COOLDOWN = 300  # 5 minutes
-BANK_ROBBERY_COOLDOWN = 1800  # 30 minutes
-BANK_DEPOSIT_COOLDOWN = 60  # 1 minute
-DEVIL_FRUIT_USE_COOLDOWN = 3600  # 1 hour for special abilities
-FRUIT_REMOVE_COOLDOWN = 86400  # 24 hours to remove fruit again
-FRUIT_BUY_COOLDOWN = 3600     # 1 hour to buy fruit again
+# Fruit purchase chances (when buying) - Enhanced
+BUY_COMMON_CHANCE = 0.65      # 65% chance for common when buying
+BUY_RARE_CHANCE = 0.35        # 35% chance for rare when buying (increased)
 
-# Bank security levels
+# Rare fruit distribution limits - More generous
+MAX_RARE_FRUITS_PER_TYPE = 5  # Increased max per rare fruit type
+MYTHICAL_FRUIT_LIMIT = 2      # Special limit for mythical zoans
+LEGENDARY_FRUIT_LIMIT = 1     # Limit for truly legendary fruits
+
+# Cooldowns (in seconds) - Adjusted for better gameplay
+BATTLE_COOLDOWN = 240  # 4 minutes (reduced)
+BANK_ROBBERY_COOLDOWN = 1500  # 25 minutes (reduced)
+BANK_DEPOSIT_COOLDOWN = 45  # 45 seconds (reduced)
+DEVIL_FRUIT_USE_COOLDOWN = 2700  # 45 minutes for special abilities
+FRUIT_REMOVE_COOLDOWN = 72000  # 20 hours (reduced)
+FRUIT_BUY_COOLDOWN = 2700     # 45 minutes (reduced)
+
+# Enhanced bank security levels
 BANK_SECURITY_LEVELS = {
-    "basic": {"cost": 0, "protection": 0.0},
-    "standard": {"cost": 500, "protection": 0.2},
-    "advanced": {"cost": 2000, "protection": 0.4},
-    "maximum": {"cost": 5000, "protection": 0.6}
+    "basic": {"cost": 0, "protection": 0.0, "description": "No protection"},
+    "standard": {"cost": 400, "protection": 0.25, "description": "Basic security"},
+    "advanced": {"cost": 1500, "protection": 0.45, "description": "Advanced protection"},
+    "maximum": {"cost": 4000, "protection": 0.65, "description": "Maximum security"},
+    "legendary": {"cost": 10000, "protection": 0.80, "description": "Legendary vault security"}
 }
 
-# Character progression thresholds
+# Character progression thresholds - Enhanced
 TITLE_REQUIREMENTS = {
-    "wins": [0, 5, 10, 25, 50, 100, 200, 500, 1000],
-    "berris": [0, 10000, 50000, 200000, 1000000, 5000000, 25000000, 100000000, 500000000]
+    "wins": [0, 3, 7, 15, 25, 50, 75, 125, 200, 300, 500, 750, 1000],
+    "berris": [0, 5000, 25000, 100000, 500000, 2500000, 10000000, 50000000, 250000000, 1000000000]
 }
 
-# Battle environment effects
+# Battle environment effects - Enhanced
 ENVIRONMENT_EFFECTS = {
-    "crit_boost": 0.1,      # +10% crit chance
-    "burn_boost": 0.2,      # +20% burn chance  
-    "strong_boost": 5,      # +5 damage to strong attacks
-    "elemental_boost": 0.15, # +15% to all elemental effects
-    "heal_boost": 10,       # +10 healing
-    "war_boost": 10,        # +10 damage in war zones
-    "ultimate_boost": 0.2   # +20% to everything
+    "lightning_boost": {"multiplier": 1.5, "description": "Lightning attacks amplified"},
+    "desert_boost": {"multiplier": 1.4, "description": "Fire and sand powers enhanced"},
+    "blade_boost": {"multiplier": 1.3, "description": "Cutting attacks sharpened"},
+    "elemental_boost": {"multiplier": 1.6, "description": "All elemental effects enhanced"},
+    "aquatic_boost": {"multiplier": 1.3, "description": "Water abilities and healing boosted"},
+    "war_boost": {"multiplier": 1.4, "description": "All combat abilities enhanced"},
+    "legendary_boost": {"multiplier": 2.0, "description": "All powers dramatically amplified"},
+    "darkness_boost": {"multiplier": 1.5, "description": "Dark powers flourish"},
+    "justice_boost": {"multiplier": 1.3, "description": "Light and holy powers amplified"},
+    "nature_boost": {"multiplier": 1.3, "description": "Plant and nature abilities enhanced"},
+    "food_boost": {"multiplier": 1.2, "description": "Food-based abilities and healing boosted"},
+    "transformation_boost": {"multiplier": 1.4, "description": "Shape-changing abilities enhanced"}
+}
+
+# Status effect configurations
+STATUS_EFFECTS = {
+    "burn": {
+        "damage_per_stack": 5,
+        "max_stacks": 5,
+        "description": "Takes fire damage each turn"
+    },
+    "freeze": {
+        "duration": 2,
+        "dodge_penalty": 0.5,
+        "description": "Movement severely restricted"
+    },
+    "stun": {
+        "duration": 1,
+        "blocks_action": True,
+        "description": "Cannot act for duration"
+    },
+    "poison": {
+        "damage_per_stack": 3,
+        "max_stacks": 8,
+        "description": "Takes poison damage each turn"
+    },
+    "bleed": {
+        "damage_per_stack": 4,
+        "max_stacks": 6,
+        "description": "Takes bleeding damage each turn"
+    },
+    "speed_boost": {
+        "duration": 3,
+        "dodge_bonus": 0.2,
+        "crit_bonus": 0.1,
+        "description": "Enhanced speed and reflexes"
+    },
+    "attack_boost": {
+        "duration": 3,
+        "damage_multiplier": 1.3,
+        "crit_bonus": 0.15,
+        "description": "Increased attack power"
+    },
+    "defense_boost": {
+        "duration": 3,
+        "damage_reduction": 0.25,
+        "description": "Reduced incoming damage"
+    },
+    "confusion": {
+        "duration": 2,
+        "accuracy_penalty": 0.3,
+        "description": "Attacks may miss target"
+    },
+    "fear": {
+        "duration": 2,
+        "damage_penalty": 0.2,
+        "accuracy_penalty": 0.15,
+        "description": "Reduced combat effectiveness"
+    }
+}
+
+# Achievement system - New feature
+ACHIEVEMENTS = {
+    "first_blood": {
+        "condition": "Win your first battle",
+        "reward": 500,
+        "title": "First Victory"
+    },
+    "fruit_collector": {
+        "condition": "Obtain 5 different Devil Fruits (over time)",
+        "reward": 2000,
+        "title": "Devil Fruit Collector"
+    },
+    "berris_millionaire": {
+        "condition": "Accumulate 1,000,000 total berris",
+        "reward": 10000,
+        "title": "Millionaire Pirate"
+    },
+    "win_streak_5": {
+        "condition": "Win 5 battles in a row",
+        "reward": 1000,
+        "title": "Unstoppable"
+    },
+    "environmental_master": {
+        "condition": "Win battles in 10 different environments",
+        "reward": 1500,
+        "title": "World Traveler"
+    },
+    "rare_fruit_master": {
+        "condition": "Win 10 battles with a rare Devil Fruit",
+        "reward": 3000,
+        "title": "Legendary Power"
+    },
+    "bank_robber": {
+        "condition": "Successfully rob 1,000,000 berris total",
+        "reward": 5000,
+        "title": "Master Thief"
+    },
+    "elemental_fury": {
+        "condition": "Use all elemental devil fruit effects in battles",
+        "reward": 2500,
+        "title": "Elemental Master"
+    }
+}
+
+# Seasonal events configuration
+SEASONAL_EVENTS = {
+    "devil_fruit_festival": {
+        "drop_rate_multiplier": 2.0,
+        "duration_days": 7,
+        "description": "Double Devil Fruit drop rates!"
+    },
+    "berris_bonanza": {
+        "reward_multiplier": 1.5,
+        "duration_days": 5,
+        "description": "50% more berris from battles!"
+    },
+    "legendary_awakening": {
+        "rare_fruit_chance": 0.5,
+        "duration_days": 3,
+        "description": "Rare fruits much more common!"
+    }
+}
+
+# Combat mechanics - Enhanced
+COMBO_SYSTEM = {
+    "enabled": True,
+    "max_combo": 5,
+    "damage_bonus_per_combo": 0.1,  # 10% per combo level
+    "combo_timeout": 2  # turns before combo resets
+}
+
+CRITICAL_HIT_TYPES = {
+    "normal": {"multiplier": 1.5, "chance": 0.15},
+    "super": {"multiplier": 2.0, "chance": 0.05},
+    "devastating": {"multiplier": 2.5, "chance": 0.01}
+}
+
+# Balancing constants
+BATTLE_BALANCE = {
+    "max_damage_per_turn": 150,  # Prevent one-shot kills
+    "min_battle_length": 3,      # Minimum turns for a battle
+    "comeback_mechanic": True,   # Low health bonus
+    "comeback_threshold": 0.2,   # Activate at 20% health
+    "comeback_bonus": 0.25       # 25% damage bonus when low
+}
+
+# Daily/Weekly bonuses
+DAILY_BONUSES = {
+    "first_battle_win": 300,     # Bonus for first win of the day
+    "login_bonus": 100,          # Daily login bonus
+    "weekly_streak": 1000        # Weekly activity bonus
+}
+
+# PvP Rankings
+RANKING_SYSTEM = {
+    "tiers": {
+        "rookie": {"min_wins": 0, "max_wins": 9, "berris_bonus": 1.0},
+        "veteran": {"min_wins": 10, "max_wins": 29, "berris_bonus": 1.1},
+        "elite": {"min_wins": 30, "max_wins": 59, "berris_bonus": 1.25},
+        "master": {"min_wins": 60, "max_wins": 99, "berris_bonus": 1.4},
+        "grandmaster": {"min_wins": 100, "max_wins": 199, "berris_bonus": 1.6},
+        "legend": {"min_wins": 200, "max_wins": 499, "berris_bonus": 1.8},
+        "mythic": {"min_wins": 500, "max_wins": float('inf'), "berris_bonus": 2.0}
+    }
+}
+
+# Special battle modes
+BATTLE_MODES = {
+    "classic": {
+        "description": "Standard 1v1 battle",
+        "hp_multiplier": 1.0,
+        "reward_multiplier": 1.0
+    },
+    "endurance": {
+        "description": "Battle with increased HP",
+        "hp_multiplier": 1.5,
+        "reward_multiplier": 1.3
+    },
+    "blitz": {
+        "description": "Fast-paced battle with reduced HP",
+        "hp_multiplier": 0.7,
+        "reward_multiplier": 0.9
+    },
+    "elemental": {
+        "description": "Enhanced elemental effects",
+        "hp_multiplier": 1.0,
+        "reward_multiplier": 1.2,
+        "elemental_bonus": 2.0
+    }
 }
