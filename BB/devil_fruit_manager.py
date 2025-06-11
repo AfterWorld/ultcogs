@@ -45,6 +45,7 @@ class DevilFruitManager:
                                        move: Dict[str, Any], environment: str) -> Tuple[int, Optional[str]]:
         """Process Devil Fruit effects with enhanced individual fruit abilities."""
         if not attacker.get("fruit"):
+            return 0, None
         # ADDITIONAL MYTHICAL ZOAN EFFECTS
     async def _nue_effect(self, attacker, defender, base_damage):
         """Tori Tori no Mi: Model Nue - Mythical Chimera"""
