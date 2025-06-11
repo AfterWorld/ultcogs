@@ -188,7 +188,7 @@ class BattleSystem:
             self.active_battles.discard(battle_id)
     
     async def _battle_loop(self, ctx, player1: discord.Member, player2: discord.Member) -> Optional[discord.Member]:
-        """Main battle loop with enhanced mechanics."""
+        """Main battle loop with enhanced mechanics and error handling."""
         # Get devil fruits for both players
         p1_fruit = await self.get_user_devil_fruit(player1)
         p2_fruit = await self.get_user_devil_fruit(player2)
@@ -238,12 +238,15 @@ class BattleSystem:
             fruit_info = ""
             if p1_fruit:
                 fruit_data = DEVIL_FRUITS["Common"].get(p1_fruit) or DEVIL_FRUITS["Rare"].get(p1_fruit)
-                fruit_info += f"**{player1.display_name}**: {p1_fruit} ({fruit_data['type']})\n"
+                if fruit_data:
+                    fruit_info += f"**{player1.display_name}**: {p1_fruit} ({fruit_data['type']})\n"
             if p2_fruit:
                 fruit_data = DEVIL_FRUITS["Common"].get(p2_fruit) or DEVIL_FRUITS["Rare"].get(p2_fruit)
-                fruit_info += f"**{player2.display_name}**: {p2_fruit} ({fruit_data['type']})\n"
+                if fruit_data:
+                    fruit_info += f"**{player2.display_name}**: {p2_fruit} ({fruit_data['type']})\n"
             
-            embed.add_field(name="🍎 Devil Fruits", value=fruit_info, inline=False)
+            if fruit_info:
+                embed.add_field(name="🍎 Devil Fruits", value=fruit_info, inline=False)
         
         message = await safe_send(ctx, embed=embed)
         
@@ -312,10 +315,28 @@ class BattleSystem:
                     "defense": defense_modifier
                 })
                 
-                # Apply devil fruit effects
-                fruit_damage, fruit_message = await self.devil_fruit_manager.process_devil_fruit_effect(
-                    current_player_data, other_player_data, move, environment
-                )
+                # Apply devil fruit effects with safe unpacking
+                try:
+                    fruit_result = await self.devil_fruit_manager.process_devil_fruit_effect(
+                        current_player_data, other_player_data, move, environment
+                    )
+                    
+                    # Safely unpack the result
+                    if fruit_result is None:
+                        fruit_damage, fruit_message = 0, None
+                    elif isinstance(fruit_result, (tuple, list)) and len(fruit_result) >= 2:
+                        fruit_damage = fruit_result[0] if fruit_result[0] is not None else 0
+                        fruit_message = fruit_result[1]
+                    else:
+                        fruit_damage, fruit_message = 0, None
+                        self.log.warning(f"Unexpected devil fruit result: {fruit_result}")
+                        
+                except Exception as e:
+                    self.log.error(f"Error processing devil fruit effect: {e}")
+                    fruit_damage, fruit_message = 0, None
+                
+                # Ensure fruit_damage is always a valid number
+                fruit_damage = fruit_damage or 0
                 
                 total_damage = base_damage + fruit_damage
                 
