@@ -321,22 +321,40 @@ class BattleSystem:
                         current_player_data, other_player_data, move, environment
                     )
                     
-                    # Safely unpack the result
-                    if fruit_result is None:
+                    # Safely handle the result
+                    if fruit_result is None or fruit_result == (0, None):
                         fruit_damage, fruit_message = 0, None
                     elif isinstance(fruit_result, (tuple, list)) and len(fruit_result) >= 2:
-                        fruit_damage = fruit_result[0] if fruit_result[0] is not None else 0
-                        fruit_message = fruit_result[1]
+                        # Ensure fruit_damage is always an integer
+                        raw_damage = fruit_result[0]
+                        if isinstance(raw_damage, (int, float)):
+                            fruit_damage = int(raw_damage) if raw_damage is not None else 0
+                        else:
+                            fruit_damage = 0
+                            self.log.warning(f"Invalid fruit damage type: {type(raw_damage)}")
+                        
+                        fruit_message = fruit_result[1] if isinstance(fruit_result[1], str) else None
                     else:
                         fruit_damage, fruit_message = 0, None
-                        self.log.warning(f"Unexpected devil fruit result: {fruit_result}")
+                        self.log.warning(f"Unexpected devil fruit result format: {fruit_result}")
                         
                 except Exception as e:
                     self.log.error(f"Error processing devil fruit effect: {e}")
                     fruit_damage, fruit_message = 0, None
                 
-                # Ensure fruit_damage is always a valid number
-                fruit_damage = fruit_damage or 0
+                # Ensure fruit_damage is always a valid integer
+                if not isinstance(fruit_damage, (int, float)):
+                    self.log.error(f"fruit_damage is not numeric: {fruit_damage} (type: {type(fruit_damage)})")
+                    fruit_damage = 0
+                else:
+                    fruit_damage = int(fruit_damage) if fruit_damage else 0
+                
+                # Ensure base_damage is also an integer
+                if not isinstance(base_damage, (int, float)):
+                    self.log.error(f"base_damage is not numeric: {base_damage} (type: {type(base_damage)})")
+                    base_damage = 15  # Default damage
+                else:
+                    base_damage = int(base_damage)
                 
                 total_damage = base_damage + fruit_damage
                 
