@@ -23,6 +23,42 @@ story:
     answers: ["dr hiluluk", "hiluluk"]
     category: "backstory"
 
+  - question: "What was the name of the island where Luffy trained during the timeskip?"
+    answers: ["rusukaina"]
+    category: "training"
+    
+  - question: "Who was the first Straw Hat to get a bounty poster?"
+    answers: ["luffy"]
+    category: "bounties"
+    
+  - question: "What was the name of the ship that brought Luffy to Amazon Lily?"
+    answers: ["kuja pirates ship", "perfume yuda"]
+    category: "ships"
+    
+  - question: "Which Straw Hat was the last to join before the timeskip?"
+    answers: ["brook"]
+    category: "crew"
+    
+  - question: "What was the name of the technique Luffy learned from Rayleigh?"
+    answers: ["haki"]
+    category: "training"
+    
+  - question: "Who was the first person to recognize Luffy's potential for Conqueror's Haki?"
+    answers: ["rayleigh"]
+    category: "haki"
+    
+  - question: "What was the name of the factory on Punk Hazard?"
+    answers: ["smile factory", "sad production"]
+    category: "locations"
+    
+  - question: "Who was the first person to survive Magellan's poison?"
+    answers: ["luffy"]
+    category: "survival"
+    
+  - question: "What was the name of the arena in Dressrosa?"
+    answers: ["corrida colosseum"]
+    category: "locations"
+
 # Obscure character details
 characters:
   - question: "What is the real name of the Revolutionary Army's Flame Emperor?"
@@ -44,6 +80,46 @@ characters:
   - question: "What is the name of Whitebeard's bisento?"
     answers: ["murakumogiri"]
     category: "weapons"
+
+  - question: "What is the name of Zoro's childhood friend?"
+    answers: ["kuina"]
+    category: "backstory"
+    
+  - question: "Who was Sanji's original mentor before Zeff?"
+    answers: ["his mother", "sora"]
+    category: "backstory"
+    
+  - question: "What is the name of Nami's adoptive mother?"
+    answers: ["bell-mere", "bellemere"]
+    category: "backstory"
+    
+  - question: "Who was Robin's mentor in archaeology?"
+    answers: ["professor clover"]
+    category: "backstory"
+    
+  - question: "What is the name of Franky's mentor?"
+    answers: ["tom"]
+    category: "backstory"
+    
+  - question: "Who was Brook's captain before joining the Straw Hats?"
+    answers: ["yorki"]
+    category: "backstory"
+    
+  - question: "What is the name of Usopp's mother?"
+    answers: ["banchina"]
+    category: "backstory"
+    
+  - question: "Who taught Jinbe Fish-Man Karate?"
+    answers: ["fisher tiger"]
+    category: "backstory"
+    
+  - question: "What is the name of Chopper's reindeer herd leader?"
+    answers: ["not revealed", "unknown"]
+    category: "backstory"
+    
+  - question: "Who was the former captain of the Spade Pirates?"
+    answers: ["portgas d ace"]
+    category: "pirate_crews"
 
 # Complex world-building
 world_building:
@@ -67,6 +143,42 @@ world_building:
     answers: ["riku doldo iii", "riku"]
     category: "royalty"
 
+  - question: "What is the name of the island where Vegapunk's lab is located?"
+    answers: ["egghead"]
+    category: "locations"
+    
+  - question: "How many Cipher Pol organizations exist?"
+    answers: ["9", "nine"]
+    category: "government"
+    
+  - question: "What is the name of the sea train that connects Water 7?"
+    answers: ["puffing tom"]
+    category: "transportation"
+    
+  - question: "What is the name of the World Government's judicial island?"
+    answers: ["enies lobby"]
+    category: "government"
+    
+  - question: "How many Admirals are there in the Marines?"
+    answers: ["3", "three"]
+    category: "marines"
+    
+  - question: "What is the name of the underwater prison?"
+    answers: ["impel down"]
+    category: "facilities"
+    
+  - question: "What is the name of the Celestial Dragons' homeland?"
+    answers: ["mary geoise", "mariejois"]
+    category: "celestial_dragons"
+    
+  - question: "What is the name of the floating island Shiki controls?"
+    answers: ["strong world"]
+    category: "locations"
+    
+  - question: "How many Warlords of the Sea were there originally?"
+    answers: ["7", "seven"]
+    category: "government"
+
 # Advanced Devil Fruit knowledge
 devil_fruits:
   - question: "What Devil Fruit allows the user to turn into diamond?"
@@ -89,6 +201,46 @@ devil_fruits:
     answers: ["hobi hobi no mi"]
     category: "paramecia"
 
+  - question: "What Devil Fruit allows the user to control strings?"
+    answers: ["ito ito no mi"]
+    category: "paramecia"
+    
+  - question: "Which Devil Fruit can turn the user into magma?"
+    answers: ["magu magu no mi"]
+    category: "logia"
+    
+  - question: "What fruit allows the user to control earthquakes?"
+    answers: ["gura gura no mi"]
+    category: "paramecia"
+    
+  - question: "Which Devil Fruit can create barriers?"
+    answers: ["bari bari no mi"]
+    category: "paramecia"
+    
+  - question: "What fruit allows the user to control gravity?"
+    answers: ["zushi zushi no mi"]
+    category: "paramecia"
+    
+  - question: "Which Devil Fruit can create doors anywhere?"
+    answers: ["doa doa no mi"]
+    category: "paramecia"
+    
+  - question: "What fruit allows the user to control souls?"
+    answers: ["soru soru no mi"]
+    category: "paramecia"
+    
+  - question: "Which Devil Fruit can create mirror worlds?"
+    answers: ["mira mira no mi"]
+    category: "paramecia"
+    
+  - question: "What fruit allows the user to control time?"
+    answers: ["toki toki no mi"]
+    category: "paramecia"
+    
+  - question: "Which Devil Fruit can control plants?"
+    answers: ["mori mori no mi"]
+    category: "logia"
+
 # Historical events and timeline
 history:
   - question: "How long ago was the Void Century?"
@@ -105,6 +257,42 @@ history:
     
   - question: "When did the Great Pirate Era begin?"
     answers: ["22 years ago"]
+    category: "timeline"
+
+  - question: "How long has the World Government existed?"
+    answers: ["800 years"]
+    category: "government"
+    
+  - question: "When did the Ohara incident occur?"
+    answers: ["20 years ago"]
+    category: "timeline"
+    
+  - question: "How long was Roger's final journey?"
+    answers: ["3 years"]
+    category: "roger_pirates"
+    
+  - question: "When did Fisher Tiger climb the Red Line?"
+    answers: ["15 years ago"]
+    category: "timeline"
+    
+  - question: "How long did the Marineford War last?"
+    answers: ["1 day", "several hours"]
+    category: "wars"
+    
+  - question: "When did the Reverie last convene before the current one?"
+    answers: ["4 years ago"]
+    category: "timeline"
+    
+  - question: "How long has Kaido ruled Wano?"
+    answers: ["20 years"]
+    category: "timeline"
+    
+  - question: "When did the God Valley incident occur?"
+    answers: ["38 years ago"]
+    category: "timeline"
+    
+  - question: "How long has Big Mom been an Emperor?"
+    answers: ["decades", "many years"]
     category: "timeline"
 
 # Technical combat details
@@ -125,6 +313,42 @@ combat:
     answers: ["12", "twelve"]
     category: "weapons"
 
+  - question: "What is the name of Whitebeard's Devil Fruit awakening technique?"
+    answers: ["not shown", "unknown"]
+    category: "awakening"
+    
+  - question: "How many forms does Luffy's Gear Fourth have?"
+    answers: ["3", "three"]
+    category: "gear_fourth"
+    
+  - question: "What is the name of Zoro's most powerful attack?"
+    answers: ["asura", "kiki kyutoryu asura"]
+    category: "techniques"
+    
+  - question: "What is the name of Sanji's Diable Jambe technique?"
+    answers: ["diable jambe"]
+    category: "techniques"
+    
+  - question: "How many Rokushiki techniques are there?"
+    answers: ["6", "six"]
+    category: "techniques"
+    
+  - question: "What is the name of Lucci's strongest technique?"
+    answers: ["rokuogan"]
+    category: "techniques"
+    
+  - question: "What is the name of Katakuri's awakened mochi technique?"
+    answers: ["flowing mochi", "nagare mochi"]
+    category: "awakening"
+    
+  - question: "How many Great Grade swords exist?"
+    answers: ["21", "twenty-one"]
+    category: "weapons"
+    
+  - question: "What is the name of Shanks' sword?"
+    answers: ["gryphon"]
+    category: "weapons"
+
 # Rare bounty knowledge
 bounties:
   - question: "What was Nico Robin's bounty as a child?"
@@ -138,6 +362,42 @@ bounties:
   - question: "Which Emperor has the highest known bounty?"
     answers: ["whitebeard"]
     category: "emperors"
+
+  - question: "What was Crocodile's original bounty?"
+    answers: ["81 million", "81,000,000"]
+    category: "former_warlords"
+    
+  - question: "What was Jinbe's bounty as a Warlord?"
+    answers: ["250 million", "250,000,000"]
+    category: "former_warlords"
+    
+  - question: "What was Hancock's bounty before becoming a Warlord?"
+    answers: ["80 million", "80,000,000"]
+    category: "former_warlords"
+    
+  - question: "What was Moria's original bounty?"
+    answers: ["320 million", "320,000,000"]
+    category: "former_warlords"
+    
+  - question: "What was Kuma's original bounty?"
+    answers: ["296 million", "296,000,000"]
+    category: "former_warlords"
+    
+  - question: "What was Law's bounty after allying with Luffy?"
+    answers: ["500 million", "500,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Bege's bounty after Big Mom's tea party?"
+    answers: ["350 million", "350,000,000"]
+    category: "supernovas"
+    
+  - question: "What was the highest bounty in the Worst Generation before Wano?"
+    answers: ["luffy", "500 million"]
+    category: "supernovas"
+    
+  - question: "What was Dragon's bounty?"
+    answers: ["unknown", "not revealed"]
+    category: "revolutionaries"
 
 # Organization hierarchy
 organizations:
@@ -153,6 +413,42 @@ organizations:
     answers: ["not revealed", "unknown"]
     category: "celestial_dragons"
 
+  - question: "How many CP9 members were there originally?"
+    answers: ["9", "nine"]
+    category: "cipher_pol"
+    
+  - question: "Who is the current leader of the Revolutionary Army?"
+    answers: ["monkey d dragon", "dragon"]
+    category: "revolutionaries"
+    
+  - question: "What is the name of the Marine special science unit?"
+    answers: ["ssg", "special science group"]
+    category: "marines"
+    
+  - question: "Who was the previous Fleet Admiral before Akainu?"
+    answers: ["sengoku"]
+    category: "marines"
+    
+  - question: "What is the name of the World Government's intelligence agency?"
+    answers: ["cipher pol", "cp"]
+    category: "government"
+    
+  - question: "Who is the Supreme Commander of the World Government?"
+    answers: ["im", "imu"]
+    category: "government"
+    
+  - question: "How many Vice Admirals are there?"
+    answers: ["multiple", "many"]
+    category: "marines"
+    
+  - question: "What is the name of the elite Celestial Dragon guard?"
+    answers: ["god's knights", "holy knights"]
+    category: "celestial_dragons"
+    
+  - question: "Who was the previous Warlord system overseer?"
+    answers: ["sengoku"]
+    category: "warlords"
+
 # Ancient weapons and poneglyphs
 ancient_weapons:
   - question: "What are the three Ancient Weapons?"
@@ -166,6 +462,42 @@ ancient_weapons:
   - question: "How many Road Poneglyphs lead to Raftel?"
     answers: ["4", "four"]
     category: "road_poneglyphs"
+
+  - question: "What is Poseidon's true identity?"
+    answers: ["shirahoshi"]
+    category: "ancient_weapons"
+    
+  - question: "Where is Pluton currently located?"
+    answers: ["wano", "wano country"]
+    category: "ancient_weapons"
+    
+  - question: "Who built the Poneglyphs?"
+    answers: ["kozuki clan"]
+    category: "poneglyphs"
+    
+  - question: "What language are Poneglyphs written in?"
+    answers: ["ancient language", "ancient script"]
+    category: "poneglyphs"
+    
+  - question: "How many types of Poneglyphs are there?"
+    answers: ["3", "three"]
+    category: "poneglyphs"
+    
+  - question: "Who was the last person to reach Raftel before Roger?"
+    answers: ["unknown", "none"]
+    category: "raftel"
+    
+  - question: "What did Roger learn at Raftel?"
+    answers: ["the true history", "void century truth"]
+    category: "raftel"
+    
+  - question: "Where was the Rio Poneglyph supposed to be?"
+    answers: ["raftel", "laugh tale"]
+    category: "poneglyphs"
+    
+  - question: "Who taught Oden to read Poneglyphs?"
+    answers: ["his ancestors", "kozuki clan"]
+    category: "poneglyphs"
 
 # Advanced crew details
 crews:
@@ -181,6 +513,46 @@ crews:
     answers: ["unknown", "not revealed"]
     category: "heart_pirates"
 
+  - question: "How many division commanders did the Whitebeard Pirates have?"
+    answers: ["16", "sixteen"]
+    category: "whitebeard_pirates"
+    
+  - question: "Who was the second division commander of the Whitebeard Pirates?"
+    answers: ["portgas d ace", "ace"]
+    category: "whitebeard_pirates"
+    
+  - question: "What is the name of Kaido's crew?"
+    answers: ["beast pirates", "animal kingdom pirates"]
+    category: "beast_pirates"
+    
+  - question: "Who are the three All-Stars of the Beast Pirates?"
+    answers: ["king", "queen", "jack"]
+    category: "beast_pirates"
+    
+  - question: "What is the name of Big Mom's crew?"
+    answers: ["big mom pirates", "charlotte family"]
+    category: "big_mom_pirates"
+    
+  - question: "How many Sweet Commanders are there?"
+    answers: ["3", "three"]
+    category: "big_mom_pirates"
+    
+  - question: "Who is Blackbeard's first mate?"
+    answers: ["jesus burgess"]
+    category: "blackbeard_pirates"
+    
+  - question: "How many Titanic Captains does Blackbeard have?"
+    answers: ["10", "ten"]
+    category: "blackbeard_pirates"
+    
+  - question: "What is the name of Kid's crew?"
+    answers: ["kid pirates"]
+    category: "supernova_crews"
+    
+  - question: "Who is Law's crew called?"
+    answers: ["heart pirates"]
+    category: "supernova_crews"
+
 # Rare abilities and techniques
 abilities:
   - question: "What is the rarest type of Haki?"
@@ -194,3 +566,39 @@ abilities:
   - question: "What is the name of Luffy's Gear Fourth forms?"
     answers: ["boundman", "tankman", "snakeman"]
     category: "gear_fourth"
+
+  - question: "What is the advanced form of Conqueror's Haki?"
+    answers: ["conqueror's coating", "advanced conqueror's"]
+    category: "haki"
+    
+  - question: "What is the name of Luffy's ultimate technique?"
+    answers: ["gear 5", "sun god nika"]
+    category: "ultimate_attacks"
+    
+  - question: "What is Zoro's secret technique?"
+    answers: ["asura", "nine sword style"]
+    category: "secret_techniques"
+    
+  - question: "What is Sanji's Ifrit Jambe?"
+    answers: ["advanced diable jambe", "blue flames"]
+    category: "enhanced_techniques"
+    
+  - question: "What is the name of Kaido's drunk modes?"
+    answers: ["shuron hakke"]
+    category: "fighting_styles"
+    
+  - question: "What is Big Mom's homie creation ability called?"
+    answers: ["soul manipulation", "soru soru power"]
+    category: "special_abilities"
+    
+  - question: "What is the name of Mihawk's long-range slash?"
+    answers: ["world's strongest slash"]
+    category: "sword_techniques"
+    
+  - question: "What is the Fish-Man Karate ultimate technique?"
+    answers: ["fishman karate secret art"]
+    category: "martial_arts"
+    
+  - question: "What is the name of the technique that damages internally?"
+    answers: ["ryou", "emission haki"]
+    category: "advanced_haki"
