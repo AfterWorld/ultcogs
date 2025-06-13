@@ -23,6 +23,42 @@ legendary:
     answers: ["rocketman"]
     category: "water_seven"
 
+  - question: "What is the exact number of times Kuina defeated Zoro?"
+    answers: ["2001", "two thousand and one"]
+    category: "childhood_records"
+    
+  - question: "What was the original name of the Gomu Gomu no Mi?"
+    answers: ["hito hito no mi model nika", "nika fruit"]
+    category: "devil_fruit_truth"
+    
+  - question: "What is the name of the doctor who created the Rumble Ball?"
+    answers: ["dr kureha", "kureha"]
+    category: "medicine"
+    
+  - question: "What was the name of the tree that Tom's Workers used for the Oro Jackson?"
+    answers: ["treasure tree adam"]
+    category: "shipbuilding"
+    
+  - question: "What is the exact doriki power level of Rob Lucci?"
+    answers: ["4000"]
+    category: "power_measurements"
+    
+  - question: "What was the name of the Sea King that took Shanks' arm?"
+    answers: ["lord of the coast"]
+    category: "sea_kings"
+    
+  - question: "What is the name of the technique that creates 'rooms'?"
+    answers: ["ope ope no mi", "room"]
+    category: "surgery_techniques"
+    
+  - question: "What was the name of Noland's ship?"
+    answers: ["not specifically named"]
+    category: "historical_ships"
+    
+  - question: "What is the exact time the Void Century lasted?"
+    answers: ["100 years", "century"]
+    category: "time_periods"
+
 # Ultra-rare character knowledge
 characters:
   - question: "What is Dr. Vegapunk's full name?"
@@ -45,6 +81,62 @@ characters:
     answers: ["donquixote rosinante"]
     category: "donquixote_family"
 
+  - question: "What is the name of Zoro's sensei?"
+    answers: ["koushirou"]
+    category: "sword_masters"
+    
+  - question: "Who was the original owner of the Wado Ichimonji?"
+    answers: ["kuina"]
+    category: "sword_inheritance"
+    
+  - question: "What is the name of Sanji's mother?"
+    answers: ["sora"]
+    category: "vinsmoke_family"
+    
+  - question: "Who was Nami's first adoptive sister?"
+    answers: ["nojiko"]
+    category: "family_bonds"
+    
+  - question: "What is the name of Robin's mother?"
+    answers: ["nico olvia"]
+    category: "ohara_survivors"
+    
+  - question: "Who was the shipwright that taught Franky?"
+    answers: ["tom"]
+    category: "mentorship"
+    
+  - question: "What is the name of Brook's former captain?"
+    answers: ["yorki"]
+    category: "rumbar_pirates"
+    
+  - question: "Who was Chopper's human father figure?"
+    answers: ["dr hiluluk"]
+    category: "adoptive_parents"
+    
+  - question: "What was the name of Usopp's mother?"
+    answers: ["banchina"]
+    category: "deceased_parents"
+    
+  - question: "Who was Jinbe's previous captain?"
+    answers: ["fisher tiger"]
+    category: "sun_pirates"
+    
+  - question: "What is the name of Law's sister?"
+    answers: ["lami"]
+    category: "tragic_backstories"
+    
+  - question: "Who was Ace's biological mother?"
+    answers: ["portgas d rouge"]
+    category: "bloodlines"
+    
+  - question: "What is the name of Whitebeard's nurse?"
+    answers: ["marco", "not specifically named"]
+    category: "medical_care"
+    
+  - question: "Who was the previous Mink King before Nekomamushi and Inuarashi?"
+    answers: ["not revealed"]
+    category: "zou_history"
+
 # Ancient history and lore
 ancient_lore:
   - question: "What happened 800 years ago during the Void Century?"
@@ -62,6 +154,42 @@ ancient_lore:
   - question: "Which clan can hear the Voice of All Things?"
     answers: ["d clan", "clan of d"]
     category: "will_of_d"
+
+  - question: "What was the name of the ancient kingdom?"
+    answers: ["not revealed", "unknown"]
+    category: "lost_civilizations"
+    
+  - question: "Who were the original 20 kings?"
+    answers: ["world nobles ancestors", "celestial dragon ancestors"]
+    category: "world_government_foundation"
+    
+  - question: "What weapon destroyed the ancient kingdom?"
+    answers: ["unknown", "not revealed"]
+    category: "ancient_warfare"
+    
+  - question: "How many people survived Ohara's destruction?"
+    answers: ["2", "robin and jaguar d saul"]
+    category: "genocide_survivors"
+    
+  - question: "What was the name of the scholar who led Ohara?"
+    answers: ["professor clover"]
+    category: "academic_leaders"
+    
+  - question: "What is the true name of Laugh Tale?"
+    answers: ["raftel", "laugh tale"]
+    category: "island_names"
+    
+  - question: "Who named Laugh Tale?"
+    answers: ["roger", "gol d roger"]
+    category: "naming_rights"
+    
+  - question: "What did the ancient kingdom's flag look like?"
+    answers: ["not revealed"]
+    category: "ancient_symbols"
+    
+  - question: "How many Poneglyphs were created originally?"
+    answers: ["unknown number", "many"]
+    category: "historical_records"
 
 # Technical Devil Fruit mechanics
 devil_fruit_mechanics:
@@ -81,6 +209,42 @@ devil_fruit_mechanics:
     answers: ["caesar clown"]
     category: "smile_creation"
 
+  - question: "What percentage of SMILE fruits are defective?"
+    answers: ["90%", "ninety percent"]
+    category: "smile_statistics"
+    
+  - question: "What happens if you eat two Devil Fruits?"
+    answers: ["body explodes", "death", "explosion"]
+    category: "fatal_combinations"
+    
+  - question: "Can Devil Fruit powers be transferred between objects?"
+    answers: ["yes", "vegapunk's technology"]
+    category: "technological_applications"
+    
+  - question: "What is the rarest Devil Fruit classification?"
+    answers: ["mythical zoan"]
+    category: "rarity_rankings"
+    
+  - question: "Can Logia users be hurt by their own element?"
+    answers: ["no", "immune to own element"]
+    category: "logia_immunities"
+    
+  - question: "What is the awakening success rate?"
+    answers: ["very rare", "extremely low"]
+    category: "awakening_statistics"
+    
+  - question: "Can Devil Fruit users swim in any liquid?"
+    answers: ["no", "all liquids weaken them"]
+    category: "weakness_specifics"
+    
+  - question: "What is the scientific name for Devil Fruit weakness?"
+    answers: ["sea prism stone effect", "kairoseki"]
+    category: "scientific_terminology"
+    
+  - question: "Can animal Zoan fruits choose their user?"
+    answers: ["unknown", "not confirmed"]
+    category: "fruit_consciousness"
+
 # Advanced Haki knowledge
 advanced_haki:
   - question: "What is the most advanced form of Conqueror's Haki?"
@@ -98,6 +262,38 @@ advanced_haki:
   - question: "Can you use Conqueror's Haki while unconscious?"
     answers: ["yes", "luffy did it"]
     category: "unconscious_haki"
+
+  - question: "What is the Wano term for Armament Haki?"
+    answers: ["ryou"]
+    category: "regional_terminology"
+    
+  - question: "How far into the future can advanced Observation Haki see?"
+    answers: ["several seconds", "short moments"]
+    category: "precognition_limits"
+    
+  - question: "Can Armament Haki damage the interior without touching the exterior?"
+    answers: ["yes", "internal destruction"]
+    category: "advanced_applications"
+    
+  - question: "What percentage of people are born with Conqueror's Haki potential?"
+    answers: ["one in millions", "extremely rare"]
+    category: "conqueror_statistics"
+    
+  - question: "Can Haki be permanently lost?"
+    answers: ["unknown", "not confirmed"]
+    category: "haki_permanence"
+    
+  - question: "What is the maximum range of Observation Haki?"
+    answers: ["varies by user", "island-wide"]
+    category: "observation_range"
+    
+  - question: "Can Conqueror's Haki knock out other Conqueror's users?"
+    answers: ["depends on strength difference"]
+    category: "conqueror_interactions"
+    
+  - question: "What is required to develop Future Sight?"
+    answers: ["extreme observation haki mastery"]
+    category: "prerequisite_skills"
 
 # Poneglyph and ancient weapon specifics
 poneglyphs:
@@ -117,6 +313,42 @@ poneglyphs:
     answers: ["poseidon"]
     category: "ancient_weapons"
 
+  - question: "What material are Poneglyphs made from?"
+    answers: ["indestructible stone", "special stone"]
+    category: "poneglyph_materials"
+    
+  - question: "How many Road Poneglyphs have been found?"
+    answers: ["3", "three"]
+    category: "road_poneglyph_count"
+    
+  - question: "What is the purpose of Historical Poneglyphs?"
+    answers: ["record true history", "void century history"]
+    category: "poneglyph_purposes"
+    
+  - question: "Who can create new Poneglyphs?"
+    answers: ["kozuki clan", "only kozuki clan"]
+    category: "creation_abilities"
+    
+  - question: "What happens when all Road Poneglyphs are read together?"
+    answers: ["reveals laugh tale location"]
+    category: "navigation_mechanics"
+    
+  - question: "Can Poneglyphs be destroyed?"
+    answers: ["no", "indestructible"]
+    category: "durability"
+    
+  - question: "How tall are most Poneglyphs?"
+    answers: ["several meters", "very tall"]
+    category: "physical_dimensions"
+    
+  - question: "What is written on the Rio Poneglyph?"
+    answers: ["complete true history", "full void century"]
+    category: "ultimate_knowledge"
+    
+  - question: "Where is the fourth Road Poneglyph?"
+    answers: ["unknown location", "missing"]
+    category: "missing_pieces"
+
 # Extremely specific bounties
 rare_bounties:
   - question: "What was Chopper's bounty before the timeskip?"
@@ -130,6 +362,42 @@ rare_bounties:
   - question: "What was Sanji's first bounty poster problem?"
     answers: ["drawing instead of photo", "bad drawing"]
     category: "bounty_mishaps"
+
+  - question: "What was Zoro's bounty before it was frozen as a Warlord?"
+    answers: ["never was a warlord", "not applicable"]
+    category: "warlord_bounties"
+    
+  - question: "What was the lowest bounty ever recorded?"
+    answers: ["50 berries", "chopper"]
+    category: "record_lows"
+    
+  - question: "What was Buggy's bounty after escaping Impel Down?"
+    answers: ["15 million", "15,000,000"]
+    category: "escape_bounties"
+    
+  - question: "What was Law's bounty when he first became a Warlord?"
+    answers: ["440 million", "440,000,000"]
+    category: "warlord_entry_bounties"
+    
+  - question: "What was Blackbeard's bounty when he defeated Ace?"
+    answers: ["0", "warlord had no active bounty"]
+    category: "warlord_periods"
+    
+  - question: "What was Crocodile's bounty after Marineford?"
+    answers: ["unknown", "not revealed"]
+    category: "post_war_bounties"
+    
+  - question: "What was the bounty increase percentage after Enies Lobby?"
+    answers: ["1000%", "ten times"]
+    category: "bounty_percentages"
+    
+  - question: "Who had the first bounty over 1 billion in the New World?"
+    answers: ["katakuri", "big mom pirates"]
+    category: "billion_milestones"
+    
+  - question: "What was Doflamingo's childhood bounty?"
+    answers: ["none", "was celestial dragon"]
+    category: "childhood_status"
 
 # Revolutionary Army secrets
 revolutionary_army:
@@ -145,6 +413,38 @@ revolutionary_army:
     answers: ["horu horu no mi", "hormone fruit"]
     category: "revolutionary_powers"
 
+  - question: "What is the name of the Revolutionary Army's base?"
+    answers: ["baltigo"]
+    category: "revolutionary_locations"
+    
+  - question: "Who leads the Revolutionary Army's intelligence?"
+    answers: ["koala"]
+    category: "intelligence_operations"
+    
+  - question: "What was Sabo's childhood amnesia caused by?"
+    answers: ["celestial dragon attack", "trauma"]
+    category: "memory_loss"
+    
+  - question: "Which Revolutionary commander controls the North?"
+    answers: ["karasu"]
+    category: "northern_commander"
+    
+  - question: "What is Bartholomew Kuma's relationship to the Revolutionary Army?"
+    answers: ["former officer", "converted cyborg"]
+    category: "former_members"
+    
+  - question: "What fighting style does the Revolutionary Army teach?"
+    answers: ["fishman karate", "various styles"]
+    category: "combat_training"
+    
+  - question: "Who trained Sabo in pipe fighting?"
+    answers: ["dragon", "revolutionary army"]
+    category: "weapon_training"
+    
+  - question: "What is the Revolutionary Army's main goal?"
+    answers: ["overthrow world government", "freedom"]
+    category: "organizational_goals"
+
 # CP Organization details
 cipher_pol:
   - question: "What does the 'CP' in CP9 stand for?"
@@ -158,6 +458,38 @@ cipher_pol:
   - question: "What is Rob Lucci's Doriki power level?"
     answers: ["4000"]
     category: "power_measurements"
+
+  - question: "How many CP organizations exist in total?"
+    answers: ["0 through 9", "ten"]
+    category: "agency_count"
+    
+  - question: "What is CP0's primary function?"
+    answers: ["celestial dragon protection", "elite missions"]
+    category: "cp0_duties"
+    
+  - question: "Who leads CP0?"
+    answers: ["not fully revealed"]
+    category: "cp0_leadership"
+    
+  - question: "What happened to CP9 after Enies Lobby?"
+    answers: ["became fugitives", "disbanded"]
+    category: "organizational_fate"
+    
+  - question: "What is the Rokushiki technique 'Rokuogan'?"
+    answers: ["six king gun", "ultimate technique"]
+    category: "ultimate_techniques"
+    
+  - question: "Which CP9 member uses Rankyaku most?"
+    answers: ["kaku"]
+    category: "technique_specialists"
+    
+  - question: "What is Spandam's Doriki level?"
+    answers: ["9", "below average human"]
+    category: "weak_leaders"
+    
+  - question: "Who taught the CP9 members Rokushiki?"
+    answers: ["government instructors", "world government"]
+    category: "training_origins"
 
 # Wano Country specifics
 wano_secrets:
@@ -173,6 +505,42 @@ wano_secrets:
     answers: ["oden nitoryu", "two-sword style"]
     category: "oden_techniques"
 
+  - question: "What are the names of Oden's two swords?"
+    answers: ["ame no habakiri", "enma"]
+    category: "legendary_swords"
+    
+  - question: "How long was Wano closed to the outside world?"
+    answers: ["800 years", "centuries"]
+    category: "isolation_period"
+    
+  - question: "What is the name of Wano's sacred mountain?"
+    answers: ["mount fuji equivalent", "not specifically named"]
+    category: "sacred_locations"
+    
+  - question: "Who created the Sea Prism Stone?"
+    answers: ["wano craftsmen"]
+    category: "special_materials"
+    
+  - question: "What is the name of Kaido's club?"
+    answers: ["hasaikai"]
+    category: "signature_weapons"
+    
+  - question: "How many regions does Wano have?"
+    answers: ["6", "six regions"]
+    category: "geographic_divisions"
+    
+  - question: "What is the name of Wano's artificial waterfall?"
+    answers: ["waterfall entrance", "not specifically named"]
+    category: "defensive_features"
+    
+  - question: "Who was the previous Shogun before Orochi?"
+    answers: ["kozuki sukiyaki"]
+    category: "political_history"
+    
+  - question: "What is the poneglyph creation technique called?"
+    answers: ["stone carving mastery", "kozuki technique"]
+    category: "ancient_crafts"
+
 # Film and special content
 film_knowledge:
   - question: "In which movie does Shiki appear?"
@@ -187,6 +555,42 @@ film_knowledge:
     answers: ["mamoru hosoda", "various directors"]
     category: "production"
 
+  - question: "What is Uta's Devil Fruit power?"
+    answers: ["uta uta no mi", "song fruit"]
+    category: "film_powers"
+    
+  - question: "In which movie does Douglas Bullet appear?"
+    answers: ["stampede"]
+    category: "movie_antagonists"
+    
+  - question: "What is the name of Shiki's Devil Fruit?"
+    answers: ["fuwa fuwa no mi", "float fruit"]
+    category: "movie_abilities"
+    
+  - question: "Which Straw Hat doesn't appear in Film Gold?"
+    answers: ["all appear", "none missing"]
+    category: "movie_appearances"
+    
+  - question: "What is the name of the casino in Film Gold?"
+    answers: ["gran tesoro"]
+    category: "movie_settings"
+    
+  - question: "Who is the main villain in Film Z?"
+    answers: ["zephyr", "z"]
+    category: "movie_bosses"
+    
+  - question: "What is Baron Omatsuri's power?"
+    answers: ["plant manipulation", "lily carnation"]
+    category: "movie_mysteries"
+    
+  - question: "Which movie is considered canon by Oda?"
+    answers: ["strong world", "film red elements"]
+    category: "canon_status"
+    
+  - question: "What year was the first One Piece movie released?"
+    answers: ["2000"]
+    category: "release_dates"
+
 # Ultra-technical details
 technical_mastery:
   - question: "What chapter did Gear 2 first appear?"
@@ -200,3 +604,51 @@ technical_mastery:
   - question: "How many chapters are there as of 2023?"
     answers: ["1000+", "over 1000"]
     category: "current_status"
+
+  - question: "What is Eiichiro Oda's birthday?"
+    answers: ["january 1", "january 1st"]
+    category: "creator_details"
+    
+  - question: "How many hours of sleep does Oda get per day?"
+    answers: ["3-4 hours", "very little"]
+    category: "work_schedule"
+    
+  - question: "What magazine publishes One Piece?"
+    answers: ["weekly shonen jump"]
+    category: "publication_details"
+    
+  - question: "What chapter did Haki first appear?"
+    answers: ["chapter 1", "first chapter"]
+    category: "ability_debuts"
+    
+  - question: "How many volumes of One Piece exist as of 2025?"
+    answers: ["110+", "over 110"]
+    category: "volume_count"
+    
+  - question: "What was One Piece's original planned length?"
+    answers: ["5 years", "much shorter"]
+    category: "original_plans"
+    
+  - question: "How many assistants does Oda have?"
+    answers: ["several", "small team"]
+    category: "production_team"
+    
+  - question: "What software does Oda use for digital work?"
+    answers: ["primarily hand-drawn", "traditional methods"]
+    category: "creation_methods"
+    
+  - question: "How many countries has One Piece been published in?"
+    answers: ["80+", "worldwide"]
+    category: "international_reach"
+    
+  - question: "What is the exact sales number of One Piece worldwide?"
+    answers: ["500 million+", "record-breaking"]
+    category: "sales_records"
+    
+  - question: "How many anime episodes exist as of 2025?"
+    answers: ["1100+", "over 1100"]
+    category: "anime_count"
+    
+  - question: "What studio animates the One Piece anime?"
+    answers: ["toei animation"]
+    category: "animation_studio"
