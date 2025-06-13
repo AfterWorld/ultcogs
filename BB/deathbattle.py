@@ -441,19 +441,59 @@ class BattleSystem:
         
         # Battle timed out
         if turn_count >= MAX_BATTLE_TURNS:
-            embed = discord.Embed(
-                title="⏰ Battle Timeout",
-                description="The battle lasted too long! It's a draw!",
-                color=discord.Color.orange()
-            )
+            if p1_data["hp"] > p2_data["hp"]:
+                winner = player1
+                embed = discord.Embed(
+                    title="⏰ Battle Timeout - Victory by HP!",
+                    description=f"**{player1.display_name}** wins with more remaining HP!",
+                    color=discord.Color.gold()
+                )
+            elif p2_data["hp"] > p1_data["hp"]:
+                winner = player2
+                embed = discord.Embed(
+                    title="⏰ Battle Timeout - Victory by HP!",
+                    description=f"**{player2.display_name}** wins with more remaining HP!",
+                    color=discord.Color.gold()
+                )
+            else:
+                # Exact same HP - determine by damage dealt
+                if p1_data["stats"]["damage_dealt"] > p2_data["stats"]["damage_dealt"]:
+                    winner = player1
+                    embed = discord.Embed(
+                        title="⏰ Battle Timeout - Victory by Damage!",
+                        description=f"**{player1.display_name}** wins by dealing more total damage!",
+                        color=discord.Color.gold()
+                    )
+                elif p2_data["stats"]["damage_dealt"] > p1_data["stats"]["damage_dealt"]:
+                    winner = player2
+                    embed = discord.Embed(
+                        title="⏰ Battle Timeout - Victory by Damage!",
+                        description=f"**{player2.display_name}** wins by dealing more total damage!",
+                        color=discord.Color.gold()
+                    )
+                else:
+                    # True tie - random winner
+                    winner = random.choice([player1, player2])
+                    embed = discord.Embed(
+                        title="⏰ Battle Timeout - Random Victory!",
+                        description=f"**{winner.display_name}** wins by fate's decision!",
+                        color=discord.Color.purple()
+                    )
+            
             embed.add_field(
                 name="📊 Final Stats",
                 value=self._create_battle_stats(p1_data, p2_data),
                 inline=False
             )
+            
+            embed.add_field(
+                name="💡 Timeout Resolution",
+                value=f"HP: {p1_data['hp']} vs {p2_data['hp']}\nDamage Dealt: {p1_data['stats']['damage_dealt']} vs {p2_data['stats']['damage_dealt']}",
+                inline=False
+            )
+            
             await message.edit(embed=embed)
-        
-        return None
+            return winner
     
     def _apply_environment_effects(self, damage: int, move: Dict[str, Any], environment: str) -> int:
         """Apply environment effects to damage."""
