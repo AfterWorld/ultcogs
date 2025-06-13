@@ -23,6 +23,26 @@ general:
     answers: ["friend", "crewmate", "companion", "comrade"]
     category: "terms"
 
+  - question: "Who is the author of One Piece?"
+    answers: ["eiichiro oda", "oda"]
+    category: "creator"
+    
+  - question: "What is the name of the pirate era that began after Roger's execution?"
+    answers: ["great pirate era", "great age of pirates", "pirate age"]
+    category: "history"
+    
+  - question: "What are the four strongest pirates called?"
+    answers: ["four emperors", "yonko", "emperors"]
+    category: "titles"
+    
+  - question: "What is the marine headquarters called?"
+    answers: ["marineford", "marine headquarters"]
+    category: "organizations"
+    
+  - question: "What do pirates use to navigate the Grand Line?"
+    answers: ["log pose", "compass"]
+    category: "navigation"
+
 # Character-focused questions
 characters:
   - question: "What color is Zoro's hair?"
@@ -45,6 +65,46 @@ characters:
     answers: ["brave", "captain", "great warrior", "warrior"]
     category: "personality"
 
+  - question: "Who is the doctor of the Straw Hat Pirates?"
+    answers: ["chopper", "tony tony chopper"]
+    category: "crew"
+    
+  - question: "What instrument does Brook play?"
+    answers: ["violin", "music"]
+    category: "talents"
+    
+  - question: "Who is the archaeologist of the Straw Hat Pirates?"
+    answers: ["robin", "nico robin"]
+    category: "crew"
+    
+  - question: "What is Franky's catchphrase?"
+    answers: ["super", "suuuper"]
+    category: "catchphrases"
+    
+  - question: "Who is the sniper of the Straw Hat Pirates?"
+    answers: ["usopp"]
+    category: "crew"
+    
+  - question: "What does Sanji call women?"
+    answers: ["beautiful", "ladies", "angels"]
+    category: "personality"
+    
+  - question: "Who is the helmsman of the Straw Hat Pirates?"
+    answers: ["jinbe", "jinbei"]
+    category: "crew"
+    
+  - question: "What is Zoro's dream?"
+    answers: ["to be the world's strongest swordsman", "strongest swordsman", "world's greatest swordsman"]
+    category: "dreams"
+    
+  - question: "What is Nami's dream?"
+    answers: ["to draw a map of the world", "world map", "map the world"]
+    category: "dreams"
+    
+  - question: "What is Usopp's dream?"
+    answers: ["to be a brave warrior of the sea", "brave warrior", "warrior of the sea"]
+    category: "dreams"
+
 # Locations and world
 locations:
   - question: "What sea did Luffy start his journey in?"
@@ -63,6 +123,30 @@ locations:
     answers: ["paradise", "new world"]
     category: "geography"
 
+  - question: "What is the reverse mountain also called?"
+    answers: ["reverse mountain", "upside down mountain"]
+    category: "landmarks"
+    
+  - question: "What desert kingdom did the Straw Hats help save?"
+    answers: ["alabasta"]
+    category: "kingdoms"
+    
+  - question: "What sky island did the Straw Hats visit?"
+    answers: ["skypiea", "skypeia"]
+    category: "islands"
+    
+  - question: "What water city is famous for shipbuilding?"
+    answers: ["water 7", "water seven"]
+    category: "cities"
+    
+  - question: "What underwater island did the Straw Hats visit?"
+    answers: ["fishman island", "fish-man island"]
+    category: "islands"
+    
+  - question: "What country is known for its samurai?"
+    answers: ["wano", "wano country"]
+    category: "countries"
+
 # Powers and abilities
 powers:
   - question: "What are Devil Fruit users afraid of?"
@@ -76,6 +160,26 @@ powers:
   - question: "What fighting style does Zoro use?"
     answers: ["three sword style", "santoryu", "three swords"]
     category: "combat"
+
+  - question: "What is Luffy's body made of after eating his Devil Fruit?"
+    answers: ["rubber"]
+    category: "transformation"
+    
+  - question: "What can Logia users turn their bodies into?"
+    answers: ["elements", "natural elements"]
+    category: "abilities"
+    
+  - question: "What type of Devil Fruit allows transformation into animals?"
+    answers: ["zoan"]
+    category: "classification"
+    
+  - question: "What invisible power can strong fighters use?"
+    answers: ["haki"]
+    category: "advanced_abilities"
+    
+  - question: "What happens if you eat two Devil Fruits?"
+    answers: ["you die", "death", "explode"]
+    category: "rules"
 
 # Simple story questions
 story:
@@ -95,6 +199,30 @@ story:
     answers: ["brother", "sworn brother", "adoptive brother"]
     category: "family"
 
+  - question: "Who was the former Pirate King?"
+    answers: ["gol d roger", "roger", "gold roger"]
+    category: "history"
+    
+  - question: "What animal bit off Shanks' arm?"
+    answers: ["sea king", "sea monster", "giant fish"]
+    category: "backstory"
+    
+  - question: "Who trained Luffy during the timeskip?"
+    answers: ["rayleigh", "silvers rayleigh"]
+    category: "training"
+    
+  - question: "How long was the timeskip?"
+    answers: ["two years", "2 years"]
+    category: "timeline"
+    
+  - question: "What happened to the Going Merry?"
+    answers: ["it broke", "destroyed", "burned", "died"]
+    category: "ships"
+    
+  - question: "Who built the Thousand Sunny?"
+    answers: ["franky"]
+    category: "ships"
+
 # Basic bounties (round numbers)
 bounties:
   - question: "What was Luffy's first bounty?"
@@ -104,6 +232,158 @@ bounties:
   - question: "Whose bounty is higher: Luffy or Zoro?"
     answers: ["luffy"]
     category: "comparison"
+
+  - question: "What was the highest bounty ever recorded?"
+    answers: ["roger", "gol d roger", "5.5 billion"]
+    category: "records"
+    
+  - question: "Who had the first billion berry bounty in the series?"
+    answers: ["luffy"]
+    category: "milestones"
+
+  - question: "What was Luffy's bounty after defeating Arlong?"
+    answers: ["30 million", "30,000,000"]
+    category: "luffy_progression"
+    
+  - question: "What was Luffy's bounty after Enies Lobby?"
+    answers: ["300 million", "300,000,000"]
+    category: "luffy_progression"
+    
+  - question: "What was Luffy's bounty after Dressrosa?"
+    answers: ["500 million", "500,000,000"]
+    category: "luffy_progression"
+    
+  - question: "What is Luffy's current bounty?"
+    answers: ["3 billion", "3,000,000,000"]
+    category: "luffy_current"
+    
+  - question: "What was Zoro's first bounty?"
+    answers: ["60 million", "60,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Sanji's first bounty?"
+    answers: ["77 million", "77,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Robin's bounty as a child?"
+    answers: ["79 million", "79,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Nami's first bounty?"
+    answers: ["16 million", "16,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Usopp's first bounty?"
+    answers: ["30 million", "30,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Chopper's bounty?"
+    answers: ["50", "100", "1000"]
+    category: "straw_hats"
+    
+  - question: "What was Franky's first bounty?"
+    answers: ["44 million", "44,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Brook's first bounty?"
+    answers: ["33 million", "33,000,000"]
+    category: "straw_hats"
+    
+  - question: "What is Jinbe's bounty?"
+    answers: ["1.1 billion", "1,100,000,000"]
+    category: "straw_hats"
+    
+  - question: "What was Ace's bounty?"
+    answers: ["550 million", "550,000,000"]
+    category: "major_characters"
+    
+  - question: "What was Crocodile's bounty?"
+    answers: ["81 million", "81,000,000"]
+    category: "villains"
+    
+  - question: "What was Doflamingo's bounty?"
+    answers: ["340 million", "340,000,000"]
+    category: "villains"
+    
+  - question: "What was Katakuri's bounty?"
+    answers: ["1 billion", "1,000,000,000"]
+    category: "villains"
+    
+  - question: "What was Kaido's bounty?"
+    answers: ["4.6 billion", "4,600,000,000"]
+    category: "emperors"
+    
+  - question: "What was Big Mom's bounty?"
+    answers: ["4.3 billion", "4,300,000,000"]
+    category: "emperors"
+    
+  - question: "What is Blackbeard's bounty?"
+    answers: ["3.9 billion", "3,900,000,000"]
+    category: "emperors"
+    
+  - question: "What is Shanks' bounty?"
+    answers: ["4 billion", "4,000,000,000"]
+    category: "emperors"
+    
+  - question: "What was Whitebeard's bounty?"
+    answers: ["5.04 billion", "5,040,000,000"]
+    category: "emperors"
+    
+  - question: "What was Buggy's bounty after becoming an Emperor?"
+    answers: ["3.1 billion", "3,100,000,000"]
+    category: "emperors"
+    
+  - question: "What was Law's bounty after Dressrosa?"
+    answers: ["500 million", "500,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Kid's bounty after Wano?"
+    answers: ["3 billion", "3,000,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Killer's bounty after Wano?"
+    answers: ["200 million", "200,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Bege's bounty?"
+    answers: ["300 million", "300,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Hawkins' bounty?"
+    answers: ["320 million", "320,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Drake's bounty?"
+    answers: ["222 million", "222,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Apoo's bounty?"
+    answers: ["350 million", "350,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Bonney's bounty?"
+    answers: ["320 million", "320,000,000"]
+    category: "supernovas"
+    
+  - question: "What was Urouge's bounty?"
+    answers: ["108 million", "108,000,000"]
+    category: "supernovas"
+    
+  - question: "Who has the lowest bounty among the Straw Hats?"
+    answers: ["chopper"]
+    category: "comparison"
+    
+  - question: "Who has the highest bounty among the Straw Hats besides Luffy?"
+    answers: ["jinbe", "jinbei"]
+    category: "comparison"
+    
+  - question: "Which Emperor has the highest bounty?"
+    answers: ["whitebeard"]
+    category: "comparison"
+    
+  - question: "What bounty milestone did Luffy reach after Wano?"
+    answers: ["3 billion", "3,000,000,000"]
+    category: "milestones"
 
 # Fun facts
 fun_facts:
@@ -118,3 +398,53 @@ fun_facts:
   - question: "What is Sanji's weakness?"
     answers: ["women", "ladies", "beautiful women"]
     category: "personality"
+
+  - question: "What does Luffy call all old men?"
+    answers: ["gramps", "old man", "grandpa"]
+    category: "nicknames"
+    
+  - question: "What food does Sanji refuse to waste?"
+    answers: ["food", "any food"]
+    category: "principles"
+    
+  - question: "What does Zoro get lost doing?"
+    answers: ["walking", "everything", "anything"]
+    category: "humor"
+    
+  - question: "What does Chopper turn into when he's embarrassed?"
+    answers: ["he doesn't turn around", "backwards", "hides"]
+    category: "personality"
+    
+  - question: "What does Franky use as fuel?"
+    answers: ["cola", "coke"]
+    category: "quirks"
+    
+  - question: "What does Robin call her crewmates?"
+    answers: ["by their jobs", "titles", "roles"]
+    category: "personality"
+    
+  - question: "What is Usopp afraid of?"
+    answers: ["everything", "many things", "bugs", "scary things"]
+    category: "personality"
+    
+  - question: "What does Nami love more than anything?"
+    answers: ["money", "treasure", "berries"]
+    category: "personality"
+    
+  - question: "What genre is One Piece?"
+    answers: ["shonen", "adventure", "action"]
+    category: "meta"
+
+# Simple current events
+current:
+  - question: "What is Luffy's current strongest form?"
+    answers: ["gear 5", "gear fifth"]
+    category: "powers"
+    
+  - question: "Who is the newest Straw Hat member?"
+    answers: ["jinbe", "jinbei"]
+    category: "crew"
+    
+  - question: "What island are the Straw Hats currently on?"
+    answers: ["elbaph", "elbaf"]
+    category: "location"
