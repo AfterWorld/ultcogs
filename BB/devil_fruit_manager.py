@@ -44,152 +44,193 @@ class DevilFruitManager:
     async def process_devil_fruit_effect(self, attacker: Dict[str, Any], defender: Dict[str, Any], 
                                        move: Dict[str, Any], environment: str) -> Tuple[int, Optional[str]]:
         """Process Devil Fruit effects with enhanced individual fruit abilities."""
-        if not attacker.get("fruit"):
-            return 0, None
+        try:
+            if not attacker.get("fruit"):
+                return 0, None
+                
+            fruit_name = attacker["fruit"]
             
-        fruit_name = attacker["fruit"]
-        
-        # Check if fruit is disabled (by Yami Yami no Mi)
-        if attacker.get("fruit_disabled", 0) > 0:
-            attacker["fruit_disabled"] -= 1
-            return 0, "🚫 Devil Fruit powers are nullified!"
-        
-        # Get fruit data
-        fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
-        if not fruit_data:
-            return 0, None
+            # Check if fruit is disabled (by Yami Yami no Mi)
+            if attacker.get("fruit_disabled", 0) > 0:
+                attacker["fruit_disabled"] -= 1
+                return 0, "🚫 Devil Fruit powers are nullified!"
+            
+            # Get fruit data
+            fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+            if not fruit_data:
+                return 0, None
 
-        # Track usage for achievements
-        if "fruits_used" not in attacker:
-            attacker["fruits_used"] = set()
-        attacker["fruits_used"].add(fruit_name)
+            # Track usage for achievements
+            if "fruits_used" not in attacker:
+                attacker["fruits_used"] = set()
+            attacker["fruits_used"].add(fruit_name)
 
-        # Check for fruit vs fruit interactions first
-        defender_fruit = defender.get("fruit")
-        if defender_fruit:
-            interaction_damage, interaction_message = await self._check_fruit_interactions(
-                fruit_name, defender_fruit, self._get_base_damage(move)
+            # Check for fruit vs fruit interactions first
+            defender_fruit = defender.get("fruit")
+            if defender_fruit:
+                interaction_damage, interaction_message = await self._check_fruit_interactions(
+                    fruit_name, defender_fruit, self._get_base_damage(move)
+                )
+                if interaction_damage != 0:
+                    return interaction_damage, interaction_message
+
+            # Check for awakened abilities (high-level players)
+            awakened_damage, awakened_message = await self._handle_awakened_abilities(
+                fruit_name, attacker, defender, self._get_base_damage(move)
             )
-            if interaction_damage != 0:
-                return interaction_damage, interaction_message
+            if awakened_damage > 0:
+                return awakened_damage, awakened_message
 
-        # Check for awakened abilities (high-level players)
-        awakened_damage, awakened_message = await self._handle_awakened_abilities(
-            fruit_name, attacker, defender, self._get_base_damage(move)
-        )
-        if awakened_damage > 0:
-            return awakened_damage, awakened_message
-
-        # Process specific fruit effects
-        bonus_damage, effect_message = await self._process_specific_fruit(
-            fruit_name, attacker, defender, move, environment
-        )
-        
-        # Apply mastery bonus
-        if bonus_damage > 0:
-            mastery_multiplier = self._calculate_fruit_mastery_bonus(attacker, fruit_name)
-            bonus_damage = int(bonus_damage * mastery_multiplier)
-        
-        # Apply environment bonuses
-        bonus_damage = self._apply_environment_bonus(bonus_damage, fruit_name, environment)
-        
-        return bonus_damage, effect_message
+            # Process specific fruit effects
+            bonus_damage, effect_message = await self._process_specific_fruit(
+                fruit_name, attacker, defender, move, environment
+            )
+            
+            # Ensure we have valid integers
+            if not isinstance(bonus_damage, (int, float)):
+                self.log.error(f"Invalid bonus_damage type from {fruit_name}: {type(bonus_damage)}")
+                bonus_damage = 0
+            else:
+                bonus_damage = int(bonus_damage) if bonus_damage else 0
+            
+            # Apply mastery bonus
+            if bonus_damage > 0:
+                mastery_multiplier = self._calculate_fruit_mastery_bonus(attacker, fruit_name)
+                bonus_damage = int(bonus_damage * mastery_multiplier)
+            
+            # Apply environment bonuses
+            bonus_damage = self._apply_environment_bonus(bonus_damage, fruit_name, environment)
+            
+            # Final safety check
+            if not isinstance(bonus_damage, (int, float)):
+                self.log.error(f"Final bonus_damage is not numeric: {bonus_damage}")
+                bonus_damage = 0
+            
+            return int(bonus_damage), effect_message
+            
+        except Exception as e:
+            self.log.error(f"Error in process_devil_fruit_effect: {e}")
+            return 0, None
 
     async def _process_specific_fruit(self, fruit_name: str, attacker: Dict[str, Any], 
                                     defender: Dict[str, Any], move: Dict[str, Any], 
                                     environment: str) -> Tuple[int, Optional[str]]:
         """Process effects for specific devil fruits."""
         
-        # Get base damage for calculations
-        base_damage = self._get_base_damage(move)
-        
-        # Check activation rate
-        activation_rate = 0.45  # Base 45% activation rate
-        if fruit_name in DEVIL_FRUITS["Rare"]:
-            activation_rate += 0.15  # Rare fruits get +15% activation
-        
-        if random.random() > activation_rate:
+        try:
+            # Get base damage for calculations
+            base_damage = self._get_base_damage(move)
+            
+            # Check activation rate
+            activation_rate = 0.45  # Base 45% activation rate
+            if fruit_name in DEVIL_FRUITS["Rare"]:
+                activation_rate += 0.15  # Rare fruits get +15% activation
+            
+            if random.random() > activation_rate:
+                return 0, None
+            
+            # Process specific fruits - ensure all return tuples of (int, str/None)
+            result = None
+            
+            # Logia Fruits
+            if fruit_name == "Mera Mera no Mi":
+                result = await self._mera_mera_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hie Hie no Mi":
+                result = await self._hie_hie_effect(attacker, defender, base_damage)
+            elif fruit_name == "Yami Yami no Mi":
+                result = await self._yami_yami_effect(attacker, defender, base_damage)
+            elif fruit_name == "Pika Pika no Mi":
+                result = await self._pika_pika_effect(attacker, defender, base_damage)
+            elif fruit_name == "Goro Goro no Mi":
+                result = await self._goro_goro_effect(attacker, defender, base_damage)
+            elif fruit_name == "Magu Magu no Mi":
+                result = await self._magu_magu_effect(attacker, defender, base_damage)
+            elif fruit_name == "Suna Suna no Mi":
+                result = await self._suna_suna_effect(attacker, defender, base_damage)
+            elif fruit_name == "Gasu Gasu no Mi":
+                result = await self._gasu_gasu_effect(attacker, defender, base_damage)
+            elif fruit_name == "Moku Moku no Mi":
+                result = await self._moku_moku_effect(attacker, defender, base_damage)
+            elif fruit_name == "Numa Numa no Mi":
+                result = await self._numa_numa_effect(attacker, defender, base_damage)
+            elif fruit_name == "Yuki Yuki no Mi":
+                result = await self._yuki_yuki_effect(attacker, defender, base_damage)
+            
+            # Mythical Zoans
+            elif fruit_name == "Tori Tori no Mi: Model Phoenix":
+                result = await self._phoenix_effect(attacker, defender, base_damage)
+            elif fruit_name == "Uo Uo no Mi: Model Seiryu":
+                result = await self._seiryu_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hito Hito no Mi: Model Nika":
+                result = await self._nika_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hito Hito no Mi: Model Daibutsu":
+                result = await self._daibutsu_effect(attacker, defender, base_damage)
+            elif fruit_name == "Inu Inu no Mi: Model Okuchi no Makami":
+                result = await self._okuchi_no_makami_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hebi Hebi no Mi: Model Yamata no Orochi":
+                result = await self._yamata_no_orochi_effect(attacker, defender, base_damage)
+            elif fruit_name == "Tori Tori no Mi: Model Nue":
+                result = await self._nue_effect(attacker, defender, base_damage)
+            
+            # Ancient Zoans
+            elif "Ancient Zoan" in DEVIL_FRUITS["Rare"].get(fruit_name, {}).get("type", ""):
+                result = await self._ancient_zoan_effect(fruit_name, attacker, defender, base_damage)
+            
+            # Special Paramecia
+            elif fruit_name == "Mochi Mochi no Mi":
+                result = await self._mochi_effect(attacker, defender, base_damage)
+            elif fruit_name == "Gura Gura no Mi":
+                result = await self._gura_gura_effect(attacker, defender, base_damage)
+            elif fruit_name == "Ope Ope no Mi":
+                result = await self._ope_ope_effect(attacker, defender, base_damage)
+            elif fruit_name == "Zushi Zushi no Mi":
+                result = await self._zushi_zushi_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hobi Hobi no Mi":
+                result = await self._hobi_hobi_effect(attacker, defender, base_damage)
+            elif fruit_name == "Bari Bari no Mi":
+                result = await self._bari_bari_effect(attacker, defender, base_damage)
+            
+            # Regular Paramecia
+            elif fruit_name == "Gomu Gomu no Mi":
+                result = await self._gomu_gomu_effect(attacker, defender, base_damage, move)
+            elif fruit_name == "Bomu Bomu no Mi":
+                result = await self._bomu_bomu_effect(attacker, defender, base_damage)
+            elif fruit_name == "Hana Hana no Mi":
+                result = await self._hana_hana_effect(attacker, defender, base_damage)
+            elif fruit_name == "Supa Supa no Mi":
+                result = await self._supa_supa_effect(attacker, defender, base_damage)
+            elif fruit_name == "Doru Doru no Mi":
+                result = await self._doru_doru_effect(attacker, defender, base_damage)
+            
+            # Regular Zoans
+            elif "Zoan" in DEVIL_FRUITS["Common"].get(fruit_name, {}).get("type", ""):
+                result = await self._regular_zoan_effect(fruit_name, attacker, defender, base_damage)
+            
+            # Default effect for unspecified fruits
+            else:
+                result = await self._default_fruit_effect(fruit_name, attacker, defender, base_damage)
+            
+            # Validate result
+            if result is None:
+                return 0, None
+            
+            if not isinstance(result, (tuple, list)) or len(result) != 2:
+                self.log.error(f"Invalid result format from {fruit_name}: {result}")
+                return 0, None
+            
+            damage, message = result
+            if not isinstance(damage, (int, float)):
+                self.log.error(f"Invalid damage type from {fruit_name}: {type(damage)}")
+                return 0, message
+            
+            return int(damage), message
+            
+        except Exception as e:
+            self.log.error(f"Error processing specific fruit {fruit_name}: {e}")
             return 0, None
-        
-        # Logia Fruits
-        if fruit_name == "Mera Mera no Mi":
-            return await self._mera_mera_effect(attacker, defender, base_damage, environment)
-        elif fruit_name == "Hie Hie no Mi":
-            return await self._hie_hie_effect(attacker, defender, base_damage, environment)
-        elif fruit_name == "Yami Yami no Mi":
-            return await self._yami_yami_effect(attacker, defender, base_damage)
-        elif fruit_name == "Pika Pika no Mi":
-            return await self._pika_pika_effect(attacker, defender, base_damage)
-        elif fruit_name == "Goro Goro no Mi":
-            return await self._goro_goro_effect(attacker, defender, base_damage, environment)
-        elif fruit_name == "Magu Magu no Mi":
-            return await self._magu_magu_effect(attacker, defender, base_damage)
-        elif fruit_name == "Suna Suna no Mi":
-            return await self._suna_suna_effect(attacker, defender, base_damage, environment)
-        elif fruit_name == "Gasu Gasu no Mi":
-            return await self._gasu_gasu_effect(attacker, defender, base_damage)
-        elif fruit_name == "Moku Moku no Mi":
-            return await self._moku_moku_effect(attacker, defender, base_damage)
-        elif fruit_name == "Numa Numa no Mi":
-            return await self._numa_numa_effect(attacker, defender, base_damage)
-        elif fruit_name == "Yuki Yuki no Mi":
-            return await self._yuki_yuki_effect(attacker, defender, base_damage)
-        
-        # Mythical Zoans
-        elif fruit_name == "Tori Tori no Mi: Model Phoenix":
-            return await self._phoenix_effect(attacker, defender, base_damage)
-        elif fruit_name == "Uo Uo no Mi: Model Seiryu":
-            return await self._seiryu_effect(attacker, defender, base_damage, environment)
-        elif fruit_name == "Hito Hito no Mi: Model Nika":
-            return await self._nika_effect(attacker, defender, base_damage)
-        elif fruit_name == "Hito Hito no Mi: Model Daibutsu":
-            return await self._daibutsu_effect(attacker, defender, base_damage)
-        elif fruit_name == "Inu Inu no Mi: Model Okuchi no Makami":
-            return await self._okuchi_no_makami_effect(attacker, defender, base_damage)
-        elif fruit_name == "Hebi Hebi no Mi: Model Yamata no Orochi":
-            return await self._yamata_no_orochi_effect(attacker, defender, base_damage)
-        elif fruit_name == "Tori Tori no Mi: Model Nue":
-            return await self._nue_effect(attacker, defender, base_damage)
-        
-        # Ancient Zoans
-        elif "Ancient Zoan" in DEVIL_FRUITS["Rare"].get(fruit_name, {}).get("type", ""):
-            return await self._ancient_zoan_effect(fruit_name, attacker, defender, base_damage)
-        
-        # Special Paramecia
-        elif fruit_name == "Mochi Mochi no Mi":
-            return await self._mochi_effect(attacker, defender, base_damage)
-        elif fruit_name == "Gura Gura no Mi":
-            return await self._gura_gura_effect(attacker, defender, base_damage)
-        elif fruit_name == "Ope Ope no Mi":
-            return await self._ope_ope_effect(attacker, defender, base_damage)
-        elif fruit_name == "Zushi Zushi no Mi":
-            return await self._zushi_zushi_effect(attacker, defender, base_damage)
-        elif fruit_name == "Hobi Hobi no Mi":
-            return await self._hobi_hobi_effect(attacker, defender, base_damage)
-        elif fruit_name == "Bari Bari no Mi":
-            return await self._bari_bari_effect(attacker, defender, base_damage)
-        
-        # Regular Paramecia
-        elif fruit_name == "Gomu Gomu no Mi":
-            return await self._gomu_gomu_effect(attacker, defender, base_damage, move)
-        elif fruit_name == "Bomu Bomu no Mi":
-            return await self._bomu_bomu_effect(attacker, defender, base_damage)
-        elif fruit_name == "Hana Hana no Mi":
-            return await self._hana_hana_effect(attacker, defender, base_damage)
-        elif fruit_name == "Supa Supa no Mi":
-            return await self._supa_supa_effect(attacker, defender, base_damage)
-        elif fruit_name == "Doru Doru no Mi":
-            return await self._doru_doru_effect(attacker, defender, base_damage)
-        
-        # Regular Zoans
-        elif "Zoan" in DEVIL_FRUITS["Common"].get(fruit_name, {}).get("type", ""):
-            return await self._regular_zoan_effect(fruit_name, attacker, defender, base_damage)
-        
-        # Default effect for unspecified fruits
-        return await self._default_fruit_effect(fruit_name, attacker, defender, base_damage)
 
     # LOGIA EFFECTS
-    async def _mera_mera_effect(self, attacker, defender, base_damage, environment):
+    async def _mera_mera_effect(self, attacker, defender, base_damage):
         """Mera Mera no Mi - Fire Logia"""
         bonus_damage = int(base_damage * 1.0)
         await self.status_manager.apply_effect("burn", defender, value=2)
@@ -209,7 +250,7 @@ class DevilFruitManager:
             f"💥 {bonus_damage} fire damage + Burn!"
         )
 
-    async def _hie_hie_effect(self, attacker, defender, base_damage, environment):
+    async def _hie_hie_effect(self, attacker, defender, base_damage):
         """Hie Hie no Mi - Ice Logia"""
         bonus_damage = int(base_damage * 0.9)
         
@@ -260,7 +301,7 @@ class DevilFruitManager:
         # Special: Light Speed Barrage
         if random.random() < 0.35:
             hits = random.randint(2, 4)
-            bonus_damage *= hits
+            bonus_damage = int(bonus_damage * hits)
             return bonus_damage, (
                 f"✨ **LIGHT SPEED ASSAULT!** ✨\n"
                 f"**{attacker['name']}** attacks at the speed of light!\n"
@@ -273,7 +314,7 @@ class DevilFruitManager:
             f"⚡ {bonus_damage} piercing light damage!"
         )
 
-    async def _goro_goro_effect(self, attacker, defender, base_damage, environment):
+    async def _goro_goro_effect(self, attacker, defender, base_damage):
         """Goro Goro no Mi - Lightning Logia"""
         bonus_damage = int(base_damage * 1.1)
         
@@ -314,7 +355,7 @@ class DevilFruitManager:
             f"💥 {bonus_damage} magma damage + intense burning!"
         )
 
-    async def _suna_suna_effect(self, attacker, defender, base_damage, environment):
+    async def _suna_suna_effect(self, attacker, defender, base_damage):
         """Suna Suna no Mi - Sand Logia"""
         bonus_damage = int(base_damage * 1.1)
         
@@ -438,7 +479,7 @@ class DevilFruitManager:
         
         # Special: Resurrection Flames
         if attacker["hp"] < attacker["max_hp"] * 0.3:
-            heal_amount *= 2
+            heal_amount = int(heal_amount * 2)
             attacker["hp"] = min(attacker["max_hp"], attacker["hp"] + heal_amount)
             return bonus_damage, (
                 f"🦅 **RESURRECTION PHOENIX!** 🦅\n"
@@ -452,7 +493,7 @@ class DevilFruitManager:
             f"💚 Healed {heal_amount} HP + {bonus_damage} flame damage!"
         )
 
-    async def _seiryu_effect(self, attacker, defender, base_damage, environment):
+    async def _seiryu_effect(self, attacker, defender, base_damage):
         """Uo Uo no Mi: Model Seiryu - Azure Dragon"""
         breath_type = random.choice(["fire", "wind", "lightning", "ultimate"])
         
@@ -630,86 +671,6 @@ class DevilFruitManager:
                 f"☠️ {bonus_damage} toxic damage + 3 Poison stacks!"
             )
 
-    # REGULAR PARAMECIA EFFECTS
-    async def _gomu_gomu_effect(self, attacker, defender, base_damage, move):
-        """Gomu Gomu no Mi - Rubber Paramecia"""
-        if move.get("type") == "strong":
-            bonus_damage = int(base_damage * 1.3)
-            
-            # Special: Gear transformation
-            if random.random() < 0.3:
-                gear = random.choice(["second", "third", "fourth"])
-                if gear == "second":
-                    await self.status_manager.apply_effect("speed_boost", attacker, duration=3)
-                    bonus_damage = int(base_damage * 1.1)
-                    return bonus_damage, (
-                        f"💨 **GEAR SECOND!** 💨\n"
-                        f"**{attacker['name']}** pumps blood at superhuman speed!\n"
-                        f"🚀 {bonus_damage} enhanced damage + speed boost!"
-                    )
-                elif gear == "third":
-                    bonus_damage = int(base_damage * 1.6)
-                    return bonus_damage, (
-                        f"💪 **GEAR THIRD!** 💪\n"
-                        f"**{attacker['name']}** inflates into a giant!\n"
-                        f"👊 {bonus_damage} giant bone damage!"
-                    )
-                elif gear == "fourth":
-                    bonus_damage = int(base_damage * 1.8)
-                    await self.status_manager.apply_effect("attack_boost", attacker, duration=2)
-                    return bonus_damage, (
-                        f"🎈 **GEAR FOURTH!** 🎈\n"
-                        f"**{attacker['name']}** becomes Boundman!\n"
-                        f"💥 {bonus_damage} boundman damage + attack boost!"
-                    )
-            
-            return bonus_damage, (
-                f"🔴 **RUBBER POWER!** 🔴\n"
-                f"**{attacker['name']}** stretches for maximum impact!\n"
-                f"💥 {bonus_damage} elastic damage!"
-            )
-        return 0, None
-
-    # Add other fruit effect methods here as needed...
-    async def _bomu_bomu_effect(self, attacker, defender, base_damage):
-        """Bomu Bomu no Mi - Bomb Paramecia"""
-        bonus_damage = int(base_damage * 1.3)
-        return bonus_damage, (
-            f"💣 **EXPLOSIVE PUNCH!** 💣\n"
-            f"**{attacker['name']}** detonates on impact!\n"
-            f"💥 {bonus_damage} explosive damage!"
-        )
-
-    async def _hana_hana_effect(self, attacker, defender, base_damage):
-        """Hana Hana no Mi - Flower Paramecia"""
-        hits = random.randint(4, 8)
-        bonus_damage = int(base_damage * 0.6 * hits)
-        return bonus_damage, (
-            f"🌸 **THOUSAND FLEUR!** 🌸\n"
-            f"**{attacker['name']}** sprouts {hits} arms for a barrage!\n"
-            f"👐 {hits} arm strikes for {bonus_damage} total damage!"
-        )
-
-    async def _supa_supa_effect(self, attacker, defender, base_damage):
-        """Supa Supa no Mi - Blade Paramecia"""
-        bonus_damage = int(base_damage * 1.2)
-        await self.status_manager.apply_effect("bleed", defender, value=2)
-        return bonus_damage, (
-            f"⚔️ **BLADE SLICE!** ⚔️\n"
-            f"**{attacker['name']}** cuts with razor-sharp limbs!\n"
-            f"🩸 {bonus_damage} cutting damage + bleeding!"
-        )
-
-    async def _doru_doru_effect(self, attacker, defender, base_damage):
-        """Doru Doru no Mi - Wax Paramecia"""
-        await self.status_manager.apply_effect("defense_boost", attacker, duration=3)
-        bonus_damage = int(base_damage * 0.8)
-        return bonus_damage, (
-            f"🕯️ **WAX ARMOR!** 🕯️\n"
-            f"**{attacker['name']}** hardens into protective wax!\n"
-            f"🛡️ {bonus_damage} wax damage + 3-turn defense boost!"
-        )
-
     # SPECIAL PARAMECIA EFFECTS
     async def _mochi_effect(self, attacker, defender, base_damage):
         """Mochi Mochi no Mi - Special Paramecia"""
@@ -877,6 +838,85 @@ class DevilFruitManager:
                 f"🪞 {bonus_damage} barrier damage + next attack reflected!"
             )
 
+    # REGULAR PARAMECIA EFFECTS
+    async def _gomu_gomu_effect(self, attacker, defender, base_damage, move):
+        """Gomu Gomu no Mi - Rubber Paramecia"""
+        if move.get("type") == "strong":
+            bonus_damage = int(base_damage * 1.3)
+            
+            # Special: Gear transformation
+            if random.random() < 0.3:
+                gear = random.choice(["second", "third", "fourth"])
+                if gear == "second":
+                    await self.status_manager.apply_effect("speed_boost", attacker, duration=3)
+                    bonus_damage = int(base_damage * 1.1)
+                    return bonus_damage, (
+                        f"💨 **GEAR SECOND!** 💨\n"
+                        f"**{attacker['name']}** pumps blood at superhuman speed!\n"
+                        f"🚀 {bonus_damage} enhanced damage + speed boost!"
+                    )
+                elif gear == "third":
+                    bonus_damage = int(base_damage * 1.6)
+                    return bonus_damage, (
+                        f"💪 **GEAR THIRD!** 💪\n"
+                        f"**{attacker['name']}** inflates into a giant!\n"
+                        f"👊 {bonus_damage} giant bone damage!"
+                    )
+                elif gear == "fourth":
+                    bonus_damage = int(base_damage * 1.8)
+                    await self.status_manager.apply_effect("attack_boost", attacker, duration=2)
+                    return bonus_damage, (
+                        f"🎈 **GEAR FOURTH!** 🎈\n"
+                        f"**{attacker['name']}** becomes Boundman!\n"
+                        f"💥 {bonus_damage} boundman damage + attack boost!"
+                    )
+            
+            return bonus_damage, (
+                f"🔴 **RUBBER POWER!** 🔴\n"
+                f"**{attacker['name']}** stretches for maximum impact!\n"
+                f"💥 {bonus_damage} elastic damage!"
+            )
+        return 0, None
+
+    async def _bomu_bomu_effect(self, attacker, defender, base_damage):
+        """Bomu Bomu no Mi - Bomb Paramecia"""
+        bonus_damage = int(base_damage * 1.3)
+        return bonus_damage, (
+            f"💣 **EXPLOSIVE PUNCH!** 💣\n"
+            f"**{attacker['name']}** detonates on impact!\n"
+            f"💥 {bonus_damage} explosive damage!"
+        )
+
+    async def _hana_hana_effect(self, attacker, defender, base_damage):
+        """Hana Hana no Mi - Flower Paramecia"""
+        hits = random.randint(4, 8)
+        bonus_damage = int(base_damage * 0.6 * hits)
+        return bonus_damage, (
+            f"🌸 **THOUSAND FLEUR!** 🌸\n"
+            f"**{attacker['name']}** sprouts {hits} arms for a barrage!\n"
+            f"👐 {hits} arm strikes for {bonus_damage} total damage!"
+        )
+
+    async def _supa_supa_effect(self, attacker, defender, base_damage):
+        """Supa Supa no Mi - Blade Paramecia"""
+        bonus_damage = int(base_damage * 1.2)
+        await self.status_manager.apply_effect("bleed", defender, value=2)
+        return bonus_damage, (
+            f"⚔️ **BLADE SLICE!** ⚔️\n"
+            f"**{attacker['name']}** cuts with razor-sharp limbs!\n"
+            f"🩸 {bonus_damage} cutting damage + bleeding!"
+        )
+
+    async def _doru_doru_effect(self, attacker, defender, base_damage):
+        """Doru Doru no Mi - Wax Paramecia"""
+        await self.status_manager.apply_effect("defense_boost", attacker, duration=3)
+        bonus_damage = int(base_damage * 0.8)
+        return bonus_damage, (
+            f"🕯️ **WAX ARMOR!** 🕯️\n"
+            f"**{attacker['name']}** hardens into protective wax!\n"
+            f"🛡️ {bonus_damage} wax damage + 3-turn defense boost!"
+        )
+
     # ZOAN EFFECTS
     async def _regular_zoan_effect(self, fruit_name, attacker, defender, base_damage):
         """Regular Zoan transformation effects"""
@@ -886,7 +926,7 @@ class DevilFruitManager:
             await self.status_manager.apply_effect("speed_boost", attacker, duration=2)
             bonus_damage = int(base_damage * 1.1)
             hits = random.randint(2, 3)
-            bonus_damage *= hits
+            bonus_damage = int(bonus_damage * hits)
             return bonus_damage, (
                 f"🐆 **PREDATOR'S HUNT!** 🐆\n"
                 f"**{attacker['name']}** strikes with feline fury!\n"
@@ -955,133 +995,157 @@ class DevilFruitManager:
     # UTILITY METHODS
     def _get_base_damage(self, move: Dict[str, Any]) -> int:
         """Get base damage from move"""
-        move_type = MOVE_TYPES.get(move.get("type", "regular"), MOVE_TYPES["regular"])
-        min_damage, max_damage = move_type["base_damage_range"]
-        return (min_damage + max_damage) // 2
+        try:
+            move_type = MOVE_TYPES.get(move.get("type", "regular"), MOVE_TYPES["regular"])
+            min_damage, max_damage = move_type["base_damage_range"]
+            return (min_damage + max_damage) // 2
+        except Exception as e:
+            self.log.error(f"Error getting base damage: {e}")
+            return 15  # Safe default
 
     def _apply_environment_bonus(self, damage: int, fruit_name: str, environment: str) -> int:
         """Apply environment bonuses to fruit effects"""
-        if not damage or not environment:
-            return damage
+        try:
+            if not damage or not environment:
+                return damage
+                
+            env_data = ENVIRONMENTS.get(environment, {})
+            boost_types = env_data.get("boost_types", [])
+            multiplier = self.environment_multipliers.get(env_data.get("effect", ""), 1.0)
             
-        env_data = ENVIRONMENTS.get(environment, {})
-        boost_types = env_data.get("boost_types", [])
-        multiplier = self.environment_multipliers.get(env_data.get("effect", ""), 1.0)
-        
-        fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
-        if not fruit_data:
-            return damage
+            fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+            if not fruit_data:
+                return damage
+                
+            fruit_effect = fruit_data.get("effect", "")
             
-        fruit_effect = fruit_data.get("effect", "")
-        
-        # Check if fruit effect matches environment boosts
-        for boost_type in boost_types:
-            if boost_type in fruit_effect or boost_type == "all":
-                return int(damage * multiplier)
-        
-        return damage
+            # Check if fruit effect matches environment boosts
+            for boost_type in boost_types:
+                if boost_type in fruit_effect or boost_type == "all":
+                    return int(damage * multiplier)
+            
+            return damage
+        except Exception as e:
+            self.log.error(f"Error applying environment bonus: {e}")
+            return damage
 
     def _calculate_fruit_mastery_bonus(self, attacker: Dict[str, Any], fruit_name: str) -> float:
         """Calculate mastery bonus based on fruit usage"""
-        battles_won = attacker.get("wins", 0)
-        fruit_rarity = "Rare" if fruit_name in DEVIL_FRUITS["Rare"] else "Common"
-        
-        base_mastery = min(battles_won * 0.01, 0.25)  # Max 25% mastery bonus
-        
-        if fruit_rarity == "Rare":
-            base_mastery *= 1.5  # Rare fruits have higher mastery potential
-        
-        return 1.0 + base_mastery
+        try:
+            battles_won = attacker.get("wins", 0)
+            fruit_rarity = "Rare" if fruit_name in DEVIL_FRUITS["Rare"] else "Common"
+            
+            base_mastery = min(battles_won * 0.01, 0.25)  # Max 25% mastery bonus
+            
+            if fruit_rarity == "Rare":
+                base_mastery *= 1.5  # Rare fruits have higher mastery potential
+            
+            return 1.0 + base_mastery
+        except Exception as e:
+            self.log.error(f"Error calculating mastery bonus: {e}")
+            return 1.0
 
     async def _handle_awakened_abilities(self, fruit_name: str, attacker: Dict[str, Any], 
                                         defender: Dict[str, Any], base_damage: int) -> Tuple[int, Optional[str]]:
         """Handle awakened Devil Fruit abilities (for high-level players)"""
-        wins = attacker.get("wins", 0)
-        
-        # Awakening requires significant mastery
-        if wins < 100:
-            return 0, None
-        
-        if random.random() < 0.15:  # 15% chance for awakened ability
-            fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
-            fruit_type = fruit_data.get("type", "")
+        try:
+            wins = attacker.get("wins", 0)
             
-            if "Logia" in fruit_type:
-                # Environmental transformation
-                bonus_damage = int(base_damage * 2.0)
-                return bonus_damage, (
-                    f"🌟 **AWAKENED LOGIA!** 🌟\n"
-                    f"**{attacker['name']}** transforms the entire battlefield!\n"
-                    f"🌍 {bonus_damage} environmental devastation!"
-                )
-            elif "Paramecia" in fruit_type:
-                # Affect the opponent directly
-                bonus_damage = int(base_damage * 1.8)
-                await self.status_manager.apply_effect("confusion", defender, duration=3)
-                return bonus_damage, (
-                    f"🌟 **AWAKENED PARAMECIA!** 🌟\n"
-                    f"**{attacker['name']}** affects the enemy directly!\n"
-                    f"🎯 {bonus_damage} reality-altering damage + confusion!"
-                )
-            elif "Zoan" in fruit_type:
-                # Enhanced physical abilities
-                bonus_damage = int(base_damage * 1.6)
-                await self.status_manager.apply_effect("attack_boost", attacker, duration=4)
-                await self.status_manager.apply_effect("defense_boost", attacker, duration=4)
-                return bonus_damage, (
-                    f"🌟 **AWAKENED ZOAN!** 🌟\n"
-                    f"**{attacker['name']}** transcends their beast form!\n"
-                    f"💪 {bonus_damage} transcendent damage + enhanced stats!"
-                )
-        
-        return 0, None
+            # Awakening requires significant mastery
+            if wins < 100:
+                return 0, None
+            
+            if random.random() < 0.15:  # 15% chance for awakened ability
+                fruit_data = DEVIL_FRUITS["Common"].get(fruit_name) or DEVIL_FRUITS["Rare"].get(fruit_name)
+                fruit_type = fruit_data.get("type", "")
+                
+                if "Logia" in fruit_type:
+                    # Environmental transformation
+                    bonus_damage = int(base_damage * 2.0)
+                    return bonus_damage, (
+                        f"🌟 **AWAKENED LOGIA!** 🌟\n"
+                        f"**{attacker['name']}** transforms the entire battlefield!\n"
+                        f"🌍 {bonus_damage} environmental devastation!"
+                    )
+                elif "Paramecia" in fruit_type:
+                    # Affect the opponent directly
+                    bonus_damage = int(base_damage * 1.8)
+                    await self.status_manager.apply_effect("confusion", defender, duration=3)
+                    return bonus_damage, (
+                        f"🌟 **AWAKENED PARAMECIA!** 🌟\n"
+                        f"**{attacker['name']}** affects the enemy directly!\n"
+                        f"🎯 {bonus_damage} reality-altering damage + confusion!"
+                    )
+                elif "Zoan" in fruit_type:
+                    # Enhanced physical abilities
+                    bonus_damage = int(base_damage * 1.6)
+                    await self.status_manager.apply_effect("attack_boost", attacker, duration=4)
+                    await self.status_manager.apply_effect("defense_boost", attacker, duration=4)
+                    return bonus_damage, (
+                        f"🌟 **AWAKENED ZOAN!** 🌟\n"
+                        f"**{attacker['name']}** transcends their beast form!\n"
+                        f"💪 {bonus_damage} transcendent damage + enhanced stats!"
+                    )
+            
+            return 0, None
+        except Exception as e:
+            self.log.error(f"Error handling awakened abilities: {e}")
+            return 0, None
 
     async def _check_fruit_interactions(self, attacker_fruit: str, defender_fruit: str, 
                                        base_damage: int) -> Tuple[int, Optional[str]]:
         """Check for special fruit vs fruit interactions"""
-        interactions = {
-            ("Magu Magu no Mi", "Mera Mera no Mi"): {
-                "multiplier": 2.5,
-                "message": "🌋 Magma overwhelms fire! Superior Logia dominance!"
-            },
-            ("Hie Hie no Mi", "Mera Mera no Mi"): {
-                "multiplier": 0.8,
-                "message": "❄️🔥 Ice and fire clash in elemental struggle!"
-            },
-            ("Yami Yami no Mi", "*"): {  # Darkness affects all fruits
-                "multiplier": 1.3,
-                "message": "🌑 Darkness nullifies Devil Fruit resistance!"
-            },
-            ("Goro Goro no Mi", "Gomu Gomu no Mi"): {
-                "multiplier": 0.1,
-                "message": "⚡🔴 Rubber completely negates lightning!"
+        try:
+            interactions = {
+                ("Magu Magu no Mi", "Mera Mera no Mi"): {
+                    "multiplier": 2.5,
+                    "message": "🌋 Magma overwhelms fire! Superior Logia dominance!"
+                },
+                ("Hie Hie no Mi", "Mera Mera no Mi"): {
+                    "multiplier": 0.8,
+                    "message": "❄️🔥 Ice and fire clash in elemental struggle!"
+                },
+                ("Yami Yami no Mi", "*"): {  # Darkness affects all fruits
+                    "multiplier": 1.3,
+                    "message": "🌑 Darkness nullifies Devil Fruit resistance!"
+                },
+                ("Goro Goro no Mi", "Gomu Gomu no Mi"): {
+                    "multiplier": 0.1,
+                    "message": "⚡🔴 Rubber completely negates lightning!"
+                }
             }
-        }
-        
-        # Check specific interactions
-        key = (attacker_fruit, defender_fruit)
-        if key in interactions:
-            interaction = interactions[key]
-            bonus = int(base_damage * (interaction["multiplier"] - 1.0))
-            return bonus, interaction["message"]
-        
-        # Check wildcard interactions
-        for (attack_fruit, defend_fruit), interaction in interactions.items():
-            if attack_fruit == attacker_fruit and defend_fruit == "*":
+            
+            # Check specific interactions
+            key = (attacker_fruit, defender_fruit)
+            if key in interactions:
+                interaction = interactions[key]
                 bonus = int(base_damage * (interaction["multiplier"] - 1.0))
                 return bonus, interaction["message"]
-        
-        return 0, None
+            
+            # Check wildcard interactions
+            for (attack_fruit, defend_fruit), interaction in interactions.items():
+                if attack_fruit == attacker_fruit and defend_fruit == "*":
+                    bonus = int(base_damage * (interaction["multiplier"] - 1.0))
+                    return bonus, interaction["message"]
+            
+            return 0, None
+        except Exception as e:
+            self.log.error(f"Error checking fruit interactions: {e}")
+            return 0, None
 
     async def _default_fruit_effect(self, fruit_name: str, attacker: Dict[str, Any], 
                                    defender: Dict[str, Any], base_damage: int) -> Tuple[int, Optional[str]]:
         """Default effect for fruits without specific implementations"""
-        bonus_damage = int(base_damage * 0.2)
-        return bonus_damage, (
-            f"✨ **DEVIL FRUIT POWER!** ✨\n"
-            f"**{attacker['name']}** channels their {fruit_name} ability!\n"
-            f"💫 {bonus_damage} enhanced damage!"
-        )
+        try:
+            bonus_damage = int(base_damage * 0.2)
+            return bonus_damage, (
+                f"✨ **DEVIL FRUIT POWER!** ✨\n"
+                f"**{attacker['name']}** channels their {fruit_name} ability!\n"
+                f"💫 {bonus_damage} enhanced damage!"
+            )
+        except Exception as e:
+            self.log.error(f"Error in default fruit effect: {e}")
+            return 0, None
 
     # Additional specific fruit effects can be added here
     async def _magu_magu_effect(self, attacker, defender, base_damage):
