@@ -26,6 +26,46 @@ discussion:
     category: "theories"
     difficulty: "hard"
 
+  - prompt: "What's your favorite Gear 5 moment so far?"
+    category: "powers"
+    difficulty: "easy"
+    
+  - prompt: "Which giant from Elbaph impressed you the most?"
+    category: "characters"
+    difficulty: "easy"
+    
+  - prompt: "What's your opinion on Jinbe as the newest Straw Hat?"
+    category: "crew"
+    difficulty: "easy"
+    
+  - prompt: "Do you think Loki will join the Straw Hat crew?"
+    category: "theories"
+    difficulty: "medium"
+    
+  - prompt: "What do you think about Robin's reunion with Saul?"
+    category: "emotions"
+    difficulty: "medium"
+    
+  - prompt: "How do you feel about the Holy Knights as antagonists?"
+    category: "villains"
+    difficulty: "medium"
+    
+  - prompt: "What's your theory about Scopper Gaban's current role?"
+    category: "mysteries"
+    difficulty: "hard"
+    
+  - prompt: "How do you think the Holy Knights' healing will be countered?"
+    category: "theories"
+    difficulty: "hard"
+    
+  - prompt: "What's your theory about Shamrock looking like Shanks?"
+    category: "mysteries"
+    difficulty: "hard"
+    
+  - prompt: "How will Vegapunk's broadcast change the world?"
+    category: "worldbuilding"
+    difficulty: "hard"
+
 # Creative challenges - art, writing, imagination
 creative:
   - prompt: "Draw or describe your own pirate flag design!"
@@ -52,6 +92,42 @@ creative:
     category: "food"
     difficulty: "easy"
 
+  - prompt: "Design a giant-themed restaurant menu for Elbaph!"
+    category: "food"
+    difficulty: "easy"
+    
+  - prompt: "Create your own Holy Knight character with unique powers!"
+    category: "characters"
+    difficulty: "medium"
+    
+  - prompt: "Design a new Gear 5 technique for Luffy!"
+    category: "powers"
+    difficulty: "medium"
+    
+  - prompt: "Create a backstory for Prince Loki's imprisonment!"
+    category: "writing"
+    difficulty: "medium"
+    
+  - prompt: "Design a weapon worthy of Elbaph's Giant Warriors!"
+    category: "art"
+    difficulty: "medium"
+    
+  - prompt: "Write a conversation between Luffy and Loki about freedom!"
+    category: "writing"
+    difficulty: "medium"
+    
+  - prompt: "Create your own theory about the Void Century!"
+    category: "worldbuilding"
+    difficulty: "hard"
+    
+  - prompt: "Design a complete battle strategy against the Holy Knights!"
+    category: "strategy"
+    difficulty: "hard"
+    
+  - prompt: "Write an alternate version of the Egghead Arc ending!"
+    category: "writing"
+    difficulty: "hard"
+
 # Knowledge-based challenges (mini trivia)
 trivia:
   - prompt: "Name 3 members of the Worst Generation"
@@ -72,6 +148,36 @@ trivia:
     difficulty: "medium"
     category: "locations"
 
+  - prompt: "Name 4 Holy Knights members"
+    answers: ["gunko", "shamrock", "figarland shamrock", "sommers", "saint sommers", "killingham", "saint killingham", "garling", "figarland garling"]
+    min_correct: 4
+    difficulty: "medium"
+    category: "antagonists"
+    
+  - prompt: "List 6 Devil Fruit Awakening users"
+    answers: ["luffy", "doflamingo", "katakuri", "law", "kid", "kidd", "crocodile", "kaku", "lucci", "rob lucci"]
+    min_correct: 6
+    difficulty: "hard"
+    category: "powers"
+    
+  - prompt: "Name 5 former Roger Pirates members"
+    answers: ["roger", "rayleigh", "scopper gaban", "gaban", "crocus", "buggy", "shanks", "kozuki oden", "oden"]
+    min_correct: 5
+    difficulty: "medium"
+    category: "history"
+    
+  - prompt: "Name 3 Mythical Zoan users"
+    answers: ["luffy", "marco", "sengoku", "yamato", "kaido", "orochi", "catarina devon", "devon"]
+    min_correct: 3
+    difficulty: "medium"
+    category: "powers"
+    
+  - prompt: "List 4 Road Poneglyph locations"
+    answers: ["zou", "whole cake island", "wano", "unknown location", "fishman island"]
+    min_correct: 3
+    difficulty: "hard"
+    category: "lore"
+
 # Scenario-based challenges
 scenario:
   - prompt: "You're stuck on a deserted island with one Straw Hat member. Who do you choose and why?"
@@ -90,6 +196,30 @@ scenario:
     category: "roleplay"
     difficulty: "easy"
 
+  - prompt: "You're trapped on Elbaph with one Straw Hat. Who helps you survive?"
+    category: "survival"
+    difficulty: "easy"
+    
+  - prompt: "A Holy Knight offers you power for loyalty. Do you accept?"
+    category: "decision"
+    difficulty: "easy"
+    
+  - prompt: "You must choose 3 allies to defend Elbaph. Who do you pick?"
+    category: "strategy"
+    difficulty: "medium"
+    
+  - prompt: "You find one of Vegapunk's inventions. What do you do?"
+    category: "decision"
+    difficulty: "medium"
+    
+  - prompt: "You can prevent one major death in One Piece. Who do you save?"
+    category: "hypothetical"
+    difficulty: "hard"
+    
+  - prompt: "You must negotiate peace between World Government and Revolutionaries. How?"
+    category: "diplomacy"
+    difficulty: "hard"
+
 # Debate/Opinion challenges
 debate:
   - prompt: "Who would win: Pre-timeskip Crocodile vs Current Buggy?"
@@ -105,6 +235,34 @@ debate:
     difficulty: "easy"
     
   - prompt: "Who has the best character development in the series?"
+    category: "characters"
+    difficulty: "medium"
+
+  - prompt: "Who would win: Current Zoro vs Prime Oden?"
+    category: "powerscaling"
+    difficulty: "medium"
+    
+  - prompt: "Is Gear 5 too overpowered or perfectly balanced?"
+    category: "powers"
+    difficulty: "medium"
+    
+  - prompt: "Best Emperor: Shanks, Blackbeard, or Kaido?"
+    category: "characters"
+    difficulty: "easy"
+    
+  - prompt: "Most emotional arc: Marineford, Water 7, or Whole Cake Island?"
+    category: "story"
+    difficulty: "easy"
+    
+  - prompt: "Could the Holy Knights defeat all Four Emperors together?"
+    category: "powerscaling"
+    difficulty: "hard"
+    
+  - prompt: "Is Imu stronger than Roger was in his prime?"
+    category: "powerscaling"
+    difficulty: "hard"
+    
+  - prompt: "Best villain design: Doflamingo, Katakuri, or Kaido?"
     category: "characters"
     difficulty: "medium"
 
@@ -126,6 +284,56 @@ memory:
     category: "crew"
     difficulty: "easy"
 
+  - prompt: "What is Luffy's current most powerful form?"
+    answers: ["gear 5", "gear fifth", "sun god nika", "nika form"]
+    category: "powers"
+    difficulty: "easy"
+    
+  - prompt: "Which island are the Straw Hats currently visiting?"
+    answers: ["elbaph", "elbaf"]
+    category: "current"
+    difficulty: "easy"
+    
+  - prompt: "Who is Robin's childhood friend on Elbaph?"
+    answers: ["saul", "jaguar d saul", "jaguar d. saul"]
+    category: "current"
+    difficulty: "medium"
+    
+  - prompt: "Which Holy Knight looks like Shanks?"
+    answers: ["shamrock", "figarland shamrock"]
+    category: "current"
+    difficulty: "medium"
+    
+  - prompt: "What Devil Fruit does Saint Sommers have?"
+    answers: ["iba iba no mi", "thorn fruit", "thorn thorn fruit"]
+    category: "powers"
+    difficulty: "hard"
+    
+  - prompt: "Which Rocks Pirate did young Loki want to join?"
+    answers: ["rocks d xebec", "xebec", "rocks"]
+    category: "flashbacks"
+    difficulty: "hard"
+    
+  - prompt: "What is Elbaph's library called?"
+    answers: ["owl library", "the owl library"]
+    category: "current"
+    difficulty: "medium"
+    
+  - prompt: "What was Luffy's first ship called?"
+    answers: ["going merry", "merry"]
+    category: "ships"
+    difficulty: "easy"
+    
+  - prompt: "Who taught Luffy Haki?"
+    answers: ["rayleigh", "silvers rayleigh"]
+    category: "training"
+    difficulty: "easy"
+    
+  - prompt: "What is Prince Loki's current status on Elbaph?"
+    answers: ["imprisoned", "chained", "captive"]
+    category: "current"
+    difficulty: "medium"
+
 # Photo/Screenshot challenges
 visual:
   - prompt: "Post your favorite One Piece screenshot and explain why it's meaningful!"
@@ -139,3 +347,120 @@ visual:
   - prompt: "Share a screenshot that shows the best example of friendship in One Piece!"
     category: "friendship"
     difficulty: "medium"
+
+  - prompt: "Share your favorite Gear 5 panel and explain why!"
+    category: "powers"
+    difficulty: "easy"
+    
+  - prompt: "Post the best Robin and Saul reunion moment!"
+    category: "emotions"
+    difficulty: "easy"
+    
+  - prompt: "Find a panel showing Elbaph's massive scale!"
+    category: "worldbuilding"
+    difficulty: "easy"
+    
+  - prompt: "Share a panel that shows the Holy Knights' threat level!"
+    category: "antagonists"
+    difficulty: "medium"
+    
+  - prompt: "Post your favorite emotional Elbaph Arc moment!"
+    category: "emotions"
+    difficulty: "medium"
+    
+  - prompt: "Share a screenshot showing great Straw Hat teamwork!"
+    category: "crew"
+    difficulty: "medium"
+    
+  - prompt: "Find a panel that foreshadows future Final Saga events!"
+    category: "theories"
+    difficulty: "hard"
+
+# Power scaling challenges
+powerscaling:
+  - prompt: "Rank the current Straw Hats by combat strength"
+    category: "crew"
+    difficulty: "medium"
+    
+  - prompt: "Who would win: All Straw Hats vs Blackbeard Pirates?"
+    category: "crews"
+    difficulty: "hard"
+    
+  - prompt: "Rank the Holy Knights by apparent strength"
+    category: "antagonists"
+    difficulty: "hard"
+    
+  - prompt: "How does current Luffy compare to Prime Whitebeard?"
+    category: "comparison"
+    difficulty: "hard"
+    
+  - prompt: "Strongest Mythical Zoan user currently?"
+    category: "powers"
+    difficulty: "medium"
+
+# Current events (2025 specific)
+current_events:
+  - prompt: "What arc is currently running in the manga?"
+    answers: ["elbaph arc", "elbaph", "elbaf arc", "elbaf"]
+    category: "current"
+    difficulty: "easy"
+    
+  - prompt: "Who is the newest Straw Hat member?"
+    answers: ["jinbe", "jinbei"]
+    category: "crew"
+    difficulty: "easy"
+    
+  - prompt: "What organization is attacking Elbaph?"
+    answers: ["holy knights", "god's knights", "gods knights"]
+    category: "current"
+    difficulty: "medium"
+    
+  - prompt: "Which Roger Pirate appeared in recent chapters?"
+    answers: ["scopper gaban", "gaban"]
+    category: "current"
+    difficulty: "medium"
+    
+  - prompt: "What special ability do Holy Knights have?"
+    answers: ["healing", "regeneration", "immortality"]
+    category: "powers"
+    difficulty: "hard"
+
+# Character analysis
+character_analysis:
+  - prompt: "Which Straw Hat has grown the most since timeskip?"
+    category: "development"
+    difficulty: "medium"
+    
+  - prompt: "How has Robin's character evolved since Saul's reunion?"
+    category: "development"
+    difficulty: "medium"
+    
+  - prompt: "What development does Jinbe need as a Straw Hat?"
+    category: "development"
+    difficulty: "medium"
+    
+  - prompt: "Analyze Luffy's leadership evolution throughout the series"
+    category: "development"
+    difficulty: "hard"
+    
+  - prompt: "How will each Straw Hat achieve their dream?"
+    category: "predictions"
+    difficulty: "hard"
+
+# World building
+worldbuilding:
+  - prompt: "How will Vegapunk's broadcast change the world?"
+    category: "politics"
+    difficulty: "medium"
+    
+  - prompt: "What impact will Holy Knights have on world balance?"
+    category: "politics"
+    difficulty: "hard"
+    
+  - prompt: "How will the Void Century revelation affect current politics?"
+    category: "politics"
+    difficulty: "hard"
+    
+  - prompt: "What will the world look like after the Final War?"
+    category: "predictions"
+    difficulty: "hard"
