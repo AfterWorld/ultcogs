@@ -16,8 +16,8 @@ A simple Red-DiscordBot v3 cog that adds dramatic flair to your moderation with 
 ## Installation
 
 1. Add the repo: `[p]repo add ultcogs https://github.com/AfterWorld/ultcogs`
-2. Install the cog: `[p]cog install ultcogs grilled`
-3. Load the cog: `[p]load grilled`
+2. Install the cog: `[p]cog install ultcogs grill`
+3. Load the cog: `[p]load grill`
 
 ## Commands
 
