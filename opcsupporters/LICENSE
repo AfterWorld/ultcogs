@@ -1,0 +1,44 @@
+MIT License
+
+Copyright (c) 2022 AAA3A (Original ServerSupporters cog)
+Copyright (c) 2025 UltPanda (OPC Server Supporters modifications)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ATTRIBUTION NOTICE:
+
+This cog (OPC Server Supporters) is heavily based on the original ServerSupporters 
+cog created by AAA3A. The core architecture, event listeners, caching system, 
+member scanning logic, and many other fundamental features are derived from 
+AAA3A's original work.
+
+Original ServerSupporters cog:
+- Author: AAA3A
+- Repository: https://github.com/AAA3A-AAA3A/AAA3A-cogs  
+- License: MIT License
+
+We have modified the original work to:
+- Remove AAA3A_utils dependency
+- Add OPC-specific hardcoded values
+- Implement announcement-only functionality
+- Add live statistics features
+
+Full attribution details can be found in CREDITS.md
