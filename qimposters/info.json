@@ -1,0 +1,28 @@
+{
+    "name": "OnePieceImposters",
+    "short": "🏴‍☠️ One Piece themed social deduction game with questions and imposters",
+    "description": "A thrilling social deduction game where pirates answer One Piece trivia questions, but some crew members receive different secret missions! Players must identify the imposters based on their suspicious answers. Features normal rounds with 1-3 imposters and rare chaos rounds where everyone gets different questions. Includes 50+ One Piece questions across 10+ categories like Devil Fruits, Straw Hats, locations, and more. Perfect for One Piece fans who love strategy and social gameplay!",
+    "author": [
+        "UltPanda"
+    ],
+    "requirements": [],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "type": "COG",
+    "install_msg": "🏴‍☠️ **One Piece Question Imposters installed successfully!** ⚓\n\nSet sail on an adventure of deduction and One Piece knowledge!\n\n**Quick Start:**\n• Use `[p]onepiece start` to begin a game\n• Use `[p]onepiece categories` to see question topics\n• Use `[p]onepiece help` for full instructions\n\n**How to Play:**\n1. Players join with ⚓ reactions\n2. Answer One Piece questions in DMs\n3. Some players get different questions (imposters!)\n4. Vote to identify the imposters\n5. Earn points and have fun!\n\n🌟 **Special Features:**\n• 50+ One Piece questions across 10+ categories\n• Rare chaos rounds where everyone gets different questions\n• Score tracking and leaderboards\n• Configurable game settings\n\nMay your journey on the Grand Line be legendary! 🗺️",
+    "tags": [
+        "game",
+        "social",
+        "deduction",
+        "trivia",
+        "onepiece",
+        "anime",
+        "fun",
+        "interactive",
+        "multiplayer",
+        "strategy"
+    ],
+    "hidden": false,
+    "disabled": false,
+    "end_user_data_statement": "This cog stores user IDs for game participation tracking and temporary game scores during active sessions. No persistent user data is stored beyond active game sessions. All data is cleared when games end or the bot restarts."
+}
