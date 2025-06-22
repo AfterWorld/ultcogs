@@ -208,7 +208,7 @@ class OnePieceImposters(commands.Cog):
                 )
                 return await ctx.send(embed=embed)
         
-        game = OnePieceGameSession(ctx.channel, self.config, category)
+        game = OnePieceGameSession(ctx.channel, self.config, self.bot, category)
         self.active_games[ctx.guild.id] = game
         
         embed = discord.Embed(
@@ -348,9 +348,10 @@ class OnePieceImposters(commands.Cog):
 class OnePieceGameSession:
     """Manages a single One Piece game session"""
     
-    def __init__(self, channel: discord.TextChannel, config, category: str = None):
+    def __init__(self, channel: discord.TextChannel, config, bot: Red, category: str = None):
         self.channel = channel
         self.config = config
+        self.bot = bot
         self.category = category
         self.players: Set[discord.Member] = set()
         self.answers: Dict[discord.Member, str] = {}
@@ -822,7 +823,7 @@ class OnePieceGameSession:
         await self.channel.send(embed=embed)
         
         # Clean up the game
-        cog = self.channel.guild.get_bot().get_cog("OnePieceImposters")
+        cog = self.bot.get_cog("OnePieceImposters")
         if cog and self.channel.guild.id in cog.active_games:
             del cog.active_games[self.channel.guild.id]
 
