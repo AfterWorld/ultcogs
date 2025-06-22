@@ -10,7 +10,6 @@ from redbot.core import commands, Config, checks
 from redbot.core.bot import Red
 from redbot.core.commands import Context
 from redbot.core.utils.predicates import MessagePredicate
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 
 # Import our One Piece questions
 from .onepiece_questions import (
@@ -21,6 +20,134 @@ from .onepiece_questions import (
     get_available_categories,
     get_questions_by_category
 )
+
+class JoinGameView(discord.ui.View):
+    """View for joining the game"""
+    
+    def __init__(self, game_session):
+        super().__init__(timeout=300)
+        self.game = game_session
+    
+    @discord.ui.button(label="Join Crew", emoji="⚓", style=discord.ButtonStyle.primary)
+    async def join_crew(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        await self.game.add_player(interaction.user)
+    
+    @discord.ui.button(label="Start Adventure", emoji="🚢", style=discord.ButtonStyle.success)
+    async def start_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if len(self.game.players) < await self.game.config.guild(self.game.channel.guild).min_players():
+            await interaction.response.send_message(
+                f"❌ Need at least {await self.game.config.guild(self.game.channel.guild).min_players()} pirates to start!",
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.defer()
+        await self.game.start_game()
+        self.stop()
+
+class VotingView(discord.ui.View):
+    """View for voting on imposters"""
+    
+    def __init__(self, game_session, answer_items, voting_time):
+        super().__init__(timeout=voting_time)
+        self.game = game_session
+        self.answer_items = answer_items
+        
+        # Create voting buttons for each player
+        for i, (player, answer) in enumerate(answer_items):
+            if i < 10:  # Discord limit of 25 buttons per view, but we'll keep it reasonable
+                button = discord.ui.Button(
+                    label=f"{i+1}. {player.display_name[:15]}",
+                    style=discord.ButtonStyle.secondary,
+                    custom_id=f"vote_{i}"
+                )
+                button.callback = self.create_vote_callback(i, player)
+                self.add_item(button)
+    
+    def create_vote_callback(self, index, player):
+        async def vote_callback(interaction: discord.Interaction):
+            if interaction.user not in self.game.players:
+                await interaction.response.send_message("❌ You're not part of this game!", ephemeral=True)
+                return
+            
+            self.game.votes[interaction.user] = player
+            await interaction.response.send_message(
+                f"🗳️ You voted for **{player.display_name}**!",
+                ephemeral=True
+            )
+        
+        return vote_callback
+    
+    async def on_timeout(self):
+        """Called when voting time expires"""
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        if hasattr(self.game, 'voting_message'):
+            try:
+                await self.game.voting_message.edit(view=self)
+            except discord.NotFound:
+                pass
+
+class ContinueGameView(discord.ui.View):
+    """View for continuing or ending the game"""
+    
+    def __init__(self, game_session):
+        super().__init__(timeout=30)
+        self.game = game_session
+        self.continue_votes = 0
+        self.stop_votes = 0
+        self.voters = set()
+    
+    @discord.ui.button(label="Another Round", emoji="⚓", style=discord.ButtonStyle.primary)
+    async def continue_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user not in self.game.players:
+            await interaction.response.send_message("❌ You're not part of this game!", ephemeral=True)
+            return
+        
+        if interaction.user in self.voters:
+            await interaction.response.send_message("❌ You already voted!", ephemeral=True)
+            return
+        
+        self.voters.add(interaction.user)
+        self.continue_votes += 1
+        
+        await interaction.response.send_message("⚓ Voted to continue!", ephemeral=True)
+        await self.check_votes()
+    
+    @discord.ui.button(label="End Game", emoji="🛑", style=discord.ButtonStyle.danger)
+    async def end_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user not in self.game.players:
+            await interaction.response.send_message("❌ You're not part of this game!", ephemeral=True)
+            return
+        
+        if interaction.user in self.voters:
+            await interaction.response.send_message("❌ You already voted!", ephemeral=True)
+            return
+        
+        self.voters.add(interaction.user)
+        self.stop_votes += 1
+        
+        await interaction.response.send_message("🛑 Voted to end!", ephemeral=True)
+        await self.check_votes()
+    
+    async def check_votes(self):
+        """Check if we should continue or end based on votes"""
+        if len(self.voters) >= len(self.game.players) or self.continue_votes > len(self.game.players) // 2:
+            if self.continue_votes > self.stop_votes:
+                await self.game.start_round()
+            else:
+                await self.game.end_game()
+            self.stop()
+    
+    async def on_timeout(self):
+        """Called when voting time expires"""
+        if self.continue_votes > self.stop_votes:
+            await self.game.start_round()
+        else:
+            await self.game.end_game()
 
 class OnePieceImposters(commands.Cog):
     """
@@ -98,13 +225,13 @@ class OnePieceImposters(commands.Cog):
             )
         
         embed.add_field(
-            name="⚡ How to Join", 
-            value="React with ⚓ to join the crew!",
+            name="👥 Players Needed", 
+            value=f"{await self.config.guild(ctx.guild).min_players()}-{await self.config.guild(ctx.guild).max_players()}",
             inline=True
         )
         embed.add_field(
-            name="👥 Players Needed", 
-            value=f"{await self.config.guild(ctx.guild).min_players()}-{await self.config.guild(ctx.guild).max_players()}",
+            name="👥 Current Crew",
+            value=f"0/{await self.config.guild(ctx.guild).max_players()} pirates",
             inline=True
         )
         embed.add_field(
@@ -113,43 +240,13 @@ class OnePieceImposters(commands.Cog):
             inline=False
         )
         
-        embed.set_footer(text="React with ⚓ to join! Captain will start when ready with 🚢")
+        embed.set_footer(text="Click 'Join Crew' to join! Captain can start when ready.")
         
-        message = await ctx.send(embed=embed)
-        await message.add_reaction("⚓")
-        await message.add_reaction("🚢")
+        view = JoinGameView(game)
+        message = await ctx.send(embed=embed, view=view)
         
         game.join_message = message
-        
-        # Start listening for reactions
-        await self.handle_join_reactions(game)
-    
-    async def handle_join_reactions(self, game: 'OnePieceGameSession'):
-        """Handle join reactions for the game"""
-        def check(reaction, user):
-            return (reaction.message.id == game.join_message.id and 
-                   not user.bot and 
-                   str(reaction.emoji) in ["⚓", "🚢"])
-        
-        while game.state == "waiting":
-            try:
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=300.0, check=check)
-                
-                if str(reaction.emoji) == "⚓":
-                    await game.add_player(user)
-                elif str(reaction.emoji) == "🚢" and len(game.players) >= await game.config.guild(game.channel.guild).min_players():
-                    await game.start_game()
-                    break
-                    
-            except asyncio.TimeoutError:
-                embed = discord.Embed(
-                    title="⏰ Game Timed Out",
-                    description="Not enough pirates joined the crew in time!",
-                    color=discord.Color.red()
-                )
-                await game.channel.send(embed=embed)
-                del self.active_games[game.channel.guild.id]
-                break
+        game.join_view = view
     
     @onepiece_game.command(name="stop")
     @checks.admin_or_permissions(manage_guild=True)
@@ -157,6 +254,11 @@ class OnePieceImposters(commands.Cog):
         """🛑 Stop the current game (Admin only)"""
         if ctx.guild.id not in self.active_games:
             return await ctx.send("❌ No game is currently running!")
+        
+        # Stop any active views
+        game = self.active_games[ctx.guild.id]
+        if hasattr(game, 'join_view'):
+            game.join_view.stop()
         
         del self.active_games[ctx.guild.id]
         
@@ -226,10 +328,10 @@ class OnePieceImposters(commands.Cog):
         
         embed.add_field(
             name="🎯 How to Play",
-            value="• Join with ⚓ reaction\n"
+            value="• Click 'Join Crew' to join\n"
                   "• Answer questions in DMs\n"
                   "• Some players get different questions (imposters!)\n"
-                  "• Vote to identify imposters\n"
+                  "• Vote with buttons to identify imposters\n"
                   "• Earn points for correct guesses!",
             inline=False
         )
@@ -252,7 +354,7 @@ class OnePieceGameSession:
         self.category = category
         self.players: Set[discord.Member] = set()
         self.answers: Dict[discord.Member, str] = {}
-        self.votes: Dict[discord.Member, int] = {}
+        self.votes: Dict[discord.Member, discord.Member] = {}
         self.scores: Dict[discord.Member, int] = defaultdict(int)
         
         self.current_question: Optional[Dict] = None
@@ -263,27 +365,38 @@ class OnePieceGameSession:
         self.state = "waiting"  # waiting, answering, voting, results
         self.round_number = 0
         self.join_message = None
+        self.join_view = None
+        self.voting_message = None
         
     async def add_player(self, user: discord.Member):
         """Add a player to the game"""
         max_players = await self.config.guild(self.channel.guild).max_players()
         
         if user in self.players:
-            await user.send("⚠️ You're already part of this crew!")
+            try:
+                await user.send("⚠️ You're already part of this crew!")
+            except discord.Forbidden:
+                pass
             return
             
         if len(self.players) >= max_players:
-            await user.send(f"❌ The crew is full! ({max_players} max)")
+            try:
+                await user.send(f"❌ The crew is full! ({max_players} max)")
+            except discord.Forbidden:
+                pass
             return
         
         self.players.add(user)
-        await user.send(f"⚓ Welcome to the crew, {user.display_name}! You've joined the One Piece Imposters adventure!")
+        try:
+            await user.send(f"⚓ Welcome to the crew, {user.display_name}! You've joined the One Piece Imposters adventure!")
+        except discord.Forbidden:
+            await self.channel.send(f"⚠️ {user.mention}, please enable DMs to receive game questions!")
         
         # Update the join message
         if self.join_message:
             embed = self.join_message.embeds[0]
             embed.set_field_at(
-                1,  # Players field
+                1,  # Current Crew field
                 name="👥 Current Crew",
                 value=f"{len(self.players)}/{await self.config.guild(self.channel.guild).max_players()} pirates",
                 inline=True
@@ -291,17 +404,25 @@ class OnePieceGameSession:
             
             if len(self.players) >= await self.config.guild(self.channel.guild).min_players():
                 embed.color = discord.Color.green()
-                embed.add_field(
-                    name="🚢 Ready to Sail!",
-                    value="Captain can now start the adventure!",
-                    inline=False
-                )
+                if len(embed.fields) < 4:  # Add ready field if not already there
+                    embed.add_field(
+                        name="🚢 Ready to Sail!",
+                        value="Captain can now start the adventure!",
+                        inline=False
+                    )
             
-            await self.join_message.edit(embed=embed)
+            try:
+                await self.join_message.edit(embed=embed)
+            except discord.NotFound:
+                pass
     
     async def start_game(self):
         """Start the actual game"""
         self.state = "starting"
+        
+        # Stop the join view
+        if self.join_view:
+            self.join_view.stop()
         
         embed = discord.Embed(
             title="🚢 Adventure Begins!",
@@ -377,6 +498,7 @@ class OnePieceGameSession:
         await self.channel.send(embed=embed)
         
         # DM questions to players
+        dm_failed_players = []
         for player in self.players:
             try:
                 if player in self.impostors:
@@ -403,7 +525,11 @@ class OnePieceGameSession:
                 await player.send(embed=embed)
                 
             except discord.Forbidden:
-                await self.channel.send(f"❌ Couldn't send DM to {player.mention}. Please enable DMs!")
+                dm_failed_players.append(player)
+        
+        if dm_failed_players:
+            failed_mentions = ", ".join([p.mention for p in dm_failed_players])
+            await self.channel.send(f"❌ Couldn't send DMs to: {failed_mentions}. Please enable DMs!")
         
         self.state = "answering"
         await self.collect_answers()
@@ -431,6 +557,7 @@ class OnePieceGameSession:
         await self.channel.send(embed=embed)
         
         # DM unique questions
+        dm_failed_players = []
         for player in self.players:
             try:
                 question_text = f"🎭 **YOUR UNIQUE QUESTION:**\n{self.chaos_questions[player]}"
@@ -444,7 +571,11 @@ class OnePieceGameSession:
                 await player.send(embed=embed)
                 
             except discord.Forbidden:
-                await self.channel.send(f"❌ Couldn't send DM to {player.mention}. Please enable DMs!")
+                dm_failed_players.append(player)
+        
+        if dm_failed_players:
+            failed_mentions = ", ".join([p.mention for p in dm_failed_players])
+            await self.channel.send(f"❌ Couldn't send DMs to: {failed_mentions}. Please enable DMs!")
         
         self.state = "answering"
         await self.collect_answers()
@@ -517,7 +648,7 @@ class OnePieceGameSession:
         if not self.is_chaos_round:
             embed.add_field(
                 name="🕵️ Your Mission",
-                value=f"Vote for the {len(self.impostors)} imposter(s)!\nReact with numbers to vote!",
+                value=f"Vote for the {len(self.impostors)} imposter(s)!\nClick the buttons below to vote!",
                 inline=False
             )
         else:
@@ -527,43 +658,14 @@ class OnePieceGameSession:
                 inline=False
             )
         
-        message = await self.channel.send(embed=embed)
-        
-        # Add number reactions for voting
-        number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-        for i in range(len(self.answers)):
-            if i < len(number_emojis):
-                await message.add_reaction(number_emojis[i])
+        voting_time = await self.config.guild(self.channel.guild).voting_time()
+        view = VotingView(self, answer_items, voting_time)
+        self.voting_message = await self.channel.send(embed=embed, view=view)
         
         self.state = "voting"
-        await self.collect_votes(message, answer_items)
-    
-    async def collect_votes(self, message, answer_items):
-        """Collect votes for imposters"""
-        voting_time = await self.config.guild(self.channel.guild).voting_time()
-        number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
         
-        def check(reaction, user):
-            return (user in self.players and 
-                   reaction.message.id == message.id and
-                   str(reaction.emoji) in number_emojis[:len(answer_items)])
-        
-        # Collect votes for the specified time
-        end_time = asyncio.get_event_loop().time() + voting_time
-        
-        while asyncio.get_event_loop().time() < end_time:
-            try:
-                remaining = end_time - asyncio.get_event_loop().time()
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=remaining, check=check)
-                
-                # Record vote
-                emoji_index = number_emojis.index(str(reaction.emoji))
-                voted_player = answer_items[emoji_index][0]
-                self.votes[user] = voted_player
-                
-            except asyncio.TimeoutError:
-                break
-        
+        # Wait for voting to complete
+        await asyncio.sleep(voting_time)
         await self.show_results()
     
     async def show_results(self):
@@ -680,48 +782,12 @@ class OnePieceGameSession:
         """Ask if players want another round"""
         embed = discord.Embed(
             title="🚢 Continue the Adventure?",
-            description="React with ⚓ for another round or 🛑 to end the game!",
+            description="Choose if you want another round or to end the game!",
             color=discord.Color.blue()
         )
         
-        message = await self.channel.send(embed=embed)
-        await message.add_reaction("⚓")
-        await message.add_reaction("🛑")
-        
-        def check(reaction, user):
-            return (user in self.players and 
-                   reaction.message.id == message.id and
-                   str(reaction.emoji) in ["⚓", "🛑"])
-        
-        continue_votes = 0
-        stop_votes = 0
-        voters = set()
-        
-        # Collect votes for 30 seconds
-        timeout = 30
-        end_time = asyncio.get_event_loop().time() + timeout
-        
-        while asyncio.get_event_loop().time() < end_time and len(voters) < len(self.players):
-            try:
-                remaining = end_time - asyncio.get_event_loop().time()
-                reaction, user = await self.bot.wait_for('reaction_add', timeout=remaining, check=check)
-                
-                if user not in voters:
-                    voters.add(user)
-                    if str(reaction.emoji) == "⚓":
-                        continue_votes += 1
-                    elif str(reaction.emoji) == "🛑":
-                        stop_votes += 1
-                        
-            except asyncio.TimeoutError:
-                break
-        
-        # Decide based on votes
-        if continue_votes > stop_votes:
-            await asyncio.sleep(2)
-            await self.start_round()
-        else:
-            await self.end_game()
+        view = ContinueGameView(self)
+        await self.channel.send(embed=embed, view=view)
     
     async def end_game(self):
         """End the game and show final results"""
@@ -756,8 +822,9 @@ class OnePieceGameSession:
         await self.channel.send(embed=embed)
         
         # Clean up the game
-        if self.channel.guild.id in self.channel.guild.get_cog("OnePieceImposters").active_games:
-            del self.channel.guild.get_cog("OnePieceImposters").active_games[self.channel.guild.id]
+        cog = self.channel.guild.get_bot().get_cog("OnePieceImposters")
+        if cog and self.channel.guild.id in cog.active_games:
+            del cog.active_games[self.channel.guild.id]
 
 async def setup(bot):
     await bot.add_cog(OnePieceImposters(bot))
