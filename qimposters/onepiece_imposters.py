@@ -235,6 +235,14 @@ class OnePieceImposters(commands.Cog):
                 game.join_view.stop()
             if hasattr(game, 'voting_view') and game.voting_view:
                 game.voting_view.stop()
+            
+            # Clean up game channels
+            if hasattr(game, 'game_channel') and game.game_channel and game.game_channel != game.channel:
+                try:
+                    asyncio.create_task(game.game_channel.delete(reason="Cog unloaded"))
+                except:
+                    pass
+        
         self.active_games.clear()
     
     @commands.group(name="onepiece", aliases=["op"])
@@ -262,6 +270,8 @@ class OnePieceImposters(commands.Cog):
             missing_perms.append("Embed Links")
         if not bot_perms.use_external_emojis:
             missing_perms.append("Use External Emojis")
+        if not bot_perms.manage_channels:
+            missing_perms.append("Manage Channels")
         
         if missing_perms:
             return await ctx.send(f"❌ I'm missing these permissions: {', '.join(missing_perms)}")
@@ -333,8 +343,17 @@ class OnePieceImposters(commands.Cog):
         
         # Stop any active views
         game = self.active_games[ctx.guild.id]
-        if hasattr(game, 'join_view'):
+        if hasattr(game, 'join_view') and game.join_view:
             game.join_view.stop()
+        if hasattr(game, 'voting_view') and game.voting_view:
+            game.voting_view.stop()
+        
+        # Clean up game channel
+        if hasattr(game, 'game_channel') and game.game_channel and game.game_channel != game.channel:
+            try:
+                await game.game_channel.delete(reason="Game stopped by admin")
+            except (discord.NotFound, discord.Forbidden):
+                pass
         
         del self.active_games[ctx.guild.id]
         
@@ -404,10 +423,11 @@ class OnePieceImposters(commands.Cog):
         
         embed.add_field(
             name="🎯 How to Play",
-            value="• Click 'Join Crew' to join\n"
+            value="• Click 'Join Crew' to join (DMs must be enabled!)\n"
                   "• Answer questions in DMs\n"
                   "• Some players get different questions (imposters!)\n"
                   "• Vote with buttons to identify imposters\n"
+                  "• Game creates temporary channel for results\n"
                   "• Earn points for correct guesses!",
             inline=False
         )
@@ -445,6 +465,7 @@ class OnePieceGameSession:
         self.join_view = None
         self.voting_message = None
         self.voting_view = None
+        self.game_channel = None  # Temporary channel for game results
         
     async def add_player(self, user: discord.Member):
         """Add a player to the game"""
@@ -464,11 +485,35 @@ class OnePieceGameSession:
                 pass
             return
         
-        self.players.add(user)
+        # Test DM capability
         try:
-            await user.send(f"⚓ Welcome to the crew, {user.display_name}! You've joined the One Piece Imposters adventure!")
+            test_embed = discord.Embed(
+                title="🏴‍☠️ DM Test Successful!",
+                description=f"Welcome to the crew, {user.display_name}! You've joined the One Piece Imposters adventure!",
+                color=discord.Color.green()
+            )
+            test_embed.add_field(
+                name="✅ Ready to Sail",
+                value="Your DMs are working perfectly! You'll receive questions here during the game.",
+                inline=False
+            )
+            await user.send(embed=test_embed)
         except discord.Forbidden:
-            await self.channel.send(f"⚠️ {user.mention}, please enable DMs to receive game questions!")
+            # DMs are closed
+            error_embed = discord.Embed(
+                title="❌ DMs Required",
+                description=f"{user.mention}, you need to enable DMs to play this game!",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(
+                name="How to Enable DMs",
+                value="Go to **User Settings** → **Privacy & Safety** → Enable **Allow direct messages from server members**",
+                inline=False
+            )
+            await self.channel.send(embed=error_embed, delete_after=10)
+            return
+        
+        self.players.add(user)
         
         # Update the join message
         if self.join_message:
@@ -503,6 +548,9 @@ class OnePieceGameSession:
         if self.join_view:
             self.join_view.stop()
         
+        # Create temporary game channel
+        await self.create_game_channel()
+        
         embed = discord.Embed(
             title="🚢 Adventure Begins!",
             description=f"**{len(self.players)} brave pirates** have joined the crew!\n\nPreparing for the first challenge...",
@@ -512,10 +560,79 @@ class OnePieceGameSession:
         crew_list = "\n".join([f"⚓ {player.display_name}" for player in self.players])
         embed.add_field(name="👥 Crew Manifest", value=crew_list, inline=False)
         
+        if self.game_channel:
+            embed.add_field(
+                name="🎯 Game Channel",
+                value=f"Results will be posted in {self.game_channel.mention}",
+                inline=False
+            )
+        
         await self.channel.send(embed=embed)
+        
+        # Also send to game channel if different
+        target_channel = self.game_channel if self.game_channel else self.channel
+        if target_channel != self.channel:
+            await target_channel.send(embed=embed)
+        
+        # Also send to game channel if different
+        target_channel = self.game_channel if self.game_channel else self.channel
+        if target_channel != self.channel:
+            await target_channel.send(embed=embed)
         await asyncio.sleep(3)
         
         await self.start_round()
+    
+    async def create_game_channel(self):
+        """Create a temporary channel for game results"""
+        try:
+            # Set up permissions for the game channel
+            overwrites = {
+                self.channel.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                self.channel.guild.me: discord.PermissionOverwrite(
+                    read_messages=True, 
+                    send_messages=True, 
+                    manage_messages=True,
+                    embed_links=True
+                )
+            }
+            
+            # Allow all players to read but not send messages
+            for player in self.players:
+                overwrites[player] = discord.PermissionOverwrite(
+                    read_messages=True, 
+                    send_messages=False
+                )
+            
+            # Create the channel
+            self.game_channel = await self.channel.guild.create_text_channel(
+                name="qimposter",
+                topic=f"🏴‍☠️ One Piece Question Imposters Game - Round {self.round_number}",
+                overwrites=overwrites,
+                reason="Temporary channel for One Piece Imposters game"
+            )
+            
+            # Send welcome message
+            welcome_embed = discord.Embed(
+                title="🏴‍☠️ Welcome to the Game Channel!",
+                description="This temporary channel will show game results and voting phases.",
+                color=discord.Color.from_rgb(255, 165, 0)
+            )
+            welcome_embed.add_field(
+                name="📋 Game Info",
+                value=f"• **Players**: {len(self.players)}\n• **Started by**: Game in {self.channel.mention}\n• **This channel will be deleted** after the game",
+                inline=False
+            )
+            
+            await self.game_channel.send(embed=welcome_embed)
+            
+        except discord.Forbidden:
+            # Can't create channel, use original channel
+            await self.channel.send("⚠️ Couldn't create game channel. Results will be posted here.")
+            self.game_channel = self.channel
+        except Exception as e:
+            # Fallback to original channel
+            await self.channel.send(f"⚠️ Error creating game channel: {str(e)[:100]}. Using this channel instead.")
+            self.game_channel = self.channel
     
     async def start_round(self):
         """Start a new round of the game"""
@@ -574,7 +691,10 @@ class OnePieceGameSession:
             inline=True
         )
         
+        # Send to both channels
         await self.channel.send(embed=embed)
+        if self.game_channel and self.game_channel != self.channel:
+            await self.game_channel.send(embed=embed)
         
         # DM questions to players
         dm_failed_players = []
@@ -608,7 +728,17 @@ class OnePieceGameSession:
         
         if dm_failed_players:
             failed_mentions = ", ".join([p.mention for p in dm_failed_players])
-            await self.channel.send(f"❌ Couldn't send DMs to: {failed_mentions}. Please enable DMs!")
+            error_embed = discord.Embed(
+                title="❌ DM Delivery Failed",
+                description=f"Couldn't send questions to: {failed_mentions}",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(
+                name="⚠️ These players will be skipped",
+                value="They won't be able to participate in this round.",
+                inline=False
+            )
+            await self.channel.send(embed=error_embed, delete_after=10)
         
         self.state = "answering"
         await self.collect_answers()
@@ -633,7 +763,10 @@ class OnePieceGameSession:
             inline=False
         )
         
+        # Send to both channels
         await self.channel.send(embed=embed)
+        if self.game_channel and self.game_channel != self.channel:
+            await self.game_channel.send(embed=embed)
         
         # DM unique questions
         dm_failed_players = []
@@ -654,7 +787,17 @@ class OnePieceGameSession:
         
         if dm_failed_players:
             failed_mentions = ", ".join([p.mention for p in dm_failed_players])
-            await self.channel.send(f"❌ Couldn't send DMs to: {failed_mentions}. Please enable DMs!")
+            error_embed = discord.Embed(
+                title="❌ DM Delivery Failed",
+                description=f"Couldn't send chaos questions to: {failed_mentions}",
+                color=discord.Color.red()
+            )
+            error_embed.add_field(
+                name="⚠️ These players will be skipped",
+                value="They won't be able to participate in this chaos round.",
+                inline=False
+            )
+            await self.channel.send(embed=error_embed, delete_after=10)
         
         self.state = "answering"
         await self.collect_answers()
@@ -695,7 +838,8 @@ class OnePieceGameSession:
                 description="All pirates fell asleep! Starting a new round...",
                 color=discord.Color.red()
             )
-            await self.channel.send(embed=embed)
+            target_channel = self.game_channel if self.game_channel else self.channel
+            await target_channel.send(embed=embed)
             await asyncio.sleep(3)
             await self.start_round()
             return
@@ -739,8 +883,20 @@ class OnePieceGameSession:
         
         voting_time = await self.config.guild(self.channel.guild).voting_time()
         view = VotingView(self, answer_items, voting_time)
-        self.voting_message = await self.channel.send(embed=embed, view=view)
+        
+        # Post voting in game channel
+        target_channel = self.game_channel if self.game_channel else self.channel
+        self.voting_message = await target_channel.send(embed=embed, view=view)
         self.voting_view = view  # Store reference for cleanup
+        
+        # Also notify main channel if using game channel
+        if self.game_channel and self.game_channel != self.channel:
+            notify_embed = discord.Embed(
+                title="🗳️ Voting Time!",
+                description=f"Head to {self.game_channel.mention} to see answers and vote!",
+                color=discord.Color.blue()
+            )
+            await self.channel.send(embed=notify_embed)
         
         self.state = "voting"
         
@@ -856,7 +1012,8 @@ class OnePieceGameSession:
         
         embed.add_field(name="Scores", value=score_text, inline=False)
         
-        await self.channel.send(embed=embed)
+        target_channel = self.game_channel if self.game_channel else self.channel
+        await target_channel.send(embed=embed)
     
     async def ask_next_round(self):
         """Ask if players want another round"""
@@ -867,7 +1024,8 @@ class OnePieceGameSession:
         )
         
         view = ContinueGameView(self)
-        await self.channel.send(embed=embed, view=view)
+        target_channel = self.game_channel if self.game_channel else self.channel
+        await target_channel.send(embed=embed, view=view)
     
     async def end_game(self):
         """End the game and show final results"""
@@ -905,7 +1063,26 @@ class OnePieceGameSession:
         
         embed.set_footer(text="Thanks for playing! Use the command again to start a new adventure!")
         
-        await self.channel.send(embed=embed)
+        target_channel = self.game_channel if self.game_channel else self.channel
+        await target_channel.send(embed=embed)
+        
+        # Also notify main channel if we used a game channel
+        if self.game_channel and self.game_channel != self.channel:
+            final_notify = discord.Embed(
+                title="🏁 Game Complete!",
+                description=f"The adventure has ended! Check {self.game_channel.mention} for final results.\n\nThe game channel will be deleted in 30 seconds.",
+                color=discord.Color.gold()
+            )
+            await self.channel.send(embed=final_notify)
+        
+        # Clean up the game channel after a delay
+        if self.game_channel and self.game_channel != self.channel:
+            await asyncio.sleep(30)  # Give players time to see results
+            try:
+                await self.game_channel.delete(reason="One Piece Imposters game completed")
+            except (discord.NotFound, discord.Forbidden):
+                # Channel already deleted or no permission
+                pass
         
         # Clean up the game
         cog = self.bot.get_cog("OnePieceImposters")
