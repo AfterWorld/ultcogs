@@ -24,9 +24,10 @@ from .onepiece_questions import (
 class JoinGameView(discord.ui.View):
     """View for joining the game"""
     
-    def __init__(self, game_session):
+    def __init__(self, game_session, bot):
         super().__init__(timeout=300)
         self.game = game_session
+        self.bot = bot
     
     @discord.ui.button(label="Join Crew", emoji="⚓", style=discord.ButtonStyle.primary)
     async def join_crew(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -45,6 +46,33 @@ class JoinGameView(discord.ui.View):
         await interaction.response.defer()
         await self.game.start_game()
         self.stop()
+    
+    async def on_timeout(self):
+        """Called when the view times out"""
+        embed = discord.Embed(
+            title="⏰ Game Timed Out",
+            description="Not enough pirates joined the crew in time!",
+            color=discord.Color.red()
+        )
+        try:
+            await self.game.channel.send(embed=embed)
+        except discord.HTTPException:
+            pass
+        
+        # Clean up the game
+        if hasattr(self.bot, 'get_cog'):
+            cog = self.bot.get_cog("OnePieceImposters")
+            if cog and self.game.channel.guild.id in cog.active_games:
+                del cog.active_games[self.game.channel.guild.id]
+        
+        # Disable buttons
+        for item in self.children:
+            item.disabled = True
+        
+        try:
+            await self.game.join_message.edit(view=self)
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
 class VotingView(discord.ui.View):
     """View for voting on imposters"""
@@ -135,15 +163,33 @@ class ContinueGameView(discord.ui.View):
     
     async def check_votes(self):
         """Check if we should continue or end based on votes"""
-        if len(self.voters) >= len(self.game.players) or self.continue_votes > len(self.game.players) // 2:
+        total_players = len(self.game.players)
+        
+        # If everyone voted or majority wants to continue
+        if len(self.voters) >= total_players or self.continue_votes > total_players // 2:
+            self.stop()  # Stop the view first
             if self.continue_votes > self.stop_votes:
                 await self.game.start_round()
             else:
                 await self.game.end_game()
+        elif self.stop_votes > total_players // 2:
+            # Majority wants to stop
             self.stop()
+            await self.game.end_game()
     
     async def on_timeout(self):
         """Called when voting time expires"""
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        try:
+            if hasattr(self.game, 'voting_message') and self.game.voting_message:
+                await self.game.voting_message.edit(view=self)
+        except (discord.NotFound, discord.HTTPException):
+            pass
+        
+        # Decide based on current votes
         if self.continue_votes > self.stop_votes:
             await self.game.start_round()
         else:
@@ -181,6 +227,16 @@ class OnePieceImposters(commands.Cog):
         # Active games storage
         self.active_games: Dict[int, OnePieceGameSession] = {}
     
+    def cog_unload(self):
+        """Clean up when cog is unloaded"""
+        # Stop all active games and their views
+        for game in self.active_games.values():
+            if hasattr(game, 'join_view') and game.join_view:
+                game.join_view.stop()
+            if hasattr(game, 'voting_view') and game.voting_view:
+                game.voting_view.stop()
+        self.active_games.clear()
+    
     @commands.group(name="onepiece", aliases=["op"])
     async def onepiece_game(self, ctx):
         """🏴‍☠️ One Piece Question Imposters commands"""
@@ -197,6 +253,20 @@ class OnePieceImposters(commands.Cog):
         if ctx.guild.id in self.active_games:
             return await ctx.send("⚠️ There's already a game running in this server!")
         
+        # Check bot permissions
+        bot_perms = ctx.channel.permissions_for(ctx.guild.me)
+        missing_perms = []
+        if not bot_perms.send_messages:
+            missing_perms.append("Send Messages")
+        if not bot_perms.embed_links:
+            missing_perms.append("Embed Links")
+        if not bot_perms.use_external_emojis:
+            missing_perms.append("Use External Emojis")
+        
+        if missing_perms:
+            return await ctx.send(f"❌ I'm missing these permissions: {', '.join(missing_perms)}")
+
+        
         # Validate category if provided
         if category:
             available_categories = get_available_categories()
@@ -207,6 +277,12 @@ class OnePieceImposters(commands.Cog):
                     color=discord.Color.red()
                 )
                 return await ctx.send(embed=embed)
+            
+            # Check if category has questions
+            questions = get_questions_by_category(category.lower())
+            if not questions:
+                return await ctx.send(f"❌ No questions found for category: {category}")
+
         
         game = OnePieceGameSession(ctx.channel, self.config, self.bot, category)
         self.active_games[ctx.guild.id] = game
@@ -242,7 +318,7 @@ class OnePieceImposters(commands.Cog):
         
         embed.set_footer(text="Click 'Join Crew' to join! Captain can start when ready.")
         
-        view = JoinGameView(game)
+        view = JoinGameView(game, self.bot)
         message = await ctx.send(embed=embed, view=view)
         
         game.join_message = message
@@ -368,6 +444,7 @@ class OnePieceGameSession:
         self.join_message = None
         self.join_view = None
         self.voting_message = None
+        self.voting_view = None
         
     async def add_player(self, user: discord.Member):
         """Add a player to the game"""
@@ -414,7 +491,8 @@ class OnePieceGameSession:
             
             try:
                 await self.join_message.edit(embed=embed)
-            except discord.NotFound:
+            except (discord.NotFound, discord.HTTPException):
+                # Message was deleted or we don't have permission
                 pass
     
     async def start_game(self):
@@ -662,6 +740,7 @@ class OnePieceGameSession:
         voting_time = await self.config.guild(self.channel.guild).voting_time()
         view = VotingView(self, answer_items, voting_time)
         self.voting_message = await self.channel.send(embed=embed, view=view)
+        self.voting_view = view  # Store reference for cleanup
         
         self.state = "voting"
         
@@ -792,6 +871,12 @@ class OnePieceGameSession:
     
     async def end_game(self):
         """End the game and show final results"""
+        # Stop any active views
+        if self.join_view:
+            self.join_view.stop()
+        if self.voting_view:
+            self.voting_view.stop()
+        
         embed = discord.Embed(
             title="🏁 Adventure Complete!",
             description="Thank you for playing One Piece Question Imposters!",
