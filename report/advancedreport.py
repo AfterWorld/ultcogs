@@ -33,26 +33,16 @@ class ReportView(discord.ui.View):
                 await interaction.response.send_message("❌ User not found in server", ephemeral=True)
                 return
             
-            # Get mute role or create timeout
-            mute_role_id = await self.cog.config.guild(interaction.guild).mute_role()
+            # Get mute duration from config
             duration_minutes = await self.cog.config.guild(interaction.guild).default_mute_duration()
             
-            if mute_role_id:
-                mute_role = interaction.guild.get_role(mute_role_id)
-                if mute_role:
-                    await reported_user.add_roles(mute_role, reason=f"Report action by {interaction.user}")
-                    action_text = f"Added mute role"
-                else:
-                    # Fallback to timeout
-                    await reported_user.timeout(discord.utils.utcnow() + discord.timedelta(minutes=duration_minutes), 
-                                              reason=f"Report action by {interaction.user}")
-                    action_text = f"Timed out for {duration_minutes} minutes"
-            else:
-                # Use Discord's built-in timeout
-                await reported_user.timeout(discord.utils.utcnow() + discord.timedelta(minutes=duration_minutes), 
-                                           reason=f"Report action by {interaction.user}")
-                action_text = f"Timed out for {duration_minutes} minutes"
+            # Use Discord's built-in timeout
+            await reported_user.timeout(
+                discord.utils.utcnow() + discord.timedelta(minutes=duration_minutes), 
+                reason=f"Report action by {interaction.user}"
+            )
             
+            action_text = f"Timed out for {duration_minutes} minutes"
             await self.update_report_status(interaction, f"🔇 {action_text}", discord.Color.orange())
             await self.log_action(interaction, "MUTE", action_text)
             
@@ -69,8 +59,11 @@ class ReportView(discord.ui.View):
             reported_user_id = self.report_data['reported_user_id']
             reason = f"Report action by {interaction.user} - Original report: {self.report_data['reason']}"
             
-            await interaction.guild.ban(discord.Object(id=reported_user_id), 
-                                       reason=reason, delete_message_days=1)
+            await interaction.guild.ban(
+                discord.Object(id=reported_user_id), 
+                reason=reason, 
+                delete_message_days=1
+            )
             
             await self.update_report_status(interaction, "🔨 User banned", discord.Color.red())
             await self.log_action(interaction, "BAN", "User banned from server")
@@ -97,13 +90,24 @@ class ReportView(discord.ui.View):
                 await self._fallback_warning(interaction, reported_user)
                 return
             
-            # Create a caution using the Cautions cog system
+            # Issue caution through Cautions cog
+            await self._issue_caution_with_cog(interaction, reported_user, cautions_cog)
+            
+        except Exception as e:
+            log.exception("Error in caution button")
+            await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+    
+    async def _issue_caution_with_cog(self, interaction, reported_user, cautions_cog):
+        """Issue caution using the Cautions cog"""
+        try:
+            # Get configured caution points
             points = await self.cog.get_caution_points(interaction.guild)
             reason = f"Report: {self.report_data['reason']}"
             
-            # Get warning expiry days from Cautions cog config
+            # Get warning expiry days from Cautions cog
             expiry_days = await cautions_cog.config.guild(interaction.guild).warning_expiry_days()
             
+            # Create warning structure that matches Cautions cog
             warning = {
                 "points": points,
                 "reason": reason,
@@ -112,7 +116,7 @@ class ReportView(discord.ui.View):
                 "expiry": (datetime.now(timezone.utc) + timedelta(days=expiry_days)).timestamp()
             }
             
-            # Add to member's warnings using Cautions cog structure
+            # Add warning to member's record
             member_config = cautions_cog.config.member(reported_user)
             async with member_config.warnings() as warnings_list:
                 warnings_list.append(warning)
@@ -123,52 +127,65 @@ class ReportView(discord.ui.View):
                 total_points = member_data["total_points"]
             
             # Try to DM the user
+            dm_status = await self._send_caution_dm(interaction, reported_user, warning, total_points)
+            
+            # Log through Cautions cog if possible
             try:
-                embed = discord.Embed(
-                    title="⚠️ Caution Issued",
-                    description=f"You have been cautioned in **{interaction.guild.name}**",
-                    color=discord.Color.yellow()
+                await cautions_cog.log_action(
+                    interaction.guild, 
+                    "Caution", 
+                    reported_user, 
+                    interaction.user, 
+                    reason,
+                    extra_fields=[
+                        {"name": "Points", "value": str(points)},
+                        {"name": "Total Points", "value": str(total_points)},
+                        {"name": "Report ID", "value": self.report_data.get('report_id', 'N/A')}
+                    ]
                 )
-                embed.add_field(name="Points", value=str(points), inline=True)
-                embed.add_field(name="Total Points", value=str(total_points), inline=True)
-                embed.add_field(name="Reason", value=reason, inline=False)
-                embed.add_field(name="Moderator", value=interaction.user.mention, inline=True)
-                embed.add_field(name="Expires", value=f"<t:{int(warning['expiry'])}:R>", inline=True)
-                embed.set_footer(text="Please follow the server rules to avoid further action")
-                
-                await reported_user.send(embed=embed)
-                dm_status = "✅ User notified via DM"
-            except discord.Forbidden:
-                dm_status = "⚠️ Could not DM user"
+            except Exception as log_error:
+                log.warning(f"Could not log through Cautions cog: {log_error}")
             
-            # Log the action using Cautions cog system
-            await cautions_cog.log_action(
-                interaction.guild, 
-                "Caution", 
-                reported_user, 
-                interaction.user, 
-                reason,
-                extra_fields=[
-                    {"name": "Points", "value": str(points)},
-                    {"name": "Total Points", "value": str(total_points)},
-                    {"name": "Report ID", "value": self.report_data.get('report_id', 'N/A')}
-                ]
-            )
+            # Check thresholds
+            try:
+                await cautions_cog.check_action_thresholds(interaction, reported_user, total_points)
+            except Exception as threshold_error:
+                log.warning(f"Could not check thresholds: {threshold_error}")
             
-            # Check if any action thresholds were reached
-            await cautions_cog.check_action_thresholds(interaction, reported_user, total_points)
-            
-            await self.update_report_status(interaction, f"⚠️ Caution issued ({points} point) - Total: {total_points} - {dm_status}", discord.Color.yellow())
-            await self.log_action(interaction, "CAUTION", f"Caution issued ({points} point) - Total: {total_points} - {dm_status}")
+            status_text = f"⚠️ Caution issued ({points} point) - Total: {total_points} - {dm_status}"
+            await self.update_report_status(interaction, status_text, discord.Color.yellow())
+            await self.log_action(interaction, "CAUTION", status_text)
             
         except Exception as e:
-            log.exception("Error in caution button")
-            await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+            log.exception("Error issuing caution with cog")
+            await self._fallback_warning(interaction, reported_user)
+    
+    async def _send_caution_dm(self, interaction, reported_user, warning, total_points):
+        """Send DM notification to cautioned user"""
+        try:
+            embed = discord.Embed(
+                title="⚠️ Caution Issued",
+                description=f"You have been cautioned in **{interaction.guild.name}**",
+                color=discord.Color.yellow()
+            )
+            embed.add_field(name="Points", value=str(warning["points"]), inline=True)
+            embed.add_field(name="Total Points", value=str(total_points), inline=True)
+            embed.add_field(name="Reason", value=warning["reason"], inline=False)
+            embed.add_field(name="Moderator", value=interaction.user.mention, inline=True)
+            embed.add_field(name="Expires", value=f"<t:{int(warning['expiry'])}:R>", inline=True)
+            embed.set_footer(text="Please follow the server rules to avoid further action")
+            
+            await reported_user.send(embed=embed)
+            return "✅ User notified via DM"
+        except discord.Forbidden:
+            return "⚠️ Could not DM user"
+        except Exception:
+            return "⚠️ DM notification failed"
     
     async def _fallback_warning(self, interaction: discord.Interaction, reported_user: discord.Member):
         """Fallback warning system if Cautions cog is not available"""
         try:
-            # Store warning in our own config as fallback
+            # Store simple warning in our config
             async with self.cog.config.member(reported_user).warnings() as warnings:
                 warning_data = {
                     "reason": f"Report: {self.report_data['reason']}",
@@ -179,6 +196,7 @@ class ReportView(discord.ui.View):
                 warnings.append(warning_data)
             
             # Try to DM the user
+            dm_status = "⚠️ Could not DM user"
             try:
                 embed = discord.Embed(
                     title="⚠️ Warning Issued",
@@ -191,11 +209,12 @@ class ReportView(discord.ui.View):
                 
                 await reported_user.send(embed=embed)
                 dm_status = "✅ User notified via DM"
-            except discord.Forbidden:
-                dm_status = "⚠️ Could not DM user"
+            except:
+                pass
             
-            await self.update_report_status(interaction, f"⚠️ Warning issued - {dm_status} (Cautions cog not available)", discord.Color.yellow())
-            await self.log_action(interaction, "WARN", f"Warning issued - {dm_status}")
+            status_text = f"⚠️ Warning issued - {dm_status} (Cautions cog not available)"
+            await self.update_report_status(interaction, status_text, discord.Color.yellow())
+            await self.log_action(interaction, "WARN", status_text)
             
         except Exception as e:
             log.exception("Error in fallback warning")
@@ -414,11 +433,6 @@ class AdvancedReport(red_commands.Cog):
             await ctx.send("❌ Caution points must be between 1 and 10")
             return
         
-        cautions_cog = self.bot.get_cog("Cautions")
-        if not cautions_cog:
-            await ctx.send("❌ Cautions cog is not loaded. This setting requires the Cautions cog.")
-            return
-        
         await self.config.guild(ctx.guild).default_caution_points.set(points)
         await ctx.send(f"✅ Default caution points for reports set to {points}")
     
@@ -435,7 +449,7 @@ class AdvancedReport(red_commands.Cog):
         if cautions_cog:
             embed.add_field(
                 name="⚠️ Cautions Cog",
-                value="✅ **Available** - Warning button will use the Cautions system",
+                value="✅ **Available** - Caution button will use the Cautions system",
                 inline=False
             )
             
@@ -459,28 +473,13 @@ class AdvancedReport(red_commands.Cog):
         else:
             embed.add_field(
                 name="⚠️ Cautions Cog",
-                value="❌ **Not Available** - Warning button will use fallback system",
+                value="❌ **Not Available** - Caution button will use fallback system",
                 inline=False
             )
             embed.add_field(
                 name="💡 Recommendation",
                 value="Install the Cautions cog for advanced warning features with points, thresholds, and automatic actions.",
                 inline=False
-            )
-        
-        # Check Bank system
-        try:
-            from redbot.core import bank
-            embed.add_field(
-                name="💰 Bank System",
-                value="✅ **Available** - Can integrate economy features if needed",
-                inline=True
-            )
-        except ImportError:
-            embed.add_field(
-                name="💰 Bank System", 
-                value="❌ **Not Available**",
-                inline=True
             )
         
         await ctx.send(embed=embed)
@@ -517,14 +516,6 @@ class AdvancedReport(red_commands.Cog):
         embed.add_field(
             name="Log Channel",
             value=log_channel.mention if log_channel else "Not set",
-            inline=True
-        )
-        
-        # Mute settings
-        mute_role = ctx.guild.get_role(settings['mute_role'])
-        embed.add_field(
-            name="Mute Role",
-            value=mute_role.mention if mute_role else "Uses timeout",
             inline=True
         )
         
@@ -573,6 +564,7 @@ class AdvancedReport(red_commands.Cog):
             await ctx.send("❌ You cannot report staff members through this system!", delete_after=10)
             return
         
+        # Process the report
         await self.process_report(ctx.guild, ctx.author, user, reason, ctx.message, ctx.channel)
         
         # Delete the original report command for privacy
