@@ -338,14 +338,17 @@ class AdvancedReport(red_commands.Cog):
             total_reports=0
         )
         
-        # Add context menu commands
-        self.bot.add_view(ReportView(self, {}))  # Persistent view
-        
     async def cog_load(self):
         """Called when the cog is loaded"""
-        log.info("AdvancedReport cog loaded successfully")
+        # Initialize any async setup here
+        try:
+            # Add persistent view for button interactions
+            self.bot.add_view(ReportView(self, {}))
+            log.info("AdvancedReport cog loaded successfully")
+        except Exception as e:
+            log.exception(f"Error during cog load: {e}")
     
-    async def cog_unload(self):
+    def cog_unload(self):
         """Called when the cog is unloaded"""
         log.info("AdvancedReport cog unloaded")
     
@@ -365,8 +368,12 @@ class AdvancedReport(red_commands.Cog):
     
     async def get_caution_points(self, guild: discord.Guild) -> int:
         """Get the configured caution points for this guild"""
-        points = await self.config.guild(guild).default_caution_points()
-        return max(1, min(10, points))  # Ensure it's between 1-10
+        try:
+            points = await self.config.guild(guild).default_caution_points()
+            return max(1, min(10, points))  # Ensure it's between 1-10
+        except Exception as e:
+            log.warning(f"Error getting caution points, using default: {e}")
+            return 1  # Default fallback
     
     @red_commands.group(name="reportset", aliases=["rset"])
     @checks.admin_or_permissions(administrator=True)
@@ -749,10 +756,16 @@ class AdvancedReport(red_commands.Cog):
             return
         
         # Generate report ID
-        report_count = await self.config.global.total_reports()
-        report_count += 1
-        await self.config.global.total_reports.set(report_count)
-        report_id = f"RPT-{report_count:06d}"
+        try:
+            report_count = await self.config.global.total_reports()
+            report_count += 1
+            await self.config.global.total_reports.set(report_count)
+            report_id = f"RPT-{report_count:06d}"
+        except Exception as e:
+            log.warning(f"Error generating report ID: {e}")
+            # Fallback to timestamp-based ID
+            import time
+            report_id = f"RPT-{int(time.time())}"
         
         # Create report embed
         embed = discord.Embed(
@@ -813,9 +826,12 @@ class AdvancedReport(red_commands.Cog):
         try:
             report_message = await report_channel.send(content=content, embed=embed, view=view)
             
-            # Update member report count
-            current_count = await self.config.member_from_ids(guild.id, reporter.id).report_count()
-            await self.config.member_from_ids(guild.id, reporter.id).report_count.set(current_count + 1)
+            # Update member report count safely
+            try:
+                current_count = await self.config.member_from_ids(guild.id, reporter.id).report_count()
+                await self.config.member_from_ids(guild.id, reporter.id).report_count.set(current_count + 1)
+            except Exception as count_error:
+                log.warning(f"Could not update report count: {count_error}")
             
             log.info(f"Report {report_id} sent to {report_channel.name} in {guild.name}")
             
