@@ -1,0 +1,15 @@
+{
+    "name": "AdvancedReport",
+    "short": "Advanced reporting system with context menus and quick actions",
+    "description": "A comprehensive reporting system for Discord servers featuring both slash commands and context menu reporting, staff quick-action buttons (mute, ban, warn, blacklist), and detailed logging. Supports message-specific reports with jump links and automated staff notifications.",
+    "author": ["UltPanda"],
+    "requirements": [],
+    "tags": ["moderation", "reports", "staff", "utility", "context-menu"],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "type": "COG",
+    "end_user_data_statement": "This cog stores user report counts, warning history, and blacklist status. No data is shared with third parties.",
+    "install_msg": "Thank you for installing AdvancedReport! Use `[p]reportset` to configure the system. Set a report channel and staff roles to get started.",
+    "hidden": false,
+    "disabled": false
+}
