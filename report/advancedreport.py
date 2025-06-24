@@ -5,7 +5,7 @@ from redbot.core.utils.chat_formatting import box, pagify
 from redbot.core.utils.predicates import MessagePredicate
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
 import json
 
@@ -81,16 +81,94 @@ class ReportView(discord.ui.View):
             log.exception("Error in ban button")
             await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
     
-    @discord.ui.button(label="Warn", style=discord.ButtonStyle.primary, emoji="⚠️")
-    async def warn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Issue a warning to the reported user"""
+    @discord.ui.button(label="Caution", style=discord.ButtonStyle.primary, emoji="⚠️")
+    async def caution_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Issue a caution using the Cautions cog system"""
         try:
             reported_user = interaction.guild.get_member(self.report_data['reported_user_id'])
             if not reported_user:
                 await interaction.response.send_message("❌ User not found in server", ephemeral=True)
                 return
             
-            # Store warning in config
+            # Check if Cautions cog is loaded
+            cautions_cog = self.cog.bot.get_cog("Cautions")
+            if not cautions_cog:
+                # Fallback to simple warning system
+                await self._fallback_warning(interaction, reported_user)
+                return
+            
+            # Create a caution using the Cautions cog system
+            points = 1  # Default points for report-based cautions
+            reason = f"Report: {self.report_data['reason']}"
+            
+            # Get warning expiry days from Cautions cog config
+            expiry_days = await cautions_cog.config.guild(interaction.guild).warning_expiry_days()
+            
+            warning = {
+                "points": points,
+                "reason": reason,
+                "moderator_id": interaction.user.id,
+                "timestamp": datetime.now(timezone.utc).timestamp(),
+                "expiry": (datetime.now(timezone.utc) + timedelta(days=expiry_days)).timestamp()
+            }
+            
+            # Add to member's warnings using Cautions cog structure
+            member_config = cautions_cog.config.member(reported_user)
+            async with member_config.warnings() as warnings_list:
+                warnings_list.append(warning)
+            
+            # Update total points
+            async with member_config.all() as member_data:
+                member_data["total_points"] = sum(w.get("points", 1) for w in member_data["warnings"])
+                total_points = member_data["total_points"]
+            
+            # Try to DM the user
+            try:
+                embed = discord.Embed(
+                    title="⚠️ Caution Issued",
+                    description=f"You have been cautioned in **{interaction.guild.name}**",
+                    color=discord.Color.yellow()
+                )
+                embed.add_field(name="Points", value=str(points), inline=True)
+                embed.add_field(name="Total Points", value=str(total_points), inline=True)
+                embed.add_field(name="Reason", value=reason, inline=False)
+                embed.add_field(name="Moderator", value=interaction.user.mention, inline=True)
+                embed.add_field(name="Expires", value=f"<t:{int(warning['expiry'])}:R>", inline=True)
+                embed.set_footer(text="Please follow the server rules to avoid further action")
+                
+                await reported_user.send(embed=embed)
+                dm_status = "✅ User notified via DM"
+            except discord.Forbidden:
+                dm_status = "⚠️ Could not DM user"
+            
+            # Log the action using Cautions cog system
+            await cautions_cog.log_action(
+                interaction.guild, 
+                "Caution", 
+                reported_user, 
+                interaction.user, 
+                reason,
+                extra_fields=[
+                    {"name": "Points", "value": str(points)},
+                    {"name": "Total Points", "value": str(total_points)},
+                    {"name": "Report ID", "value": self.report_data.get('report_id', 'N/A')}
+                ]
+            )
+            
+            # Check if any action thresholds were reached
+            await cautions_cog.check_action_thresholds(interaction, reported_user, total_points)
+            
+            await self.update_report_status(interaction, f"⚠️ Caution issued ({points} point) - Total: {total_points} - {dm_status}", discord.Color.yellow())
+            await self.log_action(interaction, "CAUTION", f"Caution issued ({points} point) - Total: {total_points} - {dm_status}")
+            
+        except Exception as e:
+            log.exception("Error in caution button")
+            await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+    
+    async def _fallback_warning(self, interaction: discord.Interaction, reported_user: discord.Member):
+        """Fallback warning system if Cautions cog is not available"""
+        try:
+            # Store warning in our own config as fallback
             async with self.cog.config.member(reported_user).warnings() as warnings:
                 warning_data = {
                     "reason": f"Report: {self.report_data['reason']}",
@@ -116,11 +194,11 @@ class ReportView(discord.ui.View):
             except discord.Forbidden:
                 dm_status = "⚠️ Could not DM user"
             
-            await self.update_report_status(interaction, f"⚠️ Warning issued - {dm_status}", discord.Color.yellow())
+            await self.update_report_status(interaction, f"⚠️ Warning issued - {dm_status} (Cautions cog not available)", discord.Color.yellow())
             await self.log_action(interaction, "WARN", f"Warning issued - {dm_status}")
             
         except Exception as e:
-            log.exception("Error in warn button")
+            log.exception("Error in fallback warning")
             await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
     
     @discord.ui.button(label="Blacklist Reporter", style=discord.ButtonStyle.secondary, emoji="🚫")
@@ -226,12 +304,15 @@ class AdvancedReport(red_commands.Cog):
             default_mute_duration=60,  # minutes
             blacklisted_users=[],
             auto_thread=False,
-            require_reason=True
+            require_reason=True,
+            default_caution_points=1  # For Cautions cog integration
         )
         
         self.config.register_member(
             warnings=[],
-            report_count=0
+            report_count=0,
+            total_points=0,  # For compatibility with Cautions cog
+            applied_thresholds=[]  # For compatibility with Cautions cog
         )
         
         self.config.register_global(
@@ -322,7 +403,89 @@ class AdvancedReport(red_commands.Cog):
         await ctx.send(f"✅ Default mute duration set to {minutes} minutes")
     
     @report_settings.command(name="view")
-    async def view_settings(self, ctx):
+    
+    @report_settings.command(name="integration")
+    async def check_integration(self, ctx):
+        """Check integration status with other cogs"""
+        embed = discord.Embed(
+            title="🔗 Cog Integration Status",
+            color=discord.Color.blue()
+        )
+        
+        # Check Cautions cog
+        cautions_cog = self.bot.get_cog("Cautions")
+        if cautions_cog:
+            embed.add_field(
+                name="⚠️ Cautions Cog",
+                value="✅ **Available** - Warning button will use the Cautions system",
+                inline=False
+            )
+            
+            # Get some stats from Cautions cog
+            try:
+                guild_config = await cautions_cog.config.guild(ctx.guild).all()
+                expiry_days = guild_config.get('warning_expiry_days', 30)
+                thresholds = guild_config.get('action_thresholds', {})
+                
+                embed.add_field(
+                    name="📊 Cautions Settings",
+                    value=f"Warning Expiry: {expiry_days} days\nAction Thresholds: {len(thresholds)} configured",
+                    inline=True
+                )
+            except Exception as e:
+                embed.add_field(
+                    name="📊 Cautions Settings",
+                    value=f"⚠️ Error reading settings: {str(e)}",
+                    inline=True
+                )
+        else:
+            embed.add_field(
+                name="⚠️ Cautions Cog",
+                value="❌ **Not Available** - Warning button will use fallback system",
+                inline=False
+            )
+            embed.add_field(
+                name="💡 Recommendation",
+                value="Install the Cautions cog for advanced warning features with points, thresholds, and automatic actions.",
+                inline=False
+            )
+        
+        # Check Bank system
+        try:
+            from redbot.core import bank
+            embed.add_field(
+                name="💰 Bank System",
+                value="✅ **Available** - Can integrate economy features if needed",
+                inline=True
+            )
+        except ImportError:
+            embed.add_field(
+                name="💰 Bank System", 
+                value="❌ **Not Available**",
+                inline=True
+            )
+        
+        await ctx.send(embed=embed)
+    
+    @report_settings.command(name="cautionpoints")
+    async def set_caution_points(self, ctx, points: int = 1):
+        """Set default caution points for reports (requires Cautions cog)"""
+        if points < 1 or points > 10:
+            await ctx.send("❌ Caution points must be between 1 and 10")
+            return
+        
+        cautions_cog = self.bot.get_cog("Cautions")
+        if not cautions_cog:
+            await ctx.send("❌ Cautions cog is not loaded. This setting requires the Cautions cog.")
+            return
+        
+        await self.config.guild(ctx.guild).default_caution_points.set(points)
+        await ctx.send(f"✅ Default caution points for reports set to {points}")
+    
+    async def get_caution_points(self, guild: discord.Guild) -> int:
+        """Get the configured caution points for this guild"""
+        points = await self.config.guild(guild).get_raw("default_caution_points", default=1)
+        return max(1, min(10, points))  # Ensure it's between 1-10
         """View current report system settings"""
         settings = await self.config.guild(ctx.guild).all()
         
@@ -460,11 +623,84 @@ class AdvancedReport(red_commands.Cog):
         except discord.NotFound:
             pass
         
-        # Confirm to reporter
-        try:
-            await ctx.author.send(f"✅ Your report against **{target_message.author}** has been submitted.")
-        except discord.Forbidden:
-            await ctx.send(f"✅ {ctx.author.mention}, your report has been submitted.", delete_after=10)
+    @red_commands.command(name="reportcautions")
+    async def check_user_cautions(self, ctx, user: discord.Member):
+        """Check a user's cautions (integrates with Cautions cog if available)"""
+        if not await self.is_staff_member(ctx.author, ctx.guild):
+            await ctx.send("❌ Only staff members can check user cautions.")
+            return
+        
+        cautions_cog = self.bot.get_cog("Cautions")
+        if cautions_cog:
+            # Use Cautions cog to get detailed information
+            try:
+                warnings = await cautions_cog.config.member(user).warnings()
+                total_points = await cautions_cog.config.member(user).total_points()
+                
+                if not warnings:
+                    await ctx.send(f"📊 {user.mention} has no active cautions.")
+                    return
+                
+                embed = discord.Embed(
+                    title=f"📊 Cautions for {user.display_name}",
+                    color=discord.Color.orange()
+                )
+                embed.add_field(name="Total Points", value=str(total_points), inline=True)
+                embed.add_field(name="Active Cautions", value=str(len(warnings)), inline=True)
+                
+                # Show recent cautions
+                recent_cautions = warnings[-3:]  # Last 3 cautions
+                for i, warning in enumerate(recent_cautions, 1):
+                    moderator_id = warning.get("moderator_id")
+                    moderator = ctx.guild.get_member(moderator_id) if moderator_id else None
+                    moderator_name = moderator.display_name if moderator else "Unknown"
+                    
+                    timestamp = warning.get("timestamp", 0)
+                    issued_time = f"<t:{int(timestamp)}:R>"
+                    
+                    value = f"**Points:** {warning.get('points', 1)}\n"
+                    value += f"**Reason:** {warning.get('reason', 'No reason')[:100]}...\n"
+                    value += f"**By:** {moderator_name} • {issued_time}"
+                    
+                    embed.add_field(name=f"Recent Caution #{i}", value=value, inline=False)
+                
+                if len(warnings) > 3:
+                    embed.set_footer(text=f"Showing 3 most recent cautions. Use [p]cautions {user.mention} for full list.")
+                
+                await ctx.send(embed=embed)
+                
+            except Exception as e:
+                await ctx.send(f"❌ Error accessing caution data: {str(e)}")
+        else:
+            # Fallback to our own warning system
+            warnings = await self.config.member(user).warnings()
+            if not warnings:
+                await ctx.send(f"📊 {user.mention} has no warnings on record.")
+                return
+            
+            embed = discord.Embed(
+                title=f"📊 Warnings for {user.display_name}",
+                color=discord.Color.orange()
+            )
+            embed.add_field(name="Total Warnings", value=str(len(warnings)), inline=True)
+            
+            # Show recent warnings
+            recent_warnings = warnings[-3:]
+            for i, warning in enumerate(recent_warnings, 1):
+                moderator_id = warning.get("moderator")
+                moderator = ctx.guild.get_member(moderator_id) if moderator_id else None
+                moderator_name = moderator.display_name if moderator else "Unknown"
+                
+                timestamp = warning.get("timestamp", "Unknown")
+                reason = warning.get("reason", "No reason")[:100]
+                
+                value = f"**Reason:** {reason}...\n"
+                value += f"**By:** {moderator_name} • {timestamp}"
+                
+                embed.add_field(name=f"Recent Warning #{i}", value=value, inline=False)
+            
+            embed.set_footer(text="⚠️ Using fallback warning system - install Cautions cog for advanced features")
+            await ctx.send(embed=embed)
     
     @red_commands.context_menu(name="Report Message")
     async def report_context_menu(self, interaction: discord.Interaction, message: discord.Message):
