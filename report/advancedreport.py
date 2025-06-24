@@ -98,7 +98,7 @@ class ReportView(discord.ui.View):
                 return
             
             # Create a caution using the Cautions cog system
-            points = 1  # Default points for report-based cautions
+            points = await self.cog.get_caution_points(interaction.guild)  # Use configured points
             reason = f"Report: {self.report_data['reason']}"
             
             # Get warning expiry days from Cautions cog config
@@ -344,6 +344,11 @@ class AdvancedReport(red_commands.Cog):
         blacklisted = await self.config.guild(guild).blacklisted_users()
         return user_id in blacklisted
     
+    async def get_caution_points(self, guild: discord.Guild) -> int:
+        """Get the configured caution points for this guild"""
+        points = await self.config.guild(guild).default_caution_points()
+        return max(1, min(10, points))  # Ensure it's between 1-10
+    
     @red_commands.group(name="reportset", aliases=["rset"])
     @checks.admin_or_permissions(administrator=True)
     async def report_settings(self, ctx):
@@ -402,7 +407,20 @@ class AdvancedReport(red_commands.Cog):
         await self.config.guild(ctx.guild).default_mute_duration.set(minutes)
         await ctx.send(f"✅ Default mute duration set to {minutes} minutes")
     
-    @report_settings.command(name="view")
+    @report_settings.command(name="cautionpoints")
+    async def set_caution_points(self, ctx, points: int = 1):
+        """Set default caution points for reports (requires Cautions cog)"""
+        if points < 1 or points > 10:
+            await ctx.send("❌ Caution points must be between 1 and 10")
+            return
+        
+        cautions_cog = self.bot.get_cog("Cautions")
+        if not cautions_cog:
+            await ctx.send("❌ Cautions cog is not loaded. This setting requires the Cautions cog.")
+            return
+        
+        await self.config.guild(ctx.guild).default_caution_points.set(points)
+        await ctx.send(f"✅ Default caution points for reports set to {points}")
     
     @report_settings.command(name="integration")
     async def check_integration(self, ctx):
@@ -467,25 +485,8 @@ class AdvancedReport(red_commands.Cog):
         
         await ctx.send(embed=embed)
     
-    @report_settings.command(name="cautionpoints")
-    async def set_caution_points(self, ctx, points: int = 1):
-        """Set default caution points for reports (requires Cautions cog)"""
-        if points < 1 or points > 10:
-            await ctx.send("❌ Caution points must be between 1 and 10")
-            return
-        
-        cautions_cog = self.bot.get_cog("Cautions")
-        if not cautions_cog:
-            await ctx.send("❌ Cautions cog is not loaded. This setting requires the Cautions cog.")
-            return
-        
-        await self.config.guild(ctx.guild).default_caution_points.set(points)
-        await ctx.send(f"✅ Default caution points for reports set to {points}")
-    
-    async def get_caution_points(self, guild: discord.Guild) -> int:
-        """Get the configured caution points for this guild"""
-        points = await self.config.guild(guild).get_raw("default_caution_points", default=1)
-        return max(1, min(10, points))  # Ensure it's between 1-10
+    @report_settings.command(name="view")
+    async def view_settings(self, ctx):
         """View current report system settings"""
         settings = await self.config.guild(ctx.guild).all()
         
@@ -530,6 +531,12 @@ class AdvancedReport(red_commands.Cog):
         embed.add_field(
             name="Mute Duration",
             value=f"{settings['default_mute_duration']} minutes",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Caution Points",
+            value=str(settings['default_caution_points']),
             inline=True
         )
         
@@ -623,6 +630,12 @@ class AdvancedReport(red_commands.Cog):
         except discord.NotFound:
             pass
         
+        # Confirm to reporter
+        try:
+            await ctx.author.send(f"✅ Your report against **{target_message.author}** has been submitted.")
+        except discord.Forbidden:
+            await ctx.send(f"✅ {ctx.author.mention}, your report has been submitted.", delete_after=10)
+    
     @red_commands.command(name="reportcautions")
     async def check_user_cautions(self, ctx, user: discord.Member):
         """Check a user's cautions (integrates with Cautions cog if available)"""
@@ -809,8 +822,8 @@ class AdvancedReport(red_commands.Cog):
             report_message = await report_channel.send(content=content, embed=embed, view=view)
             
             # Update member report count
-            async with self.config.member_from_ids(guild.id, reporter.id).report_count() as count:
-                await self.config.member_from_ids(guild.id, reporter.id).report_count.set(count + 1)
+            current_count = await self.config.member_from_ids(guild.id, reporter.id).report_count()
+            await self.config.member_from_ids(guild.id, reporter.id).report_count.set(current_count + 1)
             
             log.info(f"Report {report_id} sent to {report_channel.name} in {guild.name}")
             
@@ -853,4 +866,4 @@ class ReportModal(discord.ui.Modal, title="Report User"):
 # Setup function for Red
 async def setup(bot):
     cog = AdvancedReport(bot)
-    await bot.add_cog(cog)
+    await bot.add_cog(cog)a
