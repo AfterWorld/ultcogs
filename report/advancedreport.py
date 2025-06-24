@@ -98,7 +98,7 @@ class ReportView(discord.ui.View):
                 return
             
             # Create a caution using the Cautions cog system
-            points = await self.cog.get_caution_points(interaction.guild)  # Use configured points
+            points = await self.cog.get_caution_points(interaction.guild)
             reason = f"Report: {self.report_data['reason']}"
             
             # Get warning expiry days from Cautions cog config
@@ -866,4 +866,4 @@ class ReportModal(discord.ui.Modal, title="Report User"):
 # Setup function for Red
 async def setup(bot):
     cog = AdvancedReport(bot)
-    await bot.add_cog(cog)a
+    await bot.add_cog(cog)
