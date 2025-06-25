@@ -366,11 +366,58 @@ class AdvancedReport(red_commands.Cog):
             # Add persistent view for button interactions
             self.bot.add_view(ReportView(self, {}))
             log.info("AdvancedReport cog loaded successfully")
+            
+            # Register context menu command
+            await self._register_context_menu()
+            
         except Exception as e:
             log.exception(f"Error during cog load: {e}")
     
+    async def _register_context_menu(self):
+        """Register the context menu command"""
+        try:
+            @discord.app_commands.context_menu(name='Report Message')
+            async def report_context_menu(interaction: discord.Interaction, message: discord.Message):
+                """Context menu command to report a message"""
+                # Check if reporter is blacklisted
+                if await self.is_blacklisted(interaction.user.id, interaction.guild):
+                    await interaction.response.send_message("❌ You are blacklisted from using the report system.", ephemeral=True)
+                    return
+                
+                # Validation
+                if message.author == interaction.user:
+                    await interaction.response.send_message("❌ You cannot report your own message!", ephemeral=True)
+                    return
+                
+                if message.author.bot:
+                    await interaction.response.send_message("❌ You cannot report bot messages!", ephemeral=True)
+                    return
+                
+                if await self.is_staff_member(message.author, interaction.guild):
+                    await interaction.response.send_message("❌ You cannot report staff members!", ephemeral=True)
+                    return
+                
+                # Create modal for reason input
+                modal = ReportModal(self, interaction.user, message.author, message, message.channel)
+                await interaction.response.send_modal(modal)
+            
+            # Add the context menu to the bot
+            self.bot.tree.add_command(report_context_menu)
+            
+            # Sync commands (you may want to do this manually to avoid rate limits)
+            # await self.bot.tree.sync()
+            
+        except Exception as e:
+            log.warning(f"Could not register context menu: {e}")
+    
     def cog_unload(self):
         """Called when the cog is unloaded"""
+        # Remove context menu command
+        try:
+            self.bot.tree.remove_command('Report Message', type=discord.AppCommandType.message)
+        except Exception as e:
+            log.warning(f"Could not remove context menu: {e}")
+        
         log.info("AdvancedReport cog unloaded")
     
     async def is_staff_member(self, user: discord.Member, guild: discord.Guild) -> bool:
@@ -567,6 +614,16 @@ class AdvancedReport(red_commands.Cog):
         
         await ctx.send(embed=embed)
     
+    @report_settings.command(name="syncmenu")
+    @checks.is_owner()
+    async def sync_context_menu(self, ctx):
+        """Sync the context menu command (Bot owner only)"""
+        try:
+            await self.bot.tree.sync()
+            await ctx.send("✅ Context menu synced successfully!")
+        except Exception as e:
+            await ctx.send(f"❌ Error syncing context menu: {str(e)}")
+    
     @red_commands.command(name="report")
     async def report_command(self, ctx, user: discord.Member, *, reason: str):
         """Report a user to the staff team"""
@@ -734,31 +791,6 @@ class AdvancedReport(red_commands.Cog):
             
             embed.set_footer(text="⚠️ Using fallback warning system - install Cautions cog for advanced features")
             await ctx.send(embed=embed)
-    
-    @red_commands.context_menu(name="Report Message")
-    async def report_context_menu(self, interaction: discord.Interaction, message: discord.Message):
-        """Context menu command to report a message"""
-        # Check if reporter is blacklisted
-        if await self.is_blacklisted(interaction.user.id, interaction.guild):
-            await interaction.response.send_message("❌ You are blacklisted from using the report system.", ephemeral=True)
-            return
-        
-        # Validation
-        if message.author == interaction.user:
-            await interaction.response.send_message("❌ You cannot report your own message!", ephemeral=True)
-            return
-        
-        if message.author.bot:
-            await interaction.response.send_message("❌ You cannot report bot messages!", ephemeral=True)
-            return
-        
-        if await self.is_staff_member(message.author, interaction.guild):
-            await interaction.response.send_message("❌ You cannot report staff members!", ephemeral=True)
-            return
-        
-        # Create modal for reason input
-        modal = ReportModal(self, interaction.user, message.author, message, message.channel)
-        await interaction.response.send_modal(modal)
     
     async def process_report(self, guild: discord.Guild, reporter: discord.User, 
                            reported_user: discord.User, reason: str, 
