@@ -6,8 +6,8 @@ An advanced user reporting system for Red-DiscordBot that provides comprehensive
 
 ### 🚨 Dual Reporting Methods
 - **Command-based**: `[p]report @user reason` 
-- **Context Menu**: Right-click any message → Apps → "Report Message"
 - **Reply Support**: Reply to a message and use the report command to include context
+- **Context Menu**: *Coming in future Red versions with context menu support*
 
 ### ⚡ Staff Quick Actions
 Interactive buttons on each report for immediate moderation:
@@ -58,7 +58,7 @@ Interactive buttons on each report for immediate moderation:
 
 ### User Commands
 - `[p]report @user reason` - Report a user with a reason
-- **Context Menu**: Right-click message → Apps → "Report Message"
+- **Reply Method**: Reply to a message and use `[p]report @user reason` to include context
 
 ### Admin Commands (Requires Administrator)
 - `[p]reportset channel [#channel]` - Set/view report channel
@@ -73,11 +73,11 @@ Interactive buttons on each report for immediate moderation:
 
 ### Reporting a User
 ```
-# Command method
+# Command method (reply to message for context)
 [p]report @BadUser They were spamming inappropriate content
 
-# Context menu method
-Right-click message → Apps → "Report Message" → Fill out reason
+# Reply to a specific message
+Reply to the problematic message → [p]report @BadUser Inappropriate content
 ```
 
 ### Staff Actions
@@ -164,9 +164,9 @@ When a report is received, staff see an embed with action buttons:
 - Check that warning thresholds are properly set up
 
 **Context menu missing?**
-- Commands may take time to sync globally
-- Try using command method as alternative
-- Restart bot if persistent
+- Context menus are not supported in older Red versions
+- Use the reply method instead: Reply to the problematic message and use `[p]report @user reason`
+- This provides the same functionality with message context
 
 ## Prerequisites
 
