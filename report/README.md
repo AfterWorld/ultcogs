@@ -58,7 +58,9 @@ Interactive buttons on each report for immediate moderation:
 
 ### User Commands
 - `[p]report @user reason` - Report a user with a reason
-- **Reply Method**: Reply to a message and use `[p]report @user reason` to include context
+- `[p]report reason` - When replying to a message, auto-detects the user
+- `[p]report @user` - When replying to a message, uses message as context
+- `[p]report` - When replying to a message, uses message content as reason
 
 ### Admin Commands (Requires Administrator)
 - `[p]reportset channel [#channel]` - Set/view report channel
@@ -73,11 +75,13 @@ Interactive buttons on each report for immediate moderation:
 
 ### Reporting a User
 ```
-# Command method (reply to message for context)
+# Standard method
 [p]report @BadUser They were spamming inappropriate content
 
-# Reply to a specific message
-Reply to the problematic message → [p]report @BadUser Inappropriate content
+# Reply method (auto-detects user from replied message)
+Reply to the problematic message → [p]report Inappropriate content
+Reply to the problematic message → [p]report @BadUser (uses message as context)
+Reply to the problematic message → [p]report (uses message content as reason)
 ```
 
 ### Staff Actions
@@ -142,8 +146,12 @@ When a report is received, staff see an embed with action buttons:
 
 ### Common Issues
 
-**Reports not appearing?**
-- Check if report channel is set: `[p]reportset status`
+**Reports not being logged?**
+- Check if log channel is set: `[p]reportset logchannel #your-log-channel`
+- Ensure bot has permission to send messages in log channel
+- Verify the log channel still exists and wasn't deleted
+- Check `[p]reportset status` to see current configuration
+**Reports not appearing in report channel?**
 - Ensure bot has permission to send messages in report channel
 - Verify the system is enabled: `[p]reportset toggle`
 
