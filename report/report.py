@@ -676,15 +676,12 @@ class Report(red_commands.Cog):
             log.error(f"Error in report command: {e}")
             await ctx.send("❌ An error occurred while processing your report.", delete_after=10)
     
-    # Context menu support will be added in future versions when Red supports it
     # For now, users can reply to messages and use [p]report command
     @red_commands.group(name="reportset")
     @red_commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def report_settings(self, ctx):
         """Configure the report system"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
     
     @report_settings.command(name="channel")
     async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
