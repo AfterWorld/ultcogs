@@ -1,13 +1,13 @@
 {
     "name": "Report",
     "short": "Advanced user reporting system with staff quick actions",
-    "description": "A comprehensive reporting system that allows users to report rule violations through commands or right-click context menus. Features staff quick-action buttons for muting, banning, blacklisting false reporters, and dismissing reports. Includes cooldown protection, blacklist management, and comprehensive logging.",
+    "description": "A comprehensive reporting system that allows users to report rule violations through commands or right-click context menus. Features staff quick-action buttons for adding cautions (integrates with Cautions cog), muting, banning, blacklisting false reporters, and dismissing reports. Includes cooldown protection, blacklist management, and comprehensive logging.",
     "author": ["UltPanda"],
     "requirements": [],
     "min_bot_version": "3.5.0",
     "min_python_version": [3, 8, 0],
     "type": "COG",
-    "tags": ["moderation", "reporting", "staff", "utility"],
-    "install_msg": "Thank you for installing the Report cog! Use `[p]reportset` to configure the system. Set a report channel, add staff roles, and you're ready to go. Users can report with `[p]report @user reason` or right-click messages and select 'Report Message'.",
-    "end_user_data_statement": "This cog stores user report statistics (total reports made, last report time) and blacklist status for preventing abuse. No personal data beyond Discord IDs is stored."
+    "tags": ["moderation", "reporting", "staff", "utility", "cautions"],
+    "install_msg": "Thank you for installing the Report cog! Use `[p]reportset` to configure the system. Set a report channel, add staff roles, and you're ready to go. Users can report with `[p]report @user reason` or right-click messages and select 'Report Message'. For full functionality, also install and configure the Cautions cog for the warning system integration.",
+    "end_user_data_statement": "This cog stores user report statistics (total reports made, last report time) and blacklist status for preventing abuse. When integrated with the Cautions cog, it may also trigger warning storage as defined by that cog's data statement."
 }
