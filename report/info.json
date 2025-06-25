@@ -1,15 +1,13 @@
 {
-    "name": "AdvancedReport",
-    "short": "Advanced reporting system with context menus and quick actions",
-    "description": "A comprehensive reporting system for Discord servers featuring both slash commands and context menu reporting, staff quick-action buttons (mute, ban, warn, blacklist), and detailed logging. Supports message-specific reports with jump links and automated staff notifications.",
+    "name": "Report",
+    "short": "Advanced user reporting system with staff quick actions",
+    "description": "A comprehensive reporting system that allows users to report rule violations through commands or right-click context menus. Features staff quick-action buttons for muting, banning, blacklisting false reporters, and dismissing reports. Includes cooldown protection, blacklist management, and comprehensive logging.",
     "author": ["UltPanda"],
     "requirements": [],
-    "tags": ["moderation", "reports", "staff", "utility", "context-menu"],
     "min_bot_version": "3.5.0",
     "min_python_version": [3, 8, 0],
     "type": "COG",
-    "end_user_data_statement": "This cog stores user report counts, warning history, and blacklist status. No data is shared with third parties.",
-    "install_msg": "Thank you for installing AdvancedReport! Use `[p]reportset` to configure the system. Set a report channel and staff roles to get started.",
-    "hidden": false,
-    "disabled": false
+    "tags": ["moderation", "reporting", "staff", "utility"],
+    "install_msg": "Thank you for installing the Report cog! Use `[p]reportset` to configure the system. Set a report channel, add staff roles, and you're ready to go. Users can report with `[p]report @user reason` or right-click messages and select 'Report Message'.",
+    "end_user_data_statement": "This cog stores user report statistics (total reports made, last report time) and blacklist status for preventing abuse. No personal data beyond Discord IDs is stored."
 }
