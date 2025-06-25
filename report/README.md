@@ -1,9 +1,4 @@
-### 🚀 Staff Quick Actions
-Interactive buttons on every report for instant moderation:
-- **🔇 Mute**: Timeout user or apply mute role
-- **🔨 Ban**: Permanently ban the reported user
-- **⚠️ Caution**: Issue cautions using integrated Cautions cog system (with points, thresholds, auto-actions)
-- **🚫 Blacklist Reporter**: Block false reporters# AdvancedReport - Comprehensive Discord Reporting System
+# AdvancedReport - Comprehensive Discord Reporting System
 
 A sophisticated Red-DiscordBot cog that provides a complete reporting system with both traditional commands and modern Discord context menus, featuring staff quick-action buttons and detailed logging.
 
@@ -16,9 +11,9 @@ A sophisticated Red-DiscordBot cog that provides a complete reporting system wit
 
 ### 🚀 Staff Quick Actions
 Interactive buttons on every report for instant moderation:
-- **🔇 Mute**: Timeout user or apply mute role
+- **🔇 Mute**: Timeout user (uses Discord's built-in timeout system)
 - **🔨 Ban**: Permanently ban the reported user
-- **⚠️ Warn**: Issue warnings with DM notifications
+- **⚠️ Caution**: Issue cautions using integrated Cautions cog system (with points, thresholds, auto-actions)
 - **🚫 Blacklist Reporter**: Block false reporters
 - **✅ Dismiss**: Mark report as resolved
 
@@ -29,24 +24,23 @@ Interactive buttons on every report for instant moderation:
   - Warning expiry and detailed logging
   - Fallback system if Cautions cog is not available
 - **Message Links**: Direct jump links to reported messages
-- **Auto-Threading**: Optional thread creation for report discussions
 - **Staff Pinging**: Configurable role notifications
 - **Comprehensive Logging**: Detailed action history
 - **Blacklist System**: Prevent abuse from repeat false reporters
 
 ## 📋 Installation
 
-### Method 1: Manual Installation
+### From Git Repository
+```bash
+[p]repo add ultcogs https://github.com/AfterWorld/ultcogs
+[p]cog install ultcogs AdvancedReport
+[p]load AdvancedReport
+```
+
+### Manual Installation
 1. Download the cog files to your Red instance
 2. Place in `[red_data_path]/cogs/AdvancedReport/`
 3. Load with `[p]load AdvancedReport`
-
-### Method 2: Git Repository (if published)
-```bash
-[p]repo add ult <repository_url>
-[p]cog install advanced-reports AdvancedReport
-[p]load AdvancedReport
-```
 
 ## ⚙️ Configuration
 
@@ -64,9 +58,6 @@ Interactive buttons on every report for instant moderation:
 
 ### Advanced Configuration
 ```bash
-# Set custom mute role (optional - uses timeout by default)
-[p]reportset muterole @Muted
-
 # Configure default mute duration (in minutes)
 [p]reportset muteduration 60
 
@@ -122,12 +113,12 @@ When a report is submitted, staff will see an embed with:
 - **Reported User**: Full user details and mention
 - **Reporter**: Who submitted the report
 - **Reason**: Detailed explanation
-- **Message Link**: Direct link to the reported content
+- **Message Link**: Direct link to the reported content (if applicable)
 - **Quick Action Buttons**: Instant moderation tools
 
 #### Quick Actions
 Click any button on a report to take immediate action:
-- **Mute**: Applies timeout or mute role
+- **Mute**: Applies Discord timeout (duration configurable)
 - **Ban**: Permanently removes user from server
 - **Caution**: Issues caution with points (integrates with Cautions cog if available)
 - **Blacklist Reporter**: Prevents user from making future reports
@@ -155,8 +146,7 @@ Click any button on a report to take immediate action:
 # View configuration
 [p]reportset view
 
-# Set mute options
-[p]reportset muterole @TimedOut
+# Set mute duration (uses Discord timeout)
 [p]reportset muteduration 120  # 2 hours
 ```
 
@@ -167,7 +157,6 @@ Click any button on a report to take immediate action:
   - Send Messages, Embed Links, Manage Messages
   - Moderate Members (for timeout functionality)
   - Ban Members (for ban functionality)
-  - Manage Roles (if using mute role)
 
 - **Staff Permissions**:
   - Must have configured staff roles OR Administrator permission
@@ -182,11 +171,9 @@ The cog stores data in Red's Config system and integrates with Cautions cog:
     "report_channel": 123456789,      # Channel ID for reports
     "staff_roles": [123, 456],        # List of staff role IDs
     "log_channel": 987654321,         # Channel for action logs
-    "mute_role": 111222333,           # Optional mute role ID
     "default_mute_duration": 60,      # Minutes for timeouts
     "blacklisted_users": [789],       # Users blocked from reporting
     "ping_staff": true,               # Whether to ping staff roles
-    "auto_thread": false,             # Auto-create threads for reports
     "require_reason": true,           # Require reason for reports
     "default_caution_points": 1       # Points per caution (Cautions integration)
 }
@@ -198,10 +185,8 @@ The cog stores data in Red's Config system and integrates with Cautions cog:
     "warnings": [                     # Caution/warning history
         {
             "reason": "Report: Spam",
-            "moderator_id": 123456,    # For Cautions integration
-            "timestamp": 1234567890.0,  # Unix timestamp
-            "points": 2,               # Caution points (Cautions integration)
-            "expiry": 1237159890.0,    # Expiry timestamp (Cautions integration)
+            "moderator": 123456,       # Moderator ID
+            "timestamp": "2024-01-01T12:00:00+00:00",
             "report_id": "RPT-000001"
         }
     ],
@@ -286,6 +271,7 @@ The cog stores data in Red's Config system and integrates with Cautions cog:
 - **⚙️ Integration Status**: `[p]reportset integration` to check available cog integrations
 - **🔄 Intelligent Fallback**: Automatic fallback to simple warning system if Cautions cog unavailable
 - **🎯 Configurable Points**: `[p]reportset cautionpoints` to set default points per report
+- **⏰ Discord Timeout Integration**: Uses Discord's built-in timeout system instead of mute roles
 
 ### Version 1.0.0
 - Initial release with core reporting functionality
@@ -297,7 +283,7 @@ The cog stores data in Red's Config system and integrates with Cautions cog:
 
 ## 🤝 Contributing
 
-Feel free to submit issues, feature requests, or pull requests to improve this cog.
+Feel free to submit issues, feature requests, or pull requests to improve this cog at: https://github.com/AfterWorld/ultcogs
 
 ## 📄 License
 
