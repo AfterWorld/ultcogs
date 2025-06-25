@@ -508,6 +508,52 @@ class Report(red_commands.Cog):
         
         return " ".join(mentions) if mentions else "@here"
     
+    async def log_report_action(self, guild: discord.Guild, action: str, 
+                               target_user: discord.Member, reporter: discord.Member, 
+                               reason: str, original_message: Optional[discord.Message] = None):
+        """Log report actions to the log channel"""
+        log_channel_id = await self.config.guild(guild).log_channel()
+        if not log_channel_id:
+            return
+        
+        log_channel = guild.get_channel(log_channel_id)
+        if not log_channel:
+            return
+        
+        embed = discord.Embed(
+            title=f"📝 {action}",
+            color=discord.Color.blue(),
+            timestamp=discord.utils.utcnow()
+        )
+        
+        embed.add_field(name="Reporter", value=f"{reporter.mention} ({reporter})", inline=True)
+        embed.add_field(name="Reported User", value=f"{target_user.mention} ({target_user})", inline=True)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        
+        if original_message:
+            embed.add_field(
+                name="Original Message", 
+                value=f"[Jump to Message]({original_message.jump_url})", 
+                inline=True
+            )
+            embed.add_field(
+                name="Channel", 
+                value=f"#{original_message.channel.name}", 
+                inline=True
+            )
+            
+            # Add message content if not too long
+            if original_message.content:
+                content = original_message.content[:500]
+                if len(original_message.content) > 500:
+                    content += "..."
+                embed.add_field(name="Message Content", value=f"```{content}```", inline=False)
+        
+        try:
+            await log_channel.send(embed=embed)
+        except Exception as e:
+            log.error(f"Failed to send report log message: {e}")
+    
     async def log_action(self, action: str, moderator: discord.Member, 
                         target_user: discord.Member, reporter: discord.Member, 
                         reason: str):
@@ -603,6 +649,16 @@ class Report(red_commands.Cog):
             current_reports = await self.config.user(reporter).total_reports()
             await self.config.user(reporter).total_reports.set(current_reports + 1)
             
+            # Log the report submission
+            await self.log_report_action(
+                guild, 
+                "Report Submitted", 
+                reported_user, 
+                reporter, 
+                reason,
+                original_message
+            )
+            
             return message
             
         except Exception as e:
@@ -611,10 +667,12 @@ class Report(red_commands.Cog):
     
     @red_commands.command(name="report")
     @red_commands.guild_only()
-    async def report_command(self, ctx, user: discord.Member, *, reason: str):
+    async def report_command(self, ctx, user: discord.Member = None, *, reason: str = None):
         """Report a user to staff with a reason
         
-        Usage: [p]report @user <reason>
+        Usage: 
+        [p]report @user <reason>
+        [p]report <reason> (when replying to a message - auto-detects user)
         """
         try:
             # Check if reporting is enabled
@@ -636,8 +694,40 @@ class Report(red_commands.Cog):
                 )
                 return
             
+            # Get the message being replied to if this is a reply
+            original_message = None
+            if ctx.message.reference and ctx.message.reference.message_id:
+                try:
+                    original_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+                except:
+                    pass
+            
+            # Handle different command patterns
+            if original_message and user is None:
+                # Pattern: .report <reason> (replying to message)
+                user = original_message.author
+                reason = reason if reason else "Reported message content (see attached message)"
+                
+            elif original_message and user is not None and reason is None:
+                # Pattern: .report @user (replying to message, user specified but no reason)
+                reason = "Reported message content (see attached message)"
+                
+            elif user is None:
+                # Pattern: .report <text> (no reply, no user specified)
+                await ctx.send("❌ Please specify a user to report or reply to their message.", delete_after=10)
+                return
+                
+            elif reason is None:
+                # Pattern: .report @user (no reply, no reason)
+                await ctx.send("❌ Please provide a reason for the report.", delete_after=10)
+                return
+            
             # Validate reason
-            reason = await self.validate_input(reason, 1000)
+            try:
+                reason = await self.validate_input(reason, 1000)
+            except commands.BadArgument as e:
+                await ctx.send(f"❌ {e}", delete_after=10)
+                return
             
             # Can't report yourself
             if user == ctx.author:
@@ -648,14 +738,6 @@ class Report(red_commands.Cog):
             if user.bot:
                 await ctx.send("❌ You cannot report bots.", delete_after=10)
                 return
-            
-            # Get the message being replied to if this is a reply
-            original_message = None
-            if ctx.message.reference and ctx.message.reference.message_id:
-                try:
-                    original_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-                except:
-                    pass
             
             # Send the report
             report_message = await self.send_report(ctx.guild, ctx.author, user, reason, original_message)
@@ -670,18 +752,19 @@ class Report(red_commands.Cog):
             else:
                 await ctx.send("❌ Failed to submit report. Please contact an administrator.", delete_after=10)
                 
-        except commands.BadArgument as e:
-            await ctx.send(f"❌ {e}", delete_after=10)
         except Exception as e:
             log.error(f"Error in report command: {e}")
             await ctx.send("❌ An error occurred while processing your report.", delete_after=10)
     
+    # Context menu support will be added in future versions when Red supports it
     # For now, users can reply to messages and use [p]report command
     @red_commands.group(name="reportset")
     @red_commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def report_settings(self, ctx):
         """Configure the report system"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
     
     @report_settings.command(name="channel")
     async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
