@@ -35,6 +35,282 @@ class ReportView(discord.ui.View):
             return False
         return True
     
+    @discord.ui.button(label="Caution", style=discord.ButtonStyle.primary, emoji="⚠️")
+    async def caution_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Add a caution/warning to the reported user via Cautions cog"""
+        try:
+            # Get the Cautions cog
+            cautions_cog = self.cog.bot.get_cog("Cautions")
+            if not cautions_cog:
+                await interaction.response.send_message(
+                    "❌ Cautions cog not loaded. Please load it first with `[p]load cautions`", 
+                    ephemeral=True
+                )
+                return
+            
+            # Create a modal for caution details
+            class CautionModal(discord.ui.Modal, title="Add Caution"):
+                def __init__(self, view_instance):
+                    super().__init__()
+                    self.view_instance = view_instance
+                
+                points = discord.ui.TextInput(
+                    label="Warning Points",
+                    placeholder="Enter number of points (default: 1)",
+                    default="1",
+                    max_length=2,
+                    required=False
+                )
+                
+                reason = discord.ui.TextInput(
+                    label="Reason for Caution",
+                    placeholder="Enter the reason for this warning...",
+                    style=discord.TextStyle.paragraph,
+                    max_length=500,
+                    required=True
+                )
+                
+                async def on_submit(self, interaction: discord.Interaction):
+                    try:
+                        # Validate points
+                        try:
+                            point_value = int(self.points.value) if self.points.value.strip() else 1
+                            if point_value < 1:
+                                point_value = 1
+                        except ValueError:
+                            point_value = 1
+                        
+                        # Validate reason
+                        caution_reason = await self.view_instance.cog.validate_input(self.reason.value, 500)
+                        
+                        # Add the warning using Cautions cog functionality
+                        await self.add_caution_to_user(interaction, point_value, caution_reason)
+                        
+                    except Exception as e:
+                        log.error(f"Error in caution modal: {e}")
+                        await interaction.response.send_message(
+                            "❌ An error occurred while adding the caution.", 
+                            ephemeral=True
+                        )
+                
+                async def add_caution_to_user(self, interaction, points, reason):
+                    """Add caution using the Cautions cog logic"""
+                    cautions_cog = self.view_instance.cog.bot.get_cog("Cautions")
+                    member = self.view_instance.reported_user
+                    
+                    # Get warning expiry days from Cautions cog config
+                    expiry_days = await cautions_cog.config.guild(interaction.guild).warning_expiry_days()
+                    
+                    # Create warning data structure
+                    warning = {
+                        "points": points,
+                        "reason": reason,
+                        "moderator_id": interaction.user.id,
+                        "timestamp": datetime.utcnow().timestamp(),
+                        "expiry": (datetime.utcnow() + timedelta(days=expiry_days)).timestamp()
+                    }
+                    
+                    # Add warning to member's record
+                    member_config = cautions_cog.config.member(member)
+                    async with member_config.warnings() as warnings:
+                        warnings.append(warning)
+                    
+                    # Update total points
+                    async with member_config.all() as member_data:
+                        member_data["total_points"] = sum(w.get("points", 1) for w in member_data["warnings"])
+                        total_points = member_data["total_points"]
+                    
+                    # Create response embed
+                    embed = discord.Embed(
+                        title="✅ Caution Added",
+                        description=f"{member.mention} has been given a caution via report system.",
+                        color=discord.Color.orange(),
+                        timestamp=discord.utils.utcnow()
+                    )
+                    embed.add_field(name="Points Added", value=str(points), inline=True)
+                    embed.add_field(name="Total Points", value=str(total_points), inline=True)
+                    embed.add_field(name="Reason", value=reason, inline=False)
+                    embed.set_footer(text=f"Handled by {interaction.user}")
+                    
+                    await interaction.response.edit_message(embed=embed, view=None)
+                    self.view_instance.handled_by = interaction.user
+                    
+                    # Log the caution using Cautions cog logging
+                    await cautions_cog.log_action(
+                        interaction.guild, 
+                        "Warning", 
+                        member, 
+                        interaction.user, 
+                        reason,
+                        extra_fields=[
+                            {"name": "Points", "value": str(points)},
+                            {"name": "Total Points", "value": str(total_points)},
+                            {"name": "Via", "value": "Report System"}
+                        ]
+                    )
+                    
+                    # Check thresholds using Cautions cog logic
+                    await self.check_caution_thresholds(interaction, member, total_points, cautions_cog)
+                
+                async def check_caution_thresholds(self, interaction, member, total_points, cautions_cog):
+                    """Check and apply threshold actions from Cautions cog"""
+                    try:
+                        thresholds = await cautions_cog.config.guild(interaction.guild).action_thresholds()
+                        
+                        # Get thresholds that match or are lower than current points
+                        matching_thresholds = []
+                        for threshold_points, action_data in thresholds.items():
+                            if int(threshold_points) <= total_points:
+                                matching_thresholds.append((int(threshold_points), action_data))
+                        
+                        if matching_thresholds:
+                            # Sort by threshold value (descending) to get highest matching threshold
+                            matching_thresholds.sort(key=lambda x: x[0], reverse=True)
+                            threshold_points, action_data = matching_thresholds[0]
+                            
+                            # Get applied thresholds to prevent duplicate actions
+                            applied_thresholds = await cautions_cog.config.member(member).applied_thresholds()
+                            
+                            # Check if this threshold has already been applied
+                            if threshold_points not in applied_thresholds:
+                                # Mark this threshold as applied
+                                applied_thresholds.append(threshold_points)
+                                await cautions_cog.config.member(member).applied_thresholds.set(applied_thresholds)
+                                
+                                # Apply the threshold action
+                                await self.apply_threshold_action(interaction, member, action_data, cautions_cog)
+                    
+                    except Exception as e:
+                        log.error(f"Error checking caution thresholds: {e}")
+                
+                async def apply_threshold_action(self, interaction, member, action_data, cautions_cog):
+                    """Apply threshold action using Cautions cog logic"""
+                    action = action_data["action"]
+                    reason = action_data.get("reason", "Warning threshold exceeded")
+                    duration = action_data.get("duration")
+                    
+                    try:
+                        if action == "mute":
+                            # Use Cautions cog mute logic
+                            mute_role_id = await cautions_cog.config.guild(interaction.guild).mute_role()
+                            if not mute_role_id:
+                                await interaction.followup.send(
+                                    f"⚠️ Threshold reached for {action} but no mute role is configured. "
+                                    f"Please set up with `[p]setupmute`",
+                                    ephemeral=True
+                                )
+                                return
+                            
+                            mute_role = interaction.guild.get_role(mute_role_id)
+                            if not mute_role:
+                                await interaction.followup.send(
+                                    f"⚠️ Mute role not found. Please reconfigure with `[p]setupmute`",
+                                    ephemeral=True
+                                )
+                                return
+                            
+                            # Set muted_until time if duration provided
+                            if duration:
+                                muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                                await cautions_cog.config.member(member).muted_until.set(muted_until.timestamp())
+                            
+                            # Apply mute role
+                            await member.add_roles(mute_role, reason=reason)
+                            
+                            # Also apply timeout as backup
+                            if duration:
+                                timeout_duration = timedelta(minutes=duration)
+                                await member.timeout(timeout_duration, reason=reason)
+                            
+                            await interaction.followup.send(
+                                f"🔇 {member.mention} has been automatically muted for {duration} minutes due to reaching warning threshold.",
+                                ephemeral=True
+                            )
+                            
+                            # Log the auto-mute
+                            await cautions_cog.log_action(
+                                interaction.guild, 
+                                "Auto-Mute", 
+                                member, 
+                                interaction.client.user, 
+                                reason,
+                                extra_fields=[{"name": "Duration", "value": f"{duration} minutes"}]
+                            )
+                        
+                        elif action == "timeout":
+                            if duration:
+                                until = datetime.utcnow() + timedelta(minutes=duration)
+                                await member.timeout(until=until, reason=reason)
+                                
+                                await interaction.followup.send(
+                                    f"⏰ {member.mention} has been automatically timed out for {duration} minutes due to reaching warning threshold.",
+                                    ephemeral=True
+                                )
+                                
+                                await cautions_cog.log_action(
+                                    interaction.guild, 
+                                    "Auto-Timeout", 
+                                    member, 
+                                    interaction.client.user, 
+                                    reason,
+                                    extra_fields=[{"name": "Duration", "value": f"{duration} minutes"}]
+                                )
+                        
+                        elif action == "kick":
+                            await member.kick(reason=reason)
+                            
+                            await interaction.followup.send(
+                                f"👢 {member.mention} has been automatically kicked due to reaching warning threshold.",
+                                ephemeral=True
+                            )
+                            
+                            await cautions_cog.log_action(
+                                interaction.guild, 
+                                "Auto-Kick", 
+                                member, 
+                                interaction.client.user, 
+                                reason
+                            )
+                        
+                        elif action == "ban":
+                            await member.ban(reason=reason)
+                            
+                            await interaction.followup.send(
+                                f"🔨 {member.mention} has been automatically banned due to reaching warning threshold.",
+                                ephemeral=True
+                            )
+                            
+                            await cautions_cog.log_action(
+                                interaction.guild, 
+                                "Auto-Ban", 
+                                member, 
+                                interaction.client.user, 
+                                reason
+                            )
+                    
+                    except discord.Forbidden:
+                        await interaction.followup.send(
+                            f"❌ I don't have permission to {action} this user.",
+                            ephemeral=True
+                        )
+                    except Exception as e:
+                        log.error(f"Error applying threshold action {action}: {e}")
+                        await interaction.followup.send(
+                            f"❌ Error applying automatic {action}: {str(e)}",
+                            ephemeral=True
+                        )
+            
+            # Show the modal
+            modal = CautionModal(self)
+            await interaction.response.send_modal(modal)
+            
+        except Exception as e:
+            log.error(f"Error in caution button: {e}")
+            await interaction.response.send_message(
+                "❌ An error occurred while processing the caution.", 
+                ephemeral=True
+            )
+    
     @discord.ui.button(label="Mute 1h", style=discord.ButtonStyle.secondary, emoji="🔇")
     async def mute_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Mute the reported user for 1 hour"""
