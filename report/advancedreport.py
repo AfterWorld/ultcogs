@@ -447,8 +447,6 @@ class AdvancedReport(red_commands.Cog):
     @checks.admin_or_permissions(administrator=True)
     async def report_settings(self, ctx):
         """Configure the report system"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
     
     @report_settings.command(name="channel")
     async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
