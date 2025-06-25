@@ -1,270 +1,308 @@
-# Report Cog
+### 🚀 Staff Quick Actions
+Interactive buttons on every report for instant moderation:
+- **🔇 Mute**: Timeout user or apply mute role
+- **🔨 Ban**: Permanently ban the reported user
+- **⚠️ Caution**: Issue cautions using integrated Cautions cog system (with points, thresholds, auto-actions)
+- **🚫 Blacklist Reporter**: Block false reporters# AdvancedReport - Comprehensive Discord Reporting System
 
-An advanced user reporting system for Red-DiscordBot that provides comprehensive moderation tools with staff quick-action buttons.
+A sophisticated Red-DiscordBot cog that provides a complete reporting system with both traditional commands and modern Discord context menus, featuring staff quick-action buttons and detailed logging.
 
-## Features
+## ✨ Features
 
-### 🚨 Dual Reporting Methods
-- **Command-based**: `[p]report @user reason` 
-- **Reply Support**: Reply to a message and use the report command to include context
-- **Context Menu**: *Coming in future Red versions with context menu support*
+### 🎯 Multiple Report Methods
+- **Text Command**: `[p]report @user reason` - Traditional command-based reporting
+- **Message ID**: `[p]reportmsg <message_id> reason` - Report specific messages by ID
+- **Context Menu**: Right-click any message → Apps → "Report Message" - Modern Discord UI
 
-### ⚡ Staff Quick Actions
-Interactive buttons on each report for immediate moderation:
-- **Caution**: Add warning points that integrate with the Cautions cog system
-- **Mute 1h**: Timeout the reported user for 1 hour
-- **Ban**: Permanently ban the reported user
-- **Blacklist Reporter**: Prevent false reporters from using the system
-- **Dismiss**: Mark the report as reviewed without action
+### 🚀 Staff Quick Actions
+Interactive buttons on every report for instant moderation:
+- **🔇 Mute**: Timeout user or apply mute role
+- **🔨 Ban**: Permanently ban the reported user
+- **⚠️ Warn**: Issue warnings with DM notifications
+- **🚫 Blacklist Reporter**: Block false reporters
+- **✅ Dismiss**: Mark report as resolved
 
-### 🛡️ Anti-Abuse Protection
-- **Cooldown System**: Configurable cooldown between reports (default: 5 minutes)
-- **Blacklist Management**: Block users who abuse the reporting system
-- **Input Validation**: Sanitize and validate all user inputs
-- **Permission Checks**: Only staff can use action buttons
+### 🔗 Advanced Integrations
+- **Cautions Cog Integration**: Seamlessly integrates with the Cautions cog for advanced warning systems
+  - Uses point-based caution system with configurable thresholds
+  - Automatic escalation actions (mute, timeout, kick, ban)
+  - Warning expiry and detailed logging
+  - Fallback system if Cautions cog is not available
+- **Message Links**: Direct jump links to reported messages
+- **Auto-Threading**: Optional thread creation for report discussions
+- **Staff Pinging**: Configurable role notifications
+- **Comprehensive Logging**: Detailed action history
+- **Blacklist System**: Prevent abuse from repeat false reporters
 
-### 📊 Comprehensive Logging
-- **Action Logging**: All moderation actions are logged to a dedicated channel
-- **User Statistics**: Track total reports per user
-- **Detailed Reports**: Include message content, links, and metadata
+## 📋 Installation
 
-## Installation
+### Method 1: Manual Installation
+1. Download the cog files to your Red instance
+2. Place in `[red_data_path]/cogs/AdvancedReport/`
+3. Load with `[p]load AdvancedReport`
 
-1. Add the repo: `[p]repo add ultcogs https://github.com/AfterWorld/ultcogs`
-2. Install the cog: `[p]cog install ultcogs report`
-3. Load the cog: `[p]load report`
-
-## Setup Guide
-
-### 1. Basic Configuration
+### Method 2: Git Repository (if published)
+```bash
+[p]repo add ult <repository_url>
+[p]cog install advanced-reports AdvancedReport
+[p]load AdvancedReport
 ```
+
+## ⚙️ Configuration
+
+### Required Setup
+```bash
+# Set the channel where reports are sent
 [p]reportset channel #reports
-[p]reportset staffrole add @Moderators
+
+# Add staff roles that can handle reports
+[p]reportset staffroles @Moderator @Admin
+
+# Optional: Set up logging
 [p]reportset logchannel #mod-logs
 ```
 
-### 2. Optional Settings
-```
-[p]reportset cooldown 300          # 5 minute cooldown
-[p]reportset toggle                # Enable/disable system
-```
+### Advanced Configuration
+```bash
+# Set custom mute role (optional - uses timeout by default)
+[p]reportset muterole @Muted
 
-### 3. View Configuration
-```
-[p]reportset status               # Show current settings
-```
+# Configure default mute duration (in minutes)
+[p]reportset muteduration 60
 
-## Commands
+# Set default caution points for reports (requires Cautions cog)
+[p]reportset cautionpoints 2
 
-### User Commands
-- `[p]report @user reason` - Report a user with a reason
-- `[p]report reason` - When replying to a message, auto-detects the user
-- `[p]report @user` - When replying to a message, uses message as context
-- `[p]report` - When replying to a message, uses message content as reason
+# Check integration status with other cogs
+[p]reportset integration
 
-### Admin Commands (Requires Administrator)
-- `[p]reportset channel [#channel]` - Set/view report channel
-- `[p]reportset staffrole <add/remove/list> [@role]` - Manage staff roles
-- `[p]reportset logchannel [#channel]` - Set/view log channel
-- `[p]reportset cooldown <seconds>` - Set cooldown between reports
-- `[p]reportset toggle` - Enable/disable the system
-- `[p]reportset blacklist <add/remove/list> [@user]` - Manage blacklist
-- `[p]reportset status` - Show configuration overview
-
-## Usage Examples
-
-### Reporting a User
-```
-# Standard method
-[p]report @BadUser They were spamming inappropriate content
-
-# Reply method (auto-detects user from replied message)
-Reply to the problematic message → [p]report Inappropriate content
-Reply to the problematic message → [p]report @BadUser (uses message as context)
-Reply to the problematic message → [p]report (uses message content as reason)
+# View all current settings
+[p]reportset view
 ```
 
-### Staff Actions
-When a report is received, staff see an embed with action buttons:
-- Click "Caution" to add warning points via the Cautions cog system
-- Click "Mute 1h" for quick timeout
-- Click "Ban" for immediate ban
-- Click "Blacklist Reporter" if report is false/malicious
-- Click "Dismiss" to mark as reviewed
+### Cautions Cog Integration
+If you have the Cautions cog installed, the report system will automatically integrate:
 
-**Caution Integration**: The Caution button requires the Cautions cog to be loaded. It will:
-- Add configurable warning points to the user
-- Automatically trigger threshold actions (mute, timeout, kick, ban)
-- Use the same expiry and logging system as the Cautions cog
-- Respect all Cautions cog configuration settings
+```bash
+# Install and configure Cautions cog first
+[p]load cautions
+[p]cautionset expiry 30  # Cautions expire after 30 days
+[p]cautionset setthreshold 3 mute 60  # Mute for 60 minutes at 3 points
+[p]cautionset setthreshold 5 timeout 120  # Timeout for 2 hours at 5 points
+[p]cautionset setthreshold 10 kick  # Kick at 10 points
 
-### Administrative Setup
-```
-# Initial setup
-[p]reportset channel #staff-reports
-[p]reportset staffrole add @Moderators
-[p]reportset staffrole add @Admins
-[p]reportset logchannel #mod-actions
-
-# View current config
-[p]reportset status
-
-# Manage problematic users
-[p]reportset blacklist add @FalseReporter
-[p]reportset blacklist list
+# Then configure report system integration
+[p]reportset cautionpoints 2  # Each report caution gives 2 points
 ```
 
-## Configuration Options
+## 🎮 Usage
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `channel` | Channel where reports are sent | None |
-| `staffroles` | Roles that get pinged on reports | Empty |
-| `logchannel` | Channel for logging actions | None |
-| `cooldown` | Seconds between reports per user | 300 (5 min) |
-| `enabled` | Whether system is active | True |
-| `blacklist` | Users blocked from reporting | Empty |
+### For Regular Users
 
-## Security Features
+#### Text Commands
+```bash
+# Report a user with reason
+[p]report @BadUser They were spamming the chat
 
-### Input Validation
-- Sanitizes user input to prevent injection
-- Limits reason length to 1000 characters
-- Removes control characters
+# Report a specific message by ID
+[p]reportmsg 123456789012345678 This message contains inappropriate content
+```
 
-### Permission Checks
-- Only staff can use action buttons
-- Administrators only for configuration
-- Prevents self-reporting and bot reporting
+#### Context Menu (Recommended)
+1. Right-click on any message
+2. Select "Apps" → "Report Message"
+3. Fill in the reason in the popup modal
+4. Submit the report
+
+### For Staff Members
+
+#### Handling Reports
+When a report is submitted, staff will see an embed with:
+- **Report ID**: Unique identifier for tracking
+- **Reported User**: Full user details and mention
+- **Reporter**: Who submitted the report
+- **Reason**: Detailed explanation
+- **Message Link**: Direct link to the reported content
+- **Quick Action Buttons**: Instant moderation tools
+
+#### Quick Actions
+Click any button on a report to take immediate action:
+- **Mute**: Applies timeout or mute role
+- **Ban**: Permanently removes user from server
+- **Caution**: Issues caution with points (integrates with Cautions cog if available)
+- **Blacklist Reporter**: Prevents user from making future reports
+- **Dismiss**: Marks report as resolved
+
+#### Integration Commands
+```bash
+# Check integration status with other cogs
+[p]reportset integration
+
+# Check a user's caution history (staff only)
+[p]reportcautions @user
+
+# Configure caution points for reports
+[p]reportset cautionpoints 2
+```
+
+#### Administrative Commands
+```bash
+# Configure system settings
+[p]reportset channel #new-reports-channel
+[p]reportset staffroles @NewRole @AnotherRole
+[p]reportset logchannel #audit-log
+
+# View configuration
+[p]reportset view
+
+# Set mute options
+[p]reportset muterole @TimedOut
+[p]reportset muteduration 120  # 2 hours
+```
+
+## 🔧 Advanced Configuration
+
+### Permission Requirements
+- **Bot Permissions**: 
+  - Send Messages, Embed Links, Manage Messages
+  - Moderate Members (for timeout functionality)
+  - Ban Members (for ban functionality)
+  - Manage Roles (if using mute role)
+
+- **Staff Permissions**:
+  - Must have configured staff roles OR Administrator permission
+  - Individual permissions checked for each action
+
+### Database Schema
+The cog stores data in Red's Config system and integrates with Cautions cog:
+
+#### Guild Settings
+```python
+{
+    "report_channel": 123456789,      # Channel ID for reports
+    "staff_roles": [123, 456],        # List of staff role IDs
+    "log_channel": 987654321,         # Channel for action logs
+    "mute_role": 111222333,           # Optional mute role ID
+    "default_mute_duration": 60,      # Minutes for timeouts
+    "blacklisted_users": [789],       # Users blocked from reporting
+    "ping_staff": true,               # Whether to ping staff roles
+    "auto_thread": false,             # Auto-create threads for reports
+    "require_reason": true,           # Require reason for reports
+    "default_caution_points": 1       # Points per caution (Cautions integration)
+}
+```
+
+#### Member Data (Compatible with Cautions cog)
+```python
+{
+    "warnings": [                     # Caution/warning history
+        {
+            "reason": "Report: Spam",
+            "moderator_id": 123456,    # For Cautions integration
+            "timestamp": 1234567890.0,  # Unix timestamp
+            "points": 2,               # Caution points (Cautions integration)
+            "expiry": 1237159890.0,    # Expiry timestamp (Cautions integration)
+            "report_id": "RPT-000001"
+        }
+    ],
+    "report_count": 5,                # Number of reports made by user
+    "total_points": 8,                # Total caution points (Cautions integration)
+    "applied_thresholds": [3, 5]      # Applied thresholds (Cautions integration)
+}
+```
+
+## 🛡️ Security Features
 
 ### Anti-Abuse Measures
-- Cooldown system prevents spam
-- Blacklist system for persistent abusers
-- Comprehensive logging for accountability
+- **Blacklist System**: Prevents repeat false reporters
+- **Self-Report Protection**: Users cannot report themselves
+- **Bot Protection**: Prevents reporting of bot accounts
+- **Staff Protection**: Staff members cannot be reported through the system
 
-## Troubleshooting
+### Data Privacy
+- **Ephemeral Responses**: Error messages are private
+- **Command Cleanup**: Original report commands are deleted
+- **DM Confirmations**: Users receive private confirmations
+
+### Audit Trail
+- **Comprehensive Logging**: All actions logged with timestamps
+- **Moderator Attribution**: Every action tracks who performed it
+- **Report IDs**: Unique identifiers for tracking and appeals
+
+## 🔄 Workflow Example
+
+1. **User Reports**: Uses context menu or command to report inappropriate behavior
+2. **Staff Notification**: Configured staff roles are pinged with report details
+3. **Quick Action**: Staff member clicks appropriate button (mute, ban, caution, etc.)
+4. **Automatic Processing**: 
+   - Action is performed (user muted/banned/cautioned)
+   - **Cautions Integration**: If Cautions cog is loaded, points are added and thresholds checked
+   - User is notified via DM (for cautions)
+   - Action is logged to audit channel
+   - Report is marked as processed
+5. **Threshold Actions**: If using Cautions cog, automatic escalation may trigger (additional mute, kick, ban)
+6. **Follow-up**: Additional actions can be taken manually if needed
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Reports not being logged?**
-- Check if log channel is set: `[p]reportset logchannel #your-log-channel`
-- Ensure bot has permission to send messages in log channel
-- Verify the log channel still exists and wasn't deleted
-- Check `[p]reportset status` to see current configuration
-**Reports not appearing in report channel?**
-- Ensure bot has permission to send messages in report channel
-- Verify the system is enabled: `[p]reportset toggle`
+#### Reports Not Appearing
+- Verify report channel is set: `[p]reportset view`
+- Check bot permissions in report channel
+- Ensure bot can see the configured channel
 
-**Staff not getting pinged?**
-- Add staff roles: `[p]reportset staffrole add @YourRole`
-- Check role permissions and hierarchy
-- Verify roles are mentionable
+#### Buttons Not Working
+- Verify user has staff role configured in `[p]reportset staffroles`
+- Check bot permissions for the intended action
+- Ensure target user is still in the server
 
-**Action buttons not working?**
-- Ensure staff have "Moderate Members" permission
-- Check bot has necessary permissions (timeout, ban, etc.)
-- Verify user isn't higher in role hierarchy
-- For Caution button: Ensure Cautions cog is loaded (`[p]load cautions`)
+#### Context Menu Missing
+- Restart Discord client
+- Verify bot has application command permissions
+- Check if command is disabled in server settings
 
-**Caution button shows error?**
-- Load the Cautions cog: `[p]load cautions`
-- Configure Cautions cog: `[p]cautionset` and `[p]setupmute`
-- Check that warning thresholds are properly set up
+### Error Messages
+- **"You are blacklisted"**: User has been blocked from reporting
+- **"Cannot report staff members"**: Target has staff permissions
+- **"Message not found"**: Message ID is invalid or bot cannot access it
+- **"No permission"**: Bot lacks required permissions for the action
 
-**Context menu missing?**
-- Context menus are not supported in older Red versions
-- Use the reply method instead: Reply to the problematic message and use `[p]report @user reason`
-- This provides the same functionality with message context
+#### Cautions Integration Issues
+- **"Cautions cog not available"**: Install the Cautions cog for advanced warning features
+- **"Error accessing caution data"**: Check if Cautions cog is properly configured
+- **Points not applying**: Verify Cautions cog settings with `[p]cautionset showthresholds`
 
-## Prerequisites
+#### Integration Status
+- **Check integration**: Use `[p]reportset integration` to see what cogs are available
+- **Cautions not detected**: Ensure Cautions cog is loaded with `[p]load cautions`
 
-### Required Cogs
-- **Cautions Cog** (optional but recommended): For the Caution button functionality
-  - If not loaded, the Caution button will show an error message
-  - Provides automatic threshold actions based on warning points
-  - Handles warning expiry and comprehensive logging
+## 📝 Changelog
 
-### Bot Permissions
-**Bot Permissions:**
-- Send Messages (report channel)
-- Embed Links (for report embeds)
-- Moderate Members (for timeout action)
-- Ban Members (for ban action)
-- Manage Messages (for cleanup)
-- Manage Roles (for Cautions cog mute integration)
+### Version 1.1.0
+- **🔗 Cautions Cog Integration**: Seamless integration with existing Cautions warning system
+- **📊 Point-Based Cautions**: Configurable caution points for reports with automatic threshold actions
+- **🔍 Enhanced User Lookup**: `[p]reportcautions` command to check user caution history
+- **⚙️ Integration Status**: `[p]reportset integration` to check available cog integrations
+- **🔄 Intelligent Fallback**: Automatic fallback to simple warning system if Cautions cog unavailable
+- **🎯 Configurable Points**: `[p]reportset cautionpoints` to set default points per report
 
-**User Permissions:**
-- None required for reporting
-- Moderate Members required for action buttons
-- Administrator required for configuration
-
-## Integration with Cautions Cog
-
-The Report cog seamlessly integrates with the Cautions cog to provide a comprehensive moderation workflow:
-
-### Setup Integration
-1. Install both cogs: `[p]cog install ultcogs report` and `[p]cog install ultcogs cautions`
-2. Load both cogs: `[p]load report` and `[p]load cautions`
-3. Configure Cautions: `[p]setupmute` and `[p]cautionset`
-4. Configure Reports: `[p]reportset`
-
-### How It Works
-- **Caution Button**: When staff click "Caution" on a report, it opens a modal to add warning points
-- **Automatic Thresholds**: Warning points are added to the user's total from the Cautions cog
-- **Threshold Actions**: If the user reaches a configured threshold, automatic actions trigger (mute, timeout, kick, ban)
-- **Unified Logging**: All actions are logged through the Cautions cog logging system
-- **Expiry System**: Warnings added via reports follow the same expiry rules as the Cautions cog
-
-### Benefits
-- **Streamlined Workflow**: Handle reports and warnings in one interface
-- **Consistent Enforcement**: All warnings use the same point system and thresholds
-- **Automatic Escalation**: Problem users automatically face increasing consequences
-- **Complete Audit Trail**: All actions are logged with case numbers and details
-
-## Advanced Features
-### Custom Cooldowns
-```
-[p]reportset cooldown 0      # No cooldown
-[p]reportset cooldown 180    # 3 minutes
-[p]reportset cooldown 600    # 10 minutes
-```
-
-### Multiple Staff Roles
-Add multiple roles for comprehensive coverage:
-```
-[p]reportset staffrole add @Moderators
-[p]reportset staffrole add @Admins
-[p]reportset staffrole add @SeniorStaff
-```
-
-### Blacklist Management
-Manage users who abuse the system:
-```
-[p]reportset blacklist add @Abuser      # Block from reporting
-[p]reportset blacklist remove @Reformed # Unblock user
-[p]reportset blacklist list             # View all blacklisted
-```
-
-## Data Storage
-
-The cog stores:
-- **Guild Settings**: Channel IDs, role IDs, configuration
-- **User Data**: Last report time, total reports made, blacklist status
-- **No Personal Data**: Only Discord IDs and report metadata
-
-## Support
-
-For issues or feature requests:
-- GitHub: https://github.com/AfterWorld/ultcogs
-- Create an issue with detailed description
-- Include error logs if applicable
-
-## Changelog
-
-### v1.0.0
-- Initial release
-- Command and context menu reporting
+### Version 1.0.0
+- Initial release with core reporting functionality
+- Context menu and command-based reporting
 - Staff quick action buttons
 - Comprehensive configuration system
-- Anti-abuse protection
-- Detailed logging system
+- Warning and blacklist systems
+- Audit logging capabilities
+
+## 🤝 Contributing
+
+Feel free to submit issues, feature requests, or pull requests to improve this cog.
+
+## 📄 License
+
+This cog is provided under the same license as Red-DiscordBot.
+
+---
+
+*For additional support, please refer to the Red-DiscordBot documentation or community Discord server.*
