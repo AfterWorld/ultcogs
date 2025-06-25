@@ -185,10 +185,10 @@ class ReportView(discord.ui.View):
 
 class AdvancedReport(red_commands.Cog):
     """Advanced reporting system with context menus and quick actions"""
-    
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890987654321, force_registration=True)
+        self.config: RedConfig = RedConfig.get_conf(self, identifier=1234567890987654321, force_registration=True)
+        self.config: Config = Config.get_conf(self, identifier=1234567890987654321, force_registration=True)
         
         # Register config
         self.config.register_guild(
@@ -211,7 +211,6 @@ class AdvancedReport(red_commands.Cog):
         self.config.register_global(
             total_reports=0
         )
-    
     async def cog_load(self):
         """Called when the cog is loaded"""
         self.bot.add_view(ReportView(self, {}))
@@ -357,13 +356,19 @@ class AdvancedReport(red_commands.Cog):
         except:
             await ctx.send(f"✅ {ctx.author.mention}, your report submitted.", delete_after=10)
     
-    async def create_report(self, guild: discord.Guild, reporter: discord.User, 
-                          reported_user: discord.User, reason: str, 
-                          source_message: discord.Message, source_channel: discord.TextChannel):
+    async def create_report(
+        self,
+        guild: discord.Guild,
+        reporter: discord.User,
+        reported_user: discord.User,
+        reason: str,
+        source_message: discord.Message,
+        source_channel: discord.TextChannel
+    ) -> None:
         """Create and send a report"""
         
         # Get report channel
-        report_channel_id = await self.config.guild(guild).report_channel()
+        report_channel_id: Optional[int] = await self.config.guild(guild).report_channel()  # type: ignore
         if not report_channel_id:
             log.warning(f"No report channel set for guild {guild.id}")
             return
