@@ -32,16 +32,30 @@ class SuggestionVotingView(discord.ui.View):
         super().__init__(timeout=None)  # Persistent view
         self.cog = cog
         self.suggestion_id = suggestion_id
-        self.upvotes = 0
-        self.downvotes = 0
-        self.voted_users = set()
+        # Initialize vote counts by loading from config
+        self._load_vote_counts()
     
-    @discord.ui.button(label="Upvote", style=discord.ButtonStyle.green, emoji="👍", custom_id="upvote")
+    async def _load_vote_counts(self):
+        """Load current vote counts from the suggestion data"""
+        # This should be called after the view is attached to a guild context
+        pass
+    
+    def update_vote_counts(self, upvotes: int, downvotes: int):
+        """Update the button labels with current vote counts"""
+        # Find the buttons and update their labels
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                if item.custom_id == "upvote":
+                    item.label = f"Upvote ({upvotes})"
+                elif item.custom_id == "downvote":
+                    item.label = f"Downvote ({downvotes})"
+    
+    @discord.ui.button(label="Upvote (0)", style=discord.ButtonStyle.green, emoji="👍", custom_id="upvote")
     async def upvote_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle upvote button"""
         await self._handle_vote(interaction, "upvote")
     
-    @discord.ui.button(label="Downvote", style=discord.ButtonStyle.red, emoji="👎", custom_id="downvote")
+    @discord.ui.button(label="Downvote (0)", style=discord.ButtonStyle.red, emoji="👎", custom_id="downvote")
     async def downvote_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle downvote button"""
         await self._handle_vote(interaction, "downvote")
@@ -98,8 +112,11 @@ class SuggestionVotingView(discord.ui.View):
                 await interaction.response.send_message("✅ Downvoted!", ephemeral=True)
         
         # Update vote counts
-        self.upvotes = len(upvoters)
-        self.downvotes = len(downvoters)
+        upvote_count = len(upvoters)
+        downvote_count = len(downvoters)
+        
+        # Update button labels with new counts
+        self.update_vote_counts(upvote_count, downvote_count)
         
         # Update the embed with new vote counts
         embed = interaction.message.embeds[0]
@@ -108,14 +125,14 @@ class SuggestionVotingView(discord.ui.View):
         vote_field_updated = False
         for i, field in enumerate(embed.fields):
             if field.name == "Votes":
-                embed.set_field_at(i, name="Votes", value=f"👍 {self.upvotes} | 👎 {self.downvotes}", inline=True)
+                embed.set_field_at(i, name="Votes", value=f"👍 {upvote_count} | 👎 {downvote_count}", inline=True)
                 vote_field_updated = True
                 break
         
         if not vote_field_updated:
-            embed.add_field(name="Votes", value=f"👍 {self.upvotes} | 👎 {self.downvotes}", inline=True)
+            embed.add_field(name="Votes", value=f"👍 {upvote_count} | 👎 {downvote_count}", inline=True)
         
-        # Update the message
+        # Update the message with both new embed and updated view
         await interaction.edit_original_response(embed=embed, view=self)
         
         # Save votes to config
@@ -128,12 +145,11 @@ class SuggestionVotingView(discord.ui.View):
         self.cog.cache.invalidate(interaction.guild.id)
         
         # Check if threshold reached for staff review
-        if (self.upvotes >= guild_config["upvote_threshold"] and 
+        if (upvote_count >= guild_config["upvote_threshold"] and 
             suggestion_data["status"] == "pending" and
             suggestion_data.get("staff_message_id") is None):
             
-            await self.cog._forward_to_staff(interaction.guild, str(self.suggestion_id), suggestion_data, self.upvotes)
-
+            await self.cog._forward_to_staff(interaction.guild, str(self.suggestion_id), suggestion_data, upvote_count)
 
 class SuggestionStaffView(discord.ui.View):
     """View for staff approval/denial buttons"""
@@ -278,6 +294,78 @@ class Suggestion(commands.Cog):
         # Add persistent views
         self.bot.add_view(SuggestionVotingView(self, 0))  # Template view for persistence
         self.bot.add_view(SuggestionStaffView(self, 0))   # Template view for persistence
+
+    async def cog_load(self):
+        """Called when the cog is loaded"""
+        # Initialize persistent views for existing suggestions
+        await self.initialize_persistent_views()
+    
+    async def initialize_persistent_views(self):
+        """Initialize persistent views for existing suggestions when bot starts"""
+        await self.bot.wait_until_ready()
+        
+        for guild in self.bot.guilds:
+            try:
+                guild_config = await self.get_guild_config(guild)
+                suggestions = guild_config.get("suggestions", {})
+                
+                for suggestion_id, suggestion_data in suggestions.items():
+                    if suggestion_data.get("status") == "pending":
+                        # Create and register persistent view for each pending suggestion
+                        view = SuggestionVotingView(self, int(suggestion_id))
+                        
+                        # Load current vote counts
+                        votes = suggestion_data.get("votes", {"upvotes": [], "downvotes": []})
+                        upvote_count = len(votes.get("upvotes", []))
+                        downvote_count = len(votes.get("downvotes", []))
+                        view.update_vote_counts(upvote_count, downvote_count)
+                        
+                        # Add the view to the bot's persistent views
+                        self.bot.add_view(view)
+                        
+                        # Optionally, update the message to show current vote counts
+                        try:
+                            channel = guild.get_channel(suggestion_data["channel_id"])
+                            if channel:
+                                message = await channel.fetch_message(suggestion_data["message_id"])
+                                # Update embed to show current votes
+                                embed = message.embeds[0]
+                                
+                                # Update or add votes field
+                                vote_field_updated = False
+                                for i, field in enumerate(embed.fields):
+                                    if field.name == "Votes":
+                                        embed.set_field_at(i, name="Votes", value=f"👍 {upvote_count} | 👎 {downvote_count}", inline=True)
+                                        vote_field_updated = True
+                                        break
+                                
+                                if not vote_field_updated:
+                                    embed.add_field(name="Votes", value=f"👍 {upvote_count} | 👎 {downvote_count}", inline=True)
+                                
+                                await message.edit(embed=embed, view=view)
+                        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                            # Message might be deleted or bot lacks permissions
+                            pass
+                    
+                    elif suggestion_data.get("staff_message_id"):
+                        # Initialize staff views for suggestions in review
+                        staff_view = SuggestionStaffView(self, int(suggestion_id))
+                        self.bot.add_view(staff_view)
+            
+            except Exception as e:
+                log.error(f"Error initializing persistent views for guild {guild.id}: {e}")
+    
+    def cog_unload(self):
+        """Called when the cog is unloaded"""
+        # Clean up any persistent views
+        pass
+        
+    async def red_delete_data_for_user(self, **kwargs):
+        """Delete user data for GDPR compliance"""
+        user_id = kwargs.get("user_id")
+        if user_id:
+            await self.config.user_from_id(user_id).clear()
+            log.info(f"Deleted suggestion data for user {user_id}")
         
     async def red_delete_data_for_user(self, **kwargs):
         """Delete user data for GDPR compliance"""
@@ -789,8 +877,10 @@ class Suggestion(commands.Cog):
         # Add initial vote field
         embed.add_field(name="Votes", value="👍 0 | 👎 0", inline=True)
         
-        # Create voting view
+        # Create voting view with proper initialization
         view = SuggestionVotingView(self, suggestion_id)
+        # Initialize button labels to show vote counts
+        view.update_vote_counts(0, 0)
         
         # Send suggestion to channel
         try:
