@@ -180,81 +180,54 @@ class NekoInteractions(commands.Cog):
         
         return embed
         
-    async def generate_interaction_command(self, action: str):
-        """Dynamically generate interaction commands"""
-        action_data = self.interactions[action]
+
+    @commands.command()
+    @commands.guild_only()
+    async def blush(self, ctx, target: Optional[discord.Member] = None):
+        """😊 Make someone blush!"""
+        await self._execute_interaction(ctx, "blush", target)
         
-        @commands.command(name=action)
-        @commands.guild_only()
-        async def interaction_cmd(self, ctx, target: Optional[discord.Member] = None):
-            f"""{action_data['emoji']} {action_data['action_text'].title()} someone with a cute anime GIF!"""
-            
-            # Check if interactions are enabled
-            if not await self.config.guild(ctx.guild).enabled():
-                await ctx.send("❌ Neko interactions are disabled in this server!")
-                return
-                
-            # Check cooldown
-            if not await self.check_cooldown(ctx.author.id, ctx.guild.id):
-                cooldown_seconds = await self.config.guild(ctx.guild).cooldown_seconds()
-                await ctx.send(f"⏰ Please wait {cooldown_seconds} seconds between interactions!")
-                return
-                
-            # Default to self-interaction if no target
-            if target is None:
-                target = ctx.author
-                
-            # Fetch image from API
-            async with ctx.typing():
-                image_url = await self.get_nekos_image(action)
-                
-            if not image_url:
-                await ctx.send(f"❌ Failed to fetch {action} image. Please try again!")
-                return
-                
-            # Get current count for this specific interaction
-            if target.id == ctx.author.id:
-                # Self interaction
-                given_stats = await self.config.member(ctx.author).interactions_given()
-                count = given_stats.get(action, 0) + 1
-            else:
-                # Get how many times giver has done this action to receiver
-                given_stats = await self.config.member(ctx.author).interactions_given()
-                count = given_stats.get(f"{action}_{target.id}", 0) + 1
-                
-                # Update specific target tracking
-                async with self.config.member(ctx.author).interactions_given() as given:
-                    given[f"{action}_{target.id}"] = count
-                    
-            # Update general stats
-            await self.update_interaction_stats(ctx.guild, ctx.author, target, action)
-            
-            # Create and send embed
-            embed = await self.create_interaction_embed(ctx.author, target, action, image_url, count)
-            await ctx.send(embed=embed)
-            
-        return interaction_cmd
+    @commands.command()
+    @commands.guild_only()
+    async def smile(self, ctx, target: Optional[discord.Member] = None):
+        """😄 Smile at someone!"""
+        await self._execute_interaction(ctx, "smile", target)
         
-    def __init_subclass__(cls):
-        # Dynamically add all interaction commands
-        for action in cls.interactions:
-            cmd = cls.generate_interaction_command(cls, action)
-            setattr(cls, f"{action}_command", cmd)
-            
-    # Generate all interaction commands
-    def __new__(cls, bot):
-        instance = super().__new__(cls)
+    @commands.command()
+    @commands.guild_only()
+    async def wave(self, ctx, target: Optional[discord.Member] = None):
+        """👋 Wave at someone!"""
+        await self._execute_interaction(ctx, "wave", target)
         
-        # Add all interaction commands dynamically
-        for action in instance.interactions:
-            cmd_func = instance.generate_interaction_command(action)
-            # Bind the method to the instance
-            bound_method = cmd_func.__get__(instance, cls)
-            setattr(instance, f"{action}_cmd", bound_method)
-            
-        return instance
+    @commands.command()
+    @commands.guild_only()
+    async def highfive(self, ctx, target: Optional[discord.Member] = None):
+        """🙏 Give someone a high five!"""
+        await self._execute_interaction(ctx, "highfive", target)
         
-    # Manual command definitions (since dynamic generation is complex in Red)
+    @commands.command()
+    @commands.guild_only()
+    async def handhold(self, ctx, target: Optional[discord.Member] = None):
+        """🤝 Hold hands with someone!"""
+        await self._execute_interaction(ctx, "handhold", target)
+        
+    @commands.command()
+    @commands.guild_only()
+    async def nom(self, ctx, target: Optional[discord.Member] = None):
+        """😋 Nom someone!"""
+        await self._execute_interaction(ctx, "nom", target)
+        
+    @commands.command()
+    @commands.guild_only()
+    async def stare(self, ctx, target: Optional[discord.Member] = None):
+        """👀 Stare at someone!"""
+        await self._execute_interaction(ctx, "stare", target)
+        
+    @commands.command()
+    @commands.guild_only()
+    async def wink(self, ctx, target: Optional[discord.Member] = None):
+        """😉 Wink at someone!"""
+        await self._execute_interaction(ctx, "wink", target)
     @commands.command(aliases=["cuddles"])
     @commands.guild_only()
     async def hug(self, ctx, target: Optional[discord.Member] = None):
