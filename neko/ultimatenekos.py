@@ -287,7 +287,7 @@ class UltimateNekoInteractions(commands.Cog):
                 "warning": "This interaction deals with self-harm themes. Please be mindful of mental health.",
                 "apis": {"waifu.it": "suicide"}
             },
-            "kick": {
+            "animekick": {
                 "emoji": "🦵", "action_text": "kicked", "past_tense": "kicked", "category": "extreme",
                 "warning": "This is a violent interaction.",
                 "apis": {"waifu.it": "kick", "waifu.pics": "kick"}
@@ -1077,8 +1077,8 @@ class UltimateNekoInteractions(commands.Cog):
         
     @commands.command()
     @commands.guild_only()
-    async def kick(self, ctx, target: Optional[discord.Member] = None):
-        """🦵 Kick someone (violent anime interaction)"""
+    async def animekick(self, ctx, target: Optional[discord.Member] = None):
+        """🦵 AnimeKick someone (violent anime interaction)"""
         await self._execute_interaction(ctx, "kick", target, is_extreme=True)
         
     @commands.command()
