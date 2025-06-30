@@ -1,0 +1,13 @@
+{
+    "name": "NekoInteractions",
+    "short": "Anime-style interaction commands with nekos.best API",
+    "description": "A comprehensive interaction cog featuring cute anime GIFs from nekos.best. Includes hug, kiss, slap, poke, pat, cuddle, and many more interactions with detailed statistics tracking. Perfect for adding fun social elements to your Discord server with beautiful embeds and interaction counting.",
+    "install_msg": "🌸 **NekoInteractions** installed successfully!\n\n**Quick Start:**\n• Use `[p]nekohelp` to see all available commands\n• Try `[p]hug @someone` to give your first hug!\n• Use `[p]nekostats` to view your interaction statistics\n• Admins can use `[p]nekoset` to configure settings\n\n**Features:**\n✨ 18+ different interaction types\n📊 Detailed statistics tracking\n🎨 Customizable embed colors\n⏰ Configurable cooldowns\n🌐 Powered by nekos.best API\n\nEnjoy spreading the anime love! 💕",
+    "author": ["UltPanda"],
+    "requirements": ["aiohttp>=3.8.0"],
+    "tags": ["fun", "anime", "interactions", "social", "gifs", "nekos", "statistics"],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "end_user_data_statement": "This cog stores interaction statistics including the number of times users have performed specific interactions (hug, kiss, slap, etc.) with other users. This data includes user IDs, interaction counts, and favorite actions. No personal information beyond Discord user IDs is collected or stored.",
+    "type": "COG"
+}
