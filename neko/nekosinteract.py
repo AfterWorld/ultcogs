@@ -333,8 +333,6 @@ class NekoInteractions(commands.Cog):
     @commands.guild_only()
     async def neko_stats(self, ctx):
         """View interaction statistics"""
-        if ctx.invoked_subcommand is None:
-            await self.show_user_stats(ctx, ctx.author)
             
     @neko_stats.command(name="user", aliases=["u"])
     async def stats_user(self, ctx, user: Optional[discord.Member] = None):
