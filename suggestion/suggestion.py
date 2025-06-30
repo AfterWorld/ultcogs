@@ -133,7 +133,10 @@ class SuggestionVotingView(discord.ui.View):
             embed.add_field(name="Votes", value=f"👍 {upvote_count} | 👎 {downvote_count}", inline=True)
         
         # Update the message with both new embed and updated view
-        await interaction.edit_original_response(embed=embed, view=self)
+        try:
+            await interaction.message.edit(embed=embed, view=self)
+        except discord.HTTPException:
+            pass
         
         # Save votes to config
         async with self.cog.config.guild(interaction.guild).suggestions() as suggestions_config:
