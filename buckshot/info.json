@@ -1,0 +1,14 @@
+# info.json
+{
+    "name": "Buckshot",
+    "short": "Strategic Russian Roulette game with items",
+    "description": "Play intense 1v1 Buckshot matches - a strategic Russian Roulette game with items that can change the outcome! Features include comprehensive statistics, admin controls, and engaging multiplayer gameplay.",
+    "author": ["UltPanda"],
+    "requirements": [],
+    "tags": ["game", "multiplayer", "strategy", "fun", "competitive"],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "type": "COG",
+    "install_msg": "🎯 **Buckshot** has been installed!\n\n**Quick Start:**\n• Use `[p]buckshot challenge @user` to start a game\n• Use `[p]buckshot rules` to learn how to play\n• Admins can use `[p]buckshot admin config` to configure settings\n\n**Items Available:**\n🥫 Skip bullet | 🔍 See bullet | 🧤 Skip turn | 🪚 Double damage | 🍾 Heal\n\nGood luck and may the odds be in your favor! 🍀",
+    "end_user_data_statement": "This cog stores user game statistics including games played, games won, items used, and shots fired. It also stores server configuration settings and temporarily stores active game states during gameplay. No personal information beyond Discord user IDs is collected."
+}
