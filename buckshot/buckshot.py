@@ -357,7 +357,7 @@ class Buckshot(commands.Cog):
         banned_users = await self.config.guild(user.guild).banned_users()
         return user.id in banned_users
     
-    @commands.group(name="buckshot", aliases=["bs"])
+    @commands.group(name="buckshot")
     async def buckshot(self, ctx):
         """Buckshot game commands"""
         if ctx.invoked_subcommand is None:
