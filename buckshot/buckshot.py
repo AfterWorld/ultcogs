@@ -23,6 +23,11 @@ class ItemType(Enum):
     SAW = "🪚"        # Double damage
     BEER = "🍾"       # Heal one heart
 
+class GamePhase(Enum):
+    ITEM_PHASE = "item_phase"
+    SHOOTING_PHASE = "shooting_phase"
+    WAITING_SHOOT = "waiting_shoot"
+
 class GameState(Enum):
     WAITING = "waiting"
     ACTIVE = "active"
@@ -39,25 +44,34 @@ class BuckshotGame:
         
         # Game state
         self.state = GameState.ACTIVE
+        self.phase = GamePhase.ITEM_PHASE
         self.lives = {player1.id: 5, player2.id: 5}
-        self.items = {
-            player1.id: [ItemType.SKIP, ItemType.MAGNIFIER, ItemType.GLOVES, ItemType.SAW, ItemType.BEER],
-            player2.id: [ItemType.SKIP, ItemType.MAGNIFIER, ItemType.GLOVES, ItemType.SAW, ItemType.BEER]
-        }
+        self.items = {player1.id: [], player2.id: []}
         
         # Shotgun state
         self.chamber = []
         self.chamber_position = 0
-        self.saw_active = False
+        self.saw_active = {player1.id: False, player2.id: False}
+        self.gloves_used = False  # Skip next turn flag
         self.current_bullet_known = False
         self.known_bullet_type = None
         
-        # Game tracking
+        # Round tracking
+        self.round_number = 1
+        self.shots_this_round = 0
         self.start_time = datetime.utcnow()
         self.last_action_time = datetime.utcnow()
         self.turn_count = 0
         
+        # Initialize game
+        self._give_starting_items()
         self._generate_chamber()
+    
+    def _give_starting_items(self):
+        """Give each player starting items"""
+        starting_items = [ItemType.SKIP, ItemType.MAGNIFIER, ItemType.GLOVES, ItemType.SAW, ItemType.BEER]
+        for player_id in self.player_ids:
+            self.items[player_id] = starting_items.copy()
     
     def _generate_chamber(self):
         """Generate a new chamber with random bullets"""
@@ -71,8 +85,21 @@ class BuckshotGame:
         self.chamber_position = 0
         self.current_bullet_known = False
         self.known_bullet_type = None
+        self.shots_this_round = 0
         
         log.info(f"Generated chamber: {len(self.chamber)} bullets, {live_bullets} live, {blank_bullets} blank")
+    
+    def _give_random_items(self):
+        """Give random items to players every 5 rounds"""
+        if self.round_number % 5 == 0:
+            all_items = list(ItemType)
+            for player_id in self.player_ids:
+                # Random chance to get 1-3 items
+                item_count = random.randint(1, 3)
+                for _ in range(item_count):
+                    if random.random() < 0.7:  # 70% chance per item
+                        item = random.choice(all_items)
+                        self.items[player_id].append(item)
     
     @property
     def current_player_id(self) -> int:
@@ -96,9 +123,22 @@ class BuckshotGame:
     
     def next_turn(self):
         """Switch to the next player's turn"""
-        self.current_player_index = 1 - self.current_player_index
+        # Handle gloves effect
+        if self.gloves_used:
+            self.gloves_used = False
+            # Stay on same player
+        else:
+            self.current_player_index = 1 - self.current_player_index
+        
         self.turn_count += 1
         self.last_action_time = datetime.utcnow()
+        self.phase = GamePhase.ITEM_PHASE
+        
+        # Check for new round
+        if self.is_chamber_empty():
+            self.round_number += 1
+            self._give_random_items()
+            self._generate_chamber()
     
     def use_item(self, player_id: int, item: ItemType) -> bool:
         """Use an item if the player has it"""
@@ -118,6 +158,7 @@ class BuckshotGame:
         if self.chamber_position < len(self.chamber):
             bullet = self.chamber[self.chamber_position]
             self.chamber_position += 1
+            self.shots_this_round += 1
             self.current_bullet_known = False
             self.known_bullet_type = None
             return bullet
@@ -149,27 +190,36 @@ class BuckshotGame:
         p1_lives = "❤️" * self.lives[p1_id]
         p2_lives = "❤️" * self.lives[p2_id]
         
-        p1_items = "".join([item.value for item in self.items[p1_id]])
-        p2_items = "".join([item.value for item in self.items[p2_id]])
+        p1_items = "".join([item.value for item in self.items[p1_id]]) or "*(none)*"
+        p2_items = "".join([item.value for item in self.items[p2_id]]) or "*(none)*"
+        
+        # Show current turn indicator
+        p1_indicator = "🎯 " if self.current_player_id == p1_id else ""
+        p2_indicator = "🎯 " if self.current_player_id == p2_id else ""
         
         embed.add_field(
-            name=f"👤 {self.players[p1_id].display_name}",
+            name=f"{p1_indicator}{self.players[p1_id].display_name}",
             value=f"**Lives:** {p1_lives}\n**Items:** {p1_items}",
             inline=True
         )
         embed.add_field(
-            name=f"👤 {self.players[p2_id].display_name}",
+            name=f"{p2_indicator}{self.players[p2_id].display_name}",
             value=f"**Lives:** {p2_lives}\n**Items:** {p2_items}",
             inline=True
         )
         
-        # Current turn indicator
-        current_player_emoji = "🎯" if self.current_player_id == p1_id else "👤"
-        opponent_emoji = "👤" if self.current_player_id == p1_id else "🎯"
+        # Round and phase info
+        phase_text = {
+            GamePhase.ITEM_PHASE: "🎒 **Item Phase** - Use items or proceed to shooting",
+            GamePhase.SHOOTING_PHASE: "🔫 **Shooting Phase** - Choose your target",
+            GamePhase.WAITING_SHOOT: "⏳ **Waiting** - Processing shot..."
+        }
         
         embed.add_field(
-            name="🎮 Current Turn",
-            value=f"{current_player_emoji} **{self.current_player.display_name}**",
+            name="🎮 Game Status",
+            value=f"**Round:** {self.round_number}\n"
+                  f"**Turn:** {self.turn_count}\n"
+                  f"**Phase:** {phase_text[self.phase]}",
             inline=False
         )
         
@@ -180,7 +230,7 @@ class BuckshotGame:
             if self.current_bullet_known and self.known_bullet_type:
                 bullet_display += f"\n**Next bullet:** {self.known_bullet_type.value}"
         else:
-            bullet_display = "🔫 *Chamber empty - reloading...*"
+            bullet_display = "🔫 *Chamber empty - new round starting...*"
         
         embed.add_field(
             name="🔫 Chamber",
@@ -190,8 +240,10 @@ class BuckshotGame:
         
         # Special effects
         effects = []
-        if self.saw_active:
-            effects.append("🪚 **Saw Active** - Next live bullet deals 2 damage")
+        if self.saw_active[self.current_player_id]:
+            effects.append(f"🪚 **{self.current_player.display_name}'s Saw Active** - Next live bullet deals 2 damage")
+        if self.gloves_used:
+            effects.append("🧤 **Gloves Effect** - Opponent will skip next turn")
         
         if effects:
             embed.add_field(
@@ -204,9 +256,9 @@ class BuckshotGame:
 
 class Buckshot(commands.Cog):
     """
-    Buckshot - A strategic Russian Roulette game with items and multiplayer support.
+    Buckshot - The authentic strategic Russian Roulette game.
     
-    Play intense 1v1 matches with items that can change the game's outcome!
+    Play intense 1v1 matches with items and turn-based strategy!
     """
     
     def __init__(self, bot):
@@ -231,6 +283,7 @@ class Buckshot(commands.Cog):
             games_won=0,
             total_shots_fired=0,
             items_used=0,
+            bullets_survived=0,
             favorite_item=None
         )
         
@@ -349,16 +402,17 @@ class Buckshot(commands.Cog):
         )
         embed.add_field(
             name="🎮 How to Play",
-            value="React with ✅ to accept or ❌ to decline\n"
-                  "Use items strategically to survive!",
+            value="• Use items in **Item Phase**, then shoot in **Shooting Phase**\n"
+                  "• Shooting yourself with a blank gives you another turn\n"
+                  "• New items given every 5 rounds!",
             inline=False
         )
         embed.add_field(
             name="📋 Items",
-            value="🥫 Skip bullet\n🔍 See bullet type\n🧤 Skip opponent's turn\n🪚 Double damage\n🍾 Heal one heart",
+            value="🥫 Skip bullet • 🔍 See bullet type • 🧤 Skip opponent's turn\n🪚 Double damage • 🍾 Heal one heart",
             inline=False
         )
-        embed.set_footer(text="Challenge expires in 5 minutes")
+        embed.set_footer(text="React with ✅ to accept or ❌ to decline • Expires in 5 minutes")
         
         challenge_msg = await ctx.send(embed=embed)
         await challenge_msg.add_reaction("✅")
@@ -389,8 +443,8 @@ class Buckshot(commands.Cog):
                 )
                 embed.add_field(
                     name="🎮 Commands",
-                    value="`!buckshot shoot` - Fire the gun\n"
-                          "`!buckshot item <item>` - Use an item\n"
+                    value="`!buckshot item <item>` - Use an item\n"
+                          "`!buckshot shoot` - Enter shooting phase\n"
                           "`!buckshot status` - Show game status\n"
                           "`!buckshot surrender` - Give up",
                     inline=False
@@ -424,9 +478,9 @@ class Buckshot(commands.Cog):
             )
             await ctx.send(embed=embed)
     
-    @buckshot.command(name="shoot")
-    async def shoot(self, ctx):
-        """Fire the gun at yourself or your opponent"""
+    @buckshot.command(name="item")
+    async def use_item(self, ctx, *, item: str):
+        """Use an item during the item phase"""
         if ctx.channel.id not in self.active_games:
             return await ctx.send("❌ No active game in this channel.")
         
@@ -435,22 +489,164 @@ class Buckshot(commands.Cog):
         if ctx.author.id != game.current_player_id:
             return await ctx.send("❌ It's not your turn!")
         
+        if game.phase != GamePhase.ITEM_PHASE:
+            return await ctx.send("❌ You can only use items during the item phase!")
+        
+        # Parse item
+        item_mapping = {
+            "skip": ItemType.SKIP,
+            "can": ItemType.SKIP,
+            "🥫": ItemType.SKIP,
+            "magnifier": ItemType.MAGNIFIER,
+            "glass": ItemType.MAGNIFIER,
+            "🔍": ItemType.MAGNIFIER,
+            "gloves": ItemType.GLOVES,
+            "🧤": ItemType.GLOVES,
+            "saw": ItemType.SAW,
+            "🪚": ItemType.SAW,
+            "beer": ItemType.BEER,
+            "heal": ItemType.BEER,
+            "🍾": ItemType.BEER
+        }
+        
+        item_type = item_mapping.get(item.lower())
+        if not item_type:
+            return await ctx.send("❌ Invalid item. Use: **skip**, **magnifier**, **gloves**, **saw**, or **beer**")
+        
+        # Check if player has the item
+        if not game.use_item(ctx.author.id, item_type):
+            return await ctx.send(f"❌ You don't have a {item_type.value} to use!")
+        
+        # Update user stats
+        async with self.config.user(ctx.author).items_used() as items_used:
+            items_used += 1
+        
+        embed = discord.Embed(
+            title="⚡ Item Used",
+            color=discord.Color.blue()
+        )
+        
+        # Execute item effect
+        if item_type == ItemType.SKIP:
+            # Skip bullet
+            if game.is_chamber_empty():
+                game.round_number += 1
+                game._give_random_items()
+                game._generate_chamber()
+                await ctx.send("🔫 *Chamber was empty. Starting new round...*")
+            
+            skipped_bullet = game.fire_bullet()
+            embed.description = f"{ctx.author.mention} used 🥫 **Skip**!"
+            embed.add_field(
+                name="Effect",
+                value=f"Skipped a {skipped_bullet.value} bullet!",
+                inline=False
+            )
+            
+        elif item_type == ItemType.MAGNIFIER:
+            # See bullet type
+            if game.is_chamber_empty():
+                game.round_number += 1
+                game._give_random_items()
+                game._generate_chamber()
+                await ctx.send("🔫 *Chamber was empty. Starting new round...*")
+            
+            current_bullet = game.get_current_bullet()
+            game.current_bullet_known = True
+            game.known_bullet_type = current_bullet
+            
+            embed.description = f"{ctx.author.mention} used 🔍 **Magnifier**!"
+            embed.add_field(
+                name="Effect",
+                value=f"Next bullet is: {current_bullet.value}",
+                inline=False
+            )
+            
+        elif item_type == ItemType.GLOVES:
+            # Skip opponent's turn
+            game.gloves_used = True
+            embed.description = f"{ctx.author.mention} used 🧤 **Gloves**!"
+            embed.add_field(
+                name="Effect",
+                value=f"{game.opponent.mention} will skip their next turn!",
+                inline=False
+            )
+            
+        elif item_type == ItemType.SAW:
+            # Double damage on next live bullet
+            game.saw_active[ctx.author.id] = True
+            embed.description = f"{ctx.author.mention} used 🪚 **Saw**!"
+            embed.add_field(
+                name="Effect",
+                value="Your next live bullet will deal **2 damage**!",
+                inline=False
+            )
+            
+        elif item_type == ItemType.BEER:
+            # Heal one heart
+            if game.lives[ctx.author.id] < 5:
+                game.lives[ctx.author.id] += 1
+                embed.description = f"{ctx.author.mention} used 🍾 **Beer**!"
+                embed.add_field(
+                    name="Effect",
+                    value="Healed **1 heart**! ❤️",
+                    inline=False
+                )
+            else:
+                embed.description = f"{ctx.author.mention} used 🍾 **Beer**!"
+                embed.add_field(
+                    name="Effect",
+                    value="Already at full health!",
+                    inline=False
+                )
+        
+        await ctx.send(embed=embed)
+        
+        # Show updated status
+        await ctx.send(embed=game.get_game_status_embed())
+    
+    @buckshot.command(name="shoot")
+    async def shoot(self, ctx):
+        """Enter the shooting phase and choose your target"""
+        if ctx.channel.id not in self.active_games:
+            return await ctx.send("❌ No active game in this channel.")
+        
+        game = self.active_games[ctx.channel.id]
+        
+        if ctx.author.id != game.current_player_id:
+            return await ctx.send("❌ It's not your turn!")
+        
+        if game.phase not in [GamePhase.ITEM_PHASE, GamePhase.SHOOTING_PHASE]:
+            return await ctx.send("❌ Please wait for your turn to complete.")
+        
+        # Enter shooting phase
+        game.phase = GamePhase.SHOOTING_PHASE
+        
         # Check if chamber is empty
         if game.is_chamber_empty():
+            game.round_number += 1
+            game._give_random_items()
             game._generate_chamber()
-            await ctx.send("🔫 *Chamber was empty. Reloading...*")
+            await ctx.send("🔫 *Chamber was empty. Starting new round...*")
         
         # Ask who to shoot
         embed = discord.Embed(
             title="🎯 Choose Your Target",
-            description="Who do you want to shoot?",
-            color=discord.Color.blue()
+            description=f"{ctx.author.mention}, who do you want to shoot?",
+            color=discord.Color.red()
         )
         embed.add_field(
             name="Targets",
-            value="🔫 **Self** - If blank, keep your turn\n👤 **Opponent** - If live, they take damage",
+            value="🔫 **Yourself** - If blank, keep your turn\n👤 **Opponent** - If live, they take damage",
             inline=False
         )
+        
+        if game.current_bullet_known and game.known_bullet_type:
+            embed.add_field(
+                name="🔍 Known Information",
+                value=f"Next bullet: {game.known_bullet_type.value}",
+                inline=False
+            )
         
         target_msg = await ctx.send(embed=embed)
         await target_msg.add_reaction("🔫")  # Self
@@ -462,6 +658,7 @@ class Buckshot(commands.Cog):
                    str(reaction.emoji) in ["🔫", "👤"])
         
         try:
+            game.phase = GamePhase.WAITING_SHOOT
             reaction, user = await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
             
             target_self = str(reaction.emoji) == "🔫"
@@ -472,8 +669,15 @@ class Buckshot(commands.Cog):
             if bullet is None:
                 return await ctx.send("❌ Something went wrong with the gun.")
             
-            damage = 2 if game.saw_active and bullet == BulletType.LIVE else 1
-            game.saw_active = False  # Reset saw effect
+            # Calculate damage
+            damage = 1
+            if game.saw_active[ctx.author.id] and bullet == BulletType.LIVE:
+                damage = 2
+                game.saw_active[ctx.author.id] = False  # Reset saw effect
+            
+            # Update shot statistics
+            async with self.config.user(ctx.author).total_shots_fired() as shots:
+                shots += 1
             
             embed = discord.Embed(
                 title="💥 BANG!",
@@ -506,6 +710,10 @@ class Buckshot(commands.Cog):
                     value=f"{bullet.value} **BLANK** - No damage!",
                     inline=False
                 )
+                
+                # Update survival stats for blanks
+                async with self.config.user(ctx.author).bullets_survived() as survived:
+                    survived += 1
             
             await ctx.send(embed=embed)
             
@@ -518,6 +726,7 @@ class Buckshot(commands.Cog):
             # Handle turn logic
             if bullet == BulletType.BLANK and target_self:
                 # Shot self with blank - keep turn
+                game.phase = GamePhase.ITEM_PHASE
                 await ctx.send(f"🎯 {ctx.author.mention} keeps their turn!")
             else:
                 # Switch turns
@@ -528,127 +737,8 @@ class Buckshot(commands.Cog):
             await ctx.send(embed=game.get_game_status_embed())
             
         except asyncio.TimeoutError:
-            await ctx.send("⏰ You took too long to choose a target.")
-    
-    @buckshot.command(name="item")
-    async def use_item(self, ctx, item: str):
-        """Use an item"""
-        if ctx.channel.id not in self.active_games:
-            return await ctx.send("❌ No active game in this channel.")
-        
-        game = self.active_games[ctx.channel.id]
-        
-        if ctx.author.id != game.current_player_id:
-            return await ctx.send("❌ It's not your turn!")
-        
-        # Parse item
-        item_mapping = {
-            "skip": ItemType.SKIP,
-            "can": ItemType.SKIP,
-            "🥫": ItemType.SKIP,
-            "magnifier": ItemType.MAGNIFIER,
-            "glass": ItemType.MAGNIFIER,
-            "🔍": ItemType.MAGNIFIER,
-            "gloves": ItemType.GLOVES,
-            "🧤": ItemType.GLOVES,
-            "saw": ItemType.SAW,
-            "🪚": ItemType.SAW,
-            "beer": ItemType.BEER,
-            "heal": ItemType.BEER,
-            "🍾": ItemType.BEER
-        }
-        
-        item_type = item_mapping.get(item.lower())
-        if not item_type:
-            return await ctx.send("❌ Invalid item. Use: skip, magnifier, gloves, saw, or beer")
-        
-        # Check if player has the item
-        if not game.use_item(ctx.author.id, item_type):
-            return await ctx.send(f"❌ You don't have a {item_type.value} to use!")
-        
-        # Update user stats
-        async with self.config.user(ctx.author).items_used() as items_used:
-            items_used += 1
-        
-        embed = discord.Embed(
-            title="⚡ Item Used",
-            color=discord.Color.blue()
-        )
-        
-        # Execute item effect
-        if item_type == ItemType.SKIP:
-            # Skip bullet
-            if game.is_chamber_empty():
-                game._generate_chamber()
-                await ctx.send("🔫 *Chamber was empty. Reloading...*")
-            
-            skipped_bullet = game.fire_bullet()
-            embed.description = f"{ctx.author.mention} used 🥫 **Skip**!"
-            embed.add_field(
-                name="Effect",
-                value=f"Skipped a {skipped_bullet.value} bullet!",
-                inline=False
-            )
-            
-        elif item_type == ItemType.MAGNIFIER:
-            # See bullet type
-            if game.is_chamber_empty():
-                game._generate_chamber()
-                await ctx.send("🔫 *Chamber was empty. Reloading...*")
-            
-            current_bullet = game.get_current_bullet()
-            game.current_bullet_known = True
-            game.known_bullet_type = current_bullet
-            
-            embed.description = f"{ctx.author.mention} used 🔍 **Magnifier**!"
-            embed.add_field(
-                name="Effect",
-                value=f"Next bullet is: {current_bullet.value}",
-                inline=False
-            )
-            
-        elif item_type == ItemType.GLOVES:
-            # Skip opponent's turn
-            embed.description = f"{ctx.author.mention} used 🧤 **Gloves**!"
-            embed.add_field(
-                name="Effect",
-                value=f"{game.opponent.mention} will skip their next turn!",
-                inline=False
-            )
-            # Keep current turn
-            
-        elif item_type == ItemType.SAW:
-            # Double damage on next live bullet
-            game.saw_active = True
-            embed.description = f"{ctx.author.mention} used 🪚 **Saw**!"
-            embed.add_field(
-                name="Effect",
-                value="Next live bullet will deal **2 damage**!",
-                inline=False
-            )
-            
-        elif item_type == ItemType.BEER:
-            # Heal one heart
-            if game.lives[ctx.author.id] < 5:
-                game.lives[ctx.author.id] += 1
-                embed.description = f"{ctx.author.mention} used 🍾 **Beer**!"
-                embed.add_field(
-                    name="Effect",
-                    value="Healed **1 heart**! ❤️",
-                    inline=False
-                )
-            else:
-                embed.description = f"{ctx.author.mention} used 🍾 **Beer**!"
-                embed.add_field(
-                    name="Effect",
-                    value="Already at full health!",
-                    inline=False
-                )
-        
-        await ctx.send(embed=embed)
-        
-        # Show updated status
-        await ctx.send(embed=game.get_game_status_embed())
+            game.phase = GamePhase.ITEM_PHASE
+            await ctx.send("⏰ You took too long to choose a target. Back to item phase.")
     
     @buckshot.command(name="status")
     async def status(self, ctx):
@@ -707,8 +797,8 @@ class Buckshot(commands.Cog):
         embed.add_field(
             name="📊 Game Stats",
             value=f"**Duration:** {game_duration.seconds // 60}m {game_duration.seconds % 60}s\n"
-                  f"**Turns:** {game.turn_count}\n"
-                  f"**Bullets Fired:** {game.chamber_position}",
+                  f"**Rounds:** {game.round_number}\n"
+                  f"**Total Shots:** {game.chamber_position}",
             inline=False
         )
         
@@ -718,7 +808,7 @@ class Buckshot(commands.Cog):
         p2_lives = "❤️" * max(0, game.lives[p2_id])
         
         embed.add_field(
-            name="💀 Final Lives",
+            name="💀 Final Status",
             value=f"**{game.players[p1_id].display_name}:** {p1_lives}\n"
                   f"**{game.players[p2_id].display_name}:** {p2_lives}",
             inline=False
@@ -754,7 +844,8 @@ class Buckshot(commands.Cog):
         embed.add_field(
             name="📈 Actions",
             value=f"**Items Used:** {user_data['items_used']}\n"
-                  f"**Shots Fired:** {user_data['total_shots_fired']}",
+                  f"**Shots Fired:** {user_data['total_shots_fired']}\n"
+                  f"**Bullets Survived:** {user_data['bullets_survived']}",
             inline=True
         )
         
@@ -786,7 +877,8 @@ class Buckshot(commands.Cog):
                     "member": member,
                     "games_played": user_data["games_played"],
                     "games_won": user_data["games_won"],
-                    "win_rate": win_rate
+                    "win_rate": win_rate,
+                    "items_used": user_data["items_used"]
                 })
         
         if not user_stats:
@@ -828,20 +920,28 @@ class Buckshot(commands.Cog):
         )
         
         embed.add_field(
-            name="🔫 Gun Mechanics",
-            value="• Each round has 4-8 bullets (mix of live and blank)\n"
-                  "• Shooting yourself with a blank lets you keep your turn\n"
-                  "• Live bullets deal 1 damage (2 with saw)\n"
-                  "• Chamber reloads when empty",
+            name="🔄 Game Flow",
+            value="**1. Item Phase** - Use items or proceed to shooting\n"
+                  "**2. Shooting Phase** - Choose to shoot yourself or opponent\n"
+                  "**3. Results** - Take damage or keep turn based on bullet type",
             inline=False
         )
         
         embed.add_field(
-            name="🎒 Items (Each player starts with 1 of each)",
+            name="🔫 Gun Mechanics",
+            value="• Each round has 4-8 bullets (mix of live 🔴 and blank ⚫)\n"
+                  "• Shooting yourself with a blank lets you keep your turn\n"
+                  "• Live bullets deal 1 damage (2 with saw 🪚)\n"
+                  "• New round starts when chamber is empty",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎒 Items (Start with 1 of each, more every 5 rounds)",
             value="🥫 **Skip** - Discard the current bullet\n"
                   "🔍 **Magnifier** - See what the next bullet is\n"
-                  "🧤 **Gloves** - Skip opponent's next turn\n"
-                  "🪚 **Saw** - Next live bullet deals 2 damage\n"
+                  "🧤 **Gloves** - Opponent skips their next turn\n"
+                  "🪚 **Saw** - Your next live bullet deals 2 damage\n"
                   "🍾 **Beer** - Heal 1 heart (max 5 hearts)",
             inline=False
         )
@@ -849,8 +949,8 @@ class Buckshot(commands.Cog):
         embed.add_field(
             name="🎮 Commands",
             value="`!buckshot challenge @user` - Start a game\n"
-                  "`!buckshot shoot` - Fire the gun\n"
-                  "`!buckshot item <item>` - Use an item\n"
+                  "`!buckshot item <item>` - Use an item (item phase)\n"
+                  "`!buckshot shoot` - Enter shooting phase\n"
                   "`!buckshot status` - Show game state\n"
                   "`!buckshot surrender` - Give up",
             inline=False
@@ -1034,6 +1134,7 @@ class Buckshot(commands.Cog):
         """Show global Buckshot statistics"""
         total_games = 0
         total_users = 0
+        total_shots = 0
         
         # This is expensive but provides accurate global stats
         all_users = await self.config.all_users()
@@ -1041,6 +1142,7 @@ class Buckshot(commands.Cog):
             if user_data.get("games_played", 0) > 0:
                 total_users += 1
                 total_games += user_data["games_played"]
+                total_shots += user_data.get("total_shots_fired", 0)
         
         embed = discord.Embed(
             title="🌐 Global Buckshot Statistics",
@@ -1050,6 +1152,7 @@ class Buckshot(commands.Cog):
         embed.add_field(
             name="📊 Overall Stats",
             value=f"**Total Games Played:** {total_games:,}\n"
+                  f"**Total Shots Fired:** {total_shots:,}\n"
                   f"**Active Players:** {total_users:,}\n"
                   f"**Currently Active Games:** {len(self.active_games)}\n"
                   f"**Pending Challenges:** {len(self.pending_challenges)}",
