@@ -1274,7 +1274,7 @@ class TikTokLive(commands.Cog):
         await ctx.send(embed=embed)
     
     @tiktok_group.command(name="info")
-    async def cog_info(self, ctx: Context):
+    async def show_info(self, ctx: Context):
         """Show information about the TikTok Live cog"""
         embed = discord.Embed(
             title="📱 TikTok Live Notifications",
