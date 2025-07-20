@@ -1,0 +1,31 @@
+{
+    "name": "TikTokLive",
+    "short": "Real-time TikTok Live Stream Notifications",
+    "description": "Get instant Discord notifications when your favorite TikTok creators go live! Uses TikTokLive library for real-time WebSocket monitoring with beautiful embeds, role mentions, auto-reconnection, and detailed statistics.",
+    "author": ["UltPanda"],
+    "tags": [
+        "tiktok",
+        "live",
+        "notifications",
+        "streaming",
+        "alerts",
+        "social",
+        "monitor",
+        "realtime",
+        "websocket"
+    ],
+    "requirements": [
+        "TikTokLive"
+    ],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
+    "type": "COG",
+    "install_msg": "Thank you for installing TikTok Live Notifications! 🎉\n\n**Installation Required:**\nFirst install the TikTokLive library:\n```\npip install TikTokLive\n```\n\n**Quick Setup:**\n1. Set a notification channel: `[p]tiktok channel #your-channel`\n2. Add TikTok users to monitor: `[p]tiktok add username`\n3. Optional: Set a role to mention: `[p]tiktok role @role`\n4. Test your setup: `[p]tiktok test`\n\n**Features:**\n✅ Real-time live detection (WebSocket)\n✅ Beautiful Discord notifications\n✅ Automatic reconnection\n✅ Detailed monitoring statistics\n✅ Multi-server support\n\nUse `[p]help tiktok` to see all available commands!",
+    "end_user_data_statement": "This cog stores TikTok usernames being monitored, notification channel preferences, mention role settings, and basic statistics about live stream notifications sent. It connects to TikTok's live streams in real-time using WebSocket connections. No personal data from TikTok users is stored beyond usernames and notification counts.",
+    "repo_url": "https://github.com/AfterWorld/ultcogs",
+    "hidden": false
+}-channel`\n2. Add TikTok users to monitor: `[p]tiktok add username`\n3. Optional: Set a role to mention: `[p]tiktok role @role`\n\nUse `[p]help tiktok` to see all available commands!\n\n⚠️ **Important:** This cog requires proper API access to TikTok. Please check the documentation for setup instructions.",
+    "end_user_data_statement": "This cog stores TikTok usernames being monitored, notification channel preferences, mention role settings, and basic statistics about live stream notifications sent. No personal data from TikTok users is stored - only the usernames you choose to monitor and notification counts.",
+    "repo_url": "https://github.com/AfterWorld/ultcogs",
+    "hidden": false
+}
