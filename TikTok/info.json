@@ -24,8 +24,4 @@
     "end_user_data_statement": "This cog stores TikTok usernames being monitored, notification channel preferences, mention role settings, and basic statistics about live stream notifications sent. It connects to TikTok's live streams in real-time using WebSocket connections. No personal data from TikTok users is stored beyond usernames and notification counts.",
     "repo_url": "https://github.com/AfterWorld/ultcogs",
     "hidden": false
-}-channel`\n2. Add TikTok users to monitor: `[p]tiktok add username`\n3. Optional: Set a role to mention: `[p]tiktok role @role`\n\nUse `[p]help tiktok` to see all available commands!\n\n⚠️ **Important:** This cog requires proper API access to TikTok. Please check the documentation for setup instructions.",
-    "end_user_data_statement": "This cog stores TikTok usernames being monitored, notification channel preferences, mention role settings, and basic statistics about live stream notifications sent. No personal data from TikTok users is stored - only the usernames you choose to monitor and notification counts.",
-    "repo_url": "https://github.com/AfterWorld/ultcogs",
-    "hidden": false
 }
