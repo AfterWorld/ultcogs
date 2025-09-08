@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 import asyncio
 import time
@@ -43,10 +42,61 @@ def _no_ping_send(dest, **kw):
     kw.setdefault("allowed_mentions", discord.AllowedMentions.none())
     return dest.send(**kw)
 
+# ---------- resolvers (more forgiving) ----------
+def _to_int(s: str) -> Optional[int]:
+    try:
+        return int(s.strip().strip("<>#@&"))
+    except Exception:
+        return None
+
+def _norm(s: str) -> str:
+    return s.strip().lower()
+
+def _best_name(obj) -> str:
+    try:
+        return getattr(obj, "mention", None) or getattr(obj, "name", str(obj))
+    except Exception:
+        return str(obj)
+
+def _role_matches(role: discord.Role, q: str) -> bool:
+    return _norm(role.name) == _norm(q)
+
+async def resolve_role(ctx: commands.Context, *, raw: str) -> Optional[discord.Role]:
+    if not raw:
+        return None
+    # Mention/ID
+    rid = _to_int(raw)
+    if rid:
+        r = ctx.guild.get_role(rid)
+        if r:
+            return r
+    # Exact name (case-insensitive)
+    q = raw.strip()
+    for r in ctx.guild.roles:
+        if _role_matches(r, q):
+            return r
+    return None
+
+async def resolve_channel(ctx: commands.Context, *, raw: str) -> Optional[discord.TextChannel]:
+    if not raw:
+        return None
+    # Mention/ID
+    cid = _to_int(raw)
+    if cid:
+        ch = ctx.guild.get_channel(cid)
+        if isinstance(ch, discord.TextChannel):
+            return ch
+    # Name (case-insensitive)
+    q = _norm(raw.lstrip("#"))
+    for ch in ctx.guild.text_channels:
+        if _norm(ch.name) == q:
+            return ch
+    return None
+
 class BeriCautions(commands.Cog):
     """Cautions with Beri fines, thresholds, and auto actions."""
 
-    __version__ = "2.1.0"
+    __version__ = "2.2.0"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -158,7 +208,6 @@ class BeriCautions(commands.Cog):
                 try:
                     until = discord.utils.utcnow() + discord.timedelta(minutes=minutes)
                 except AttributeError:
-                    # fallback for older discord.py
                     from datetime import datetime, timedelta, timezone
                     until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
                 try:
@@ -310,21 +359,40 @@ class BeriCautions(commands.Cog):
         await self.config.guild(ctx.guild).expiry_days.set(days)
         await _no_ping_send(ctx, embed=discord.Embed(description=f"Expiry set to **{days}** days.", color=EMBED_OK))
 
-    # mute role
+    # mute role (robust input)
     @cautionset.command(name="mute")
-    async def cautionset_mute(self, ctx: commands.Context, role: discord.Role):
-        await self.config.guild(ctx.guild).mute_role.set(int(role.id))
-        await _no_ping_send(ctx, embed=discord.Embed(description=f"Mute role set to {role.mention}.", color=EMBED_OK))
+    async def cautionset_mute(self, ctx: commands.Context, *, role_like: str):
+        r = await resolve_role(ctx, raw=role_like)
+        if not r:
+            return await _no_ping_send(ctx, embed=discord.Embed(
+                description="Could not resolve that role. Use a **mention**, **ID**, or **exact name**.",
+                color=EMBED_ERR
+            ))
+        # sanity: role position
+        me = ctx.guild.me
+        if not me.guild_permissions.manage_roles or r.position >= me.top_role.position:
+            return await _no_ping_send(ctx, embed=discord.Embed(
+                description=f"I can’t set **{_best_name(r)}** as mute role due to role hierarchy or missing permissions.",
+                color=EMBED_ERR
+            ))
+        await self.config.guild(ctx.guild).mute_role.set(int(r.id))
+        await _no_ping_send(ctx, embed=discord.Embed(description=f"Mute role set to {r.mention}.", color=EMBED_OK))
 
-    # log channel
+    # log channel (robust input)
     @cautionset.group(name="log", invoke_without_command=True)
     async def cautionset_log(self, ctx: commands.Context):
-        await _no_ping_send(ctx, embed=discord.Embed(description="Subcommands: `set <#channel>`, `disable`", color=EMBED_OK))
+        await _no_ping_send(ctx, embed=discord.Embed(description="Subcommands: `set <#channel|id|name>`, `disable`", color=EMBED_OK))
 
     @cautionset_log.command(name="set")
-    async def cautionset_log_set(self, ctx: commands.Context, channel: discord.TextChannel):
-        await self.config.guild(ctx.guild).log_channel.set(int(channel.id))
-        await _no_ping_send(ctx, embed=discord.Embed(description=f"Log channel set to {channel.mention}.", color=EMBED_OK))
+    async def cautionset_log_set(self, ctx: commands.Context, *, channel_like: str):
+        ch = await resolve_channel(ctx, raw=channel_like)
+        if not ch:
+            return await _no_ping_send(ctx, embed=discord.Embed(
+                description="Could not resolve that channel. Use a **mention**, **ID**, or **exact name** of a text channel.",
+                color=EMBED_ERR
+            ))
+        await self.config.guild(ctx.guild).log_channel.set(int(ch.id))
+        await _no_ping_send(ctx, embed=discord.Embed(description=f"Log channel set to {ch.mention}.", color=EMBED_OK))
 
     @cautionset_log.command(name="disable")
     async def cautionset_log_disable(self, ctx: commands.Context):
