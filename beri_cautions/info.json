@@ -5,7 +5,7 @@
   "end_user_data_statement": "Stores warning history, points, and timestamps for moderation purposes. No data is shared outside the server.",
   "install_msg": "Thanks for installing BeriCautions. Configure with `.cautionset` and issue warnings with `.caution`.",
   "author": [
-    "Sunny Go"
+    "UltPanda"
   ],
   "required_cogs": {},
   "requirements": [],
