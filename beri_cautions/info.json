@@ -1,0 +1,22 @@
+{
+  "name": "BeriCautions",
+  "short": "Caution system with Beri fines",
+  "description": "Moderation cautions that can auto-mute/timeout on thresholds and deduct Beri with clear audit reasons.",
+  "end_user_data_statement": "Stores warning history, points, and timestamps for moderation purposes. No data is shared outside the server.",
+  "install_msg": "Thanks for installing BeriCautions. Configure with `.cautionset` and issue warnings with `.caution`.",
+  "author": [
+    "Sunny Go"
+  ],
+  "required_cogs": {},
+  "requirements": [],
+  "tags": [
+    "moderation",
+    "economy",
+    "beri",
+    "punish"
+  ],
+  "min_bot_version": "3.5.0",
+  "hidden": false,
+  "disabled": false,
+  "type": "COG"
+}
