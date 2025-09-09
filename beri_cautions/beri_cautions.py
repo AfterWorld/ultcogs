@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Beri Cautions — point-based cautions with thresholds, mutes, and Beri fines.
+Beri Cautions – point-based cautions with thresholds, mutes, and Beri fines.
 
 Requirements/assumptions:
 - Optional Beri economy cog named "BeriCore" exposing:
     await BeriCore.add_beri(member, delta:int, reason:str, actor:discord.Member=None, bypass_cap:bool=False)
 - Red-DiscordBot v3+.
 
-Author: UltPanda
+Author: You + ChatGPT (fix pass)
 Version: 2.4.0
 """
 import asyncio
@@ -377,7 +377,7 @@ class BeriCautions(commands.Cog):
                 if duration > 0:
                     await self.config.member(member).muted_until.set(int(time.time()) + duration*60)
                 await _send(ctx, embed=discord.Embed(description=f"🔇 {member.mention} muted" + (f" for **{duration}m**" if duration>0 else "") + ".", color=EMBED_OK))
-                await self._log_case(ctx.guild, "Auto-Mute", member, ctx.author or ctx.guild.me, reason, extra={"Duration": f"{duration} minutes" if duration else "—"})
+                await self._log_case(ctx.guild, "Auto-Mute", member, ctx.author or ctx.guild.me, reason, extra={"Duration": f"{duration} minutes" if duration else "∞"})
             except Exception as e:
                 await _send(ctx, embed=discord.Embed(description=f"Mute failed: {e}", color=EMBED_ERR))
             return
@@ -416,29 +416,27 @@ class BeriCautions(commands.Cog):
             except Exception as e:
                 await _send(ctx, embed=discord.Embed(description=f"Ban failed: {e}", color=EMBED_ERR))
 
-    # ==== SETTINGS GROUP (fixed registration) =====================================
-    def _settings_doc(self, s: str) -> str:
-        return s  # Explicit doc helper
-
-    @commands.group(name="cautionset", invoke_without_command=True)
+    # ==== SETTINGS GROUP ======================================================
+    @commands.group(name="cautionset")
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def cautionset(self, ctx: commands.Context):
         """Configure caution & Beri settings."""
-        g = await self.config.guild(ctx.guild).all()
-        role = ctx.guild.get_role(int(g.get("mute_role") or 0))
-        chan = ctx.guild.get_channel(int(g.get("log_channel") or 0))
-        bf = g.get("berifine", {})
-        th = g.get("action_thresholds", {})
-        desc = (
-            f"**Expiry Days:** {g.get('warning_expiry_days',30)}\n"
-            f"**Mute Role:** {role.mention if role else '—'}\n"
-            f"**Log Channel:** {chan.mention if chan else '—'}\n"
-            f"**Beri Fines:** {'On' if bf.get('enabled',True) else 'Off'} | per_point={bf.get('per_point',0)} | range={bf.get('min',0)}–{bf.get('max',0)}\n"
-            f"**Beri Fine Thresholds:** {', '.join(f'{k}:{v}' for k,v in (bf.get('thresholds') or {}).items()) or '—'}\n"
-            f"**Action Thresholds:** {', '.join(f'{k}:{v.get('action','?')}' for k,v in (th or {}).items()) or '—'}"
-        )
-        await _send(ctx, embed=discord.Embed(title="Caution Settings", description=desc, color=EMBED_OK))
+        if ctx.invoked_subcommand is None:
+            g = await self.config.guild(ctx.guild).all()
+            role = ctx.guild.get_role(int(g.get("mute_role") or 0))
+            chan = ctx.guild.get_channel(int(g.get("log_channel") or 0))
+            bf = g.get("berifine", {})
+            th = g.get("action_thresholds", {})
+            desc = (
+                f"**Expiry Days:** {g.get('warning_expiry_days',30)}\n"
+                f"**Mute Role:** {role.mention if role else '—'}\n"
+                f"**Log Channel:** {chan.mention if chan else '—'}\n"
+                f"**Beri Fines:** {'On' if bf.get('enabled',True) else 'Off'} | per_point={bf.get('per_point',0)} | range={bf.get('min',0)}–{bf.get('max',0)}\n"
+                f"**Beri Fine Thresholds:** {', '.join(f'{k}:{v}' for k,v in (bf.get('thresholds') or {}).items()) or '—'}\n"
+                f"**Action Thresholds:** {', '.join(f'{k}:{v.get('action','?')}' for k,v in (th or {}).items()) or '—'}"
+            )
+            await _send(ctx, embed=discord.Embed(title="Caution Settings", description=desc, color=EMBED_OK))
 
     # ----- expiry -----------------------------------------------------------
     @cautionset.command(name="expiry")
@@ -459,24 +457,25 @@ class BeriCautions(commands.Cog):
         r = await _resolve_role(ctx, role_like)
         if not r:
             return await _send(ctx, embed=discord.Embed(
-                description="Couldn’t resolve that role. Use a **mention**, **ID**, or **exact name**.",
+                description="Couldn't resolve that role. Use a **mention**, **ID**, or **exact name**.",
                 color=EMBED_ERR
             ))
         if not ctx.guild.me.guild_permissions.manage_roles or r.position >= ctx.guild.me.top_role.position:
             return await _send(ctx, embed=discord.Embed(
-                description=f"I can’t set {r.mention} as mute role due to role hierarchy or missing permissions.",
+                description=f"I can't set {r.mention} as mute role due to role hierarchy or missing permissions.",
                 color=EMBED_ERR
             ))
         await self.config.guild(ctx.guild).mute_role.set(int(r.id))
         await _send(ctx, embed=discord.Embed(description=f"Mute role set to {r.mention}.", color=EMBED_OK))
 
     # ----- log --------------------------------------------------------------
-    @cautionset.group(name="log", invoke_without_command=True)
+    @cautionset.group(name="log")
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def cs_log(self, ctx: commands.Context):
         """Configure the moderation log channel."""
-        await _send(ctx, embed=discord.Embed(description="Subcommands: `set <#channel|id|name>`, `disable`", color=EMBED_OK))
+        if ctx.invoked_subcommand is None:
+            await _send(ctx, embed=discord.Embed(description="Subcommands: `set <#channel|id|name>`, `disable`", color=EMBED_OK))
 
     @cs_log.command(name="set")
     @commands.guild_only()
@@ -486,7 +485,7 @@ class BeriCautions(commands.Cog):
         ch = await _resolve_text_channel(ctx, channel_like)
         if not ch:
             return await _send(ctx, embed=discord.Embed(
-                description="Couldn’t resolve that channel. Use a **mention**, **ID**, or **exact name**.",
+                description="Couldn't resolve that channel. Use a **mention**, **ID**, or **exact name**.",
                 color=EMBED_ERR
             ))
         await self.config.guild(ctx.guild).log_channel.set(int(ch.id))
@@ -501,20 +500,21 @@ class BeriCautions(commands.Cog):
         await _send(ctx, embed=discord.Embed(description="Log channel disabled.", color=EMBED_OK))
 
     # ----- thresholds -------------------------------------------------------
-    @cautionset.group(name="thresholds", invoke_without_command=True)
+    @cautionset.group(name="thresholds")
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def cs_thresholds(self, ctx: commands.Context):
         """List configured action thresholds."""
-        th = await self.config.guild(ctx.guild).action_thresholds()
-        if not th:
-            return await _send(ctx, embed=discord.Embed(description="No thresholds set.", color=EMBED_WARN))
-        lines = []
-        for k, v in sorted(th.items(), key=lambda kv: int(kv[0])):
-            act = v.get("action", "?"); dur = v.get("duration", 0); rsn = v.get("reason", "")
-            extra = f" • {dur}m" if (act in {"mute","timeout"} and dur) else ""
-            lines.append(f"{k} pts → **{act}**{extra}" + (f" — {rsn}" if rsn else ""))
-        await _send(ctx, embed=discord.Embed(title="Action Thresholds", description="\n".join(lines), color=EMBED_OK))
+        if ctx.invoked_subcommand is None:
+            th = await self.config.guild(ctx.guild).action_thresholds()
+            if not th:
+                return await _send(ctx, embed=discord.Embed(description="No thresholds set.", color=EMBED_WARN))
+            lines = []
+            for k, v in sorted(th.items(), key=lambda kv: int(kv[0])):
+                act = v.get("action", "?"); dur = v.get("duration", 0); rsn = v.get("reason", "")
+                extra = f" • {dur}m" if (act in {"mute","timeout"} and dur) else ""
+                lines.append(f"{k} pts → **{act}**{extra}" + (f" — {rsn}" if rsn else ""))
+            await _send(ctx, embed=discord.Embed(title="Action Thresholds", description="\n".join(lines), color=EMBED_OK))
 
     @cs_thresholds.command(name="set")
     @commands.guild_only()
@@ -548,14 +548,15 @@ class BeriCautions(commands.Cog):
                 await _send(ctx, embed=discord.Embed(description=f"No threshold at **{points}**.", color=EMBED_WARN))
 
     # ----- berifine ---------------------------------------------------------
-    @cautionset.group(name="berifine", invoke_without_command=True)
+    @cautionset.group(name="berifine")
     @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def cs_berifine(self, ctx: commands.Context):
         """Configure Beri fine behavior."""
-        g = await self.config.guild(ctx.guild).berifine()
-        desc = f"**Enabled:** {'On' if g.get('enabled',True) else 'Off'}\n**Per Point:** {g.get('per_point',0)}\n**Range:** {g.get('min',0)}–{g.get('max',0)}\n**Thresholds:** {', '.join(f'{k}:{v}' for k,v in (g.get('thresholds') or {}).items()) or '—'}"
-        await _send(ctx, embed=discord.Embed(title="Beri Fine Settings", description=desc, color=EMBED_OK))
+        if ctx.invoked_subcommand is None:
+            g = await self.config.guild(ctx.guild).berifine()
+            desc = f"**Enabled:** {'On' if g.get('enabled',True) else 'Off'}\n**Per Point:** {g.get('per_point',0)}\n**Range:** {g.get('min',0)}–{g.get('max',0)}\n**Thresholds:** {', '.join(f'{k}:{v}' for k,v in (g.get('thresholds') or {}).items()) or '—'}"
+            await _send(ctx, embed=discord.Embed(title="Beri Fine Settings", description=desc, color=EMBED_OK))
 
     @cs_berifine.command(name="toggle")
     @commands.guild_only()
@@ -617,7 +618,83 @@ class BeriCautions(commands.Cog):
             await _send(ctx, embed=discord.Embed(description=f"Removed extra fine at **{points} pts**.", color=EMBED_OK))
         else:
             await _send(ctx, embed=discord.Embed(description=f"No extra fine set at **{points} pts**.", color=EMBED_WARN))
-    # ==== END SETTINGS GROUP ======================================================
+
+    # Additional commands for viewing warnings and managing them
+    @commands.command(name="cautions")
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def view_cautions(self, ctx: commands.Context, member: discord.Member):
+        """View all cautions for a member."""
+        warnings = await self.config.member(member).warnings()
+        total_points = await self.config.member(member).total_points()
+        
+        if not warnings:
+            return await _send(ctx, embed=discord.Embed(description=f"{member.mention} has no active cautions.", color=EMBED_OK))
+        
+        emb = discord.Embed(title=f"Cautions for {member.display_name}", color=EMBED_WARN)
+        emb.add_field(name="Total Points", value=str(total_points), inline=True)
+        
+        for i, warn in enumerate(warnings, 1):
+            mod = ctx.guild.get_member(warn.get("moderator_id"))
+            mod_name = mod.display_name if mod else "Unknown"
+            
+            value = f"**Points:** {warn.get('points', 1)}\n"
+            value += f"**Reason:** {warn.get('reason', 'No reason')}\n"
+            value += f"**Moderator:** {mod_name}\n"
+            value += f"**Expires:** <t:{int(warn.get('expiry', 0))}:R>"
+            
+            emb.add_field(name=f"Caution #{i}", value=value, inline=False)
+        
+        await _send(ctx, embed=emb)
+
+    @commands.command(name="removecaution")
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def remove_caution(self, ctx: commands.Context, member: discord.Member, index: int):
+        """Remove a specific caution by index number."""
+        if index < 1:
+            return await _send(ctx, embed=discord.Embed(description="Index must be 1 or higher.", color=EMBED_WARN))
+        
+        async with self.config.member(member).warnings() as warnings:
+            if not warnings or index > len(warnings):
+                return await _send(ctx, embed=discord.Embed(description="Invalid caution index.", color=EMBED_WARN))
+            
+            removed = warnings.pop(index - 1)
+            
+        # Recalculate total points
+        new_total = sum(int(w.get("points", 1)) for w in await self.config.member(member).warnings())
+        await self.config.member(member).total_points.set(new_total)
+        
+        await _send(ctx, embed=discord.Embed(
+            description=f"Removed caution #{index} from {member.mention}. New total: {new_total} points.",
+            color=EMBED_OK
+        ))
+        
+        await self._log_case(ctx.guild, "Caution Removed", member, ctx.author, 
+                           f"Removed caution #{index}: {removed.get('reason', 'No reason')}")
+
+    @commands.command(name="clearcautions")
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def clear_cautions(self, ctx: commands.Context, member: discord.Member):
+        """Clear all cautions for a member."""
+        warnings = await self.config.member(member).warnings()
+        
+        if not warnings:
+            return await _send(ctx, embed=discord.Embed(description=f"{member.mention} has no cautions to clear.", color=EMBED_WARN))
+        
+        # Clear all data
+        await self.config.member(member).warnings.set([])
+        await self.config.member(member).total_points.set(0)
+        await self.config.member(member).applied_thresholds.set([])
+        
+        await _send(ctx, embed=discord.Embed(
+            description=f"Cleared all cautions for {member.mention}.",
+            color=EMBED_OK
+        ))
+        
+        await self._log_case(ctx.guild, "Cautions Cleared", member, ctx.author, "All cautions cleared")
+
 
 async def setup(bot):
     await bot.add_cog(BeriCautions(bot))
