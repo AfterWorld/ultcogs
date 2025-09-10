@@ -1,174 +1,42 @@
-import asyncio
-import logging
 import discord
-from datetime import datetime
 from redbot.core import commands, Config
-from redbot.core.bot import Red
-from .constants import GUILD_DEFAULTS, USER_DEFAULTS, EMBED_PENDING
-from .utils import now_ts, decision_embed, log_action
 from .views import SuggestionVotingView, SuggestionStaffView
+from .utils import error_embed, make_embed
+from .constants import DEFAULT_CONFIG, EMBED_COLOR_OK
 
-log = logging.getLogger("red.suggestion")
+class Suggestions(commands.Cog):
+    """Suggestion system with voting."""
 
-class _Cache:
-    def __init__(self): self._g = {}
-    def get(self, gid): return self._g.get(gid)
-    def set(self, gid, v): self._g[gid] = v
-    def invalidate(self, gid): self._g.pop(gid, None)
-
-class Suggestion(commands.Cog):
-    """Suggestions with button voting, staff review, auto cleanup, and logs."""
-    def __init__(self, bot: Red):
+    def __init__(self, bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=9258471035622, force_registration=True)
-        self.config.register_guild(**GUILD_DEFAULTS)
-        self.config.register_user(**USER_DEFAULTS)
-        self._cache = _Cache()
-        # persistent view templates (needed for persistent buttons after restart)
-        self.bot.add_view(SuggestionVotingView(self, 0))
-        self.bot.add_view(SuggestionStaffView(self, 0))
+        self.config = Config.get_conf(self, identifier=6969696969, force_registration=True)
+        self.config.register_guild(**DEFAULT_CONFIG)
 
     async def cog_load(self):
-        await self._restore_views()
+        self.bot.add_view(SuggestionVotingView(self, suggestion_id=0))
+        self.bot.add_view(SuggestionStaffView(self, suggestion_id=0))
 
-    async def _restore_views(self):
-        await self.bot.wait_until_ready()
-        for g in list(self.bot.guilds):
-            try:
-                cfg = await self.get_guild_config(g)
-                for sid, data in (cfg.get("suggestions") or {}).items():
-                    if data.get("status") == "pending":
-                        v = SuggestionVotingView(self, int(sid))
-                        votes = data.get("votes", {"upvotes": [], "downvotes": []})
-                        v.set_counts(len(votes.get("upvotes", [])), len(votes.get("downvotes", [])))
-                        self.bot.add_view(v)
-            except Exception:
-                pass
-
-    async def get_guild_config(self, guild: discord.Guild) -> dict:
-        cached = self._cache.get(guild.id)
-        if cached: return cached
-        data = await self.config.guild(guild).all()
-        self._cache.set(guild.id, data)
-        return data
-
-    async def _save_guild_field(self, guild: discord.Guild, key: str, value):
-        await self.config.guild(guild).set_raw(key, value=value)
-        self._cache.invalidate(guild.id)
-
-    # ---------- user command ----------
-    @commands.command(name="suggest")
     @commands.guild_only()
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def suggest(self, ctx: commands.Context, *, suggestion: str):
-        cfg = await self.get_guild_config(ctx.guild)
-        ch_id = cfg.get("suggestion_channel")
-        if not ch_id:
-            return await ctx.send("❌ Suggestion channel not set. Ask an admin to run `[p]suggestset channel #channel`.")
-        if len(suggestion) < int(cfg.get("min_length", 10)):
-            return await ctx.send(f"❌ Too short. Min length: {cfg.get('min_length')}")
-        if len(suggestion) > int(cfg.get("max_length", 2000)):
-            return await ctx.send(f"❌ Too long. Max length: {cfg.get('max_length')}")
+    @commands.command(name="suggest")
+    async def suggest(self, ctx: commands.Context, *, text: str):
+        """Submit a suggestion."""
+        settings = await self.config.guild(ctx.guild).all()
+        channel_id = settings.get("suggestion_channel")
+        if not channel_id:
+            return await ctx.send(embed=error_embed("No suggestion channel set."))
 
-        cd = int(cfg.get("cooldown", 300))
-        last = await self.config.user(ctx.author).last_suggest_ts()
-        if last and (now_ts() - last) < cd:
-            left = int(cd - (now_ts() - last))
-            return await ctx.send(f"⏳ Cooldown active. Please wait **{left}s**.")
-
-        sid = int(cfg.get("suggestion_count", 0)) + 1
-        emb = discord.Embed(
-            title=f"Suggestion #{sid}",
-            description=suggestion,
-            color=EMBED_PENDING,
-            timestamp=datetime.utcnow()
-        )
-        if not cfg.get("anonymous_suggestions", False):
-            emb.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
-            emb.set_footer(text=f"ID: {ctx.author.id}")
-        emb.add_field(name="Votes", value="👍 0 | 👎 0", inline=True)
-
-        channel = ctx.guild.get_channel(int(ch_id))
+        channel = ctx.guild.get_channel(channel_id)
         if not channel:
-            return await ctx.send("❌ Configured suggestion channel no longer exists.")
-        view = SuggestionVotingView(self, sid)
-        view.set_counts(0, 0)
-        msg = await channel.send(embed=emb, view=view)
+            return await ctx.send(embed=error_embed("Configured suggestion channel not found."))
 
-        data = {
-            "id": sid,
-            "author_id": int(ctx.author.id),
-            "content": suggestion,
-            "channel_id": int(channel.id),
-            "message_id": int(msg.id),
-            "status": "pending",
-            "created_at": int(now_ts()),
-            "votes": {"upvotes": [], "downvotes": []},
-            "staff_message_id": None
-        }
-        async with self.config.guild(ctx.guild).suggestions() as s:
-            s[str(sid)] = data
-        await self.config.guild(ctx.guild).suggestion_count.set(sid)
-        await self.config.user(ctx.author).last_suggest_ts.set(int(now_ts()))
-        await self.config.user(ctx.author).suggestions_made.set((await self.config.user(ctx.author).suggestions_made()) + 1)
-
-        await log_action(self, ctx.guild, title="Suggestion Submitted", description=f"#{sid} by {ctx.author.mention}")
-        await ctx.tick()
-
-    # ---------- staff flow ----------
-    async def _forward_to_staff(self, guild: discord.Guild, sid: str):
-        cfg = await self.get_guild_config(guild)
-        sdata = (cfg.get("suggestions") or {}).get(str(sid))
-        if not sdata:
-            return
-        ch_id = cfg.get("staff_channel")
-        if not ch_id:
-            return
-        ch = guild.get_channel(int(ch_id))
-        if not ch:
-            return
-        author = guild.get_member(int(sdata["author_id"]))
-        emb = discord.Embed(
-            title=f"Staff Review — Suggestion #{sid}",
-            description=sdata.get("content", ""),
-            color=EMBED_PENDING,
-            timestamp=datetime.utcnow()
+        embed = make_embed(
+            title="💡 New Suggestion",
+            description=text,
+            color=EMBED_COLOR_OK
         )
-        if author:
-            emb.set_author(name=str(author), icon_url=author.display_avatar.url)
-        view = SuggestionStaffView(self, int(sid))
-        msg = await ch.send(embed=emb, view=view)
+        embed.set_footer(text="👍 0 | 👎 0")
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
-        async with self.config.guild(guild).suggestions() as s:
-            s[str(sid)]["staff_message_id"] = int(msg.id)
-        await log_action(self, guild, title="Suggestion Forwarded", description=f"#{sid} → staff channel")
-
-    async def _set_status(self, ctx: commands.Context, sid: int, status: str, reason: str = "", *, interaction: discord.Interaction = None):
-        guild = ctx.guild
-        cfg = await self.get_guild_config(guild)
-        s = (cfg.get("suggestions") or {}).get(str(sid))
-        if not s:
-            return
-        s["status"] = status
-        s["decided_by"] = int(ctx.author.id)
-        s["decided_at"] = int(now_ts())
-        if reason:
-            s["reason"] = reason
-        await self.config.guild(guild).suggestions.set(cfg["suggestions"])
-        author = guild.get_member(int(s.get("author_id", 0)))
-        # edit original msg
-        try:
-            ch = guild.get_channel(int(s["channel_id"]))
-            msg = await ch.fetch_message(int(s["message_id"]))
-            await msg.edit(embed=decision_embed(sid, s["content"], status, author=author, moderator=ctx.author, reason=reason), view=None)
-            if status == "denied" and cfg.get("auto_delete_denied", False):
-                await asyncio.sleep(10)
-                await msg.delete()
-        except Exception:
-            pass
-        await log_action(self, guild, title=f"Suggestion {status.title()}", description=f"#{sid} by <@{s['author_id']}> — by {ctx.author.mention}")
-        if author and cfg.get("dm_notifications", True):
-            try:
-                await author.send(embed=decision_embed(sid, s["content"], status, author=author, moderator=ctx.author, reason=reason))
-            except Exception:
-                pass
+        view = SuggestionVotingView(self, suggestion_id=123)  # Replace 123 with real ID logic
+        await channel.send(embed=embed, view=view)
+        await ctx.tick()
