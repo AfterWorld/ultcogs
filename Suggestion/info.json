@@ -1,0 +1,9 @@
+{
+  "author": ["UltPanda"],
+  "name": "Suggestions",
+  "description": "A comprehensive suggestion system with voting and staff approval.",
+  "requirements": [],
+  "tags": ["suggestions", "feedback", "voting"],
+  "min_bot_version": "3.5.0",
+  "hidden": false
+}
