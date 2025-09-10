@@ -1,5 +1,6 @@
 import discord
 from datetime import datetime
+from redbot.core import commands
 from redbot.core.utils.chat_formatting import humanize_number
 from .constants import EMBED_COLOR_PENDING, EMBED_COLOR_APPROVED, EMBED_COLOR_DENIED
 
@@ -23,7 +24,7 @@ def can_moderate_suggestions(member: discord.Member) -> bool:
     """
     if member.guild_permissions.administrator:
         return True
-    allowed_roles = {"Admin"}  # customize as needed
+    allowed_roles = {"Admin", "Moderator", "Suggestions"}  # customize as needed
     return any(r.name in allowed_roles for r in member.roles)
 
 
@@ -57,7 +58,7 @@ def create_status_embed(
     return embed
 
 
-def format_blacklist_entry(user: discord.User, data: dict, ctx: discord.ApplicationContext | discord.ext.commands.Context) -> str:
+def format_blacklist_entry(user: discord.User, data: dict, ctx: commands.Context) -> str:
     moderator = ctx.guild.get_member(data.get("by")) if ctx.guild else None
     moderator_str = moderator.display_name if moderator else f"<@{data.get('by')}>"
     timestamp = datetime.fromtimestamp(data.get("timestamp", 0))
