@@ -1,0 +1,9 @@
+{
+  "author": ["AfterWorld"],
+  "name": "Suggestion",
+  "short": "Community Suggestion Box",
+  "description": "Button voting, staff approve/deny (role-gated), auto-cleanup of denied, and log channel.",
+  "install_msg": "✅ Suggestion cog installed. Run `[p]suggestset channel #channel` to begin.",
+  "type": "COG",
+  "end_user_data_statement": "This cog stores suggestions, votes and moderation decisions per guild."
+}
