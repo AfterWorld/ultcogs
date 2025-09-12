@@ -1,8 +1,12 @@
 import discord
 from discord.ui import View, Button, Modal, TextInput, Select
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
+import logging
+
 from .constants import COLORS
 from .utils import make_embed
+
+log = logging.getLogger("red.suggestions.views")
 
 # === Suggestion Modal ===
 
@@ -32,12 +36,19 @@ class SuggestionModal(Modal):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.cog.process_suggestion_submission(
-            interaction,
-            self.suggestion.value,
-            self.reason.value or None,
-            self.category_id
-        )
+        try:
+            await self.cog.process_suggestion_submission(
+                interaction,
+                self.suggestion.value,
+                self.reason.value or None,
+                self.category_id
+            )
+        except Exception as e:
+            log.exception("Failed during suggestion submission")
+            await interaction.response.send_message(
+                "An error occurred while submitting your suggestion.",
+                ephemeral=True,
+            )
 
 
 # === Category Selection ===
@@ -59,11 +70,21 @@ class CategorySelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         selected = self.values[0]
-        if selected == "general":
-            await interaction.response.send_modal(SuggestionModal(self.cog, None, None))
-        else:
-            name = self.categories.get(selected)
-            await interaction.response.send_modal(SuggestionModal(self.cog, selected, name))
+        try:
+            if selected == "general":
+                await interaction.response.send_modal(SuggestionModal(self.cog, None, None))
+            else:
+                name = self.categories.get(selected)
+                await interaction.response.send_modal(SuggestionModal(self.cog, selected, name))
+        except Exception as e:
+            log.exception("Failed to show category modal")
+            try:
+                await interaction.response.send_message(
+                    "Failed to open the suggestion form.",
+                    ephemeral=True,
+                )
+            except discord.HTTPException:
+                pass
 
 
 class CategoryView(View):
@@ -75,6 +96,13 @@ class CategoryView(View):
         for item in self.children:
             item.disabled = True
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item):
+        log.exception("Error in CategoryView")
+        try:
+            await interaction.response.send_message("An error occurred in the category view.", ephemeral=True)
+        except discord.HTTPException:
+            pass
+
 
 # === Simple Modal Launch Button ===
 
@@ -85,4 +113,22 @@ class LaunchModalButton(View):
 
     @discord.ui.button(label="Submit Suggestion", style=discord.ButtonStyle.primary)
     async def launch(self, button: Button, interaction: discord.Interaction):
-        await interaction.response.send_modal(SuggestionModal(self.cog))
+        try:
+            await interaction.response.send_modal(SuggestionModal(self.cog))
+        except Exception as e:
+            log.exception("Failed to launch SuggestionModal")
+            try:
+                await interaction.response.send_message("Failed to open suggestion form.", ephemeral=True)
+            except discord.HTTPException:
+                pass
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item):
+        log.exception("Error in LaunchModalButton View")
+        try:
+            await interaction.response.send_message("An error occurred in the button view.", ephemeral=True)
+        except discord.HTTPException:
+            pass
