@@ -440,8 +440,6 @@ class Suggestions(commands.Cog):
     @commands.group(name="suggestionset", aliases=["sugset"])
     async def suggestion_set(self, ctx: commands.Context):
         """Configure the suggestion system."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
 
     @suggestion_set.command(name="channel")
     async def set_channel(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
