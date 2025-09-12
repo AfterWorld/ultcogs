@@ -1,13 +1,18 @@
 DEFAULT_CONFIG = {
     "suggestion_channel": None,
     "staff_channel": None,
+    "log_channel": None,
+    "archive_channel": None,
     "reward_credits": 1000,
     "use_beri_core": False,
     "next_id": 1,
     "blacklisted_words": [],
+    "blacklisted_users": [],
+    "cooldown_per_day": 1,
     "upvote_threshold": 10,
     "downvote_threshold": 5,
-    "suggestions": {},
+    "suggestions": {},  # id -> data
+    "stats": {},  # user_id -> {"submitted": int, "approved": int}
 }
 
 COLORS = {
