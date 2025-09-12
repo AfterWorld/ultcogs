@@ -15,10 +15,3 @@ class RewardSystem:
             if beri:
                 await beri.add_beri(user, amount, reason=f"suggestion:{suggestion_id}", actor=None)
                 return
-
-        # fallback to Red's bank
-        if await bank.is_account_created(user):
-            await bank.deposit_credits(user, amount)
-        else:
-            await bank.create_account(user)
-            await bank.deposit_credits(user, amount)
