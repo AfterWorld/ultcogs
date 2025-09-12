@@ -2,20 +2,18 @@ from __future__ import annotations
 
 import discord
 import logging
-
 from redbot.core import commands, Config, checks, bank
 from redbot.core.bot import Red
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from .constants import DEFAULT_CONFIG, COLORS, STATUS_EMOJIS
-from .utils import make_embed, success_embed, error_embed
-from .views import SuggestionModal, CategoryView, LaunchModalButton
+from .utils import error_embed, success_embed
 from .integration import RewardSystem
 
 log = logging.getLogger("red.suggestions")
 
 class Suggestion(commands.Cog):
-    """Submit and manage community suggestions with optional rewards."""
+    """Submit suggestions with optional rewards (BeriCore or bank)."""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -23,53 +21,22 @@ class Suggestion(commands.Cog):
         self.config.register_guild(**DEFAULT_CONFIG)
         self.rewarder = RewardSystem(self)
 
-    async def cog_load(self):
-        log.info("Suggestion cog loaded.")
-
-    # ========== Main Command ==========
-
-    @commands.hybrid_command(name="suggest")
+    @commands.command()
     @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def suggest(self, ctx: commands.Context):
-        """Submit a suggestion."""
+    async def suggest(self, ctx: commands.Context, *, suggestion_text: str):
+        """Submit a suggestion (prefix only)."""
         guild = ctx.guild
+        author = ctx.author
         settings = await self.config.guild(guild).all()
-        categories = settings.get("categories", {})
 
-        if categories:
-            view = CategoryView(self, categories)
-            await ctx.reply("Choose a category to submit your suggestion:", view=view)
-        else:
-            view = LaunchModalButton(self)
-            await ctx.reply("Click below to open the suggestion form.", view=view)
-
-    # ========== Processing Logic ==========
-
-    async def process_suggestion_submission(
-        self,
-        interaction: discord.Interaction,
-        suggestion_text: str,
-        reason_text: Optional[str] = None,
-        category_id: Optional[str] = None,
-    ):
-        guild = interaction.guild
-        author = interaction.user
-        settings = await self.config.guild(guild).all()
         suggestion_channel_id = settings.get("suggestion_channel")
         if not suggestion_channel_id:
-            await interaction.response.send_message(
-                embed=error_embed("No suggestion channel is set up. Ask an admin to run `[p]suggestconfig setchannel`."),
-                ephemeral=True,
-            )
+            await ctx.send(embed=error_embed("No suggestion channel is set. Ask an admin to run `[p]suggestconfig setchannel`."))
             return
 
-        # Basic validation
         if any(word.lower() in suggestion_text.lower() for word in settings.get("blacklisted_words", [])):
-            await interaction.response.send_message(
-                embed=error_embed("Your suggestion contains a blocked word. Please revise."),
-                ephemeral=True,
-            )
+            await ctx.send(embed=error_embed("Your suggestion contains a blocked word. Please revise."))
             return
 
         next_id = settings.get("next_id", 1)
@@ -82,50 +49,34 @@ class Suggestion(commands.Cog):
             color=COLORS["pending"],
         )
         embed.add_field(name="Status", value="⏳ Pending", inline=True)
-        if reason_text:
-            embed.add_field(name="Reason", value=reason_text[:1024], inline=False)
         embed.set_footer(text=f"Submitted by {author.display_name}", icon_url=author.display_avatar.url)
 
         channel = guild.get_channel(suggestion_channel_id)
         if not channel:
-            await interaction.response.send_message(
-                embed=error_embed("Suggestion channel not found."),
-                ephemeral=True,
-            )
+            await ctx.send(embed=error_embed("Suggestion channel not found."))
             return
 
         try:
             message = await channel.send(embed=embed)
         except discord.Forbidden:
-            await interaction.response.send_message(
-                embed=error_embed("Missing permission to post in suggestion channel."),
-                ephemeral=True,
-            )
+            await ctx.send(embed=error_embed("Missing permission to post in the suggestion channel."))
             return
 
-        # Save to config
         suggestion_data = {
             "id": suggestion_id,
             "author_id": author.id,
             "message_id": message.id,
             "channel_id": message.channel.id,
             "suggestion": suggestion_text,
-            "reason": reason_text,
-            "category": category_id,
             "status": "pending",
             "votes": [],
+            "category": None,
+            "reason": None,
         }
-        async with self.config.guild(guild).suggestions() as all_suggestions:
-            all_suggestions[str(suggestion_id)] = suggestion_data
 
         await self.config.guild(guild).suggestions.set_raw(str(suggestion_id), value=suggestion_data)
+        await ctx.send(embed=success_embed(f"Suggestion #{suggestion_id} submitted!"))
 
-        await interaction.response.send_message(
-            embed=success_embed(f"Suggestion #{suggestion_id} submitted!"),
-            ephemeral=True,
-        )
-
-        # Award credits if configured
         reward_amt = settings.get("reward_credits", 0)
         if reward_amt > 0:
             await self.rewarder.award(
@@ -161,8 +112,6 @@ class Suggestion(commands.Cog):
         """Enable or disable BeriCore integration for rewards."""
         await self.config.guild(ctx.guild).use_beri_core.set(toggle)
         await ctx.send(embed=success_embed(f"BeriCore integration {'enabled' if toggle else 'disabled'}."))
-
-    # ========== Deletion Compliance ==========
 
     async def red_delete_data_for_user(self, **kwargs) -> dict[str, list[str]]:
         """Compliance for Red's `[p]gdpr`"""
