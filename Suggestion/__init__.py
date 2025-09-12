@@ -1,4 +1,4 @@
-from .suggestion import Suggestions
+from .suggestion import Suggestion
 
 async def setup(bot):
-    await bot.add_cog(Suggestions(bot))
+    await bot.add_cog(Suggestion(bot))
