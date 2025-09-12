@@ -13,7 +13,7 @@ from .integration import RewardSystem
 log = logging.getLogger("red.suggestions")
 
 class Suggestion(commands.Cog):
-    """Submit suggestions with optional rewards (BeriCore or bank)."""
+    """Submit suggestions with voting + rewards."""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -32,12 +32,10 @@ class Suggestion(commands.Cog):
 
         suggestion_channel_id = settings.get("suggestion_channel")
         if not suggestion_channel_id:
-            await ctx.send(embed=error_embed("No suggestion channel is set. Ask an admin to run `[p]suggestconfig setchannel`."))
-            return
+            return await ctx.send(embed=error_embed("No suggestion channel is set."))
 
         if any(word.lower() in suggestion_text.lower() for word in settings.get("blacklisted_words", [])):
-            await ctx.send(embed=error_embed("Your suggestion contains a blocked word. Please revise."))
-            return
+            return await ctx.send(embed=error_embed("Your suggestion contains a blocked word."))
 
         next_id = settings.get("next_id", 1)
         suggestion_id = next_id
@@ -53,14 +51,14 @@ class Suggestion(commands.Cog):
 
         channel = guild.get_channel(suggestion_channel_id)
         if not channel:
-            await ctx.send(embed=error_embed("Suggestion channel not found."))
-            return
+            return await ctx.send(embed=error_embed("Suggestion channel not found."))
 
         try:
             message = await channel.send(embed=embed)
+            await message.add_reaction("👍")
+            await message.add_reaction("👎")
         except discord.Forbidden:
-            await ctx.send(embed=error_embed("Missing permission to post in the suggestion channel."))
-            return
+            return await ctx.send(embed=error_embed("Missing permission to post or react."))
 
         suggestion_data = {
             "id": suggestion_id,
@@ -79,14 +77,89 @@ class Suggestion(commands.Cog):
 
         reward_amt = settings.get("reward_credits", 0)
         if reward_amt > 0:
-            await self.rewarder.award(
-                guild=guild,
-                user_id=author.id,
-                amount=reward_amt,
-                suggestion_id=suggestion_id,
-            )
+            await self.rewarder.award(guild=guild, user_id=author.id, amount=reward_amt, suggestion_id=suggestion_id)
 
-    # ========== Admin Setup ==========
+    # === Reaction listener ===
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id:
+            return
+
+        emoji = str(payload.emoji)
+        if emoji not in {"👍", "👎"}:
+            return
+
+        guild = self.bot.get_guild(payload.guild_id)
+        if not guild:
+            return
+
+        channel = guild.get_channel(payload.channel_id)
+        if not channel:
+            return
+
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.NotFound:
+            return
+
+        # Match suggestion by message_id
+        guild_cfg = self.config.guild(guild)
+        all_suggestions = await guild_cfg.suggestions()
+        for sid, data in all_suggestions.items():
+            if data.get("message_id") == payload.message_id:
+                break
+        else:
+            return
+
+        if data.get("status") != "pending":
+            return
+
+        upvotes = 0
+        downvotes = 0
+        for r in message.reactions:
+            if str(r.emoji) == "👍":
+                upvotes = r.count
+            elif str(r.emoji) == "👎":
+                downvotes = r.count
+
+        up_thresh = (await guild_cfg.upvote_threshold()) or 10
+        down_thresh = (await guild_cfg.downvote_threshold()) or 5
+
+        if upvotes >= up_thresh:
+            await self._handle_approved(guild, message, sid, data)
+        elif downvotes >= down_thresh:
+            await self._handle_declined(guild, message, sid, data)
+
+    async def _handle_approved(self, guild, message, sid, data):
+        author = self.bot.get_user(data["author_id"])
+        embed = message.embeds[0]
+        embed.set_field_at(0, name="Status", value="✅ Approved", inline=True)
+        embed.color = COLORS["approved"]
+        embed.set_footer(text=f"Approved — Suggested by {author}", icon_url=author.display_avatar.url)
+        await message.edit(embed=embed)
+
+        staff_id = await self.config.guild(guild).staff_channel()
+        if staff_id:
+            staff_channel = guild.get_channel(staff_id)
+            if staff_channel:
+                await staff_channel.send(embed=embed)
+
+        data["status"] = "approved"
+        await self.config.guild(guild).suggestions.set_raw(str(sid), value=data)
+
+    async def _handle_declined(self, guild, message, sid, data):
+        author = self.bot.get_user(data["author_id"])
+        embed = message.embeds[0]
+        embed.set_field_at(0, name="Status", value="❌ Declined", inline=True)
+        embed.color = COLORS["declined"]
+        embed.set_footer(text=f"Declined — Suggested by {author}", icon_url=author.display_avatar.url)
+        await message.edit(embed=embed)
+
+        data["status"] = "declined"
+        await self.config.guild(guild).suggestions.set_raw(str(sid), value=data)
+
+    # === Admin Config ===
 
     @commands.group(name="suggestconfig", aliases=["suggestset"])
     @checks.admin_or_permissions(manage_guild=True)
@@ -101,6 +174,12 @@ class Suggestion(commands.Cog):
         await self.config.guild(ctx.guild).suggestion_channel.set(channel.id)
         await ctx.send(embed=success_embed(f"Suggestion channel set to {channel.mention}"))
 
+    @suggestconfig.command(name="setstaffchannel")
+    async def suggestconfig_setstaffchannel(self, ctx: commands.Context, channel: discord.TextChannel):
+        """Set the staff approval output channel."""
+        await self.config.guild(ctx.guild).staff_channel.set(channel.id)
+        await ctx.send(embed=success_embed(f"Staff channel set to {channel.mention}"))
+
     @suggestconfig.command(name="reward")
     async def suggestconfig_reward(self, ctx: commands.Context, credits: int):
         """Set the credit reward per suggestion."""
@@ -113,9 +192,9 @@ class Suggestion(commands.Cog):
         await self.config.guild(ctx.guild).use_beri_core.set(toggle)
         await ctx.send(embed=success_embed(f"BeriCore integration {'enabled' if toggle else 'disabled'}."))
 
-    async def red_delete_data_for_user(self, **kwargs) -> dict[str, list[str]]:
-        """Compliance for Red's `[p]gdpr`"""
-        return {
-            "guild": ["suggestions"],
-            "user": ["author_id"]
-        }
+    @suggestconfig.command(name="setthresholds")
+    async def suggestconfig_setthresholds(self, ctx: commands.Context, upvotes: int = 10, downvotes: int = 5):
+        """Set upvote/downvote thresholds (default: 10/5)."""
+        await self.config.guild(ctx.guild).upvote_threshold.set(upvotes)
+        await self.config.guild(ctx.guild).downvote_threshold.set(downvotes)
+        await ctx.send(embed=success_embed(f"Thresholds set: 👍 {upvotes} | 👎 {downvotes}"))
