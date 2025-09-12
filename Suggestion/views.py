@@ -1,72 +1,88 @@
 import discord
-from discord.ui import View, Button, Modal, TextInput
+from discord.ui import View, Button, Modal, TextInput, Select
+from typing import Optional, Dict, Any
+from .constants import COLORS
 from .utils import make_embed
-from .constants import EMBED_COLOR_OK
 
-class ReasonModal(Modal, title="Reason"):
-    def __init__(self, callback):
-        super().__init__()
-        self.callback_func = callback
-        self.reason = TextInput(label="Reason", required=True)
+# === Suggestion Modal ===
+
+class SuggestionModal(Modal):
+    def __init__(self, cog, category_id: Optional[str] = None, category_name: Optional[str] = None):
+        title = f"Submit Suggestion - {category_name}" if category_name else "Submit Suggestion"
+        super().__init__(title=title, timeout=300)
+        self.cog = cog
+        self.category_id = category_id
+
+        self.suggestion = TextInput(
+            label="Your Suggestion",
+            placeholder="Describe your suggestion in detail...",
+            style=discord.TextStyle.long,
+            max_length=1000,
+            required=True,
+        )
+        self.add_item(self.suggestion)
+
+        self.reason = TextInput(
+            label="Reason/Justification (Optional)",
+            placeholder="Why should this be implemented?",
+            style=discord.TextStyle.long,
+            max_length=500,
+            required=False,
+        )
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.callback_func(interaction, self.reason.value)
+        await self.cog.process_suggestion_submission(
+            interaction,
+            self.suggestion.value,
+            self.reason.value or None,
+            self.category_id
+        )
 
-class SuggestionVotingView(View):
-    def __init__(self, cog, suggestion_id):
-        super().__init__(timeout=None)
+
+# === Category Selection ===
+
+class CategorySelect(Select):
+    def __init__(self, cog, categories: Dict[str, str]):
+        options = [
+            discord.SelectOption(label="General", value="general", emoji="💡", description="General suggestions")
+        ]
+        for cat_id, cat_name in list(categories.items())[:24]:
+            options.append(discord.SelectOption(
+                label=cat_name[:100],
+                value=cat_id,
+                description=f"Submit to {cat_name}"[:100]
+            ))
+        super().__init__(placeholder="Choose a category...", options=options)
         self.cog = cog
-        self.suggestion_id = suggestion_id
-        self.upvotes = set()
-        self.downvotes = set()
+        self.categories = categories
 
-        self.upvote_button = Button(label="👍", style=discord.ButtonStyle.success)
-        self.downvote_button = Button(label="👎", style=discord.ButtonStyle.danger)
+    async def callback(self, interaction: discord.Interaction):
+        selected = self.values[0]
+        if selected == "general":
+            await interaction.response.send_modal(SuggestionModal(self.cog, None, None))
+        else:
+            name = self.categories.get(selected)
+            await interaction.response.send_modal(SuggestionModal(self.cog, selected, name))
 
-        self.upvote_button.callback = self.handle_upvote
-        self.downvote_button.callback = self.handle_downvote
 
-        self.add_item(self.upvote_button)
-        self.add_item(self.downvote_button)
+class CategoryView(View):
+    def __init__(self, cog, categories: Dict[str, str]):
+        super().__init__(timeout=300)
+        self.add_item(CategorySelect(cog, categories))
 
-    async def handle_upvote(self, interaction: discord.Interaction):
-        user = interaction.user
-        self.downvotes.discard(user.id)
-        self.upvotes.add(user.id)
-        await self.update_message(interaction)
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
 
-    async def handle_downvote(self, interaction: discord.Interaction):
-        user = interaction.user
-        self.upvotes.discard(user.id)
-        self.downvotes.add(user.id)
-        await self.update_message(interaction)
 
-    async def update_message(self, interaction):
-        embed = interaction.message.embeds[0]
-        embed.set_footer(text=f"👍 {len(self.upvotes)} | 👎 {len(self.downvotes)}")
-        await interaction.response.edit_message(embed=embed, view=self)
+# === Simple Modal Launch Button ===
 
-class SuggestionStaffView(View):
-    def __init__(self, cog, suggestion_id):
-        super().__init__(timeout=None)
+class LaunchModalButton(View):
+    def __init__(self, cog):
+        super().__init__(timeout=300)
         self.cog = cog
-        self.suggestion_id = suggestion_id
 
-        self.approve_button = Button(label="✅ Approve", style=discord.ButtonStyle.green)
-        self.deny_button = Button(label="❌ Deny", style=discord.ButtonStyle.red)
-
-        self.approve_button.callback = self.approve
-        self.deny_button.callback = self.deny
-
-        self.add_item(self.approve_button)
-        self.add_item(self.deny_button)
-
-    async def approve(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Suggestion approved!", ephemeral=True)
-
-    async def deny(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(ReasonModal(self.send_denied_message))
-
-    async def send_denied_message(self, interaction, reason):
-        await interaction.response.send_message(f"Denied with reason: {reason}", ephemeral=True)
+    @discord.ui.button(label="Submit Suggestion", style=discord.ButtonStyle.primary)
+    async def launch(self, button: Button, interaction: discord.Interaction):
+        await interaction.response.send_modal(SuggestionModal(self.cog))
