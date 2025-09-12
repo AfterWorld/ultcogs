@@ -1,29 +1,24 @@
 from redbot.core import bank
-import logging
-import discord
-
-log = logging.getLogger("red.suggestions.integration")
 
 class RewardSystem:
     def __init__(self, cog):
         self.cog = cog
 
-    async def award(self, guild: discord.Guild, user_id: int, amount: int):
-        settings = await self.cog.config.guild(guild).all()
-        use_beri = settings.get("use_beri_core", False)
-
-        if not amount or amount <= 0:
+    async def award(self, guild, user_id: int, amount: int, suggestion_id: int):
+        use_beri = await self.cog.config.guild(guild).use_beri_core()
+        user = guild.get_member(user_id)
+        if not user:
             return
 
-        member = guild.get_member(user_id)
-        if not member:
-            return
+        if use_beri and hasattr(self.cog.bot, "get_cog"):
+            beri = self.cog.bot.get_cog("BeriCore")
+            if beri:
+                await beri.add_beri(user, amount, reason=f"suggestion:{suggestion_id}", actor=None)
+                return
 
-        try:
-            if use_beri:
-                # Assume beri_core.py exists and provides `award_currency`
-                await self.cog.beri.award_currency(member, amount)
-            else:
-                await bank.deposit_credits(member, amount)
-        except Exception as e:
-            log.warning(f"Reward failed for user {user_id}: {e}")
+        # fallback to Red's bank
+        if await bank.is_account_created(user):
+            await bank.deposit_credits(user, amount)
+        else:
+            await bank.create_account(user)
+            await bank.deposit_credits(user, amount)
