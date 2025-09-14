@@ -352,6 +352,47 @@ class UltimateNekoInteractions(commands.Cog):
         }
         
         # Command cooldowns per guild
+
+        # === Injected by Diagnostics Merge ===
+        # Harden API configs (uniform shapes, timeouts)
+        self.api_configs = {
+            "nekos.best": {
+                "base_url": "https://nekos.best/api/v2",
+                "requires_auth": False,
+                "response_format": "json",
+                "image_key": "url",
+                "timeout": 15
+            },
+            "waifu.it": {
+                "base_url": "https://waifu.it/api/v4",
+                "requires_auth": True,
+                "response_format": "json",
+                "image_key": "url",
+                "timeout": 15
+            },
+            "waifu.pics": {
+                "base_url": "https://api.waifu.pics/sfw",
+                "requires_auth": False,
+                "response_format": "json",
+                "image_key": "url",
+                "timeout": 15
+            },
+            "nekos.life": {
+                "base_url": "https://nekos.life/api/v2/img",
+                "requires_auth": False,
+                "response_format": "json",
+                "image_key": "url",
+                "timeout": 15
+            }
+        }
+        # Safer 'run' mapping: fall back to dance where 'run' isn't supported
+        try:
+            if "run" in self.interactions and isinstance(self.interactions["run"], dict):
+                self.interactions["run"]["apis"] = {"waifu.it": "run", "waifu.pics": "dance", "nekos.best": "dance"}
+        except Exception:
+            pass
+        # =====================================
+
         self.cooldowns = {}
         
     def cog_unload(self):
@@ -1800,4 +1841,237 @@ class UltimateNekoInteractions(commands.Cog):
             icon_url=ctx.bot.user.display_avatar.url
         )
         
+
+
+
+    # === Injected by Diagnostics Merge: improved fetchers, stats, diagnostics ===
+    async def get_image_from_api_improved(self, api_name: str, action: str, guild_id: int) -> dict:
+        """Fetch a single image with explicit errors and shape handling."""
+        import os, aiohttp, asyncio
+        try:
+            cfg = self.api_configs[api_name]
+            base = cfg["base_url"]
+            url = f"{base}/{action}"
+            headers = {"User-Agent": "Red-DiscordBot/Ultimate-Nekos"}
+
+            if api_name == "waifu.it":
+                token = await self.config.guild_from_id(guild_id).waifu_it_token()
+                if not token:
+                    token = os.getenv("WAIFU_IT_TOKEN_DEFAULT", "").strip()
+                if token:
+                    headers["Authorization"] = token
+
+            timeout = cfg.get("timeout", 15)
+            async with self.session.get(url, headers=headers, timeout=timeout) as resp:
+                status = resp.status
+                try:
+                    data = await resp.json()
+                except Exception as je:
+                    body = await resp.text()
+                    return {"success": False, "api": api_name, "status": status,
+                            "error": f"json_decode_error: {je}", "preview": body[:180], "url": url}
+
+                if status != 200:
+                    return {"success": False, "api": api_name, "status": status,
+                            "error": f"HTTP_{status}", "preview": str(data)[:180], "url": url}
+
+                # Shape differences
+                if api_name == "nekos.best":
+                    results = data.get("results") or []
+                    img = results[0]["url"] if results and isinstance(results[0], dict) else None
+                else:
+                    img = data.get("url")
+
+                if not img:
+                    return {"success": False, "api": api_name, "status": status,
+                            "error": "no_url_in_response", "preview": str(data)[:180], "url": url}
+
+                return {"success": True, "api": api_name, "status": status, "url": img}
+
+        except asyncio.TimeoutError:
+            return {"success": False, "api": api_name, "error": "timeout"}
+        except aiohttp.ClientError as ce:
+            return {"success": False, "api": api_name, "error": f"client_error: {ce}"}
+        except Exception as e:
+            return {"success": False, "api": api_name, "error": f"unexpected_error: {e}"}
+
+    async def get_image_with_fallback_fixed(self, action: str, guild_id: int, is_extreme: bool = False) -> dict:
+        """Try preferred then global order; return last error if all fail."""
+        mapping = self.extreme_interactions if is_extreme else self.interactions
+        if action not in mapping:
+            return {"success": False, "error": "action_not_found"}
+
+        action_data = mapping[action]
+        available_apis = action_data.get("apis", {})
+        if not available_apis:
+            return {"success": False, "error": "no_apis_configured"}
+
+        fallback_enabled = await self.config.guild_from_id(guild_id).api_fallback_enabled()
+        preferred_api = await self.config.guild_from_id(guild_id).preferred_api()
+        global_order = await self.config.preferred_api_order() if hasattr(self.config, "preferred_api_order") else ["waifu.it", "nekos.best", "waifu.pics", "nekos.life"]
+
+        api_order = []
+        if preferred_api and preferred_api in available_apis:
+            api_order.append(preferred_api)
+        for api in global_order:
+            if api in available_apis and api not in api_order:
+                api_order.append(api)
+        for api in available_apis:
+            if api not in api_order:
+                api_order.append(api)
+
+        last_error = None
+        for api_name in api_order:
+            api_action = available_apis[api_name]
+            result = await self.get_image_from_api_improved(api_name, api_action, guild_id)
+            if result.get("success") and result.get("url"):
+                await self.update_api_stats(api_name, True)
+                try:
+                    total = await self.config.api_calls_made()
+                    await self.config.api_calls_made.set(total + 1)
+                except Exception:
+                    pass
+                return result
+
+            await self.update_api_stats(api_name, False)
+            last_error = result
+            if not fallback_enabled:
+                return result
+
+        return last_error or {"success": False, "error": "all_apis_failed"}
+
+    async def update_api_stats(self, api_name: str, success: bool):
+        try:
+            stats = await self.config.api_success_rate()
+        except Exception:
+            return
+        if api_name not in stats:
+            stats[api_name] = {"success": 0, "total": 0}
+        stats[api_name]["total"] += 1
+        if success:
+            stats[api_name]["success"] += 1
+        await self.config.api_success_rate.set(stats)
+
+    @commands.command(name="diagnoseapis", aliases=["apitest"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def diagnose_apis(self, ctx, action: str = "run"):
+        """Diagnose API connectivity and response for a specific action."""
+        from datetime import datetime, timezone
+        embed = discord.Embed(
+            title="🔧 API Diagnostic Report",
+            description=f"Testing all APIs for action: **{action}**",
+            color=0x00FF00,
+            timestamp=datetime.now(timezone.utc)
+        )
+
+        mapping = self.extreme_interactions if (hasattr(self, "extreme_interactions") and action in getattr(self, "extreme_interactions", {})) else self.interactions
+
+        if action not in mapping:
+            embed.color = 0xFF0000
+            embed.description = f"❌ Action '{action}' not found in available interactions!"
+            await ctx.send(embed=embed)
+            return
+
+        apis = mapping[action].get("apis", {})
+        if not apis:
+            embed.color = 0xFF0000
+            embed.description = f"❌ No APIs configured for action '{action}'"
+            await ctx.send(embed=embed)
+            return
+
+        embed.add_field(
+            name="📋 Testing Configuration",
+            value=f"**Action:** {action}\n**Available APIs:** {len(apis)}\n**APIs:** {', '.join(apis.keys())}",
+            inline=False
+        )
+
+        results = []
+        async with ctx.typing():
+            for api_name, api_action in apis.items():
+                result = await self.get_image_from_api_improved(api_name, api_action, ctx.guild.id)
+                results.append((api_name, result))
+
+                if result.get("success"):
+                    status = "✅ SUCCESS"
+                    details = f"URL: {result.get('url', 'N/A')[:70]}"
+                else:
+                    status = "❌ FAILED"
+                    details = f"Error: {result.get('error', 'Unknown')}"
+                    if "status" in result:
+                        details += f" | HTTP: {result.get('status')}"
+                    if "url" in result:
+                        details += f"\nEndpoint: {result['url']}"
+
+                embed.add_field(
+                    name=f"{status} {api_name}",
+                    value=details,
+                    inline=False
+                )
+
+        ok = sum(1 for _, r in results if r.get("success"))
+        total = len(results)
+        if ok > 0:
+            embed.color = 0x00FF00 if ok == total else 0xFFFF00
+            summary = f"✅ {ok}/{total} APIs working"
+        else:
+            embed.color = 0xFF0000
+            summary = f"❌ All {total} APIs failed"
+
+        embed.insert_field_at(1, name="📊 Summary", value=summary, inline=False)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="quickfix")
+    @commands.is_owner()
+    async def quick_api_fix(self, ctx):
+        """Probe common endpoints and auto-set a working preferred API for the guild."""
+        test_actions = ["hug", "dance", "run"]
+        working = {}
+        async with ctx.typing():
+            for action in test_actions:
+                if action not in getattr(self, "interactions", {}):
+                    continue
+                apis = self.interactions[action]["apis"]
+                for api_name, api_action in apis.items():
+                    res = await self.get_image_from_api_improved(api_name, api_action, ctx.guild.id)
+                    if res.get("success"):
+                        working.setdefault(api_name, set()).add(action)
+
+        embed = discord.Embed(
+            title="🔧 Quick API Fix Report",
+            color=0x00FF00 if working else 0xFF0000,
+            timestamp=datetime.now(timezone.utc)
+        )
+
+        if working:
+            for api_name, acts in working.items():
+                embed.add_field(name=f"✅ {api_name}", value=f"Working actions: {', '.join(sorted(acts))}", inline=False)
+
+            # Pick best API across tested actions
+            best_api = max(working.keys(), key=lambda k: len(working[k]))
+            try:
+                await self.config.guild(ctx.guild).preferred_api.set(best_api)
+            except Exception:
+                pass
+            embed.add_field(
+                name="🔧 Auto-Fix Applied",
+                value=f"Set preferred API to: **{best_api}**",
+                inline=False
+            )
+        else:
+            embed.description = "❌ No APIs responded successfully. Likely network issue, invalid token, or upstream outage."
+            embed.add_field(
+                name="🔍 Next Steps",
+                value=(
+                    "1) Ensure outbound HTTPS access from your host\n"
+                    "2) Configure waifu.it token: `[p]ultimateset waifutoken <token>` or env `WAIFU_IT_TOKEN_DEFAULT`\n"
+                    "3) Try again later — upstream maintenance/rate-limits happen\n"
+                    "4) If only `run` fails, rely on fallback mapping (run→dance)"
+                ),
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+    # === End Diagnostics Merge ===
+
+
         await ctx.send(embed=embed)
