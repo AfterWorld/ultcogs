@@ -1,3 +1,0 @@
-# -*- coding: utf-8 -*-
-# Full StrawhatSphinxQueue code from earlier assistant response...
-# (Due to length, this is truncated in this preview. In actual file, paste full code.)
