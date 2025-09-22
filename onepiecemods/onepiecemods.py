@@ -65,13 +65,13 @@ class DurationConverter(commands.Converter):
         total_seconds = days * 86400 + hours * 3600 + minutes * 60
         max_seconds = 7 * 24 * 60 * 60
         if total_seconds > max_seconds:
-            await ctx.send("âš ï¸ Duration capped at 7 days to match Discord limits.")
+            await ctx.send("⚠️ Duration capped at 7 days to match Discord limits.")
             total_seconds = max_seconds
         return total_seconds
 
 
 class OnePieceMods(commands.Cog):
-    """One Piece themed moderation commands ðŸ´â€â˜ ï¸"""
+    """One Piece themed moderation commands 🏴‍☠️"""
 
     default_guild_settings: Dict[str, Any] = {
         "mute_role": None,
@@ -89,6 +89,7 @@ class OnePieceMods(commands.Cog):
         },
         "audit_log_format": "One Piece Mods: {moderator} ({moderator_id}) | {reason}",
         "backup_enabled": True,
+        "serious_mode": False,
         "webhook_url": None,
     }
 
@@ -115,6 +116,11 @@ class OnePieceMods(commands.Cog):
             self.init_casetypes_task.cancel()
 
     # ---------- Helper / Embed ----------
+    def _minimal_action_embed(self, title: str, description: str) -> discord.Embed:
+        e = discord.Embed(title=title, description=description, color=discord.Color.blurple())
+        e.timestamp = datetime.now(timezone.utc)
+        return e
+
 
     def create_modlog_embed(
         self,
@@ -187,9 +193,9 @@ class OnePieceMods(commands.Cog):
         try:
             await modlog.register_casetypes(
                 [
-                    {"name": "impeldown", "default_setting": True, "image": "â›“ï¸", "case_str": "Impel Down Imprisonment"},
-                    {"name": "impelrelease", "default_setting": True, "image": "ðŸ”“", "case_str": "Impel Down Release"},
-                    {"name": "bounty", "default_setting": True, "image": "ðŸ’°", "case_str": "Bounty Increase"},
+                    {"name": "impeldown", "default_setting": True, "image": "⛓️", "case_str": "Impel Down Imprisonment"},
+                    {"name": "impelrelease", "default_setting": True, "image": "🔓", "case_str": "Impel Down Release"},
+                    {"name": "bounty", "default_setting": True, "image": "💰", "case_str": "Bounty Increase"},
                 ]
             )
         except Exception as e:
@@ -472,12 +478,12 @@ class OnePieceMods(commands.Cog):
                     reason = reason[:57] + "..."
                 embed.add_field(
                     name=f"{i + j}. {at} - {ts_disp}",
-                    value=f"By: {mod_name} â€¢ Reason: {reason}",
+                    value=f"By: {mod_name} • Reason: {reason}",
                     inline=False,
                 )
             total_pages = (len(history) + chunk - 1) // chunk
             page_no = (i // chunk) + 1
-            embed.set_footer(text=f"Page {page_no}/{total_pages} â€¢ Total actions: {len(history)}")
+            embed.set_footer(text=f"Page {page_no}/{total_pages} • Total actions: {len(history)}")
             pages.append(embed)
         return pages
 
@@ -498,16 +504,20 @@ class OnePieceMods(commands.Cog):
     @opm_group.command(name="setup")
     async def setup_wizard(self, ctx: commands.Context):
         embed = discord.Embed(
-            title="âš™ï¸ One Piece Mods Setup Wizard",
+            title="⚙️ One Piece Mods Setup Wizard",
             description="Let's configure your server for One Piece moderation!",
             color=discord.Color.blue(),
         )
         embed.add_field(
             name="What we'll set up:",
-            value="â€¢ Sea Prism Stone (mute) role\nâ€¢ Marine HQ (log) channel\nâ€¢ Warning escalation settings\nâ€¢ Other preferences",
+            value="• Sea Prism Stone (mute) role\n• Marine HQ (log) channel\n• Warning escalation settings\n• Other preferences",
             inline=False,
         )
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
         # Step 1: Mute Role
         prompt = discord.Embed(
@@ -517,7 +527,7 @@ class OnePieceMods(commands.Cog):
         )
         prompt.add_field(
             name="Options:",
-            value="â€¢ Type `create`\nâ€¢ Mention an existing role\nâ€¢ Type `skip`",
+            value="• Type `create`\n• Mention an existing role\n• Type `skip`",
             inline=False,
         )
         await ctx.send(embed=prompt)
@@ -530,7 +540,7 @@ class OnePieceMods(commands.Cog):
             elif msg.content.lower() != "skip" and msg.role_mentions:
                 await ctx.invoke(self.set_mute_role, msg.role_mentions[0])
         except asyncio.TimeoutError:
-            await ctx.send("â° Setup wizard timed out. You can run it again anytime!")
+            await ctx.send("⏰ Setup wizard timed out. You can run it again anytime!")
             return
 
         # Step 2: Log Channel
@@ -539,7 +549,7 @@ class OnePieceMods(commands.Cog):
             description="Where should moderation logs be sent?",
             color=discord.Color.blue(),
         )
-        prompt.add_field(name="Options:", value="â€¢ Mention a channel\nâ€¢ Type `here`\nâ€¢ Type `skip`", inline=False)
+        prompt.add_field(name="Options:", value="• Mention a channel\n• Type `here`\n• Type `skip`", inline=False)
         await ctx.send(embed=prompt)
         try:
             msg = await self.bot.wait_for(
@@ -550,7 +560,7 @@ class OnePieceMods(commands.Cog):
             elif msg.content.lower() != "skip" and msg.channel_mentions:
                 await ctx.invoke(self.set_log_channel, msg.channel_mentions[0])
         except asyncio.TimeoutError:
-            await ctx.send("â° Setup wizard timed out. Configuration saved so far!")
+            await ctx.send("⏰ Setup wizard timed out. Configuration saved so far!")
             return
 
         # Step 3: Auto-escalation
@@ -559,7 +569,7 @@ class OnePieceMods(commands.Cog):
             description="Enable automatic escalation to Impel Down based on warnings?",
             color=discord.Color.blue(),
         )
-        prompt.add_field(name="Options:", value="â€¢ Type `yes` or `no`", inline=False)
+        prompt.add_field(name="Options:", value="• Type `yes` or `no`", inline=False)
         await ctx.send(embed=prompt)
         try:
             msg = await self.bot.wait_for(
@@ -567,23 +577,23 @@ class OnePieceMods(commands.Cog):
             )
             if msg.content.lower() in {"yes", "y", "enable", "true", "on"}:
                 await self.config.guild(ctx.guild).auto_escalation.set(True)
-                await ctx.send("âœ… Auto-escalation enabled!")
+                await ctx.send("✅ Auto-escalation enabled!")
             elif msg.content.lower() in {"no", "n", "disable", "false", "off"}:
                 await self.config.guild(ctx.guild).auto_escalation.set(False)
-                await ctx.send("âœ… Auto-escalation disabled!")
+                await ctx.send("✅ Auto-escalation disabled!")
         except asyncio.TimeoutError:
             pass
 
         await ctx.send(
             embed=discord.Embed(
-                title="ðŸŽ‰ Setup Complete!",
+                title="🎉 Setup Complete!",
                 description="One Piece Mods is now configured for your server!",
                 color=discord.Color.green(),
             ).add_field(
                 name="Next steps:",
                 value=(
-                    f"â€¢ Use `{ctx.clean_prefix}piratehelp` to see all commands\n"
-                    f"â€¢ Customize with `{ctx.clean_prefix}opm config`"
+                    f"• Use `{ctx.clean_prefix}piratehelp` to see all commands\n"
+                    f"• Customize with `{ctx.clean_prefix}opm config`"
                 ),
                 inline=False,
             )
@@ -593,24 +603,28 @@ class OnePieceMods(commands.Cog):
     async def config_menu(self, ctx: commands.Context):
         gconf = await self.config.guild(ctx.guild).all()
         embed = discord.Embed(
-            title="âš™ï¸ One Piece Mods Configuration", description=f"Settings for {ctx.guild.name}", color=discord.Color.blue()
+            title="⚙️ One Piece Mods Configuration", description=f"Settings for {ctx.guild.name}", color=discord.Color.blue()
         )
         mute_role = ctx.guild.get_role(gconf.get("mute_role")) if gconf.get("mute_role") else None
         log_channel = ctx.guild.get_channel(gconf.get("log_channel")) if gconf.get("log_channel") else None
         embed.add_field(name="Sea Prism Stone Role", value=mute_role.mention if mute_role else "Not set", inline=True)
         embed.add_field(name="Marine HQ Channel", value=log_channel.mention if log_channel else "Not set", inline=True)
         embed.add_field(
-            name="Auto-Escalation", value="âœ… Enabled" if gconf.get("auto_escalation", True) else "âŒ Disabled", inline=True
+            name="Auto-Escalation", value="✅ Enabled" if gconf.get("auto_escalation", True) else "❌ Disabled", inline=True
         )
         embed.add_field(name="Warning Cooldown", value=f"{gconf.get('warning_cooldown', 30)} seconds", inline=True)
         embed.add_field(name="Max Warning Level", value=str(gconf.get("max_warning_level", 6)), inline=True)
         embed.add_field(
-            name="Backup System", value="âœ… Enabled" if gconf.get("backup_enabled", True) else "âŒ Disabled", inline=True
+            name="Backup System", value="✅ Enabled" if gconf.get("backup_enabled", True) else "❌ Disabled", inline=True
         )
         embed.add_field(
             name="Modify Settings", value=f"Use `{ctx.clean_prefix}opm set <setting> <value>` to change settings", inline=False
         )
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
     @opm_group.command(name="set")
     async def set_config(self, ctx: commands.Context, setting: str, *, value: str):
@@ -619,52 +633,91 @@ class OnePieceMods(commands.Cog):
             if setting == "warning_cooldown":
                 cooldown = int(value)
                 if cooldown < 5 or cooldown > 3600:
-                    return await ctx.send("âŒ Warning cooldown must be between 5 and 3600 seconds!")
+                    return await ctx.send("❌ Warning cooldown must be between 5 and 3600 seconds!")
                 await self.config.guild(ctx.guild).warning_cooldown.set(cooldown)
-                await ctx.send(f"âœ… Warning cooldown set to {cooldown} seconds!")
+                await ctx.send(f"✅ Warning cooldown set to {cooldown} seconds!")
             elif setting == "auto_escalation":
                 enabled = value.lower() in {"true", "yes", "1", "enable", "on"}
                 await self.config.guild(ctx.guild).auto_escalation.set(enabled)
-                await ctx.send(f"âœ… Auto-escalation {'enabled' if enabled else 'disabled'}!")
+                await ctx.send(f"✅ Auto-escalation {'enabled' if enabled else 'disabled'}!")
             elif setting == "max_warning_level":
                 level = int(value)
                 if level < 1 or level > 10:
-                    return await ctx.send("âŒ Max warning level must be between 1 and 10!")
+                    return await ctx.send("❌ Max warning level must be between 1 and 10!")
                 await self.config.guild(ctx.guild).max_warning_level.set(level)
-                await ctx.send(f"âœ… Max warning level set to {level}!")
+                await ctx.send(f"✅ Max warning level set to {level}!")
             elif setting == "backup_enabled":
                 enabled = value.lower() in {"true", "yes", "1", "enable", "on"}
                 await self.config.guild(ctx.guild).backup_enabled.set(enabled)
-                await ctx.send(f"âœ… Backup system {'enabled' if enabled else 'disabled'}!")
+                await ctx.send(f"✅ Backup system {'enabled' if enabled else 'disabled'}!")
+            elif setting == "serious_mode":
+                enabled = value.lower() in {"true", "yes", "1", "enable", "on"}
+                await self.config.guild(ctx.guild).serious_mode.set(enabled)
+                await ctx.send(f"✅ Serious mode {'enabled' if enabled else 'disabled'}! (no GIFs, minimal flavor)")
             else:
-                await ctx.send(f"âŒ Unknown setting: `{setting}`")
+                enabled = value.lower() in {"true", "yes", "1", "enable", "on"}
+                await self.config.guild(ctx.guild).backup_enabled.set(enabled)
+                await ctx.send(f"✅ Backup system {'enabled' if enabled else 'disabled'}!")
+            else:
+                await ctx.send(f"❌ Unknown setting: `{setting}`")
         except ValueError:
-            await ctx.send("âŒ Invalid value for that setting!")
+            await ctx.send("❌ Invalid value for that setting!")
+
+    
+    @opm_group.command(name="active")
+    async def opm_active(self, ctx: commands.Context):
+        """List active punishments and remaining time."""
+        data = await self.config.guild(ctx.guild).active_punishments()
+        if not data:
+            return await ctx.send("✅ No active punishments.")
+        # Build rows
+        rows = []
+        now = datetime.now().timestamp()
+        for uid, info in data.items():
+            try:
+                member = ctx.guild.get_member(int(uid))
+            except Exception:
+                member = None
+            end_time = float(info.get("end_time", now))
+            remain_s = max(0, int(end_time - now))
+            remain_m = remain_s // 60
+            rows.append((member.mention if member else f"`{uid}`",
+                         f"Level {info.get('level','?')}",
+                         format_time_duration(remain_m),
+                         info.get('reason','-')))
+        # Paginate into embeds
+        chunk = 10
+        for i in range(0, len(rows), chunk):
+            embed = discord.Embed(title="⛓️ Active Punishments", color=discord.Color.dark_grey())
+            for who, lvl, remain, reason in rows[i:i+chunk]:
+                embed.add_field(name=f"{who} • {lvl}", value=f"Time left: **{remain}**\nReason: {reason}", inline=False)
+            embed.set_footer(text=f"Showing {i+1}-{min(i+chunk,len(rows))} of {len(rows)}")
+            await ctx.send(embed=embed)
 
     @opm_group.command(name="backup")
     async def backup_data_cmd(self, ctx: commands.Context):
         try:
             backup = await self.backup_guild_data(ctx.guild)
             if not backup:
-                return await ctx.send("âŒ Backups are disabled for this server!")
+                return await ctx.send("❌ Backups are disabled for this server!")
             payload = json.dumps(backup, indent=2).encode("utf-8")
             filename = f"onepiece_backup_{ctx.guild.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             file = discord.File(fp=io.BytesIO(payload), filename=filename)
             embed = discord.Embed(
-                title="ðŸ“¦ Backup Created",
+                title="📦 Backup Created",
                 description="Your moderation data has been backed up!",
                 color=discord.Color.green(),
             )
             embed.add_field(name="Filename", value=filename, inline=False)
             embed.add_field(
                 name="Contains",
-                value="â€¢ All warnings\nâ€¢ Active punishments\nâ€¢ Moderation history",
+                value="• All warnings\n• Active punishments\n• Moderation history",
                 inline=False,
             )
             await ctx.send(embed=embed, file=file)
         except Exception as e:
             log.error(f"Error creating backup: {e}")
-            await ctx.send("âŒ Failed to create backup!")
+            await ctx.send("❌ Failed to create backup!")
 
     @opm_group.command(name="setmuterole", aliases=["seaprismrole"])
     async def set_mute_role(self, ctx: commands.Context, role: Optional[discord.Role] = None):
@@ -685,97 +738,109 @@ class OnePieceMods(commands.Cog):
                     except discord.HTTPException:
                         pass
             except discord.HTTPException as e:
-                return await ctx.send(f"âŒ Failed to create mute role: {e}")
+                return await ctx.send(f"❌ Failed to create mute role: {e}")
 
         await self.config.guild(ctx.guild).mute_role.set(role.id)
         embed = discord.Embed(
-            title="ðŸ”— Sea Prism Stone Role Set",
+            title="🔗 Sea Prism Stone Role Set",
             description=f"The Sea Prism Stone role has been set to {role.mention}!",
             color=discord.Color.green(),
         )
         embed.add_field(name="Role ID", value=str(role.id), inline=True)
         embed.add_field(name="Members with role", value=str(len(role.members)), inline=True)
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
     @opm_group.command(name="setlogchannel", aliases=["marinehq"])
     async def set_log_channel(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
         channel = channel or ctx.channel
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         embed = discord.Embed(
-            title="ðŸ›ï¸ Marine HQ Set",
+            title="🏛️ Marine HQ Set",
             description=f"Marine HQ reports will now be sent to {channel.mention}!",
             color=discord.Color.green(),
         )
         embed.add_field(name="Channel ID", value=str(channel.id), inline=True)
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
     @opm_group.command(name="help")
     async def opm_help(self, ctx: commands.Context):
         embed = discord.Embed(
-            title="ðŸ´â€â˜ ï¸ One Piece Moderation - Command Manual",
+            title="🏴‍☠️ One Piece Moderation - Command Manual",
             description="Here are all the commands you can use in this cog!",
             color=discord.Color.blue(),
         )
         embed.add_field(
-            name="ðŸ› ï¸ Setup Commands",
+            name="🛠️ Setup Commands",
             value=(
-                f"`{ctx.clean_prefix}opm setup` â€” Setup wizard\n"
-                f"`{ctx.clean_prefix}opm config` â€” View settings\n"
-                f"`{ctx.clean_prefix}opm set <setting> <value>` â€” Change settings\n"
-                f"`{ctx.clean_prefix}opm setmuterole [role]` â€” Set mute role\n"
-                f"`{ctx.clean_prefix}opm setlogchannel [channel]` â€” Set log channel\n"
-                f"`{ctx.clean_prefix}opm backup` â€” Create data backup"
+                f"`{ctx.clean_prefix}opm setup` — Setup wizard\n"
+                f"`{ctx.clean_prefix}opm config` — View settings\n"
+                f"`{ctx.clean_prefix}opm set <setting> <value>` — Change settings\n"
+                f"`{ctx.clean_prefix}opm setmuterole [role]` — Set mute role\n"
+                f"`{ctx.clean_prefix}opm setlogchannel [channel]` — Set log channel\n"
+                f"`{ctx.clean_prefix}opm backup` — Create data backup"
             ),
             inline=False,
         )
         embed.add_field(
-            name="ðŸ‘Š Kick Commands",
-            value=(f"`{ctx.clean_prefix}luffykick @user [reason]` â€” Kick\nAliases: "
+            name="👊 Kick Commands",
+            value=(f"`{ctx.clean_prefix}luffykick @user [reason]` — Kick\nAliases: "
                    + ", ".join([ctx.clean_prefix + alias for alias in KICK_ALIASES[:3]])),
             inline=False,
         )
         embed.add_field(
-            name="âš”ï¸ Ban Commands",
-            value=(f"`{ctx.clean_prefix}shanksban @user [reason]` â€” Ban\nAliases: "
+            name="⚔️ Ban Commands",
+            value=(f"`{ctx.clean_prefix}shanksban @user [reason]` — Ban\nAliases: "
                    + ", ".join([ctx.clean_prefix + alias for alias in BAN_ALIASES[:3]])),
             inline=False,
         )
         embed.add_field(
-            name="ðŸ”‡ Mute Commands",
-            value=(f"`{ctx.clean_prefix}lawroom @user <duration> [reason]` â€” Mute\nAliases: "
+            name="🔇 Mute Commands",
+            value=(f"`{ctx.clean_prefix}lawroom @user <duration> [reason]` — Mute\nAliases: "
                    + ", ".join([ctx.clean_prefix + alias for alias in MUTE_ALIASES[:3]])),
             inline=False,
         )
         embed.add_field(
-            name="âš ï¸ Warning Commands",
+            name="⚠️ Warning Commands",
             value=(
-                f"`{ctx.clean_prefix}bountyset @user [reason]` â€” Warn & raise bounty\n"
-                f"`{ctx.clean_prefix}bountycheck @user` â€” Check bounty\n"
-                f"`{ctx.clean_prefix}clearbounty @user [reason]` â€” Clear bounty\n"
+                f"`{ctx.clean_prefix}bountyset @user [reason]` — Warn & raise bounty\n"
+                f"`{ctx.clean_prefix}bountycheck @user` — Check bounty\n"
+                f"`{ctx.clean_prefix}clearbounty @user [reason]` — Clear bounty\n"
                 f"Aliases: " + ", ".join([ctx.clean_prefix + alias for alias in WARN_ALIASES[:3]])
             ),
             inline=False,
         )
         embed.add_field(
-            name="ðŸ¢ Impel Down Commands",
+            name="🏢 Impel Down Commands",
             value=(
-                f"`{ctx.clean_prefix}impeldown @user <level> <duration> [reason]` â€” Imprison\n"
-                f"`{ctx.clean_prefix}liberate @user [reason]` â€” Release\n"
+                f"`{ctx.clean_prefix}impeldown @user <level> <duration> [reason]` — Imprison\n"
+                f"`{ctx.clean_prefix}liberate @user [reason]` — Release\n"
                 f"Aliases: `{ctx.clean_prefix}imprison`, `{ctx.clean_prefix}free`, `{ctx.clean_prefix}breakout`"
             ),
             inline=False,
         )
         embed.add_field(
-            name="ðŸ” Utility Commands",
+            name="🔍 Utility Commands",
             value=(
-                f"`{ctx.clean_prefix}nakama` â€” Server info\n"
-                f"`{ctx.clean_prefix}crewhistory @user` â€” Mod history\n"
-                f"`{ctx.clean_prefix}modstats [days]` â€” Mod stats\n"
-                f"`{ctx.clean_prefix}piratehelp` â€” This help"
+                f"`{ctx.clean_prefix}nakama` — Server info\n"
+                f"`{ctx.clean_prefix}crewhistory @user` — Mod history\n"
+                f"`{ctx.clean_prefix}modstats [days]` — Mod stats\n"
+                f"`{ctx.clean_prefix}piratehelp` — This help"
             ),
             inline=False,
         )
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
     # ---------- Moderation Commands ----------
 
@@ -787,7 +852,7 @@ class OnePieceMods(commands.Cog):
     async def luffykick(self, ctx: commands.Context, member: discord.Member, *, reason: Optional[str] = None):
         reason = sanitize_reason(reason)
         if member.id == ctx.author.id:
-            return await ctx.send("ðŸ¤” You can't kick yourself, that's not how Devil Fruits work!")
+            return await ctx.send("🤔 You can't kick yourself, that's not how Devil Fruits work!")
         if not await check_hierarchy(ctx, member, "My Haki isn't strong enough to kick that user!"):
             return
 
@@ -840,15 +905,35 @@ class OnePieceMods(commands.Cog):
             except Exception:
                 pass
 
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Kick", f"Kick executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Ban", f"Ban executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Mute", f"Mute executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Impel Down", f"Impel Down executed on {member.mention}."))
+            else:
+                serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("âŒ I don't have permission to kick that member!")
+            await ctx.send("❌ I don't have permission to kick that member!")
         except discord.HTTPException as e:
-            await ctx.send(f"âŒ Discord API error: {e}")
+            await ctx.send(f"❌ Discord API error: {e}")
         except Exception as e:
             log.error(f"Unexpected error in luffykick: {e}")
-            await ctx.send("âŒ An unexpected error occurred!")
+            await ctx.send("❌ An unexpected error occurred!")
 
     @commands.command(name="shanksban", aliases=BAN_ALIASES)
     @commands.guild_only()
@@ -909,15 +994,35 @@ class OnePieceMods(commands.Cog):
             except Exception:
                 pass
 
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Kick", f"Kick executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Ban", f"Ban executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Mute", f"Mute executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Impel Down", f"Impel Down executed on {member.mention}."))
+            else:
+                serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("âŒ I don't have permission to ban that member!")
+            await ctx.send("❌ I don't have permission to ban that member!")
         except discord.HTTPException as e:
-            await ctx.send(f"âŒ Discord API error: {e}")
+            await ctx.send(f"❌ Discord API error: {e}")
         except Exception as e:
             log.error(f"Unexpected error in shanksban: {e}")
-            await ctx.send("âŒ An unexpected error occurred!")
+            await ctx.send("❌ An unexpected error occurred!")
 
     @commands.command(name="lawroom", aliases=MUTE_ALIASES)
     @commands.guild_only()
@@ -931,12 +1036,12 @@ class OnePieceMods(commands.Cog):
 
         mute_role_id = await self.config.guild(ctx.guild).mute_role()
         if not mute_role_id:
-            return await ctx.send(f"âŒ No Sea Prism Stone role set! Use `{ctx.clean_prefix}opm setmuterole` first.")
+            return await ctx.send(f"❌ No Sea Prism Stone role set! Use `{ctx.clean_prefix}opm setmuterole` first.")
         mute_role = ctx.guild.get_role(mute_role_id)
         if not mute_role:
-            return await ctx.send("âŒ The Sea Prism Stone role has been deleted. Please set it again.")
+            return await ctx.send("❌ The Sea Prism Stone role has been deleted. Please set it again.")
         if mute_role in member.roles:
-            return await ctx.send(f"ðŸ”— {member.mention} is already affected by Sea Prism Stone!")
+            return await ctx.send(f"🔗 {member.mention} is already affected by Sea Prism Stone!")
 
         mute_message = random.choice(MUTE_MESSAGES).format(
             user=member.mention, mod=ctx.author.mention, time=format_time_duration(duration // 60)
@@ -958,9 +1063,9 @@ class OnePieceMods(commands.Cog):
                     await member.timeout(until, reason=audit_reason)
                 except discord.HTTPException as e:
                     if e.status == 403:
-                        await ctx.send("âš ï¸ Could not apply Discord timeout, but mute role was applied.")
+                        await ctx.send("⚠️ Could not apply Discord timeout, but mute role was applied.")
                     else:
-                        await ctx.send("âš ï¸ Timeout failed, but mute role was applied.")
+                        await ctx.send("⚠️ Timeout failed, but mute role was applied.")
 
             log_channel_id = await self.config.guild(ctx.guild).log_channel()
             log_channel = ctx.guild.get_channel(log_channel_id) if log_channel_id else None
@@ -1006,15 +1111,35 @@ class OnePieceMods(commands.Cog):
                 pass
 
             await self.add_punishment(ctx.guild, member, level=1, duration_s=duration, mod=ctx.author, reason=reason)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Kick", f"Kick executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Ban", f"Ban executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Mute", f"Mute executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Impel Down", f"Impel Down executed on {member.mention}."))
+            else:
+                serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("âŒ I don't have permission to manage that member's roles!")
+            await ctx.send("❌ I don't have permission to manage that member's roles!")
         except discord.HTTPException as e:
-            await ctx.send(f"âŒ Discord API error: {e}")
+            await ctx.send(f"❌ Discord API error: {e}")
         except Exception as e:
             log.error(f"Unexpected error in lawroom: {e}")
-            await ctx.send("âŒ An unexpected error occurred!")
+            await ctx.send("❌ An unexpected error occurred!")
 
     @commands.command(name="bountyset", aliases=WARN_ALIASES)
     @commands.guild_only()
@@ -1032,7 +1157,7 @@ class OnePieceMods(commands.Cog):
         delta = now - last
         if delta < cooldown:
             remain = cooldown - delta
-            return await ctx.send(f"âš ï¸ Please wait {remain:.1f}s before setting another bounty on {member.mention}.")
+            return await ctx.send(f"⚠️ Please wait {remain:.1f}s before setting another bounty on {member.mention}.")
         self._warn_cooldowns[key] = now
 
         reason = sanitize_reason(reason)
@@ -1062,19 +1187,19 @@ class OnePieceMods(commands.Cog):
             if warning_count == 3:
                 embed.add_field(
                     name="Escalation",
-                    value=f"âš ï¸ Bounty level 3 reached! {member.mention} will be sent to Impel Down Level {esc_level}!",
+                    value=f"⚠️ Bounty level 3 reached! {member.mention} will be sent to Impel Down Level {esc_level}!",
                     inline=False,
                 )
             elif warning_count == 5:
                 embed.add_field(
                     name="Escalation",
-                    value=f"âš ï¸âš ï¸ Bounty level 5 reached! {member.mention} will be sent to Impel Down Level {esc_level}!",
+                    value=f"⚠️⚠️ Bounty level 5 reached! {member.mention} will be sent to Impel Down Level {esc_level}!",
                     inline=False,
                 )
             elif warning_count >= 7:
                 embed.add_field(
                     name="Escalation",
-                    value=f"âš ï¸âš ï¸âš ï¸ ALERT! Bounty level {warning_count}! {member.mention} will be sent to Impel Down Level {esc_level}!",
+                    value=f"⚠️⚠️⚠️ ALERT! Bounty level {warning_count}! {member.mention} will be sent to Impel Down Level {esc_level}!",
                     inline=False,
                 )
 
@@ -1122,7 +1247,11 @@ class OnePieceMods(commands.Cog):
         except Exception:
             pass
 
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
 
         # Escalation after short delay so the warning shows first
         if esc_level and esc_dur:
@@ -1156,12 +1285,12 @@ class OnePieceMods(commands.Cog):
 
     async def impel_down(self, ctx: commands.Context, member: discord.Member, level: int, duration_m: int, reason: Optional[str] = None):
         if not isinstance(level, int) or level < 1 or level > 6:
-            return await ctx.send("âŒ Impel Down levels must be a number from 1 to 6!")
+            return await ctx.send("❌ Impel Down levels must be a number from 1 to 6!")
         if not isinstance(duration_m, int) or duration_m < 1:
-            return await ctx.send("âŒ Duration must be a positive number of minutes!")
+            return await ctx.send("❌ Duration must be a positive number of minutes!")
         if duration_m > 10080:
             duration_m = 10080
-            await ctx.send("âš ï¸ Duration capped at 7 days (10080 minutes) to match Discord limits.")
+            await ctx.send("⚠️ Duration capped at 7 days (10080 minutes) to match Discord limits.")
         if not await check_hierarchy(ctx, member, "My Haki isn't strong enough to imprison this user!"):
             return
         if not (ctx.me.guild_permissions.manage_roles and ctx.me.guild_permissions.moderate_members):
@@ -1170,16 +1299,16 @@ class OnePieceMods(commands.Cog):
                 missing.append("Manage Roles")
             if not ctx.me.guild_permissions.moderate_members:
                 missing.append("Moderate Members")
-            return await ctx.send(f"âŒ I need the following permissions to use Impel Down: {', '.join(missing)}")
+            return await ctx.send(f"❌ I need the following permissions to use Impel Down: {', '.join(missing)}")
 
         level_data = IMPEL_DOWN_LEVELS.get(level)
         if not level_data:
-            return await ctx.send("âŒ Invalid Impel Down level!")
+            return await ctx.send("❌ Invalid Impel Down level!")
 
         active = await self.get_active_punishment(ctx.guild, member)
         if active and active.get("active"):
             return await ctx.send(
-                f"âŒ {member.mention} is already imprisoned in Impel Down! Use `{ctx.clean_prefix}liberate` first."
+                f"❌ {member.mention} is already imprisoned in Impel Down! Use `{ctx.clean_prefix}liberate` first."
             )
 
         reason = sanitize_reason(reason)
@@ -1213,9 +1342,9 @@ class OnePieceMods(commands.Cog):
                 await member.timeout(timeout_until, reason=audit_reason)
             except discord.HTTPException as e:
                 if e.status == 403:
-                    await ctx.send("âš ï¸ I don't have permission to timeout this member!")
+                    await ctx.send("⚠️ I don't have permission to timeout this member!")
                 else:
-                    await ctx.send(f"âš ï¸ Could not apply Discord timeout: {e}")
+                    await ctx.send(f"⚠️ Could not apply Discord timeout: {e}")
                 try:
                     await self.webhook_logger.log_error(
                         guild=ctx.guild, error_type="Timeout Error", error_message=str(e), command="impeldown", user=ctx.author
@@ -1230,7 +1359,7 @@ class OnePieceMods(commands.Cog):
                     try:
                         await member.add_roles(mute_role, reason=audit_reason)
                     except discord.HTTPException as e:
-                        await ctx.send(f"âš ï¸ Could not apply mute role: {e}")
+                        await ctx.send(f"⚠️ Could not apply mute role: {e}")
                         try:
                             await self.webhook_logger.log_error(
                                 guild=ctx.guild, error_type="Role Error", error_message=str(e), command="impeldown", user=ctx.author
@@ -1239,7 +1368,7 @@ class OnePieceMods(commands.Cog):
                             pass
 
             if not await self.apply_level_restrictions(ctx.guild, member, level, reason):
-                await ctx.send("âš ï¸ Warning: Could not apply all restrictions. The punishment may not be fully effective.")
+                await ctx.send("⚠️ Warning: Could not apply all restrictions. The punishment may not be fully effective.")
 
             # Create case AFTER actions, so case number reflects the applied state
             case = await modlog.create_case(
@@ -1285,10 +1414,30 @@ class OnePieceMods(commands.Cog):
             except Exception:
                 pass
 
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Kick", f"Kick executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Ban", f"Ban executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Mute", f"Mute executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Impel Down", f"Impel Down executed on {member.mention}."))
+            else:
+                serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("âŒ I don't have permission to apply Impel Down restrictions!")
+            await ctx.send("❌ I don't have permission to apply Impel Down restrictions!")
         except Exception as e:
             log.error(f"Unexpected error in impel_down: {e}")
             try:
@@ -1297,7 +1446,7 @@ class OnePieceMods(commands.Cog):
                 )
             except Exception:
                 pass
-            await ctx.send("âŒ An unexpected error occurred!")
+            await ctx.send("❌ An unexpected error occurred!")
 
     @commands.command(name="liberate", aliases=["free", "breakout"])
     @commands.guild_only()
@@ -1307,12 +1456,12 @@ class OnePieceMods(commands.Cog):
         reason = sanitize_reason(reason)
         punishment = await self.get_active_punishment(ctx.guild, member)
         if not punishment or not punishment.get("active", False):
-            return await ctx.send(f"âŒ {member.mention} is not currently imprisoned in Impel Down!")
+            return await ctx.send(f"❌ {member.mention} is not currently imprisoned in Impel Down!")
         try:
             level = punishment.get("level", "Unknown")
             success = await self.release_punishment(ctx.guild, member, f"Released by {ctx.author}: {reason}")
             if not success:
-                return await ctx.send("âŒ Failed to release the prisoner. The Sea Prism Stone is too strong!")
+                return await ctx.send("❌ Failed to release the prisoner. The Sea Prism Stone is too strong!")
 
             embed = EmbedCreator.release_embed(user=member, mod=ctx.author, reason=reason, previous_level=level)
 
@@ -1359,10 +1508,30 @@ class OnePieceMods(commands.Cog):
             except Exception:
                 pass
 
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Kick", f"Kick executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Ban", f"Ban executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Mute", f"Mute executed on {member.mention}."))
+            else:
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Impel Down", f"Impel Down executed on {member.mention}."))
+            else:
+                serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("âŒ I don't have permission to release this member!")
+            await ctx.send("❌ I don't have permission to release this member!")
         except Exception as e:
             log.error(f"Unexpected error in release_command: {e}")
             try:
@@ -1371,7 +1540,69 @@ class OnePieceMods(commands.Cog):
                 )
             except Exception:
                 pass
-            await ctx.send("âŒ An unexpected error occurred!")
+            await ctx.send("❌ An unexpected error occurred!")
+
+    
+    @commands.command(name="release", aliases=["unmute"])
+    @commands.guild_only()
+    @commands.mod_or_permissions(manage_roles=True)
+    @commands.bot_has_permissions(manage_roles=True, moderate_members=True)
+    async def release_command(self, ctx: commands.Context, member: discord.Member, *, reason: Optional[str] = None):
+        """Remove Sea Prism Stone (mute) and clear Discord timeout without touching channel-level Impel restrictions.
+        If a simple level-1 punishment exists, it will be ended.
+        """
+        reason = sanitize_reason(reason)
+        audit_reason = await self.format_audit_reason(ctx.guild, ctx.author, f"Unmute: {reason}")
+        mute_role_id = await self.config.guild(ctx.guild).mute_role()
+        had_action = False
+        try:
+            # Clear timeout if present
+            try:
+                await member.timeout(None, reason=audit_reason)
+                had_action = True
+            except discord.HTTPException:
+                pass
+            # Remove mute role
+            if mute_role_id:
+                mute_role = ctx.guild.get_role(mute_role_id)
+                if mute_role and mute_role in member.roles:
+                    try:
+                        await member.remove_roles(mute_role, reason=audit_reason)
+                        had_action = True
+                    except discord.HTTPException:
+                        pass
+            # If there is an active punishment and it's level 1, end it
+            active = await self.get_active_punishment(ctx.guild, member)
+            if active:
+                level = int(active.get("level", 0))
+                if level <= 1:
+                    await self.end_punishment(ctx.guild, member)
+            # Log mod action
+            if had_action:
+                case = await modlog.create_case(
+                    bot=self.bot,
+                    guild=ctx.guild,
+                    created_at=ctx.message.created_at,
+                    action_type="unmute",
+                    user=member,
+                    moderator=ctx.author,
+                    reason=reason or "Unmuted",
+                )
+                # Send confirmation
+                serious = await self.config.guild(ctx.guild).serious_mode()
+                if serious:
+                    await ctx.send(embed=self._minimal_action_embed("Unmute", f"Unmuted {member.mention}."))
+                else:
+                    e = discord.Embed(title="🔓 Released from Sea Prism Stone", color=discord.Color.green())
+                    e.description = f"{member.mention} has been unmuted by {ctx.author.mention}."
+                    await ctx.send(embed=e)
+            else:
+                await ctx.send("ℹ️ Nothing to unmute on that member.")
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to unmute this member!")
+        except Exception as e:
+            log.error(f"Unexpected error in release_command: {e}")
+            await ctx.send("❌ An unexpected error occurred while unmuting.")
 
     @commands.command(name="clearbounty", aliases=["forgive", "pardon"])
     @commands.guild_only()
@@ -1380,11 +1611,11 @@ class OnePieceMods(commands.Cog):
         reason = sanitize_reason(reason)
         warnings = await self.get_warnings(ctx.guild, member)
         if not warnings:
-            return await ctx.send(f"ðŸ’° {member.mention} doesn't have a bounty to clear!")
+            return await ctx.send(f"💰 {member.mention} doesn't have a bounty to clear!")
         prev = len(warnings)
         await self.clear_warnings(ctx.guild, member)
         embed = discord.Embed(
-            title="ðŸ’š Bounty Cleared!",
+            title="💚 Bounty Cleared!",
             description=f"Fleet Admiral {ctx.author.mention} has pardoned {member.mention}!",
             color=discord.Color.green(),
         )
@@ -1418,4 +1649,56 @@ class OnePieceMods(commands.Cog):
         except Exception:
             pass
 
-        await ctx.send(embed=embed)
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
+
+    # ---------- Extra Utilities ----------
+
+    @opm_group.command(name="active")
+    async def list_active_punishments(self, ctx: commands.Context):
+        """Show all active Impel Down / mute punishments in this server."""
+        punishments = await self.config.guild(ctx.guild).active_punishments()
+        if not punishments:
+            return await ctx.send("✅ No active punishments in this server.")
+        now_ts = datetime.now().timestamp()
+        embed = discord.Embed(
+            title=f"⛓️ Active Punishments in {ctx.guild.name}",
+            color=discord.Color.dark_gray(),
+            timestamp=datetime.now(timezone.utc),
+        )
+        for uid, data in punishments.items():
+            try:
+                member = ctx.guild.get_member(int(uid)) or f"ID {uid}"
+            except Exception:
+                member = f"ID {uid}"
+            level = data.get("level", "N/A")
+            end = data.get("end_time")
+            if end:
+                remain_s = max(0, int(end - now_ts))
+                remain = format_time_duration(remain_s // 60)
+            else:
+                remain = "Indefinite"
+            reason = data.get("reason", "No reason provided")
+            embed.add_field(
+                name=f"{member} — Level {level}",
+                value=f"Remaining: {remain}\nReason: {reason}",
+                inline=False,
+            )
+            serious = await self.config.guild(ctx.guild).serious_mode()
+            if serious:
+                await ctx.send(embed=self._minimal_action_embed("Warn", f"Warn executed on {member.mention}."))
+            else:
+            await ctx.send(embed=embed)
+
+    @opm_group.command(name="seriousmode")
+    async def toggle_serious_mode(self, ctx: commands.Context, value: Optional[bool] = None):
+        """Toggle serious mode (no GIFs / fun messages)."""
+        if value is None:
+            current = await self.config.guild(ctx.guild).get_raw("serious_mode", default=False)
+            return await ctx.send(f"⚙️ Serious Mode is currently {'ON' if current else 'OFF'}.")
+        await self.config.guild(ctx.guild).set_raw("serious_mode", value=value)
+        await ctx.send(f"✅ Serious Mode {'enabled' if value else 'disabled'}!")
+
