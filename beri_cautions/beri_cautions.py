@@ -149,9 +149,19 @@ class BeriCautions(commands.Cog):
         while True:
             try:
                 log.info("Running warning cleanup task")
+                
+                # Yield control before starting heavy work
+                await asyncio.sleep(0)
+                
                 all_guilds = await self.config.all_guilds()
                 
+                guild_count = 0
                 for guild_id, guild_data in all_guilds.items():
+                    # Yield control between guilds
+                    guild_count += 1
+                    if guild_count % 5 == 0:
+                        await asyncio.sleep(0)
+                    
                     guild = self.bot.get_guild(guild_id)
                     if not guild:
                         continue
@@ -162,7 +172,13 @@ class BeriCautions(commands.Cog):
                     # Get all members with warnings in this guild
                     all_members = await self.config.all_members(guild)
                     
+                    member_count = 0
                     for member_id, member_data in all_members.items():
+                        # Yield control every 10 members
+                        member_count += 1
+                        if member_count % 10 == 0:
+                            await asyncio.sleep(0)
+                        
                         if not member_data.get("warnings"):
                             continue
                             
@@ -171,7 +187,7 @@ class BeriCautions(commands.Cog):
                         
                         for warning in warnings:
                             issue_time = warning.get("timestamp", 0)
-                            expiry_time = issue_time + (expiry_days * 86400)  # Convert days to seconds
+                            expiry_time = issue_time + (expiry_days * 86400)
                             
                             # Keep warning if not expired
                             if current_time < expiry_time:
@@ -208,13 +224,20 @@ class BeriCautions(commands.Cog):
             # Run every 6 hours
             await asyncio.sleep(21600)
 
+
     async def mute_check_loop(self):
         """Background task to check and remove expired mutes."""
         await self.bot.wait_until_ready()
         
         while True:
             try:
+                guild_count = 0
                 for guild in self.bot.guilds:
+                    # Yield control between guilds
+                    guild_count += 1
+                    if guild_count % 5 == 0:
+                        await asyncio.sleep(0)
+                    
                     # Get the mute role
                     guild_data = await self.config.guild(guild).all()
                     mute_role_id = guild_data.get("mute_role")
@@ -229,7 +252,13 @@ class BeriCautions(commands.Cog):
                     all_members = await self.config.all_members(guild)
                     current_time = datetime.utcnow().timestamp()
                     
+                    member_count = 0
                     for member_id, member_data in all_members.items():
+                        # Yield control every 10 members
+                        member_count += 1
+                        if member_count % 10 == 0:
+                            await asyncio.sleep(0)
+                        
                         # Skip if no mute end time
                         muted_until = member_data.get("muted_until")
                         if not muted_until:
