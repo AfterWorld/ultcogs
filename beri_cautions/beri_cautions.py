@@ -866,33 +866,6 @@ class BeriCautions(commands.Cog):
 
         await ctx.send(f"✅ Cleared all warnings for {member.mention}")
 
-    @commands.command(name="unmute")
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def unmute_user(
-        self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"
-    ):
-        """Unmute a member."""
-        mute_role_id = await self.config.guild(ctx.guild).mute_role()
-        if not mute_role_id:
-            return await ctx.send("Mute role not configured.")
-
-        mute_role = ctx.guild.get_role(mute_role_id)
-        if not mute_role or mute_role not in member.roles:
-            return await ctx.send(f"{member.mention} is not muted.")
-
-        try:
-            await member.remove_roles(mute_role, reason=reason)
-            await self.config.member(member).muted_until.set(None)
-
-            await self._log_action(ctx.guild, "Unmute", member, ctx.author, reason)
-
-            await ctx.send(f"🔊 {member.mention} has been unmuted.\n**Reason:** {reason}")
-
-        except Exception as e:
-            log.error(f"Error unmuting member: {e}", exc_info=True)
-            await ctx.send(f"An error occurred: {e}")
-
     @commands.command(name="modlog", aliases=["case"])
     @commands.guild_only()
     @checks.mod_or_permissions(kick_members=True)
