@@ -683,7 +683,7 @@ class BeriCautions(commands.Cog):
 
     # ========== MODERATION COMMANDS ==========
 
-    @commands.command(name="warn", aliases=["caution"])
+    @commands.command(name="warn", aliases=["caution", "cwarn"])
     @commands.guild_only()
     @checks.mod_or_permissions(kick_members=True)
     async def warn_member(
@@ -762,7 +762,7 @@ class BeriCautions(commands.Cog):
             log.error(f"Error issuing warning: {e}", exc_info=True)
             await ctx.send(f"An error occurred while issuing the warning: {e}")
 
-    @commands.command(name="warnings", aliases=["cautions", "mywarnings"])
+    @commands.command(name="warnings", aliases=["cautions", "mywarnings", "cwarnings"])
     @commands.guild_only()
     async def view_warnings(
         self, ctx: commands.Context, member: Optional[discord.Member] = None
@@ -826,7 +826,7 @@ class BeriCautions(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="clearwarnings", aliases=["clearwarns"])
+    @commands.command(name="clearwarnings", aliases=["clearwarns", "clearwarn", "cclear"])
     @commands.guild_only()
     @checks.mod_or_permissions(kick_members=True)
     async def clear_warnings(self, ctx: commands.Context, member: discord.Member):
@@ -866,11 +866,79 @@ class BeriCautions(commands.Cog):
 
         await ctx.send(f"✅ Cleared all warnings for {member.mention}")
 
-    @commands.command(name="modlog", aliases=["case"])
+    @commands.command(name="cmute", aliases=["cautionmute"])
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def mute_user(
+        self,
+        ctx: commands.Context,
+        member: discord.Member,
+        duration: int = 30,
+        *,
+        reason: str = "No reason provided",
+    ):
+        """Mute a member for a specified duration (in minutes)."""
+        if member.bot:
+            return await ctx.send("Cannot mute bots.")
+
+        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
+            return await ctx.send("You cannot mute members with equal or higher roles.")
+
+        try:
+            await self._mute_member(member, ctx.author, reason, duration)
+
+            case_num = await self._log_action(
+                ctx.guild,
+                "Mute",
+                member,
+                ctx.author,
+                reason,
+                duration=f"{duration} minutes",
+            )
+
+            await ctx.send(
+                f"🔇 {member.mention} has been muted for {duration} minutes (Case #{case_num})\n"
+                f"**Reason:** {reason}"
+            )
+
+        except ValueError as e:
+            await ctx.send(str(e))
+        except Exception as e:
+            log.error(f"Error muting member: {e}", exc_info=True)
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="cunmute", aliases=["cautionunmute"])
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def unmute_user(
+        self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"
+    ):
+        """Unmute a member."""
+        mute_role_id = await self.config.guild(ctx.guild).mute_role()
+        if not mute_role_id:
+            return await ctx.send("Mute role not configured.")
+
+        mute_role = ctx.guild.get_role(mute_role_id)
+        if not mute_role or mute_role not in member.roles:
+            return await ctx.send(f"{member.mention} is not muted.")
+
+        try:
+            await member.remove_roles(mute_role, reason=reason)
+            await self.config.member(member).muted_until.set(None)
+
+            await self._log_action(ctx.guild, "Unmute", member, ctx.author, reason)
+
+            await ctx.send(f"🔊 {member.mention} has been unmuted.\n**Reason:** {reason}")
+
+        except Exception as e:
+            log.error(f"Error unmuting member: {e}", exc_info=True)
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="cautioncase", aliases=["ccase", "warncase"])
     @commands.guild_only()
     @checks.mod_or_permissions(kick_members=True)
     async def view_case(self, ctx: commands.Context, case_number: int):
-        """View details of a specific moderation case."""
+        """View details of a specific caution case."""
         modlog = await self.config.guild(ctx.guild).modlog()
         case_data = modlog.get(str(case_number))
 
