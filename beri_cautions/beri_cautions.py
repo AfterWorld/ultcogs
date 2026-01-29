@@ -866,47 +866,6 @@ class BeriCautions(commands.Cog):
 
         await ctx.send(f"✅ Cleared all warnings for {member.mention}")
 
-    @commands.command(name="mute")
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def mute_user(
-        self,
-        ctx: commands.Context,
-        member: discord.Member,
-        duration: int = 30,
-        *,
-        reason: str = "No reason provided",
-    ):
-        """Mute a member for a specified duration (in minutes)."""
-        if member.bot:
-            return await ctx.send("Cannot mute bots.")
-
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            return await ctx.send("You cannot mute members with equal or higher roles.")
-
-        try:
-            await self._mute_member(member, ctx.author, reason, duration)
-
-            case_num = await self._log_action(
-                ctx.guild,
-                "Mute",
-                member,
-                ctx.author,
-                reason,
-                duration=f"{duration} minutes",
-            )
-
-            await ctx.send(
-                f"🔇 {member.mention} has been muted for {duration} minutes (Case #{case_num})\n"
-                f"**Reason:** {reason}"
-            )
-
-        except ValueError as e:
-            await ctx.send(str(e))
-        except Exception as e:
-            log.error(f"Error muting member: {e}", exc_info=True)
-            await ctx.send(f"An error occurred: {e}")
-
     @commands.command(name="unmute")
     @commands.guild_only()
     @checks.mod_or_permissions(kick_members=True)
