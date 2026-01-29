@@ -771,10 +771,9 @@ class BeriCautions(commands.Cog):
         target = member or ctx.author
 
         # Permission check for viewing others
-        if target != ctx.author and not await checks.mod_or_permissions(
-            kick_members=True
-        ).predicate(ctx):
-            return await ctx.send("You need Kick Members permission to view others' warnings.")
+        if target != ctx.author:
+            if not (ctx.author.guild_permissions.kick_members or await ctx.bot.is_owner(ctx.author)):
+                return await ctx.send("You need Kick Members permission to view others' warnings.")
 
         warnings = await self.config.member(target).warnings()
         total_points = await self.config.member(target).total_points()
@@ -865,6 +864,62 @@ class BeriCautions(commands.Cog):
         )
 
         await ctx.send(f"✅ Cleared all warnings for {member.mention}")
+
+    @commands.command(name="removewarning", aliases=["removewarn", "delwarn", "delwarning"])
+    @commands.guild_only()
+    @checks.mod_or_permissions(kick_members=True)
+    async def remove_warning(
+        self, ctx: commands.Context, member: discord.Member, warning_number: int
+    ):
+        """Remove a specific warning by its number (use warnings command to see numbers)."""
+        warnings = await self.config.member(member).warnings()
+
+        if not warnings:
+            return await ctx.send(f"{member.mention} has no warnings.")
+
+        # Get active warnings
+        current_time = self._timestamp()
+        active_warnings = [w for w in warnings if w["expiry"] > current_time]
+
+        if warning_number < 1 or warning_number > len(active_warnings):
+            return await ctx.send(
+                f"Invalid warning number. {member.mention} has {len(active_warnings)} active warnings. "
+                f"Use `{ctx.clean_prefix}warnings {member.mention}` to see them."
+            )
+
+        # Get the warning to remove
+        warning_to_remove = active_warnings[warning_number - 1]
+        
+        # Remove it from the full warnings list
+        async with self.config.member(member).warnings() as all_warnings:
+            all_warnings[:] = [w for w in all_warnings if w["id"] != warning_to_remove["id"]]
+
+        # Recalculate points and check thresholds
+        new_points = await self._recalculate_points(member)
+        await self.config.member(member).total_points.set(new_points)
+
+        # Reset applied thresholds if points dropped below any threshold
+        applied_thresholds = await self.config.member(member).applied_thresholds()
+        new_thresholds = [t for t in applied_thresholds if t <= new_points]
+        await self.config.member(member).applied_thresholds.set(new_thresholds)
+
+        # Log the action
+        await self._log_action(
+            ctx.guild,
+            "Remove Warning",
+            member,
+            ctx.author,
+            f"Removed warning #{warning_number}: {warning_to_remove['reason'][:100]}",
+            points_removed=warning_to_remove["points"],
+            new_total=new_points,
+        )
+
+        await ctx.send(
+            f"✅ Removed warning #{warning_number} from {member.mention}\n"
+            f"**Reason:** {warning_to_remove['reason'][:100]}\n"
+            f"**Points removed:** {warning_to_remove['points']}\n"
+            f"**New total:** {new_points} points"
+        )
 
     @commands.command(name="cmute", aliases=["cautionmute"])
     @commands.guild_only()
