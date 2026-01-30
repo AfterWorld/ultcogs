@@ -887,12 +887,18 @@ class BeriCautions(commands.Cog):
                 f"Use `{ctx.clean_prefix}warnings {member.mention}` to see them."
             )
 
-        # Get the warning to remove
+        # Get the warning to remove (using index)
         warning_to_remove = active_warnings[warning_number - 1]
         
-        # Remove it from the full warnings list
+        # Use timestamp as unique identifier (fallback to id if it exists)
+        warning_timestamp = warning_to_remove.get("id", warning_to_remove.get("timestamp"))
+        
+        # Remove it from the full warnings list by timestamp
         async with self.config.member(member).warnings() as all_warnings:
-            all_warnings[:] = [w for w in all_warnings if w["id"] != warning_to_remove["id"]]
+            all_warnings[:] = [
+                w for w in all_warnings 
+                if w.get("id", w.get("timestamp")) != warning_timestamp
+            ]
 
         # Recalculate points and check thresholds
         new_points = await self._recalculate_points(member)
