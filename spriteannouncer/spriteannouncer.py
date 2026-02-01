@@ -20,6 +20,7 @@ Key changes from original:
   - GitHub rate-limit headers (X-RateLimit-Remaining / X-RateLimit-Reset) are now respected.
   - The background announcement loop reschedules itself on unexpected errors instead of silently dying.
   - All configuration mutations are logged.
+  - FIXED: Added proper session availability checks to prevent AttributeError
 """
 
 from __future__ import annotations
@@ -242,7 +243,7 @@ class SpriteAnnouncer(commands.Cog):
         # Register the persistent view so button interactions survive restarts.
         self.bot.add_view(AnnouncementView(self))
 
-        # Prime the sprite cache from GitHub.
+        # Prime the sprite cache from GitHub (only if session is available).
         await self._refresh_github_sprites()
 
         # Kick off timed tasks for every guild that already has the cog enabled.
@@ -276,6 +277,11 @@ class SpriteAnnouncer(commands.Cog):
         if now < earliest_next and self._github_sprites:
             return self._github_sprites
 
+        # Check if bot session is available
+        if not hasattr(self.bot, 'session') or self.bot.session is None:
+            log.warning("Bot session not available yet. Using cached sprites or defaults.")
+            return self._github_sprites if self._github_sprites else DEFAULT_SPRITES
+
         try:
             async with self.bot.session.get(GITHUB_API_CONTENTS) as resp:
                 # Always capture rate-limit headers, even on non-200
@@ -307,7 +313,7 @@ class SpriteAnnouncer(commands.Cog):
         except Exception:
             log.exception("Error fetching sprites from GitHub.")
 
-        return self._github_sprites
+        return self._github_sprites if self._github_sprites else DEFAULT_SPRITES
 
     # ------------------------------------------------------------------
     # Sprite URL resolution
@@ -330,6 +336,11 @@ class SpriteAnnouncer(commands.Cog):
 
         if cache_key in self._sprite_url_cache:
             return self._sprite_url_cache[cache_key]
+
+        # Check if bot session is available
+        if not hasattr(self.bot, 'session') or self.bot.session is None:
+            log.warning("Bot session not available for sprite URL verification.")
+            return None
 
         try:
             async with self.bot.session.head(raw_url) as resp:
