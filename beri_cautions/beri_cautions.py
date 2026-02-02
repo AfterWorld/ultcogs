@@ -1,1115 +1,1621 @@
-"""
-BeriCautions - Modern Refactored Version
-Enhanced moderation cog with point-based warning system and Beri economy integration.
-
-Features:
-- Point-based warning system with auto-expiry
-- Threshold-based automated actions (mute, timeout, kick, ban)
-- Integration with Beri economy for fines
-- Comprehensive modlog with case tracking
-- Slash command support with modern UI
-- Background task management for cleanup and mute tracking
-"""
-
-from __future__ import annotations
-
+import discord
 import asyncio
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Union, Any
+from typing import Optional, Union, List, Dict
+from collections import deque
 
-import discord
-from discord import app_commands
 from redbot.core import Config, commands, checks
 from redbot.core.bot import Red
-from redbot.core.utils.chat_formatting import (
-    humanize_number,
-    humanize_timedelta,
-    box,
-    pagify,
-)
-from redbot.core.utils.menus import start_adding_reactions
-from redbot.core.utils.predicates import ReactionPredicate
+from redbot.core.utils.predicates import MessagePredicate
+from redbot.core.utils.chat_formatting import pagify, box, humanize_number
 
-log = logging.getLogger("red.bericautions")
-
-# Constants
+# Default config values
 DEFAULT_WARNING_EXPIRY_DAYS = 30
 DEFAULT_ACTION_THRESHOLDS = {
     "3": {"action": "mute", "duration": 30, "reason": "Exceeded 3 warning points"},
     "5": {"action": "timeout", "duration": 60, "reason": "Exceeded 5 warning points"},
-    "10": {"action": "kick", "reason": "Exceeded 10 warning points"},
+    "10": {"action": "kick", "reason": "Exceeded 10 warning points"}
 }
 
-WARNING_CLEANUP_INTERVAL = 21600  # 6 hours
-MUTE_CHECK_INTERVAL = 60  # 1 minute
-
+log = logging.getLogger("red.cogs.cautions")
 
 class BeriCautions(commands.Cog):
-    """Enhanced moderation with point-based warnings and Beri economy integration."""
+    """Enhanced moderation cog with point-based warning system and Beri economy integration."""
 
-    __version__ = "2.0.0"
-
-    def __init__(self, bot: Red) -> None:
+    def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(
-            self, identifier=3487613988, force_registration=True
-        )
-
-        # Register default configuration
-        self.config.register_guild(
-            log_channel=None,
-            mute_role=None,
-            warning_expiry_days=DEFAULT_WARNING_EXPIRY_DAYS,
-            action_thresholds=DEFAULT_ACTION_THRESHOLDS,
-            case_count=0,
-            modlog={},
-            warning_fine_base=1000,
-            warning_fine_multiplier=1.5,
-            mute_fine=5000,
-            timeout_fine=3000,
-            kick_fine=10000,
-            ban_fine=25000,
-            fine_exempt_roles=[],
-            max_fine_per_action=50000,
-        )
-
-        self.config.register_member(
-            warnings=[],
-            total_points=0,
-            muted_until=None,
-            applied_thresholds=[],
-            total_fines_paid=0,
-            warning_count=0,
-        )
-
-        # Internal state
-        self._member_locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self._tasks: list[asyncio.Task] = []
-
-    async def cog_load(self) -> None:
-        """Called when the cog is loaded."""
-        self._tasks = [
-            asyncio.create_task(self._warning_cleanup_loop()),
-            asyncio.create_task(self._mute_check_loop()),
-        ]
-        log.info("BeriCautions loaded successfully")
-
-    async def cog_unload(self) -> None:
+        self.config = Config.get_conf(self, identifier=3487613988, force_registration=True)
+        
+        # Default guild settings
+        default_guild = {
+            "log_channel": None,
+            "mute_role": None,
+            "warning_expiry_days": DEFAULT_WARNING_EXPIRY_DAYS,
+            "action_thresholds": DEFAULT_ACTION_THRESHOLDS,
+            "case_count": 0,  # Track the number of cases
+            "modlog": {},  # Store case details
+            # Beri integration settings
+            "warning_fine_base": 1000,  # Base fine per warning point
+            "warning_fine_multiplier": 1.5,  # Multiplier for repeat offenses
+            "mute_fine": 5000,  # Additional fine for mutes
+            "timeout_fine": 3000,  # Additional fine for timeouts
+            "kick_fine": 10000,  # Fine for kicks
+            "ban_fine": 25000,  # Fine for bans
+            "fine_exempt_roles": [],  # Roles exempt from fines
+            "max_fine_per_action": 50000,  # Maximum fine per single action
+        }
+        
+        # Default member settings
+        default_member = {
+            "warnings": [],
+            "total_points": 0,
+            "muted_until": None,
+            "applied_thresholds": [],
+            "total_fines_paid": 0,
+            "warning_count": 0,  # For calculating escalating fines
+        }
+        
+        # Register defaults
+        self.config.register_guild(**default_guild)
+        self.config.register_member(**default_member)
+        
+        # Rate limiting protection
+        self.rate_limit = {
+            "message_queue": {},  # Per-channel message queue
+            "command_cooldown": {},  # Per-guild command cooldown
+            "global_cooldown": deque(maxlen=10),  # Global command timestamps
+        }
+        
+        # Start background tasks
+        self.warning_cleanup_task = self.bot.loop.create_task(self.warning_cleanup_loop())
+        self.mute_check_task = self.bot.loop.create_task(self.mute_check_loop())
+    
+    def cog_unload(self):
         """Called when the cog is unloaded."""
-        for task in self._tasks:
-            task.cancel()
-        log.info("BeriCautions unloaded")
+        self.warning_cleanup_task.cancel()
+        self.mute_check_task.cancel()
 
-    def format_help_for_context(self, ctx: commands.Context) -> str:
-        """Show version in help."""
-        return f"{super().format_help_for_context(ctx)}\n\nVersion: {self.__version__}"
-
-    # ========== CORE UTILITIES ==========
-
-    @property
-    def _core(self) -> Optional[commands.Cog]:
+    def _core(self):
         """Get BeriCore instance."""
         return self.bot.get_cog("BeriCore")
-
-    def _now(self) -> datetime:
-        """Get current UTC time."""
-        return datetime.now(timezone.utc)
-
-    def _timestamp(self) -> float:
-        """Get current Unix timestamp."""
-        return self._now().timestamp()
-
-    async def _get_member_lock(self, member_id: int) -> asyncio.Lock:
-        """Get lock for member to prevent race conditions."""
-        return self._member_locks[member_id]
-
-    # ========== FINE HANDLING ==========
 
     async def _is_fine_exempt(self, member: discord.Member) -> bool:
         """Check if member is exempt from fines."""
         exempt_roles = await self.config.guild(member.guild).fine_exempt_roles()
-        return any(role.id in exempt_roles for role in member.roles)
+        member_role_ids = [role.id for role in member.roles]
+        return any(role_id in member_role_ids for role_id in exempt_roles)
 
-    async def _calculate_warning_fine(
-        self, member: discord.Member, points: int
-    ) -> int:
+    async def _calculate_warning_fine(self, member: discord.Member, points: int) -> int:
         """Calculate fine for a warning based on points and history."""
         guild_config = await self.config.guild(member.guild).all()
         member_data = await self.config.member(member).all()
-
-        base_fine = guild_config["warning_fine_base"]
-        multiplier = guild_config["warning_fine_multiplier"]
-        max_fine = guild_config["max_fine_per_action"]
-
-        # Calculate base fine
+        
+        base_fine = guild_config.get("warning_fine_base", 1000)
+        multiplier = guild_config.get("warning_fine_multiplier", 1.5)
+        max_fine = guild_config.get("max_fine_per_action", 50000)
+        
+        # Calculate base fine for this warning
         fine = base_fine * points
-
-        # Apply escalation based on warning history
-        warning_count = member_data["warning_count"]
+        
+        # Apply escalation based on previous warnings
+        warning_count = member_data.get("warning_count", 0)
         if warning_count > 0:
-            escalation = multiplier ** min(warning_count, 5)
+            escalation = multiplier ** min(warning_count, 5)  # Cap escalation
             fine = int(fine * escalation)
-
+        
         return min(fine, max_fine)
 
-    async def _apply_beri_fine(
-        self,
-        member: discord.Member,
-        amount: int,
-        reason: str,
-        moderator: Union[discord.Member, discord.User],
-    ) -> bool:
+    async def _apply_beri_fine(self, member: discord.Member, amount: int, reason: str, moderator: discord.Member) -> bool:
         """Apply a Beri fine to a member. Returns True if successful."""
-        if not self._core or await self._is_fine_exempt(member):
-            return True
-
+        core = self._core()
+        if not core:
+            return False
+        
+        if await self._is_fine_exempt(member):
+            return True  # Exempt members don't pay fines but we return success
+        
         try:
-            current_balance = await self._core.get_beri(member)
-
+            current_balance = await core.get_beri(member)
             if current_balance >= amount:
-                await self._core.add_beri(
-                    member,
-                    -amount,
-                    reason=f"fine:{reason}",
-                    actor=moderator,
-                    bypass_cap=True,
-                )
-                await self._update_member_fines(member, amount)
+                # Member can afford the fine
+                await core.add_beri(member, -amount, reason=f"fine:{reason}", actor=moderator, bypass_cap=True)
+                
+                # Update member's fine tracking
+                member_config = self.config.member(member)
+                async with member_config.all() as data:
+                    data["total_fines_paid"] = data.get("total_fines_paid", 0) + amount
+                
                 return True
             else:
-                # Partial payment
+                # Member can't afford full fine, take what they have
                 if current_balance > 0:
-                    await self._core.add_beri(
-                        member,
-                        -current_balance,
-                        reason=f"partial_fine:{reason}",
-                        actor=moderator,
-                        bypass_cap=True,
-                    )
-                    await self._update_member_fines(member, current_balance)
-                return False
-
+                    await core.add_beri(member, -current_balance, reason=f"partial_fine:{reason}", actor=moderator, bypass_cap=True)
+                    
+                    # Update member's fine tracking
+                    member_config = self.config.member(member)
+                    async with member_config.all() as data:
+                        data["total_fines_paid"] = data.get("total_fines_paid", 0) + current_balance
+                
+                return False  # Couldn't pay full fine
         except Exception as e:
-            log.error(f"Failed to apply fine to {member}: {e}")
+            log.error(f"Error applying Beri fine: {e}", exc_info=True)
             return False
 
-    async def _update_member_fines(self, member: discord.Member, amount: int) -> None:
-        """Update member's total fines paid."""
-        async with self.config.member(member).total_fines_paid() as total:
-            total += amount
-
-    # ========== WARNING MANAGEMENT ==========
-
-    async def _add_warning(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-        points: int,
-    ) -> dict[str, Any]:
-        """Add a warning to a member with concurrency protection."""
-        async with await self._get_member_lock(member.id):
-            expiry_days = await self.config.guild(member.guild).warning_expiry_days()
-            expiry = self._timestamp() + (expiry_days * 86400)
-
-            warning = {
-                "id": self._timestamp(),
-                "timestamp": self._timestamp(),
-                "expiry": expiry,
-                "moderator_id": moderator.id,
-                "reason": reason,
-                "points": points,
-                "fine_amount": 0,
-                "fine_applied": False,
-            }
-
-            # Calculate and apply fine
-            fine_amount = await self._calculate_warning_fine(member, points)
-            if fine_amount > 0:
-                fine_success = await self._apply_beri_fine(
-                    member, fine_amount, f"warning:{reason}", moderator
-                )
-                warning["fine_amount"] = fine_amount
-                warning["fine_applied"] = fine_success
-
-            # Save warning
-            async with self.config.member(member).warnings() as warnings:
-                warnings.append(warning)
-
-            # Update totals
-            await self.config.member(member).total_points.set(
-                await self._recalculate_points(member)
-            )
-            await self.config.member(member).warning_count.set(
-                await self.config.member(member).warning_count() + 1
-            )
-
-            return warning
-
-    async def _recalculate_points(self, member: discord.Member) -> int:
-        """Recalculate active warning points for a member."""
-        warnings = await self.config.member(member).warnings()
-        current_time = self._timestamp()
-        return sum(w["points"] for w in warnings if w["expiry"] > current_time)
-
-    async def _clean_expired_warnings(self, member: discord.Member) -> int:
-        """Remove expired warnings and return count removed."""
-        current_time = self._timestamp()
-
-        async with self.config.member(member).warnings() as warnings:
-            before = len(warnings)
-            warnings[:] = [w for w in warnings if w["expiry"] > current_time]
-            removed = before - len(warnings)
-
-        if removed > 0:
-            await self.config.member(member).total_points.set(
-                await self._recalculate_points(member)
-            )
-
-        return removed
-
-    # ========== THRESHOLD ACTIONS ==========
-
-    async def _check_and_apply_thresholds(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-    ) -> None:
-        """Check if member exceeded thresholds and apply actions."""
-        total_points = await self.config.member(member).total_points()
-        applied_thresholds = await self.config.member(member).applied_thresholds()
-        action_thresholds = await self.config.guild(member.guild).action_thresholds()
-
-        for threshold_str, config in sorted(
-            action_thresholds.items(), key=lambda x: int(x[0])
-        ):
-            threshold = int(threshold_str)
-
-            # Skip if already applied or not exceeded
-            if threshold in applied_thresholds or total_points < threshold:
-                continue
-
-            action = config["action"]
-            reason = config.get("reason", f"Exceeded {threshold} warning points")
-
-            try:
-                if action == "mute":
-                    duration = config.get("duration", 30)
-                    await self._mute_member(member, moderator, reason, duration)
-                elif action == "timeout":
-                    duration = config.get("duration", 60)
-                    await self._timeout_member(member, moderator, reason, duration)
-                elif action == "kick":
-                    await self._kick_member(member, moderator, reason)
-                elif action == "ban":
-                    await self._ban_member(member, moderator, reason)
-
-                # Mark threshold as applied
-                async with self.config.member(
-                    member
-                ).applied_thresholds() as thresholds:
-                    thresholds.append(threshold)
-
-                await self._log_action(
-                    member.guild,
-                    f"Threshold Action ({action.title()})",
-                    member,
-                    moderator,
-                    f"{reason} (Threshold: {threshold} points)",
-                )
-
-            except Exception as e:
-                log.error(f"Failed to apply threshold action: {e}")
-
-    # ========== MODERATION ACTIONS ==========
-
-    async def _mute_member(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-        duration: int,
-    ) -> None:
-        """Mute a member using the mute role."""
-        mute_role_id = await self.config.guild(member.guild).mute_role()
-        if not mute_role_id:
-            raise ValueError("Mute role not configured")
-
-        mute_role = member.guild.get_role(mute_role_id)
-        if not mute_role:
-            raise ValueError("Mute role not found")
-
-        await member.add_roles(mute_role, reason=reason)
-
-        # Set unmute time
-        unmute_time = self._timestamp() + (duration * 60)
-        await self.config.member(member).muted_until.set(unmute_time)
-
-        # Apply fine
-        fine_amount = await self.config.guild(member.guild).mute_fine()
-        await self._apply_beri_fine(member, fine_amount, f"mute:{reason}", moderator)
-
-    async def _timeout_member(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-        duration: int,
-    ) -> None:
-        """Timeout a member using Discord's built-in timeout."""
-        until = self._now() + timedelta(minutes=duration)
-        await member.timeout(until, reason=reason)
-
-        # Apply fine
-        fine_amount = await self.config.guild(member.guild).timeout_fine()
-        await self._apply_beri_fine(member, fine_amount, f"timeout:{reason}", moderator)
-
-    async def _kick_member(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-    ) -> None:
-        """Kick a member from the guild."""
-        # Apply fine before kicking
-        fine_amount = await self.config.guild(member.guild).kick_fine()
-        await self._apply_beri_fine(member, fine_amount, f"kick:{reason}", moderator)
-
-        await member.kick(reason=reason)
-
-    async def _ban_member(
-        self,
-        member: discord.Member,
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-    ) -> None:
-        """Ban a member from the guild."""
-        # Apply fine before banning
-        fine_amount = await self.config.guild(member.guild).ban_fine()
-        await self._apply_beri_fine(member, fine_amount, f"ban:{reason}", moderator)
-
-        await member.ban(reason=reason, delete_message_seconds=0)
-
-    # ========== MODLOG ==========
-
-    async def _log_action(
-        self,
-        guild: discord.Guild,
-        action_type: str,
-        target: Union[discord.Member, discord.User],
-        moderator: Union[discord.Member, discord.User],
-        reason: str,
-        **extra,
-    ) -> int:
-        """Log a moderation action and return case number."""
-        case_num = await self.config.guild(guild).case_count() + 1
-        await self.config.guild(guild).case_count.set(case_num)
-
-        case_data = {
-            "case_num": case_num,
-            "timestamp": self._timestamp(),
-            "action_type": action_type,
-            "target_id": target.id,
-            "target_name": str(target),
-            "moderator_id": moderator.id,
-            "moderator_name": str(moderator),
-            "reason": reason,
-            **extra,
-        }
-
-        async with self.config.guild(guild).modlog() as modlog:
-            modlog[str(case_num)] = case_data
-
-        # Send to log channel
-        await self._send_log_message(guild, case_data)
-
-        return case_num
-
-    async def _send_log_message(
-        self, guild: discord.Guild, case_data: dict[str, Any]
-    ) -> None:
-        """Send a log message to the configured log channel."""
-        log_channel_id = await self.config.guild(guild).log_channel()
-        if not log_channel_id:
-            return
-
-        log_channel = guild.get_channel(log_channel_id)
-        if not log_channel or not isinstance(log_channel, discord.TextChannel):
-            return
-
-        embed = discord.Embed(
-            title=f"Case #{case_data['case_num']} | {case_data['action_type']}",
-            color=discord.Color.red(),
-            timestamp=datetime.fromtimestamp(case_data["timestamp"], tz=timezone.utc),
-        )
-
-        embed.add_field(name="Target", value=case_data["target_name"], inline=True)
-        embed.add_field(
-            name="Moderator", value=case_data["moderator_name"], inline=True
-        )
-        embed.add_field(name="Reason", value=case_data["reason"], inline=False)
-
-        # Add extra fields
-        for key, value in case_data.items():
-            if key not in [
-                "case_num",
-                "timestamp",
-                "action_type",
-                "target_id",
-                "target_name",
-                "moderator_id",
-                "moderator_name",
-                "reason",
-            ]:
-                embed.add_field(name=key.replace("_", " ").title(), value=str(value))
-
-        try:
-            await log_channel.send(embed=embed)
-        except discord.HTTPException as e:
-            log.error(f"Failed to send log message: {e}")
-
-    # ========== BACKGROUND TASKS ==========
-
-    async def _warning_cleanup_loop(self) -> None:
-        """Background task to clean up expired warnings."""
-        await self.bot.wait_until_red_ready()
-
+    async def warning_cleanup_loop(self):
+        """Background task to check and remove expired warnings."""
+        await self.bot.wait_until_ready()
+        
         while True:
             try:
-                await asyncio.sleep(WARNING_CLEANUP_INTERVAL)
-
-                for guild in self.bot.guilds:
-                    for member in guild.members:
-                        try:
-                            removed = await self._clean_expired_warnings(member)
-                            if removed > 0:
-                                log.debug(
-                                    f"Cleaned {removed} expired warnings for {member}"
-                                )
-                        except Exception as e:
-                            log.error(
-                                f"Error cleaning warnings for {member}: {e}",
-                                exc_info=True,
-                            )
-
-            except asyncio.CancelledError:
-                break
+                log.info("Running warning cleanup task")
+                
+                # Yield control before starting heavy work
+                await asyncio.sleep(0)
+                
+                all_guilds = await self.config.all_guilds()
+                
+                guild_count = 0
+                for guild_id, guild_data in all_guilds.items():
+                    # Yield control between guilds
+                    guild_count += 1
+                    if guild_count % 5 == 0:
+                        await asyncio.sleep(0)
+                    
+                    guild = self.bot.get_guild(guild_id)
+                    if not guild:
+                        continue
+                        
+                    expiry_days = guild_data["warning_expiry_days"]
+                    current_time = datetime.utcnow().timestamp()
+                    
+                    # Get all members with warnings in this guild
+                    all_members = await self.config.all_members(guild)
+                    
+                    member_count = 0
+                    for member_id, member_data in all_members.items():
+                        # Yield control every 10 members
+                        member_count += 1
+                        if member_count % 10 == 0:
+                            await asyncio.sleep(0)
+                        
+                        if not member_data.get("warnings"):
+                            continue
+                            
+                        warnings = member_data["warnings"]
+                        updated_warnings = []
+                        
+                        for warning in warnings:
+                            issue_time = warning.get("timestamp", 0)
+                            expiry_time = issue_time + (expiry_days * 86400)
+                            
+                            # Keep warning if not expired
+                            if current_time < expiry_time:
+                                updated_warnings.append(warning)
+                        
+                        # Update if warnings were removed
+                        if len(warnings) != len(updated_warnings):
+                            member_config = self.config.member_from_ids(guild_id, member_id)
+                            await member_config.warnings.set(updated_warnings)
+                            
+                            # Recalculate total points
+                            total_points = sum(w.get("points", 1) for w in updated_warnings)
+                            await member_config.total_points.set(total_points)
+                            
+                            # Log that warnings were cleared due to expiry
+                            log_channel_id = guild_data.get("log_channel")
+                            if log_channel_id:
+                                log_channel = guild.get_channel(log_channel_id)
+                                if log_channel:
+                                    member = guild.get_member(int(member_id))
+                                    if member:
+                                        embed = discord.Embed(
+                                            title="Warnings Expired",
+                                            description=f"Some warnings for {member.mention} have expired.",
+                                            color=0x00ff00
+                                        )
+                                        embed.add_field(name="Current Points", value=str(total_points))
+                                        embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+                                        await self.safe_send_message(log_channel, embed=embed)
+            
             except Exception as e:
-                log.error(f"Error in warning cleanup loop: {e}", exc_info=True)
+                log.error(f"Error in warning expiry check: {e}", exc_info=True)
+            
+            # Run every 6 hours
+            await asyncio.sleep(21600)
 
-    async def _mute_check_loop(self) -> None:
+
+    async def mute_check_loop(self):
         """Background task to check and remove expired mutes."""
-        await self.bot.wait_until_red_ready()
-
+        await self.bot.wait_until_ready()
+        
         while True:
             try:
-                await asyncio.sleep(MUTE_CHECK_INTERVAL)
-                current_time = self._timestamp()
-
+                guild_count = 0
                 for guild in self.bot.guilds:
-                    mute_role_id = await self.config.guild(guild).mute_role()
+                    # Yield control between guilds
+                    guild_count += 1
+                    if guild_count % 5 == 0:
+                        await asyncio.sleep(0)
+                    
+                    # Get the mute role
+                    guild_data = await self.config.guild(guild).all()
+                    mute_role_id = guild_data.get("mute_role")
                     if not mute_role_id:
                         continue
-
+                        
                     mute_role = guild.get_role(mute_role_id)
                     if not mute_role:
                         continue
-
-                    for member in guild.members:
-                        if mute_role not in member.roles:
+                    
+                    # Get all members and check their mute status
+                    all_members = await self.config.all_members(guild)
+                    current_time = datetime.utcnow().timestamp()
+                    
+                    member_count = 0
+                    for member_id, member_data in all_members.items():
+                        # Yield control every 10 members
+                        member_count += 1
+                        if member_count % 10 == 0:
+                            await asyncio.sleep(0)
+                        
+                        # Skip if no mute end time
+                        muted_until = member_data.get("muted_until")
+                        if not muted_until:
                             continue
-
-                        muted_until = await self.config.member(member).muted_until()
-                        if not muted_until or current_time < muted_until:
-                            continue
-
-                        try:
-                            await member.remove_roles(
-                                mute_role, reason="Mute duration expired"
-                            )
-                            await self.config.member(member).muted_until.set(None)
-                            log.info(f"Unmuted {member} in {guild} (mute expired)")
-                        except Exception as e:
-                            log.error(f"Failed to unmute {member}: {e}")
-
-            except asyncio.CancelledError:
-                break
+                            
+                        # Check if mute has expired
+                        if current_time > muted_until:
+                            try:
+                                # Get member
+                                member = guild.get_member(int(member_id))
+                                if not member:
+                                    continue
+                                
+                                # Check if they still have the mute role
+                                if mute_role in member.roles:
+                                    # Restore original roles
+                                    await self.restore_member_roles(guild, member)
+                                    
+                                    # Log unmute
+                                    await self.log_action(
+                                        guild, 
+                                        "Auto-Unmute", 
+                                        member, 
+                                        self.bot.user, 
+                                        "Temporary mute duration expired"
+                                    )
+                            except Exception as e:
+                                log.error(f"Error during automatic unmute check: {e}", exc_info=True)
+                
             except Exception as e:
-                log.error(f"Error in mute check loop: {e}", exc_info=True)
+                log.error(f"Error in mute check task: {e}", exc_info=True)
+            
+            # Check every minute
+            await asyncio.sleep(60)
 
-    # ========== SETUP COMMANDS ==========
+    async def safe_send_message(self, channel, content=None, *, embed=None, file=None):
+        """Rate-limited message sending to avoid hitting Discord's API limits."""
+        if not channel:
+            return None
+            
+        channel_id = str(channel.id)
+        
+        # Initialize queue for this channel if it doesn't exist
+        if channel_id not in self.rate_limit["message_queue"]:
+            self.rate_limit["message_queue"][channel_id] = {
+                "queue": [],
+                "last_send": 0,
+                "processing": False
+            }
+            
+        # Add message to queue
+        message_data = {"content": content, "embed": embed, "file": file}
+        self.rate_limit["message_queue"][channel_id]["queue"].append(message_data)
+        
+        # Start processing queue if not already running
+        if not self.rate_limit["message_queue"][channel_id]["processing"]:
+            self.rate_limit["message_queue"][channel_id]["processing"] = True
+            return await self.process_message_queue(channel)
+            
+        return None
 
-    @commands.group(name="cautionset", aliases=["warnset"])
-    @commands.guild_only()
+    async def process_message_queue(self, channel):
+        """Process the message queue for a channel with rate limiting."""
+        channel_id = str(channel.id)
+        queue_data = self.rate_limit["message_queue"][channel_id]
+        
+        try:
+            while queue_data["queue"]:
+                # Get the next message
+                message_data = queue_data["queue"][0]
+                
+                # Check if we need to delay sending (rate limit prevention)
+                current_time = asyncio.get_event_loop().time()
+                time_since_last = current_time - queue_data["last_send"]
+                
+                # If less than 1 second since last message, wait
+                if time_since_last < 1:
+                    await asyncio.sleep(1 - time_since_last)
+                
+                # Send the message
+                try:
+                    await channel.send(
+                        content=message_data["content"],
+                        embed=message_data["embed"],
+                        file=message_data["file"]
+                    )
+                    queue_data["last_send"] = asyncio.get_event_loop().time()
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limit hit
+                        retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+                        log.info(f"Rate limit hit, waiting {retry_after} seconds")
+                        await asyncio.sleep(retry_after)
+                        continue  # Try again without removing from queue
+                    else:
+                        log.error(f"Error sending message: {e}")
+                
+                # Remove sent message from queue
+                queue_data["queue"].pop(0)
+                
+                # Small delay between messages
+                await asyncio.sleep(0.5)
+        
+        except Exception as e:
+            log.error(f"Error processing message queue: {e}", exc_info=True)
+        
+        finally:
+            # Mark queue as not processing
+            queue_data["processing"] = False
+
+    # Settings commands
+    @commands.group(name="cautionset", invoke_without_command=True)
     @checks.admin_or_permissions(administrator=True)
-    async def caution_set(self, ctx: commands.Context):
-        """Configure the cautions system."""
+    async def caution_settings(self, ctx):
+        """Configure the warning system settings."""
+        if ctx.invoked_subcommand is None:
+            embed = discord.Embed(
+                title="Caution System Settings",
+                description="Use these commands to configure the warning system.",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="Basic Commands",
+                value=(
+                    f"`{ctx.clean_prefix}cautionset expiry <days>` - Set warning expiry time\n"
+                    f"`{ctx.clean_prefix}cautionset setthreshold <points> <action> [duration] [reason]` - Set action thresholds\n"
+                    f"`{ctx.clean_prefix}cautionset removethreshold <points>` - Remove a threshold\n"
+                    f"`{ctx.clean_prefix}cautionset showthresholds` - List all thresholds\n"
+                    f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel\n"
+                    f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="Beri Economy Settings",
+                value=(
+                    f"`{ctx.clean_prefix}cautionset fines` - Configure fine amounts\n"
+                    f"`{ctx.clean_prefix}cautionset exemptfines <role>` - Exempt role from fines\n"
+                    f"`{ctx.clean_prefix}cautionset showfines` - Show current fine settings\n"
+                ),
+                inline=False
+            )
+            await ctx.send(embed=embed)
 
-    @caution_set.command(name="logchannel")
-    async def set_log_channel(
-        self, ctx: commands.Context, channel: discord.TextChannel
+    @caution_settings.group(name="fines")
+    async def fine_settings(self, ctx):
+        """Configure Beri fine settings."""
+        if ctx.invoked_subcommand is None:
+            guild_config = await self.config.guild(ctx.guild).all()
+            
+            embed = discord.Embed(title="Current Fine Settings", color=discord.Color.blue())
+            embed.add_field(name="Warning Base Fine", value=f"{humanize_number(guild_config.get('warning_fine_base', 1000))} Beri", inline=True)
+            embed.add_field(name="Warning Multiplier", value=f"{guild_config.get('warning_fine_multiplier', 1.5)}x", inline=True)
+            embed.add_field(name="Mute Fine", value=f"{humanize_number(guild_config.get('mute_fine', 5000))} Beri", inline=True)
+            embed.add_field(name="Timeout Fine", value=f"{humanize_number(guild_config.get('timeout_fine', 3000))} Beri", inline=True)
+            embed.add_field(name="Kick Fine", value=f"{humanize_number(guild_config.get('kick_fine', 10000))} Beri", inline=True)
+            embed.add_field(name="Ban Fine", value=f"{humanize_number(guild_config.get('ban_fine', 25000))} Beri", inline=True)
+            embed.add_field(name="Max Fine Per Action", value=f"{humanize_number(guild_config.get('max_fine_per_action', 50000))} Beri", inline=True)
+            
+            exempt_roles = guild_config.get('fine_exempt_roles', [])
+            if exempt_roles:
+                role_mentions = []
+                for role_id in exempt_roles:
+                    role = ctx.guild.get_role(role_id)
+                    if role:
+                        role_mentions.append(role.mention)
+                embed.add_field(name="Exempt Roles", value="\n".join(role_mentions) or "None", inline=False)
+            else:
+                embed.add_field(name="Exempt Roles", value="None", inline=False)
+            
+            await ctx.send(embed=embed)
+
+    @fine_settings.command(name="warningbase")
+    async def set_warning_base_fine(self, ctx, amount: int):
+        """Set the base fine amount per warning point."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).warning_fine_base.set(amount)
+        await ctx.send(f"Base warning fine set to {humanize_number(amount)} Beri per point.")
+
+    @fine_settings.command(name="warningmultiplier")
+    async def set_warning_multiplier(self, ctx, multiplier: float):
+        """Set the fine multiplier for repeat offenses."""
+        if multiplier < 1.0:
+            return await ctx.send("Multiplier must be at least 1.0.")
+        
+        await self.config.guild(ctx.guild).warning_fine_multiplier.set(multiplier)
+        await ctx.send(f"Warning fine multiplier set to {multiplier}x.")
+
+    @fine_settings.command(name="mute")
+    async def set_mute_fine(self, ctx, amount: int):
+        """Set the additional fine for mutes."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).mute_fine.set(amount)
+        await ctx.send(f"Mute fine set to {humanize_number(amount)} Beri.")
+
+    @fine_settings.command(name="timeout")
+    async def set_timeout_fine(self, ctx, amount: int):
+        """Set the additional fine for timeouts."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).timeout_fine.set(amount)
+        await ctx.send(f"Timeout fine set to {humanize_number(amount)} Beri.")
+
+    @fine_settings.command(name="kick")
+    async def set_kick_fine(self, ctx, amount: int):
+        """Set the fine for kicks."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).kick_fine.set(amount)
+        await ctx.send(f"Kick fine set to {humanize_number(amount)} Beri.")
+
+    @fine_settings.command(name="ban")
+    async def set_ban_fine(self, ctx, amount: int):
+        """Set the fine for bans."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).ban_fine.set(amount)
+        await ctx.send(f"Ban fine set to {humanize_number(amount)} Beri.")
+
+    @fine_settings.command(name="maxfine")
+    async def set_max_fine(self, ctx, amount: int):
+        """Set the maximum fine per single action."""
+        if amount < 0:
+            return await ctx.send("Fine amount cannot be negative.")
+        
+        await self.config.guild(ctx.guild).max_fine_per_action.set(amount)
+        await ctx.send(f"Maximum fine per action set to {humanize_number(amount)} Beri.")
+
+    @caution_settings.command(name="exemptfines")
+    async def exempt_role_from_fines(self, ctx, role: discord.Role):
+        """Add or remove a role from fine exemption."""
+        async with self.config.guild(ctx.guild).fine_exempt_roles() as exempt_roles:
+            if role.id in exempt_roles:
+                exempt_roles.remove(role.id)
+                await ctx.send(f"{role.mention} is no longer exempt from fines.")
+            else:
+                exempt_roles.append(role.id)
+                await ctx.send(f"{role.mention} is now exempt from fines.")
+
+    @caution_settings.command(name="expiry")
+    async def set_warning_expiry(self, ctx, days: int):
+        """Set how many days until warnings expire automatically."""
+        if days < 1:
+            return await ctx.send("Expiry time must be at least 1 day.")
+        
+        await self.config.guild(ctx.guild).warning_expiry_days.set(days)
+        await ctx.send(f"Warnings will now expire after {days} days.")
+
+    @caution_settings.command(name="setthreshold")
+    async def set_action_threshold(
+        self, ctx, 
+        points: int, 
+        action: str, 
+        duration: Optional[int] = None, 
+        *, reason: Optional[str] = None
     ):
-        """Set the moderation log channel."""
+        """
+        Set an automatic action to trigger at a specific warning threshold.
+        
+        Actions: mute, timeout, kick, ban
+        Duration (in minutes) is required for mute and timeout actions.
+        """
+        valid_actions = ["mute", "timeout", "kick", "ban"]
+        if action.lower() not in valid_actions:
+            return await ctx.send(f"Invalid action. Choose from: {', '.join(valid_actions)}")
+        
+        if action.lower() in ["mute", "timeout"] and duration is None:
+            return await ctx.send(f"Duration (in minutes) is required for {action} action.")
+        
+        async with self.config.guild(ctx.guild).action_thresholds() as thresholds:
+            # Create new threshold entry
+            new_threshold = {"action": action.lower()}
+            
+            if duration:
+                new_threshold["duration"] = duration
+                
+            if reason:
+                new_threshold["reason"] = reason
+            else:
+                new_threshold["reason"] = f"Exceeded {points} warning points"
+            
+            # Save the new threshold
+            thresholds[str(points)] = new_threshold
+        
+        # Confirmation message
+        confirmation = f"When a member reaches {points} warning points, they will be {action.lower()}ed"
+        if duration:
+            confirmation += f" for {duration} minutes"
+        confirmation += f" with reason: {new_threshold['reason']}"
+        
+        await ctx.send(confirmation)
+
+    @caution_settings.command(name="removethreshold")
+    async def remove_action_threshold(self, ctx, points: int):
+        """Remove an automatic action threshold."""
+        async with self.config.guild(ctx.guild).action_thresholds() as thresholds:
+            if str(points) in thresholds:
+                del thresholds[str(points)]
+                await ctx.send(f"Removed action threshold for {points} warning points.")
+            else:
+                await ctx.send(f"No action threshold set for {points} warning points.")
+
+    @caution_settings.command(name="showthresholds")
+    async def show_action_thresholds(self, ctx):
+        """Show all configured automatic action thresholds."""
+        thresholds = await self.config.guild(ctx.guild).action_thresholds()
+        
+        if not thresholds:
+            return await ctx.send("No action thresholds are configured.")
+        
+        embed = discord.Embed(title="Warning Action Thresholds", color=0x00ff00)
+        
+        # Sort thresholds by point value
+        sorted_thresholds = sorted(thresholds.items(), key=lambda x: int(x[0]))
+        
+        for points, data in sorted_thresholds:
+            action = data["action"]
+            duration = data.get("duration", "N/A")
+            reason = data.get("reason", f"Exceeded {points} warning points")
+            
+            value = f"Action: {action.capitalize()}\n"
+            if action in ["mute", "timeout"]:
+                value += f"Duration: {duration} minutes\n"
+            value += f"Reason: {reason}"
+            
+            embed.add_field(name=f"{points} Warning Points", value=value, inline=False)
+        
+        await ctx.send(embed=embed)
+
+    @caution_settings.command(name="setlogchannel")
+    async def set_log_channel(self, ctx, channel: Optional[discord.TextChannel] = None):
+        """Set the channel where moderation actions will be logged."""
+        if channel is None:
+            channel = ctx.channel
+            
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
         await ctx.send(f"Log channel set to {channel.mention}")
+        
+    @caution_settings.command(name="mute")
+    @checks.admin_or_permissions(administrator=True)
+    async def set_mute_role(self, ctx, role: discord.Role = None):
+        """Set the mute role for the caution system."""
+        # If no role provided, show current setting
+        if role is None:
+            mute_role_id = await self.config.guild(ctx.guild).mute_role()
+            if not mute_role_id:
+                return await ctx.send("No mute role is currently set. Use this command with a role mention or name to set one.")
+                
+            mute_role = ctx.guild.get_role(mute_role_id)
+            if not mute_role:
+                return await ctx.send("The configured mute role no longer exists. Please set a new one.")
+                
+            return await ctx.send(f"Current mute role: {mute_role.mention} (ID: {mute_role.id})")
+        
+        # Check if bot has required permissions
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            return await ctx.send("I need the 'Manage Roles' permission to apply the mute role.")
+        
+        # Check role hierarchy - bot needs to be able to manage this role
+        if role.position >= ctx.guild.me.top_role.position:
+            return await ctx.send(f"I cannot manage the role {role.mention} because it's position is higher than or equal to my highest role.")
+        
+        await self.config.guild(ctx.guild).mute_role.set(role.id)
+        await ctx.send(f"Mute role set to {role.mention}.")
 
-    @caution_set.command(name="setupmute")
-    async def setup_mute_role(self, ctx: commands.Context):
-        """Set up the mute role with proper permissions."""
-        msg = await ctx.send("Setting up mute role...")
-
-        # Create or get mute role
-        mute_role = discord.utils.get(ctx.guild.roles, name="Muted")
-        if not mute_role:
-            try:
-                mute_role = await ctx.guild.create_role(
-                    name="Muted",
-                    color=discord.Color.dark_gray(),
-                    reason="Cautions mute role setup",
-                )
-            except discord.HTTPException as e:
-                return await ctx.send(f"Failed to create mute role: {e}")
-
-        # Position role below bot's highest role
+    @commands.command(name="caution")
+    @checks.mod_or_permissions(kick_members=True)
+    async def warn_member(self, ctx, member: discord.Member, points_or_reason: str = "1", *, remaining_reason: Optional[str] = None):
+        """
+        Issue a caution/warning to a member with optional point value.
+        Default is 1 point if not specified. Includes Beri fine.
+        
+        Examples:
+        [p]caution @user 2 Breaking rule #3
+        [p]caution @user Spamming in chat
+        """
+        # Check if BeriCore is available
+        core = self._core()
+        beri_available = core is not None
+        
+        # Try to parse points as integer
         try:
-            await mute_role.edit(position=ctx.guild.me.top_role.position - 1)
-        except discord.HTTPException:
-            pass  # Role positioning is best-effort
+            points = int(points_or_reason)
+            reason = remaining_reason
+        except ValueError:
+            # If conversion fails, assume it's part of the reason
+            points = 1
+            reason = points_or_reason
+            if remaining_reason:
+                reason += " " + remaining_reason
+        
+        if points < 1:
+            return await ctx.send("Warning points must be at least 1.")
+        
+        # Calculate fine if Beri is available
+        fine_amount = 0
+        fine_applied = True
+        if beri_available:
+            fine_amount = await self._calculate_warning_fine(member, points)
+            fine_applied = await self._apply_beri_fine(member, fine_amount, f"warning:{points}pt", ctx.author)
+        
+        # Get warning expiry days first
+        expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
+        warning = {
+            "points": points,
+            "reason": reason or "No reason provided",
+            "moderator_id": ctx.author.id,
+            "timestamp": datetime.utcnow().timestamp(),
+            "expiry": (datetime.utcnow() + timedelta(days=expiry_days)).timestamp(),
+            "fine_amount": fine_amount,
+            "fine_applied": fine_applied
+        }
+        
+        # Get member config and update warnings
+        member_config = self.config.member(member)
+        async with member_config.warnings() as warnings:
+            warnings.append(warning)
+        
+        # Update total points and warning count
+        async with member_config.all() as member_data:
+            member_data["total_points"] = sum(w.get("points", 1) for w in member_data["warnings"])
+            member_data["warning_count"] = member_data.get("warning_count", 0) + 1
+            total_points = member_data["total_points"]
+        
+        # Create warning embed
+        embed = discord.Embed(title=f"Warning Issued", color=0xff9900)
+        embed.add_field(name="Member", value=member.mention)
+        embed.add_field(name="Moderator", value=ctx.author.mention)
+        embed.add_field(name="Points", value=str(points))
+        embed.add_field(name="Total Points", value=str(total_points))
+        embed.add_field(name="Reason", value=warning["reason"], inline=False)
+        embed.add_field(name="Expires", value=f"<t:{int(warning['expiry'])}:R>", inline=False)
+        
+        # Add Beri fine information if applicable
+        if beri_available and fine_amount > 0:
+            if fine_applied:
+                embed.add_field(name="Fine Applied", value=f"{humanize_number(fine_amount)} Beri", inline=True)
+            else:
+                embed.add_field(name="Fine (Partial/Failed)", value=f"{humanize_number(fine_amount)} Beri", inline=True)
+        elif beri_available:
+            exempt_status = "Exempt from fines" if await self._is_fine_exempt(member) else "No fine (0 Beri balance)"
+            embed.add_field(name="Fine Status", value=exempt_status, inline=True)
+        
+        embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+        
+        # Send warning in channel and log
+        await self.safe_send_message(ctx.channel, f"{member.mention} has been cautioned.", embed=embed)
+        
+        # Create extra fields for logging
+        extra_fields = [
+            {"name": "Points", "value": str(points)},
+            {"name": "Total Points", "value": str(total_points)}
+        ]
+        
+        if beri_available and fine_amount > 0:
+            extra_fields.append({"name": "Beri Fine", "value": f"{humanize_number(fine_amount)} ({'Applied' if fine_applied else 'Failed/Partial'})"})
+        
+        # Log the warning
+        await self.log_action(ctx.guild, "Warning", member, ctx.author, warning["reason"], extra_fields=extra_fields)
+        
+        # Dispatch custom event for other cogs (like BeriBridgePunish)
+        self.bot.dispatch("caution_issued", ctx.guild, ctx.author, member, warning["reason"])
+        
+        # Check if any action thresholds were reached
+        await self.check_action_thresholds(ctx, member, total_points)
 
-        # Update channel permissions
-        success_count = 0
-        fail_count = 0
+    async def check_action_thresholds(self, ctx, member, total_points):
+        """Check and apply any threshold actions that have been crossed."""
+        thresholds = await self.config.guild(ctx.guild).action_thresholds()
+        
+        # Get thresholds that match or are lower than current points, then get highest
+        matching_thresholds = []
+        for threshold_points, action_data in thresholds.items():
+            if int(threshold_points) <= total_points:
+                matching_thresholds.append((int(threshold_points), action_data))
+        
+        if matching_thresholds:
+            # Sort by threshold value (descending) to get highest matching threshold
+            matching_thresholds.sort(key=lambda x: x[0], reverse=True)
+            threshold_points, action_data = matching_thresholds[0]
+            
+            # Get applied thresholds
+            applied_thresholds = await self.config.member(member).applied_thresholds()
+            
+            # Check if this threshold has already been applied (to prevent repeated actions)
+            if threshold_points not in applied_thresholds:
+                # Mark this threshold as applied
+                applied_thresholds.append(threshold_points)
+                await self.config.member(member).applied_thresholds.set(applied_thresholds)
+                
+                # Apply the action
+                await self.apply_threshold_action(ctx, member, action_data)
 
-        for channel in ctx.guild.channels:
+    async def apply_threshold_action(self, ctx, member, action_data):
+        """Apply an automatic action based on crossed threshold."""
+        action = action_data["action"]
+        reason = action_data.get("reason", "Warning threshold exceeded")
+        duration = action_data.get("duration")
+        
+        # Calculate and apply additional fine for the action
+        core = self._core()
+        fine_amount = 0
+        fine_applied = True
+        
+        if core:
+            guild_config = await self.config.guild(ctx.guild).all()
+            if action == "mute":
+                fine_amount = guild_config.get("mute_fine", 5000)
+            elif action == "timeout":
+                fine_amount = guild_config.get("timeout_fine", 3000)
+            elif action == "kick":
+                fine_amount = guild_config.get("kick_fine", 10000)
+            elif action == "ban":
+                fine_amount = guild_config.get("ban_fine", 25000)
+            
+            if fine_amount > 0:
+                fine_applied = await self._apply_beri_fine(member, fine_amount, f"threshold:{action}", self.bot.user)
+        
+        try:
+            if action == "mute":
+                # Get the mute role
+                mute_role_id = await self.config.guild(ctx.guild).mute_role()
+                if not mute_role_id:
+                    await self.safe_send_message(ctx.channel, f"Mute role not found. Please set up a mute role with {ctx.clean_prefix}setupmute")
+                    return
+                
+                mute_role = ctx.guild.get_role(mute_role_id)
+                if not mute_role:
+                    await self.safe_send_message(ctx.channel, f"Mute role not found. Please set up a mute role with {ctx.clean_prefix}setupmute")
+                    return
+                
+                # Set muted_until time if duration provided
+                if duration:
+                    muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                    await self.config.member(member).muted_until.set(muted_until.timestamp())
+                
+                # Apply mute by adding the mute role
+                try:
+                    await member.add_roles(mute_role, reason=reason)
+                    
+                    message = f"{member.mention} has been muted for {duration} minutes due to: {reason}"
+                    if fine_amount > 0:
+                        message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                    await self.safe_send_message(ctx.channel, message)
+                except discord.Forbidden:
+                    await self.safe_send_message(ctx.channel, "I don't have permission to manage roles for this member.")
+                    return
+                except Exception as e:
+                    await self.safe_send_message(ctx.channel, f"Error applying mute: {str(e)}")
+                    return
+                
+                # Log the mute action
+                extra_fields = [{"name": "Duration", "value": f"{duration} minutes"}]
+                if fine_amount > 0:
+                    extra_fields.append({"name": "Additional Fine", "value": f"{humanize_number(fine_amount)} Beri"})
+                await self.log_action(ctx.guild, "Auto-Mute", member, self.bot.user, reason, extra_fields=extra_fields)
+            
+            elif action == "timeout":
+                until = datetime.utcnow() + timedelta(minutes=duration)
+                await member.timeout(until=until, reason=reason)
+                
+                message = f"{member.mention} has been timed out for {duration} minutes due to: {reason}"
+                if fine_amount > 0:
+                    message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                await self.safe_send_message(ctx.channel, message)
+                
+                extra_fields = [{"name": "Duration", "value": f"{duration} minutes"}]
+                if fine_amount > 0:
+                    extra_fields.append({"name": "Additional Fine", "value": f"{humanize_number(fine_amount)} Beri"})
+                await self.log_action(ctx.guild, "Auto-Timeout", member, self.bot.user, reason, extra_fields=extra_fields)
+            
+            elif action == "kick":
+                await member.kick(reason=reason)
+                
+                message = f"{member.mention} has been kicked due to: {reason}"
+                if fine_amount > 0:
+                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                await self.safe_send_message(ctx.channel, message)
+                
+                extra_fields = []
+                if fine_amount > 0:
+                    extra_fields.append({"name": "Fine", "value": f"{humanize_number(fine_amount)} Beri"})
+                await self.log_action(ctx.guild, "Auto-Kick", member, self.bot.user, reason, extra_fields=extra_fields)
+            
+            elif action == "ban":
+                await member.ban(reason=reason)
+                
+                message = f"{member.mention} has been banned due to: {reason}"
+                if fine_amount > 0:
+                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                await self.safe_send_message(ctx.channel, message)
+                
+                extra_fields = []
+                if fine_amount > 0:
+                    extra_fields.append({"name": "Fine", "value": f"{humanize_number(fine_amount)} Beri"})
+                await self.log_action(ctx.guild, "Auto-Ban", member, self.bot.user, reason, extra_fields=extra_fields)
+                
+        except Exception as e:
+            await self.safe_send_message(ctx.channel, f"Failed to apply automatic {action}: {str(e)}")
+            log.error(f"Error in apply_threshold_action: {e}", exc_info=True)
+
+    @commands.command(name="quiet")
+    @checks.mod_or_permissions(manage_roles=True)
+    async def mute_member(self, ctx, member: discord.Member, duration: int = 30, *, reason: Optional[str] = None):
+        """
+        Mute a member for the specified duration (in minutes).
+        Includes additional Beri fine.
+        
+        Examples:
+        [p]quiet @user 60 Excessive spam
+        [p]quiet @user 30
+        """
+        try:
+            # Ensure member isn't a mod/admin by checking permissions
+            if member.guild_permissions.kick_members or member.guild_permissions.administrator:
+                return await ctx.send(f"Cannot mute {member.mention} as they have moderator/admin permissions.")
+                
+            # Check for role hierarchy - cannot mute someone with a higher role than the bot
+            if member.top_role >= ctx.guild.me.top_role:
+                return await ctx.send(f"Cannot mute {member.mention} as their highest role is above or equal to mine.")
+            
+            # Get mute role
+            mute_role_id = await self.config.guild(ctx.guild).mute_role()
+            if not mute_role_id:
+                return await ctx.send(f"Mute role not set up. Please use {ctx.clean_prefix}setupmute first.")
+            
+            mute_role = ctx.guild.get_role(mute_role_id)
+            if not mute_role:
+                return await ctx.send(f"Mute role not found. Please use {ctx.clean_prefix}setupmute to create a new one.")
+            
+            # Apply Beri fine for mute
+            core = self._core()
+            fine_amount = 0
+            fine_applied = True
+            if core:
+                guild_config = await self.config.guild(ctx.guild).all()
+                fine_amount = guild_config.get("mute_fine", 5000)
+                if fine_amount > 0:
+                    fine_applied = await self._apply_beri_fine(member, fine_amount, "manual_mute", ctx.author)
+            
+            # Check if already muted
+            if mute_role in member.roles:
+                # Update duration if already muted
+                muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                await self.config.member(member).muted_until.set(muted_until.timestamp())
+                message = f"{member.mention} was already muted. Updated mute duration to end {duration} minutes from now."
+                if fine_amount > 0:
+                    message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                await ctx.send(message)
+                return
+                
+            # Apply the mute - add the role
             try:
-                if isinstance(channel, discord.TextChannel):
+                await member.add_roles(mute_role, reason=f"Manual mute: {reason}")
+                
+                # Also apply a timeout as a secondary measure
+                try:
+                    timeout_duration = timedelta(minutes=duration)
+                    await member.timeout(timeout_duration, reason=f"Manual mute: {reason}")
+                except Exception as timeout_error:
+                    log.error(f"Could not apply timeout to {member.id}: {timeout_error}")
+                    
+                # Set muted_until time
+                muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                await self.config.member(member).muted_until.set(muted_until.timestamp())
+                
+                # Confirm the mute
+                message = f"{member.mention} has been muted for {duration} minutes. Reason: {reason or 'No reason provided'}"
+                if fine_amount > 0:
+                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+                await ctx.send(message)
+                    
+                # Log action
+                extra_fields = [{"name": "Duration", "value": f"{duration} minutes"}]
+                if fine_amount > 0:
+                    extra_fields.append({"name": "Fine", "value": f"{humanize_number(fine_amount)} Beri"})
+                await self.log_action(ctx.guild, "Mute", member, ctx.author, reason, extra_fields=extra_fields)
+                    
+            except discord.Forbidden:
+                await ctx.send("I don't have permission to manage roles for this member.")
+            except Exception as e:
+                await ctx.send(f"Error applying mute: {str(e)}")
+                log.error(f"Error in mute_member command: {e}", exc_info=True)
+                
+        except Exception as e:
+            await ctx.send(f"Error in mute command: {str(e)}")
+            log.error(f"Error in mute_member command: {e}", exc_info=True)
+
+    @commands.command(name="testmute")
+    @checks.admin_or_permissions(administrator=True)
+    async def test_mute_setup(self, ctx):
+        """Test if the mute role is properly set up."""
+        try:
+            mute_role_id = await self.config.guild(ctx.guild).mute_role()
+            
+            if not mute_role_id:
+                return await ctx.send(f"No mute role has been configured. Please run {ctx.clean_prefix}setupmute first.")
+                
+            mute_role = ctx.guild.get_role(mute_role_id)
+            if not mute_role:
+                return await ctx.send(f"Mute role not found. The role may have been deleted. Please run {ctx.clean_prefix}setupmute again.")
+                
+            # Get bot's position to check hierarchy
+            bot_position = ctx.guild.me.top_role.position
+            mute_position = mute_role.position
+            
+            # Check role position
+            if mute_position < bot_position - 1:
+                await ctx.send(f"Warning: Mute role position ({mute_position}) is not directly below bot's highest role ({bot_position})")
+            else:
+                await ctx.send(f"Mute role position ({mute_position}) looks good relative to bot's highest role ({bot_position})")
+                
+            # Check permissions across different channel types
+            text_channels_checked = 0
+            text_channels_with_issues = 0
+            voice_channels_checked = 0
+            voice_channels_with_issues = 0
+            
+            # Check a sample of text channels
+            for channel in ctx.guild.text_channels[:5]:  # Check first 5 text channels
+                text_channels_checked += 1
+                perms = channel.permissions_for(mute_role)
+                if perms.send_messages:
+                    text_channels_with_issues += 1
+                    
+            # Check a sample of voice channels
+            for channel in ctx.guild.voice_channels[:5]:  # Check first 5 voice channels
+                voice_channels_checked += 1
+                perms = channel.permissions_for(mute_role)
+                if perms.speak:
+                    voice_channels_with_issues += 1
+                    
+            # Report results
+            if text_channels_with_issues > 0:
+                await ctx.send(f"Issues found in {text_channels_with_issues}/{text_channels_checked} text channels - mute role can still send messages")
+            else:
+                await ctx.send(f"Text channel permissions look good for {text_channels_checked} channels checked")
+                
+            if voice_channels_with_issues > 0:
+                await ctx.send(f"Issues found in {voice_channels_with_issues}/{voice_channels_checked} voice channels - mute role can still speak")
+            else:
+                await ctx.send(f"Voice channel permissions look good for {voice_channels_checked} channels checked")
+                
+            # Overall assessment
+            if text_channels_with_issues == 0 and voice_channels_with_issues == 0:
+                await ctx.send("Mute role appears to be correctly configured!")
+            else:
+                await ctx.send(f"Mute role has issues - please run {ctx.clean_prefix}setupmute again to fix permissions")
+                
+        except Exception as e:
+            await ctx.send(f"Error testing mute setup: {str(e)}")
+            log.error(f"Error in test_mute_setup: {e}", exc_info=True)
+
+    @commands.command(name="setupmute")
+    @checks.admin_or_permissions(administrator=True)
+    async def setup_mute_role(self, ctx):
+        """Set up the muted role for the server with proper permissions."""
+        try:
+            # Check if mute role already exists and delete it to start fresh
+            existing_mute_role_id = await self.config.guild(ctx.guild).mute_role()
+            if existing_mute_role_id:
+                existing_role = ctx.guild.get_role(existing_mute_role_id)
+                if existing_role:
+                    try:
+                        await existing_role.delete(reason="Recreating mute role")
+                        await ctx.send(f"Deleted existing mute role to create a new one.")
+                    except discord.Forbidden:
+                        await ctx.send("I don't have permission to delete the existing mute role.")
+                    except Exception as e:
+                        await ctx.send(f"Error deleting existing role: {e}")
+            
+            # Create a new role with no permissions
+            mute_role = await ctx.guild.create_role(
+                name="Muted", 
+                reason="Setup for moderation",
+                permissions=discord.Permissions.none()  # Start with no permissions
+            )
+            
+            # Position the role as high as possible (directly below the bot's highest role)
+            bot_member = ctx.guild.me
+            highest_bot_role = max([r for r in bot_member.roles if not r.is_default()], key=lambda r: r.position)
+            
+            try:
+                # Make sure the muted role is positioned directly below the bot's highest role
+                positions = {mute_role: highest_bot_role.position - 1}
+                await ctx.guild.edit_role_positions(positions)
+                await ctx.send(f"Positioned mute role at position {highest_bot_role.position - 1}")
+            except Exception as e:
+                await ctx.send(f"Error positioning role: {e}")
+                log.error(f"Error positioning mute role: {e}", exc_info=True)
+            
+            # Save the role ID to config
+            await self.config.guild(ctx.guild).mute_role.set(mute_role.id)
+            
+            # Set up permissions for all channels
+            status_msg = await ctx.send("Setting up permissions for the mute role... This may take a moment.")
+            
+            # List to track any errors during permission setup
+            permission_errors = []
+            
+            # Set permissions for each category
+            for category in ctx.guild.categories:
+                try:
+                    await category.set_permissions(
+                        mute_role, 
+                        send_messages=False, 
+                        speak=False, 
+                        add_reactions=False,
+                        create_public_threads=False,
+                        create_private_threads=False,
+                        send_messages_in_threads=False,
+                        connect=False  # Prevent joining voice channels
+                    )
+                except Exception as e:
+                    error_msg = f"Error setting permissions for category {category.name}: {e}"
+                    permission_errors.append(error_msg)
+                    log.error(error_msg)
+            
+            # Set permissions for all text channels individually (to catch any that might inherit differently)
+            for channel in ctx.guild.text_channels:
+                try:
                     await channel.set_permissions(
                         mute_role,
                         send_messages=False,
                         add_reactions=False,
                         create_public_threads=False,
                         create_private_threads=False,
-                        send_messages_in_threads=False,
+                        send_messages_in_threads=False
                     )
-                elif isinstance(channel, discord.VoiceChannel):
-                    await channel.set_permissions(mute_role, speak=False, stream=False)
-                elif isinstance(channel, discord.ForumChannel):
+                except Exception as e:
+                    error_msg = f"Error setting permissions for text channel {channel.name}: {e}"
+                    permission_errors.append(error_msg)
+                    log.error(error_msg)
+            
+            # Set permissions for all voice channels
+            for channel in ctx.guild.voice_channels:
+                try:
                     await channel.set_permissions(
-                        mute_role, send_messages=False, create_posts=False
+                        mute_role,
+                        speak=False,
+                        connect=False  # Prevent joining voice channels
                     )
-                success_count += 1
-            except discord.HTTPException:
-                fail_count += 1
-
-        await self.config.guild(ctx.guild).mute_role.set(mute_role.id)
-
-        result_msg = (
-            f"✅ Mute role setup complete!\n"
-            f"Role: {mute_role.mention}\n"
-            f"Channels updated: {success_count}\n"
-        )
-        if fail_count > 0:
-            result_msg += f"⚠️ Failed to update {fail_count} channels"
-
-        await msg.edit(content=result_msg)
-
-    @caution_set.command(name="expiry")
-    async def set_warning_expiry(self, ctx: commands.Context, days: int):
-        """Set how many days warnings last (0 for never)."""
-        if days < 0:
-            return await ctx.send("Days must be 0 or greater.")
-
-        await self.config.guild(ctx.guild).warning_expiry_days.set(days)
-        if days == 0:
-            await ctx.send("Warnings will never expire.")
-        else:
-            await ctx.send(f"Warnings will expire after {days} days.")
-
-    @caution_set.group(name="fine")
-    async def fine_settings(self, ctx: commands.Context):
-        """Configure fine amounts for various actions."""
-
-    @fine_settings.command(name="warning")
-    async def set_warning_fine(self, ctx: commands.Context, base: int, multiplier: float = 1.5):
-        """Set base warning fine and multiplier for repeat offenses."""
-        if base < 0:
-            return await ctx.send("Base fine must be 0 or greater.")
-        if multiplier < 1.0:
-            return await ctx.send("Multiplier must be 1.0 or greater.")
-
-        await self.config.guild(ctx.guild).warning_fine_base.set(base)
-        await self.config.guild(ctx.guild).warning_fine_multiplier.set(multiplier)
-        await ctx.send(
-            f"Warning fine set to {humanize_number(base)} Beri with {multiplier}x multiplier for repeat offenses."
-        )
-
-    @fine_settings.command(name="mute")
-    async def set_mute_fine(self, ctx: commands.Context, amount: int):
-        """Set fine amount for mutes."""
-        if amount < 0:
-            return await ctx.send("Amount must be 0 or greater.")
-
-        await self.config.guild(ctx.guild).mute_fine.set(amount)
-        await ctx.send(f"Mute fine set to {humanize_number(amount)} Beri.")
-
-    @fine_settings.command(name="timeout")
-    async def set_timeout_fine(self, ctx: commands.Context, amount: int):
-        """Set fine amount for timeouts."""
-        if amount < 0:
-            return await ctx.send("Amount must be 0 or greater.")
-
-        await self.config.guild(ctx.guild).timeout_fine.set(amount)
-        await ctx.send(f"Timeout fine set to {humanize_number(amount)} Beri.")
-
-    @fine_settings.command(name="kick")
-    async def set_kick_fine(self, ctx: commands.Context, amount: int):
-        """Set fine amount for kicks."""
-        if amount < 0:
-            return await ctx.send("Amount must be 0 or greater.")
-
-        await self.config.guild(ctx.guild).kick_fine.set(amount)
-        await ctx.send(f"Kick fine set to {humanize_number(amount)} Beri.")
-
-    @fine_settings.command(name="ban")
-    async def set_ban_fine(self, ctx: commands.Context, amount: int):
-        """Set fine amount for bans."""
-        if amount < 0:
-            return await ctx.send("Amount must be 0 or greater.")
-
-        await self.config.guild(ctx.guild).ban_fine.set(amount)
-        await ctx.send(f"Ban fine set to {humanize_number(amount)} Beri.")
-
-    # ========== MODERATION COMMANDS ==========
-
-    @commands.command(name="warn", aliases=["caution", "cwarn"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def warn_member(
-        self,
-        ctx: commands.Context,
-        member: discord.Member,
-        points: int = 1,
-        *,
-        reason: str = "No reason provided",
-    ):
-        """Warn a member with a specified number of points."""
-        if member.bot:
-            return await ctx.send("Cannot warn bots.")
-
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            return await ctx.send("You cannot warn members with equal or higher roles.")
-
-        if points < 1:
-            return await ctx.send("Points must be at least 1.")
-
-        try:
-            warning = await self._add_warning(member, ctx.author, reason, points)
-
-            # Log the warning
-            case_num = await self._log_action(
-                ctx.guild,
-                "Warning",
-                member,
-                ctx.author,
-                reason,
-                points=points,
-                fine_amount=warning["fine_amount"],
-            )
-
-            # Check thresholds
-            await self._check_and_apply_thresholds(member, ctx.author)
-
-            # Build response
-            total_points = await self.config.member(member).total_points()
-            response = f"⚠️ {member.mention} has been warned (Case #{case_num})\n"
-            response += f"**Reason:** {reason}\n"
-            response += f"**Points:** {points}\n"
-            response += f"**Total Points:** {total_points}"
-
-            if warning["fine_amount"] > 0:
-                response += f"\n**Fine:** {humanize_number(warning['fine_amount'])} Beri"
-                if not warning["fine_applied"]:
-                    response += " (insufficient balance)"
-
-            await ctx.send(response)
-
-            # Try to DM the member
+                except Exception as e:
+                    error_msg = f"Error setting permissions for voice channel {channel.name}: {e}"
+                    permission_errors.append(error_msg)
+                    log.error(error_msg)
+                    
+            # Set permissions for all forum channels (if Discord.py version supports it)
             try:
-                dm_embed = discord.Embed(
-                    title=f"Warning in {ctx.guild.name}",
-                    description=f"You have been warned by {ctx.author.mention}",
-                    color=discord.Color.orange(),
-                    timestamp=self._now(),
-                )
-                dm_embed.add_field(name="Reason", value=reason, inline=False)
-                dm_embed.add_field(name="Points", value=str(points), inline=True)
-                dm_embed.add_field(name="Total Points", value=str(total_points), inline=True)
-
-                if warning["fine_amount"] > 0:
-                    dm_embed.add_field(
-                        name="Fine",
-                        value=f"{humanize_number(warning['fine_amount'])} Beri",
-                        inline=True,
-                    )
-
-                await member.send(embed=dm_embed)
-            except discord.HTTPException:
+                for channel in [c for c in ctx.guild.channels if isinstance(c, discord.ForumChannel)]:
+                    try:
+                        await channel.set_permissions(
+                            mute_role,
+                            send_messages=False,
+                            create_public_threads=False,
+                            create_private_threads=False,
+                            send_messages_in_threads=False
+                        )
+                    except Exception as e:
+                        error_msg = f"Error setting permissions for forum channel {channel.name}: {e}"
+                        permission_errors.append(error_msg)
+                        log.error(error_msg)
+            except AttributeError:
+                # ForumChannel might not be available in this discord.py version
                 pass
-
+            
+            # Report any errors
+            if permission_errors:
+                error_report = "\n".join(permission_errors[:5])  # Show first 5 errors
+                if len(permission_errors) > 5:
+                    error_report += f"\n...and {len(permission_errors) - 5} more errors"
+                
+                await ctx.send(f"Some errors occurred while setting permissions:\n{error_report}")
+            
+            await status_msg.edit(content=f"Mute role setup complete! The role {mute_role.mention} has been configured.")
+            
         except Exception as e:
-            log.error(f"Error issuing warning: {e}", exc_info=True)
-            await ctx.send(f"An error occurred while issuing the warning: {e}")
-
-    @commands.command(name="warnings", aliases=["cautions", "mywarnings", "cwarnings"])
-    @commands.guild_only()
-    async def view_warnings(
-        self, ctx: commands.Context, member: Optional[discord.Member] = None
-    ):
-        """View warnings for yourself or another member."""
-        target = member or ctx.author
-
-        # Permission check for viewing others
-        if target != ctx.author:
-            if not (ctx.author.guild_permissions.kick_members or await ctx.bot.is_owner(ctx.author)):
-                return await ctx.send("You need Kick Members permission to view others' warnings.")
-
-        warnings = await self.config.member(target).warnings()
-        total_points = await self.config.member(target).total_points()
-        total_fines = await self.config.member(target).total_fines_paid()
-
-        if not warnings:
-            return await ctx.send(f"{target.mention} has no warnings.")
-
-        # Filter active warnings
-        current_time = self._timestamp()
-        active_warnings = [w for w in warnings if w["expiry"] > current_time]
-
-        embed = discord.Embed(
-            title=f"Warnings for {target.display_name}",
-            color=discord.Color.orange(),
-            timestamp=self._now(),
-        )
-
-        embed.add_field(name="Active Points", value=str(total_points), inline=True)
-        embed.add_field(
-            name="Total Warnings",
-            value=f"{len(active_warnings)}/{len(warnings)}",
-            inline=True,
-        )
-        embed.add_field(
-            name="Total Fines",
-            value=f"{humanize_number(total_fines)} Beri",
-            inline=True,
-        )
-
-        # Show recent warnings
-        for i, warning in enumerate(active_warnings[:5], 1):
-            moderator = ctx.guild.get_member(warning["moderator_id"])
-            mod_name = moderator.mention if moderator else "Unknown Moderator"
-
-            value = f"**Points:** {warning['points']}\n"
-            value += f"**Reason:** {warning['reason'][:100]}\n"
-            value += f"**Moderator:** {mod_name}\n"
-            value += f"**Issued:** <t:{int(warning['timestamp'])}:R>\n"
-            value += f"**Expires:** <t:{int(warning['expiry'])}:R>"
-
-            if warning["fine_amount"] > 0:
-                value += f"\n**Fine:** {humanize_number(warning['fine_amount'])} Beri"
-
-            embed.add_field(name=f"Warning #{i}", value=value, inline=False)
-
-        if len(active_warnings) > 5:
-            embed.set_footer(text=f"Showing 5 of {len(active_warnings)} active warnings")
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name="clearwarnings", aliases=["clearwarns", "clearwarn", "cclear"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def clear_warnings(self, ctx: commands.Context, member: discord.Member):
-        """Clear all warnings for a member."""
-        warnings = await self.config.member(member).warnings()
-
-        if not warnings:
-            return await ctx.send(f"{member.mention} has no warnings to clear.")
-
-        # Confirmation
-        msg = await ctx.send(
-            f"Are you sure you want to clear all {len(warnings)} warnings for {member.mention}?"
-        )
-        start_adding_reactions(msg, ReactionPredicate.YES_OR_NO_EMOJIS)
-
-        pred = ReactionPredicate.yes_or_no(msg, ctx.author)
-        try:
-            await ctx.bot.wait_for("reaction_add", check=pred, timeout=30)
-        except asyncio.TimeoutError:
-            return await ctx.send("Cancelled.")
-
-        if not pred.result:
-            return await ctx.send("Cancelled.")
-
-        # Clear warnings
-        await self.config.member(member).warnings.set([])
-        await self.config.member(member).total_points.set(0)
-        await self.config.member(member).applied_thresholds.set([])
-
-        await self._log_action(
-            ctx.guild,
-            "Clear Warnings",
-            member,
-            ctx.author,
-            f"Cleared {len(warnings)} warnings",
-        )
-
-        await ctx.send(f"✅ Cleared all warnings for {member.mention}")
-
-    @commands.command(name="removewarning", aliases=["removewarn", "delwarn", "delwarning"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def remove_warning(
-        self, ctx: commands.Context, member: discord.Member, warning_number: int
-    ):
-        """Remove a specific warning by its number (use warnings command to see numbers)."""
-        warnings = await self.config.member(member).warnings()
-
-        if not warnings:
-            return await ctx.send(f"{member.mention} has no warnings.")
-
-        # Get active warnings
-        current_time = self._timestamp()
-        active_warnings = [w for w in warnings if w["expiry"] > current_time]
-
-        if warning_number < 1 or warning_number > len(active_warnings):
-            return await ctx.send(
-                f"Invalid warning number. {member.mention} has {len(active_warnings)} active warnings. "
-                f"Use `{ctx.clean_prefix}warnings {member.mention}` to see them."
-            )
-
-        # Get the warning to remove (using index)
-        warning_to_remove = active_warnings[warning_number - 1]
+            await ctx.send(f"Failed to set up mute role: {str(e)}")
+            log.error(f"Error in setup_mute_role: {e}", exc_info=True)
         
-        # Use timestamp as unique identifier (fallback to id if it exists)
-        warning_timestamp = warning_to_remove.get("id", warning_to_remove.get("timestamp"))
-        
-        # Remove it from the full warnings list by timestamp
-        async with self.config.member(member).warnings() as all_warnings:
-            all_warnings[:] = [
-                w for w in all_warnings 
-                if w.get("id", w.get("timestamp")) != warning_timestamp
-            ]
-
-        # Recalculate points and check thresholds
-        new_points = await self._recalculate_points(member)
-        await self.config.member(member).total_points.set(new_points)
-
-        # Reset applied thresholds if points dropped below any threshold
-        applied_thresholds = await self.config.member(member).applied_thresholds()
-        new_thresholds = [t for t in applied_thresholds if t <= new_points]
-        await self.config.member(member).applied_thresholds.set(new_thresholds)
-
-        # Log the action
-        await self._log_action(
-            ctx.guild,
-            "Remove Warning",
-            member,
-            ctx.author,
-            f"Removed warning #{warning_number}: {warning_to_remove['reason'][:100]}",
-            points_removed=warning_to_remove["points"],
-            new_total=new_points,
-        )
-
-        await ctx.send(
-            f"✅ Removed warning #{warning_number} from {member.mention}\n"
-            f"**Reason:** {warning_to_remove['reason'][:100]}\n"
-            f"**Points removed:** {warning_to_remove['points']}\n"
-            f"**New total:** {new_points} points"
-        )
-
-    @commands.command(name="cmute", aliases=["cautionmute"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def mute_user(
-        self,
-        ctx: commands.Context,
-        member: discord.Member,
-        duration: int = 30,
-        *,
-        reason: str = "No reason provided",
-    ):
-        """Mute a member for a specified duration (in minutes)."""
-        if member.bot:
-            return await ctx.send("Cannot mute bots.")
-
-        if member.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
-            return await ctx.send("You cannot mute members with equal or higher roles.")
-
+    async def restore_member_roles(self, guild, member):
+        """Restore a member's roles after unmuting them."""
         try:
-            await self._mute_member(member, ctx.author, reason, duration)
-
-            case_num = await self._log_action(
-                ctx.guild,
-                "Mute",
-                member,
-                ctx.author,
-                reason,
-                duration=f"{duration} minutes",
-            )
-
-            await ctx.send(
-                f"🔇 {member.mention} has been muted for {duration} minutes (Case #{case_num})\n"
-                f"**Reason:** {reason}"
-            )
-
-        except ValueError as e:
-            await ctx.send(str(e))
+            # Get mute role
+            mute_role_id = await self.config.guild(guild).mute_role()
+            mute_role = guild.get_role(mute_role_id) if mute_role_id else None
+            
+            # Remove mute role if they have it
+            if mute_role and mute_role in member.roles:
+                await member.remove_roles(mute_role, reason="Unmuting member")
+                
+                # Also remove timeout if there is one
+                try:
+                    await member.timeout(None, reason="Unmuting member")
+                except Exception as e:
+                    log.error(f"Error removing timeout: {e}")
+            
+            # Clear stored mute data
+            await self.config.member(member).muted_until.set(None)
+            
+            # Verify that the mute role was actually removed
+            if mute_role and mute_role in member.roles:
+                log.error(f"Failed to remove mute role from {member.id}")
+                
+                # Try once more with force
+                try:
+                    await member.remove_roles(mute_role, reason="Retry: Unmuting member")
+                except Exception as e:
+                    log.error(f"Second attempt to remove mute role failed: {e}")
+            
+            # Log the unmute action
+            log_channel_id = await self.config.guild(guild).log_channel()
+            if log_channel_id:
+                log_channel = guild.get_channel(log_channel_id)
+                if log_channel:
+                    await self.safe_send_message(log_channel, f"{member.mention} has been unmuted.")
+            
         except Exception as e:
-            log.error(f"Error muting member: {e}", exc_info=True)
-            await ctx.send(f"An error occurred: {e}")
+            log.error(f"Error restoring member roles: {e}", exc_info=True)
+            # Try to get a channel to send the error
+            log_channel_id = await self.config.guild(guild).log_channel()
+            if log_channel_id:
+                log_channel = guild.get_channel(log_channel_id)
+                if log_channel:
+                    await self.safe_send_message(log_channel, f"Error unmuting {member.mention}: {str(e)}")
 
-    @commands.command(name="cunmute", aliases=["cautionunmute"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def unmute_user(
-        self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"
-    ):
+    @commands.command(name="unquiet")
+    @checks.mod_or_permissions(manage_roles=True)
+    async def unmute_member(self, ctx, member: discord.Member):
         """Unmute a member."""
         mute_role_id = await self.config.guild(ctx.guild).mute_role()
+        
         if not mute_role_id:
-            return await ctx.send("Mute role not configured.")
-
+            return await ctx.send("No mute role has been set up for this server.")
+        
         mute_role = ctx.guild.get_role(mute_role_id)
-        if not mute_role or mute_role not in member.roles:
-            return await ctx.send(f"{member.mention} is not muted.")
-
-        try:
-            await member.remove_roles(mute_role, reason=reason)
-            await self.config.member(member).muted_until.set(None)
-
-            await self._log_action(ctx.guild, "Unmute", member, ctx.author, reason)
-
-            await ctx.send(f"🔊 {member.mention} has been unmuted.\n**Reason:** {reason}")
-
-        except Exception as e:
-            log.error(f"Error unmuting member: {e}", exc_info=True)
-            await ctx.send(f"An error occurred: {e}")
-
-    @commands.command(name="cautioncase", aliases=["ccase", "warncase"])
-    @commands.guild_only()
-    @checks.mod_or_permissions(kick_members=True)
-    async def view_case(self, ctx: commands.Context, case_number: int):
-        """View details of a specific caution case."""
-        modlog = await self.config.guild(ctx.guild).modlog()
-        case_data = modlog.get(str(case_number))
-
-        if not case_data:
-            return await ctx.send(f"Case #{case_number} not found.")
-
-        embed = discord.Embed(
-            title=f"Case #{case_number} | {case_data['action_type']}",
-            color=discord.Color.red(),
-            timestamp=datetime.fromtimestamp(case_data["timestamp"], tz=timezone.utc),
-        )
-
-        embed.add_field(name="Target", value=case_data["target_name"], inline=True)
-        embed.add_field(name="Moderator", value=case_data["moderator_name"], inline=True)
-        embed.add_field(name="Reason", value=case_data["reason"], inline=False)
-
-        # Add extra fields
-        for key, value in case_data.items():
-            if key not in [
-                "case_num",
-                "timestamp",
-                "action_type",
-                "target_id",
-                "target_name",
-                "moderator_id",
-                "moderator_name",
-                "reason",
-            ]:
-                embed.add_field(name=key.replace("_", " ").title(), value=str(value))
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name="testmute")
-    @commands.guild_only()
-    @checks.admin_or_permissions(administrator=True)
-    async def test_mute(self, ctx: commands.Context):
-        """Test if the mute role is properly configured."""
-        mute_role_id = await self.config.guild(ctx.guild).mute_role()
-
-        if not mute_role_id:
-            return await ctx.send(
-                f"❌ No mute role configured. Use `{ctx.clean_prefix}cautionset setupmute` first."
-            )
-
-        mute_role = ctx.guild.get_role(mute_role_id)
-        if not mute_role:
-            return await ctx.send(
-                f"❌ Mute role not found. Use `{ctx.clean_prefix}cautionset setupmute` again."
-            )
-
-        # Check role position
-        bot_position = ctx.guild.me.top_role.position
-        mute_position = mute_role.position
-
-        embed = discord.Embed(title="Mute Role Configuration Test", color=discord.Color.blue())
-
-        # Role information
-        embed.add_field(name="Role", value=mute_role.mention, inline=True)
-        embed.add_field(name="Position", value=f"{mute_position}/{bot_position}", inline=True)
-
-        # Test channels
-        text_checked = 0
-        text_issues = 0
-        voice_checked = 0
-        voice_issues = 0
-
-        for channel in ctx.guild.text_channels[:5]:
-            text_checked += 1
-            perms = channel.permissions_for(mute_role)
-            if perms.send_messages:
-                text_issues += 1
-
-        for channel in ctx.guild.voice_channels[:5]:
-            voice_checked += 1
-            perms = channel.permissions_for(mute_role)
-            if perms.speak:
-                voice_issues += 1
-
-        # Results
-        text_status = "✅" if text_issues == 0 else "⚠️"
-        voice_status = "✅" if voice_issues == 0 else "⚠️"
-
-        embed.add_field(
-            name=f"{text_status} Text Channels",
-            value=f"{text_checked - text_issues}/{text_checked} properly configured",
-            inline=True,
-        )
-        embed.add_field(
-            name=f"{voice_status} Voice Channels",
-            value=f"{voice_checked - voice_issues}/{voice_checked} properly configured",
-            inline=True,
-        )
-
-        if text_issues == 0 and voice_issues == 0:
-            embed.add_field(
-                name="Status",
-                value="✅ Mute role is properly configured!",
-                inline=False,
-            )
+        
+        if mute_role and mute_role in member.roles:
+            await self.restore_member_roles(ctx.guild, member)
+            await ctx.send(f"{member.mention} has been unmuted.")
+            await self.log_action(ctx.guild, "Unmute", member, ctx.author)
         else:
-            embed.add_field(
-                name="Status",
-                value=f"⚠️ Issues detected. Run `{ctx.clean_prefix}cautionset setupmute` to fix.",
-                inline=False,
-            )
+            await ctx.send(f"{member.mention} is not muted.")
 
+    @commands.command(name="cautions")
+    async def list_warnings(self, ctx, member: Optional[discord.Member] = None):
+        """
+        List all active warnings for a member with Beri fine information.
+        Moderators can check other members. Members can check themselves.
+        """
+        if member is None:
+            member = ctx.author
+        
+        # Check permissions if checking someone else
+        if member != ctx.author and not ctx.author.guild_permissions.kick_members:
+            return await ctx.send("You don't have permission to view other members' warnings.")
+        
+        # Get member data
+        warnings = await self.config.member(member).warnings()
+        total_points = await self.config.member(member).total_points()
+        total_fines = await self.config.member(member).total_fines_paid()
+        
+        if not warnings:
+            return await ctx.send(f"{member.mention} has no active warnings.")
+        
+        # Create embed
+        embed = discord.Embed(title=f"Warnings for {member.display_name}", color=0xff9900)
+        embed.add_field(name="Total Points", value=str(total_points))
+        embed.add_field(name="Total Fines Paid", value=f"{humanize_number(total_fines)} Beri")
+        
+        # List all warnings
+        for i, warning in enumerate(warnings, start=1):
+            moderator = ctx.guild.get_member(warning.get("moderator_id"))
+            moderator_mention = moderator.mention if moderator else "Unknown Moderator"
+            
+            # Format timestamp for display
+            timestamp = warning.get("timestamp", 0)
+            issued_time = f"<t:{int(timestamp)}:R>"
+            
+            # Format expiry timestamp
+            expiry = warning.get("expiry", 0)
+            expiry_time = f"<t:{int(expiry)}:R>"
+            
+            # Build warning details
+            value = f"**Points:** {warning.get('points', 1)}\n"
+            value += f"**Reason:** {warning.get('reason', 'No reason provided')}\n"
+            value += f"**Moderator:** {moderator_mention}\n"
+            value += f"**Issued:** {issued_time}\n"
+            value += f"**Expires:** {expiry_time}\n"
+            
+            # Add fine information if present
+            fine_amount = warning.get("fine_amount", 0)
+            if fine_amount > 0:
+                fine_applied = warning.get("fine_applied", False)
+                value += f"**Fine:** {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+            
+            embed.add_field(name=f"Warning #{i}", value=value, inline=False)
+        
         await ctx.send(embed=embed)
 
+    @commands.command(name="clearcautions")
+    @checks.mod_or_permissions(kick_members=True)
+    async def clear_warnings(self, ctx, member: discord.Member):
+        """Clear all warnings from a member."""
+        # Check if there are warnings
+        warnings = await self.config.member(member).warnings()
+        
+        if warnings:
+            # Clear warnings and points
+            await self.config.member(member).warnings.set([])
+            await self.config.member(member).total_points.set(0)
+            
+            # Clear applied thresholds too
+            await self.config.member(member).applied_thresholds.set([])
+            
+            # Confirm and log
+            await ctx.send(f"All warnings for {member.mention} have been cleared.")
+            await self.log_action(ctx.guild, "Clear Warnings", member, ctx.author, "Manual clearing of all warnings")
+        else:
+            await ctx.send(f"{member.mention} has no warnings to clear.")
 
-async def setup(bot: Red) -> None:
-    """Load the BeriCautions cog."""
-    cog = BeriCautions(bot)
-    await bot.add_cog(cog)
+    @commands.command(name="removecaution")
+    @checks.mod_or_permissions(kick_members=True)
+    async def remove_warning(self, ctx, member: discord.Member, warning_index: int):
+        """
+        Remove a specific warning from a member by index.
+        Use the 'cautions' command to see indexes.
+        """
+        if warning_index < 1:
+            return await ctx.send("Warning index must be 1 or higher.")
+        
+        # Get warnings
+        async with self.config.member(member).warnings() as warnings:
+            if not warnings:
+                return await ctx.send(f"{member.mention} has no warnings.")
+            
+            if warning_index > len(warnings):
+                return await ctx.send(f"Invalid warning index. {member.mention} only has {len(warnings)} warnings.")
+            
+            # Remove warning (adjust for 0-based index)
+            removed_warning = warnings.pop(warning_index - 1)
+            
+        # Recalculate total points
+        async with self.config.member(member).warnings() as warnings:
+            total_points = sum(w.get("points", 1) for w in warnings)
+            await self.config.member(member).total_points.set(total_points)
+            
+        # Confirm and log
+        await ctx.send(f"Warning #{warning_index} for {member.mention} has been removed.")
+        
+        # Create extra fields for logging
+        extra_fields = [
+            {"name": "Warning Points", "value": str(removed_warning.get("points", 1))},
+            {"name": "Warning Reason", "value": removed_warning.get("reason", "No reason provided")},
+            {"name": "New Total Points", "value": str(total_points)}
+        ]
+        
+        # Add fine information if present
+        fine_amount = removed_warning.get("fine_amount", 0)
+        if fine_amount > 0:
+            extra_fields.append({"name": "Fine Amount", "value": f"{humanize_number(fine_amount)} Beri"})
+        
+        await self.log_action(
+            ctx.guild, 
+            "Remove Warning", 
+            member, 
+            ctx.author, 
+            f"Manually removed warning #{warning_index}",
+            extra_fields=extra_fields
+        )
+
+    @commands.command(name="fineinfo")
+    async def fine_info(self, ctx, member: Optional[discord.Member] = None):
+        """Show fine information for a member."""
+        if member is None:
+            member = ctx.author
+        
+        # Check permissions if checking someone else
+        if member != ctx.author and not ctx.author.guild_permissions.kick_members:
+            return await ctx.send("You don't have permission to view other members' fine information.")
+        
+        core = self._core()
+        if not core:
+            return await ctx.send("BeriCore is not loaded - fine information unavailable.")
+        
+        # Get member data
+        member_data = await self.config.member(member).all()
+        total_fines = member_data.get("total_fines_paid", 0)
+        warning_count = member_data.get("warning_count", 0)
+        current_balance = await core.get_beri(member)
+        
+        # Check if exempt
+        is_exempt = await self._is_fine_exempt(member)
+        
+        # Get guild fine settings
+        guild_config = await self.config.guild(ctx.guild).all()
+        
+        embed = discord.Embed(title=f"Fine Information for {member.display_name}", color=0x00aeef)
+        embed.add_field(name="Current Beri Balance", value=f"{humanize_number(current_balance)} Beri", inline=True)
+        embed.add_field(name="Total Fines Paid", value=f"{humanize_number(total_fines)} Beri", inline=True)
+        embed.add_field(name="Warning Count", value=str(warning_count), inline=True)
+        embed.add_field(name="Fine Exempt", value="Yes" if is_exempt else "No", inline=True)
+        
+        # Calculate next warning fine
+        if not is_exempt:
+            next_fine = await self._calculate_warning_fine(member, 1)
+            embed.add_field(name="Next Warning Fine (1pt)", value=f"{humanize_number(next_fine)} Beri", inline=True)
+        
+        # Show fine rates
+        fine_info = f"**Warning Base:** {humanize_number(guild_config.get('warning_fine_base', 1000))} Beri\n"
+        fine_info += f"**Escalation Multiplier:** {guild_config.get('warning_fine_multiplier', 1.5)}x\n"
+        fine_info += f"**Mute Fine:** {humanize_number(guild_config.get('mute_fine', 5000))} Beri\n"
+        fine_info += f"**Timeout Fine:** {humanize_number(guild_config.get('timeout_fine', 3000))} Beri\n"
+        fine_info += f"**Kick Fine:** {humanize_number(guild_config.get('kick_fine', 10000))} Beri\n"
+        fine_info += f"**Ban Fine:** {humanize_number(guild_config.get('ban_fine', 25000))} Beri"
+        
+        embed.add_field(name="Current Fine Rates", value=fine_info, inline=False)
+        
+        await ctx.send(embed=embed)
+
+    async def log_action(self, guild, action, target, moderator, reason=None, extra_fields=None):
+        """Log moderation actions to the log channel in a case-based format."""
+        log_channel_id = await self.config.guild(guild).log_channel()
+        if not log_channel_id:
+            return
+        
+        log_channel = guild.get_channel(log_channel_id)
+        if not log_channel:
+            return
+        
+        # Get current case number
+        case_num = await self.config.guild(guild).case_count()
+        if case_num is None:
+            case_num = 1
+        else:
+            case_num += 1
+        
+        # Save the incremented case number
+        await self.config.guild(guild).case_count.set(case_num)
+        
+        # Create embed in the style shown in the example
+        embed = discord.Embed(color=0x2f3136)  # Dark Discord UI color
+        
+        # Use the bot's actual name and avatar for the author field
+        embed.set_author(name=f"{guild.me.display_name}", icon_url=guild.me.display_avatar.url)
+        
+        # Case title
+        case_title = f"Case #{case_num}"
+        embed.title = case_title
+        
+        # Format the fields like in the example
+        embed.description = (
+            f"**Action:** {action}\n"
+            f"**User:** {target.mention} ( {target.id} )\n"
+            f"**Moderator:** {moderator.mention} ( {moderator.id} )\n"
+            f"**Reason:** {reason or 'No reason provided'}\n"
+            f"**Date:** {datetime.now(timezone.utc).strftime('%b %d, %Y %I:%M %p')} (just now)"
+        )
+        
+        # If there are extra fields, add them to the description
+        if extra_fields:
+            for field in extra_fields:
+                if field and field.get("name") and field.get("value"):
+                    embed.description += f"\n**{field['name']}:** {field['value']}"
+        
+        # Add the footer instead of sending a separate message
+        current_time = datetime.now(timezone.utc).strftime('%I:%M %p')
+        bot_name = guild.me.display_name
+        embed.set_footer(text=f"{bot_name} Support • Today at {current_time}")
+        
+        # Create buttons for additional actions
+        view = discord.ui.View()
+        
+        # Button to view all cautions for this user
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.primary,
+            label="View All Cautions",
+            custom_id=f"cautions_view_{target.id}",
+        ))
+        
+        # Button to clear cautions for this user
+        view.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.danger,
+            label="Clear All Cautions",
+            custom_id=f"cautions_clear_{target.id}",
+        ))
+        
+        # Send the case message with buttons
+        try:
+            case_message = await log_channel.send(embed=embed, view=view)
+        except discord.HTTPException as e:
+            # Log error and try without view
+            log.error(f"Error sending embed with buttons: {e}")
+            try:
+                case_message = await log_channel.send(embed=embed)
+            except discord.HTTPException as e2:
+                log.error(f"Error sending embed without buttons: {e2}")
+                case_message = None
+        
+        # Add entry to the modlog database
+        if case_message:
+            await self.config.guild(guild).modlog.set_raw(
+                str(case_num),
+                value={
+                    "case_num": case_num,
+                    "action": action,
+                    "user_id": target.id,
+                    "user_name": str(target),
+                    "moderator_id": moderator.id,
+                    "moderator_name": str(moderator),
+                    "reason": reason or "No reason provided",
+                    "timestamp": datetime.now(timezone.utc).timestamp(),
+                    "message_id": case_message.id
+                }
+            )
+        
+        return case_message  # Return message for potential use by caller
+        
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle button interactions for moderation actions."""
+        if not interaction.data or not interaction.data.get("custom_id"):
+            return
+            
+        custom_id = interaction.data["custom_id"]
+        
+        # Handle cautions view button
+        if custom_id.startswith("cautions_view_"):
+            # Extract user ID from custom_id
+            try:
+                user_id = int(custom_id.split("_")[-1])
+                member = interaction.guild.get_member(user_id)
+                
+                if not member:
+                    await interaction.response.send_message("Member not found or has left the server.", ephemeral=True)
+                    return
+                    
+                # Check if the interacting user has permissions
+                if not interaction.user.guild_permissions.kick_members:
+                    await interaction.response.send_message("You don't have permission to view warnings.", ephemeral=True)
+                    return
+                    
+                # Get warnings for the member
+                warnings = await self.config.member(member).warnings()
+                total_points = await self.config.member(member).total_points()
+                total_fines = await self.config.member(member).total_fines_paid()
+                
+                if not warnings:
+                    await interaction.response.send_message(f"{member.mention} has no active warnings.", ephemeral=True)
+                    return
+                    
+                # Create embed with warnings
+                embed = discord.Embed(title=f"Warnings for {member.display_name}", color=0xff9900)
+                embed.add_field(name="Total Points", value=str(total_points))
+                embed.add_field(name="Total Fines Paid", value=f"{humanize_number(total_fines)} Beri")
+                
+                # List all warnings (limit to prevent embed size issues)
+                for i, warning in enumerate(warnings[:10], start=1):  # Show max 10 warnings
+                    moderator = interaction.guild.get_member(warning.get("moderator_id"))
+                    moderator_mention = moderator.mention if moderator else "Unknown Moderator"
+                    
+                    timestamp = warning.get("timestamp", 0)
+                    issued_time = f"<t:{int(timestamp)}:R>"
+                    
+                    expiry = warning.get("expiry", 0)
+                    expiry_time = f"<t:{int(expiry)}:R>"
+                    
+                    value = f"**Points:** {warning.get('points', 1)}\n"
+                    value += f"**Reason:** {warning.get('reason', 'No reason provided')[:50]}...\n"
+                    value += f"**Moderator:** {moderator_mention}\n"
+                    value += f"**Issued:** {issued_time}\n"
+                    value += f"**Expires:** {expiry_time}\n"
+                    
+                    # Add fine info if present
+                    fine_amount = warning.get("fine_amount", 0)
+                    if fine_amount > 0:
+                        fine_applied = warning.get("fine_applied", False)
+                        value += f"**Fine:** {humanize_number(fine_amount)} Beri {'✓' if fine_applied else '✗'}"
+                    
+                    embed.add_field(name=f"Warning #{i}", value=value, inline=False)
+                
+                if len(warnings) > 10:
+                    embed.add_field(name="Note", value=f"Showing 10 of {len(warnings)} warnings. Use the cautions command to see all.", inline=False)
+                    
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                
+            except Exception as e:
+                await interaction.response.send_message(f"Error processing request: {str(e)}", ephemeral=True)
+                
+        # Handle cautions clear button
+        elif custom_id.startswith("cautions_clear_"):
+            # Extract user ID from custom_id
+            try:
+                user_id = int(custom_id.split("_")[-1])
+                member = interaction.guild.get_member(user_id)
+                
+                if not member:
+                    await interaction.response.send_message("Member not found or has left the server.", ephemeral=True)
+                    return
+                    
+                # Check if the interacting user has permissions
+                if not interaction.user.guild_permissions.kick_members:
+                    await interaction.response.send_message("You don't have permission to clear warnings.", ephemeral=True)
+                    return
+                    
+                # Check if there are warnings to clear
+                warnings = await self.config.member(member).warnings()
+                
+                if not warnings:
+                    await interaction.response.send_message(f"{member.mention} has no warnings to clear.", ephemeral=True)
+                    return
+                    
+                # Clear warnings
+                await self.config.member(member).warnings.set([])
+                await self.config.member(member).total_points.set(0)
+                await self.config.member(member).applied_thresholds.set([])
+                
+                # Log the action
+                await self.log_action(
+                    interaction.guild, 
+                    "Clear Warnings", 
+                    member, 
+                    interaction.user, 
+                    "Cleared via button interaction"
+                )
+                
+                await interaction.response.send_message(f"All warnings for {member.mention} have been cleared.", ephemeral=True)
+                
+            except Exception as e:
+                await interaction.response.send_message(f"Error processing request: {str(e)}", ephemeral=True)
+
+    # Error handling for commands
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        if hasattr(ctx.command, 'on_error'):
+            # If command has own error handler, don't interfere
+            return
+            
+        error = getattr(error, 'original', error)
+        
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("You don't have the required permissions to use this command.")
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send(f"I'm missing permissions needed for this command: {error}")
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.send("Member not found. Please provide a valid member.")
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send(f"Invalid argument: {error}")
+        elif isinstance(error, commands.CommandInvokeError):
+            log.error(f"Error in {ctx.command.qualified_name}:", exc_info=error)
+            await ctx.send(f"An error occurred: {error}")
+        else:
+            # For other errors, just log them
+            log.error(f"Command error in {ctx.command}: {error}", exc_info=True)
