@@ -248,6 +248,7 @@ class BeriCautions(commands.Cog):
                         warnings = member_data["warnings"]
                         updated_warnings = []
                         warnings_changed = False
+                        removed_warnings_count = 0
                         
                         for warning in warnings:
                             pause_anchor = warning.get("pause_anchor")
@@ -269,6 +270,8 @@ class BeriCautions(commands.Cog):
                             # Keep warning if not expired
                             if current_time < expiry_time:
                                 updated_warnings.append(warning)
+                            else:
+                                removed_warnings_count += 1
                         
                         # Update if warnings were removed
                         if len(warnings) != len(updated_warnings) or warnings_changed:
@@ -283,21 +286,22 @@ class BeriCautions(commands.Cog):
                             total_points = sum(w.get("points", 1) for w in updated_warnings)
                             await member_config.total_points.set(total_points)
                             
-                            # Log that warnings were cleared due to expiry
-                            log_channel_id = guild_data.get("log_channel")
-                            if log_channel_id:
-                                log_channel = guild.get_channel(log_channel_id)
-                                if log_channel:
-                                    member = guild.get_member(int(member_id))
-                                    if member:
-                                        embed = discord.Embed(
-                                            title="Warnings Expired",
-                                            description=f"Some warnings for {member.mention} have expired.",
-                                            color=0x00ff00
-                                        )
-                                        embed.add_field(name="Current Points", value=str(total_points))
-                                        embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
-                                        await self.safe_send_message(log_channel, embed=embed)
+                            # Only log when one or more warnings were actually removed.
+                            if removed_warnings_count > 0:
+                                log_channel_id = guild_data.get("log_channel")
+                                if log_channel_id:
+                                    log_channel = guild.get_channel(log_channel_id)
+                                    if log_channel:
+                                        member = guild.get_member(int(member_id))
+                                        if member:
+                                            embed = discord.Embed(
+                                                title="Warnings Expired",
+                                                description=f"{removed_warnings_count} warning(s) for {member.mention} have expired.",
+                                                color=0x00ff00
+                                            )
+                                            embed.add_field(name="Current Points", value=str(total_points))
+                                            embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+                                            await self.safe_send_message(log_channel, embed=embed)
             
             except Exception as e:
                 log.error(f"Error in warning expiry check: {e}", exc_info=True)
@@ -470,6 +474,7 @@ class BeriCautions(commands.Cog):
                     f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel\n"
                     f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
                     f"`{ctx.clean_prefix}cautionset holdstatus [member]` - Show if warning expiry is paused\n"
+                    f"`{ctx.clean_prefix}cautionset holdlist` - List all members with paused expiry\n"
                     f"`{ctx.clean_prefix}cautionset banimmune [role]` - Add/remove role immune to auto-bans\n"
                     f"`{ctx.clean_prefix}cautionset showbanimmune` - Show current auto-ban immune roles\n"
                 ),
@@ -691,6 +696,36 @@ class BeriCautions(commands.Cog):
         embed.set_footer(text="Expiry countdown pauses while caution punishment is active.")
 
         await ctx.send(embed=embed)
+
+    @caution_settings.command(name="holdlist")
+    async def hold_list(self, ctx):
+        """List all members in this server whose warning expiry is currently paused."""
+        all_members = await self.config.all_members(ctx.guild)
+        current_time = datetime.utcnow().timestamp()
+
+        active_holds = []
+        for member_id, member_data in all_members.items():
+            hold_until = member_data.get("caution_hold_until")
+            if hold_until and current_time < hold_until:
+                member = ctx.guild.get_member(int(member_id))
+                display_name = member.mention if member else f"Unknown Member ({member_id})"
+                active_holds.append((hold_until, display_name))
+
+        if not active_holds:
+            return await ctx.send("No members currently have warning expiry paused.")
+
+        active_holds.sort(key=lambda x: x[0])
+        lines = [f"{display_name} - ends <t:{int(hold_until)}:R>" for hold_until, display_name in active_holds]
+
+        pages = list(pagify("\n".join(lines), page_length=1500))
+        for index, page in enumerate(pages, start=1):
+            embed = discord.Embed(
+                title=f"Active Caution Holds ({len(active_holds)})",
+                description=page,
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f"Page {index}/{len(pages)}")
+            await ctx.send(embed=embed)
 
     @caution_settings.command(name="expiry")
     async def set_warning_expiry(self, ctx, days: int):
