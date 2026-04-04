@@ -68,6 +68,9 @@ class BeriCautions(commands.Cog):
             "command_cooldown": {},  # Per-guild command cooldown
             "global_cooldown": deque(maxlen=10),  # Global command timestamps
         }
+
+        # Members temporarily excluded from enforcement during intentional unmute operations.
+        self._suppress_enforcement = set()
         
         # Start background tasks
         self.warning_cleanup_task = self.bot.loop.create_task(self.warning_cleanup_loop())
@@ -133,6 +136,15 @@ class BeriCautions(commands.Cog):
                 if pause_anchor:
                     warning["paused_seconds"] = warning.get("paused_seconds", 0) + max(0, current_time - pause_anchor)
                     warning["pause_anchor"] = None
+
+    def _member_timeout_timestamp(self, member: discord.Member) -> Optional[float]:
+        """Convert Discord timeout value to UTC timestamp."""
+        timed_out_until = member.timed_out_until
+        if not timed_out_until:
+            return None
+        if timed_out_until.tzinfo is None:
+            timed_out_until = timed_out_until.replace(tzinfo=timezone.utc)
+        return timed_out_until.timestamp()
 
     async def _is_fine_exempt(self, member: discord.Member) -> bool:
         """Check if member is exempt from fines."""
@@ -1400,6 +1412,7 @@ class BeriCautions(commands.Cog):
         
     async def restore_member_roles(self, guild, member):
         """Restore a member's roles after unmuting them."""
+        self._suppress_enforcement.add(member.id)
         try:
             # Get mute role
             mute_role_id = await self.config.guild(guild).mute_role()
@@ -1444,6 +1457,43 @@ class BeriCautions(commands.Cog):
                 log_channel = guild.get_channel(log_channel_id)
                 if log_channel:
                     await self.safe_send_message(log_channel, f"Error unmuting {member.mention}: {str(e)}")
+        finally:
+            self._suppress_enforcement.discard(member.id)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Prevent other moderation systems from shortening active caution punishments."""
+        if after.bot or after.id in self._suppress_enforcement:
+            return
+
+        member_data = await self.config.member(after).all()
+        current_time = datetime.utcnow().timestamp()
+
+        muted_until = member_data.get("muted_until")
+        hold_until = member_data.get("caution_hold_until")
+        enforced_until = max(muted_until or 0, hold_until or 0)
+
+        if enforced_until <= current_time:
+            return
+
+        # Keep mute role attached while our own mute timer is active.
+        if muted_until and current_time < muted_until:
+            mute_role_id = await self.config.guild(after.guild).mute_role()
+            mute_role = after.guild.get_role(mute_role_id) if mute_role_id else None
+            if mute_role and mute_role not in after.roles:
+                try:
+                    await after.add_roles(mute_role, reason="Preserving BeriCautions mute duration")
+                except discord.HTTPException:
+                    pass
+
+        # Keep timeout at least as long as our enforced caution duration.
+        current_timeout = self._member_timeout_timestamp(after)
+        if current_timeout is None or current_timeout + 1 < enforced_until:
+            try:
+                enforced_dt = datetime.fromtimestamp(enforced_until, tz=timezone.utc)
+                await after.timeout(until=enforced_dt, reason="Preserving BeriCautions punishment duration")
+            except discord.HTTPException:
+                pass
 
     @commands.command(name="unquiet")
     @checks.mod_or_permissions(manage_roles=True)
@@ -1571,7 +1621,13 @@ class BeriCautions(commands.Cog):
         async with self.config.member(member).warnings() as warnings:
             total_points = sum(w.get("points", 1) for w in warnings)
             await self.config.member(member).total_points.set(total_points)
-            
+
+        # Prune applied_thresholds: any threshold above the new point total can fire again
+        applied_thresholds = await self.config.member(member).applied_thresholds()
+        pruned = [t for t in applied_thresholds if t <= total_points]
+        if pruned != applied_thresholds:
+            await self.config.member(member).applied_thresholds.set(pruned)
+
         # Confirm and log
         await ctx.send(embed=self._quick_embed(f"Warning #{warning_index} for {member.mention} has been removed.", discord.Color.green()))
         
