@@ -732,6 +732,71 @@ class BeriCautions(commands.Cog):
             embed.set_footer(text=f"Page {index}/{len(pages)}")
             await ctx.send(embed=embed)
 
+    @caution_settings.command(name="banimmune")
+    async def toggle_ban_immune_role(self, ctx, role: Optional[discord.Role] = None):
+        """Add/remove a role from automatic caution-ban immunity, or show current roles."""
+        if role is None:
+            immune_roles = await self.config.guild(ctx.guild).ban_immune_roles()
+            if not immune_roles:
+                return await ctx.send(
+                    "No roles are configured for auto-ban immunity. "
+                    "Administrators are always immune."
+                )
+
+            role_mentions = []
+            for role_id in immune_roles:
+                guild_role = ctx.guild.get_role(role_id)
+                if guild_role:
+                    role_mentions.append(guild_role.mention)
+
+            if not role_mentions:
+                return await ctx.send(
+                    "Auto-ban immune role list is set, but roles were not found in this server. "
+                    "Administrators are always immune."
+                )
+
+            return await ctx.send(
+                "Auto-ban immune roles:\n"
+                f"{', '.join(role_mentions)}\n"
+                "Administrators are always immune."
+            )
+
+        async with self.config.guild(ctx.guild).ban_immune_roles() as immune_roles:
+            if role.id in immune_roles:
+                immune_roles.remove(role.id)
+                await ctx.send(f"{role.mention} is no longer immune from automatic caution bans.")
+            else:
+                immune_roles.append(role.id)
+                await ctx.send(f"{role.mention} is now immune from automatic caution bans.")
+
+    @caution_settings.command(name="showbanimmune")
+    async def show_ban_immune_roles(self, ctx):
+        """Show roles that are immune from automatic caution bans."""
+        immune_roles = await self.config.guild(ctx.guild).ban_immune_roles()
+        if not immune_roles:
+            return await ctx.send(
+                "No roles are configured for auto-ban immunity. "
+                "Administrators are always immune."
+            )
+
+        role_mentions = []
+        for role_id in immune_roles:
+            role = ctx.guild.get_role(role_id)
+            if role:
+                role_mentions.append(role.mention)
+
+        if not role_mentions:
+            return await ctx.send(
+                "Auto-ban immune role list is set, but roles were not found in this server. "
+                "Administrators are always immune."
+            )
+
+        await ctx.send(
+            "Auto-ban immune roles:\n"
+            f"{', '.join(role_mentions)}\n"
+            "Administrators are always immune."
+        )
+
     @caution_settings.command(name="expiry")
     async def set_warning_expiry(self, ctx, days: int):
         """Set how many days until warnings expire automatically."""
