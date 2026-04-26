@@ -52,6 +52,7 @@ class BeriCautions(commands.Cog):
             "warnings": [],
             "total_points": 0,
             "muted_until": None,
+            "caution_hold_until": None,
             "applied_thresholds": [],
             "total_fines_paid": 0,
             "warning_count": 0,  # For calculating escalating fines
@@ -67,6 +68,9 @@ class BeriCautions(commands.Cog):
             "command_cooldown": {},  # Per-guild command cooldown
             "global_cooldown": deque(maxlen=10),  # Global command timestamps
         }
+
+        # Members temporarily excluded from enforcement during intentional unmute operations.
+        self._suppress_enforcement = set()
         
         # Start background tasks
         self.warning_cleanup_task = self.bot.loop.create_task(self.warning_cleanup_loop())
@@ -77,9 +81,61 @@ class BeriCautions(commands.Cog):
         self.warning_cleanup_task.cancel()
         self.mute_check_task.cancel()
 
+    def _quick_embed(self, description: str, color: discord.Color = discord.Color.blue()) -> discord.Embed:
+        """Build a simple single-description embed."""
+        return discord.Embed(description=description, color=color)
+
     def _core(self):
         """Get BeriCore instance."""
         return self.bot.get_cog("BeriCore")
+
+    def _calculate_warning_expiry(self, warning: Dict, expiry_days: int, current_time: Optional[float] = None) -> float:
+        """Calculate dynamic warning expiry, accounting for paused caution time."""
+        now = current_time if current_time is not None else datetime.utcnow().timestamp()
+        issue_time = warning.get("timestamp", 0)
+        paused_seconds = warning.get("paused_seconds", 0)
+        pause_anchor = warning.get("pause_anchor")
+
+        # If currently paused, include the in-progress paused time in the expiry calculation.
+        if pause_anchor:
+            paused_seconds += max(0, now - pause_anchor)
+
+        return issue_time + (expiry_days * 86400) + paused_seconds
+
+    async def _activate_caution_hold(self, member: discord.Member, until_timestamp: Optional[float]) -> None:
+        """Pause warning expiry countdown while a caution-triggered punishment is active."""
+        if not until_timestamp:
+            return
+
+        current_time = datetime.utcnow().timestamp()
+        if until_timestamp <= current_time:
+            return
+
+        member_config = self.config.member(member)
+        async with member_config.all() as data:
+            existing_hold = data.get("caution_hold_until") or 0
+            if until_timestamp > existing_hold:
+                data["caution_hold_until"] = until_timestamp
+
+            warnings = data.get("warnings", [])
+            for warning in warnings:
+                if not warning.get("pause_anchor"):
+                    warning["pause_anchor"] = current_time
+
+    async def _release_caution_hold(self, member: discord.Member) -> None:
+        """Resume warning expiry countdown when punishment is no longer active."""
+        current_time = datetime.utcnow().timestamp()
+
+        member_config = self.config.member(member)
+        async with member_config.all() as data:
+            data["caution_hold_until"] = None
+
+            warnings = data.get("warnings", [])
+            for warning in warnings:
+                pause_anchor = warning.get("pause_anchor")
+                if pause_anchor:
+                    warning["paused_seconds"] = warning.get("paused_seconds", 0) + max(0, current_time - pause_anchor)
+                    warning["pause_anchor"] = None
 
     async def _is_fine_exempt(self, member: discord.Member) -> bool:
         """Check if member is exempt from fines."""
@@ -192,42 +248,67 @@ class BeriCautions(commands.Cog):
                         
                         if not member_data.get("warnings"):
                             continue
+
+                        hold_until = member_data.get("caution_hold_until")
+                        hold_active = bool(hold_until and current_time < hold_until)
                             
                         warnings = member_data["warnings"]
                         updated_warnings = []
+                        warnings_changed = False
+                        removed_warnings_count = 0
                         
                         for warning in warnings:
-                            issue_time = warning.get("timestamp", 0)
-                            expiry_time = issue_time + (expiry_days * 86400)
+                            pause_anchor = warning.get("pause_anchor")
+
+                            # If hold is active, keep warnings paused. If hold ended, finalize paused time.
+                            if hold_active and not pause_anchor:
+                                warning["pause_anchor"] = current_time
+                                warnings_changed = True
+                            elif not hold_active and pause_anchor:
+                                warning["paused_seconds"] = warning.get("paused_seconds", 0) + max(0, current_time - pause_anchor)
+                                warning["pause_anchor"] = None
+                                warnings_changed = True
+
+                            expiry_time = self._calculate_warning_expiry(warning, expiry_days, current_time)
+                            if warning.get("expiry") != expiry_time:
+                                warning["expiry"] = expiry_time
+                                warnings_changed = True
                             
                             # Keep warning if not expired
                             if current_time < expiry_time:
                                 updated_warnings.append(warning)
+                            else:
+                                removed_warnings_count += 1
                         
                         # Update if warnings were removed
-                        if len(warnings) != len(updated_warnings):
+                        if len(warnings) != len(updated_warnings) or warnings_changed:
                             member_config = self.config.member_from_ids(guild_id, member_id)
                             await member_config.warnings.set(updated_warnings)
+
+                            # Clear hold marker once it has passed.
+                            if hold_until and not hold_active:
+                                await member_config.caution_hold_until.set(None)
                             
                             # Recalculate total points
                             total_points = sum(w.get("points", 1) for w in updated_warnings)
                             await member_config.total_points.set(total_points)
                             
-                            # Log that warnings were cleared due to expiry
-                            log_channel_id = guild_data.get("log_channel")
-                            if log_channel_id:
-                                log_channel = guild.get_channel(log_channel_id)
-                                if log_channel:
-                                    member = guild.get_member(int(member_id))
-                                    if member:
-                                        embed = discord.Embed(
-                                            title="Warnings Expired",
-                                            description=f"Some warnings for {member.mention} have expired.",
-                                            color=0x00ff00
-                                        )
-                                        embed.add_field(name="Current Points", value=str(total_points))
-                                        embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
-                                        await self.safe_send_message(log_channel, embed=embed)
+                            # Only log when one or more warnings were actually removed.
+                            if removed_warnings_count > 0:
+                                log_channel_id = guild_data.get("log_channel")
+                                if log_channel_id:
+                                    log_channel = guild.get_channel(log_channel_id)
+                                    if log_channel:
+                                        member = guild.get_member(int(member_id))
+                                        if member:
+                                            embed = discord.Embed(
+                                                title="Warnings Expired",
+                                                description=f"{removed_warnings_count} warning(s) for {member.mention} have expired.",
+                                                color=0x00ff00
+                                            )
+                                            embed.add_field(name="Current Points", value=str(total_points))
+                                            embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+                                            await self.safe_send_message(log_channel, embed=embed)
             
             except Exception as e:
                 log.error(f"Error in warning expiry check: {e}", exc_info=True)
@@ -399,6 +480,8 @@ class BeriCautions(commands.Cog):
                     f"`{ctx.clean_prefix}cautionset showthresholds` - List all thresholds\n"
                     f"`{ctx.clean_prefix}cautionset setlogchannel [channel]` - Set the log channel\n"
                     f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
+                    f"`{ctx.clean_prefix}cautionset holdstatus [member]` - Show if warning expiry is paused\n"
+                    f"`{ctx.clean_prefix}cautionset holdlist` - List all members with paused expiry\n"
                     f"`{ctx.clean_prefix}cautionset banimmune [role]` - Add/remove role immune to auto-bans\n"
                     f"`{ctx.clean_prefix}cautionset showbanimmune` - Show current auto-ban immune roles\n"
                 ),
@@ -447,64 +530,64 @@ class BeriCautions(commands.Cog):
     async def set_warning_base_fine(self, ctx, amount: int):
         """Set the base fine amount per warning point."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).warning_fine_base.set(amount)
-        await ctx.send(f"Base warning fine set to {humanize_number(amount)} Beri per point.")
+        await ctx.send(embed=self._quick_embed(f"Base warning fine set to {humanize_number(amount)} Beri per point.", discord.Color.green()))
 
     @fine_settings.command(name="warningmultiplier")
     async def set_warning_multiplier(self, ctx, multiplier: float):
         """Set the fine multiplier for repeat offenses."""
         if multiplier < 1.0:
-            return await ctx.send("Multiplier must be at least 1.0.")
+            return await ctx.send(embed=self._quick_embed("Multiplier must be at least 1.0.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).warning_fine_multiplier.set(multiplier)
-        await ctx.send(f"Warning fine multiplier set to {multiplier}x.")
+        await ctx.send(embed=self._quick_embed(f"Warning fine multiplier set to {multiplier}x.", discord.Color.green()))
 
     @fine_settings.command(name="mute")
     async def set_mute_fine(self, ctx, amount: int):
         """Set the additional fine for mutes."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).mute_fine.set(amount)
-        await ctx.send(f"Mute fine set to {humanize_number(amount)} Beri.")
+        await ctx.send(embed=self._quick_embed(f"Mute fine set to {humanize_number(amount)} Beri.", discord.Color.green()))
 
     @fine_settings.command(name="timeout")
     async def set_timeout_fine(self, ctx, amount: int):
         """Set the additional fine for timeouts."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).timeout_fine.set(amount)
-        await ctx.send(f"Timeout fine set to {humanize_number(amount)} Beri.")
+        await ctx.send(embed=self._quick_embed(f"Timeout fine set to {humanize_number(amount)} Beri.", discord.Color.green()))
 
     @fine_settings.command(name="kick")
     async def set_kick_fine(self, ctx, amount: int):
         """Set the fine for kicks."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).kick_fine.set(amount)
-        await ctx.send(f"Kick fine set to {humanize_number(amount)} Beri.")
+        await ctx.send(embed=self._quick_embed(f"Kick fine set to {humanize_number(amount)} Beri.", discord.Color.green()))
 
     @fine_settings.command(name="ban")
     async def set_ban_fine(self, ctx, amount: int):
         """Set the fine for bans."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).ban_fine.set(amount)
-        await ctx.send(f"Ban fine set to {humanize_number(amount)} Beri.")
+        await ctx.send(embed=self._quick_embed(f"Ban fine set to {humanize_number(amount)} Beri.", discord.Color.green()))
 
     @fine_settings.command(name="maxfine")
     async def set_max_fine(self, ctx, amount: int):
         """Set the maximum fine per single action."""
         if amount < 0:
-            return await ctx.send("Fine amount cannot be negative.")
+            return await ctx.send(embed=self._quick_embed("Fine amount cannot be negative.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).max_fine_per_action.set(amount)
-        await ctx.send(f"Maximum fine per action set to {humanize_number(amount)} Beri.")
+        await ctx.send(embed=self._quick_embed(f"Maximum fine per action set to {humanize_number(amount)} Beri.", discord.Color.green()))
 
     @caution_settings.command(name="exemptfines")
     async def exempt_role_from_fines(self, ctx, role: discord.Role):
@@ -512,10 +595,10 @@ class BeriCautions(commands.Cog):
         async with self.config.guild(ctx.guild).fine_exempt_roles() as exempt_roles:
             if role.id in exempt_roles:
                 exempt_roles.remove(role.id)
-                await ctx.send(f"{role.mention} is no longer exempt from fines.")
+                await ctx.send(embed=self._quick_embed(f"{role.mention} is no longer exempt from fines.", discord.Color.green()))
             else:
                 exempt_roles.append(role.id)
-                await ctx.send(f"{role.mention} is now exempt from fines.")
+                await ctx.send(embed=self._quick_embed(f"{role.mention} is now exempt from fines.", discord.Color.green()))
 
     @caution_settings.command(name="banimmune")
     async def toggle_ban_immune_role(self, ctx, role: Optional[discord.Role] = None):
@@ -523,10 +606,9 @@ class BeriCautions(commands.Cog):
         if role is None:
             immune_roles = await self.config.guild(ctx.guild).ban_immune_roles()
             if not immune_roles:
-                return await ctx.send(
-                    "No roles are configured for auto-ban immunity. "
-                    "Administrators are always immune."
-                )
+                return await ctx.send(embed=self._quick_embed(
+                    "No roles are configured for auto-ban immunity. Administrators are always immune."
+                ))
 
             role_mentions = []
             for role_id in immune_roles:
@@ -535,34 +617,33 @@ class BeriCautions(commands.Cog):
                     role_mentions.append(guild_role.mention)
 
             if not role_mentions:
-                return await ctx.send(
-                    "Auto-ban immune role list is set, but roles were not found in this server. "
-                    "Administrators are always immune."
-                )
+                return await ctx.send(embed=self._quick_embed(
+                    "Auto-ban immune role list is set, but roles were not found in this server. Administrators are always immune.",
+                    discord.Color.orange()
+                ))
 
-            return await ctx.send(
-                "Auto-ban immune roles:\n"
+            return await ctx.send(embed=self._quick_embed(
+                "**Auto-ban immune roles:**\n"
                 f"{', '.join(role_mentions)}\n"
                 "Administrators are always immune."
-            )
+            ))
 
         async with self.config.guild(ctx.guild).ban_immune_roles() as immune_roles:
             if role.id in immune_roles:
                 immune_roles.remove(role.id)
-                await ctx.send(f"{role.mention} is no longer immune from automatic caution bans.")
+                await ctx.send(embed=self._quick_embed(f"{role.mention} is no longer immune from automatic caution bans.", discord.Color.green()))
             else:
                 immune_roles.append(role.id)
-                await ctx.send(f"{role.mention} is now immune from automatic caution bans.")
+                await ctx.send(embed=self._quick_embed(f"{role.mention} is now immune from automatic caution bans.", discord.Color.green()))
 
     @caution_settings.command(name="showbanimmune")
     async def show_ban_immune_roles(self, ctx):
         """Show roles that are immune from automatic caution bans."""
         immune_roles = await self.config.guild(ctx.guild).ban_immune_roles()
         if not immune_roles:
-            return await ctx.send(
-                "No roles are configured for auto-ban immunity. "
-                "Administrators are always immune."
-            )
+            return await ctx.send(embed=self._quick_embed(
+                "No roles are configured for auto-ban immunity. Administrators are always immune."
+            ))
 
         role_mentions = []
         for role_id in immune_roles:
@@ -571,25 +652,94 @@ class BeriCautions(commands.Cog):
                 role_mentions.append(role.mention)
 
         if not role_mentions:
-            return await ctx.send(
-                "Auto-ban immune role list is set, but roles were not found in this server. "
-                "Administrators are always immune."
-            )
+            return await ctx.send(embed=self._quick_embed(
+                "Auto-ban immune role list is set, but roles were not found in this server. Administrators are always immune.",
+                discord.Color.orange()
+            ))
 
-        await ctx.send(
-            "Auto-ban immune roles:\n"
+        await ctx.send(embed=self._quick_embed(
+            "**Auto-ban immune roles:**\n"
             f"{', '.join(role_mentions)}\n"
             "Administrators are always immune."
-        )
+        ))
+
+    @caution_settings.command(name="holdstatus")
+    async def hold_status(self, ctx, member: Optional[discord.Member] = None):
+        """Show whether warning expiry is currently paused for a member."""
+        member = member or ctx.author
+
+        member_config = self.config.member(member)
+        hold_until = await member_config.caution_hold_until()
+        warnings = await member_config.warnings()
+
+        current_time = datetime.utcnow().timestamp()
+        hold_active = bool(hold_until and current_time < hold_until)
+
+        paused_warnings = 0
+        total_paused_seconds = 0
+        for warning in warnings:
+            pause_anchor = warning.get("pause_anchor")
+            paused_seconds = warning.get("paused_seconds", 0)
+            if pause_anchor:
+                paused_warnings += 1
+                total_paused_seconds += paused_seconds + max(0, current_time - pause_anchor)
+            elif paused_seconds > 0:
+                total_paused_seconds += paused_seconds
+
+        embed = discord.Embed(title=f"Caution Hold Status: {member.display_name}", color=discord.Color.blue())
+        embed.add_field(name="Hold Active", value="Yes" if hold_active else "No", inline=True)
+
+        if hold_active:
+            embed.add_field(name="Hold Ends", value=f"<t:{int(hold_until)}:F>", inline=True)
+            embed.add_field(name="Time Remaining", value=f"<t:{int(hold_until)}:R>", inline=True)
+        else:
+            embed.add_field(name="Hold Ends", value="Not currently active", inline=True)
+
+        embed.add_field(name="Paused Warnings", value=str(paused_warnings), inline=True)
+        embed.add_field(name="Total Paused Time", value=f"{int(total_paused_seconds // 60)} minutes", inline=True)
+        embed.add_field(name="Active Warnings", value=str(len(warnings)), inline=True)
+        embed.set_footer(text="Expiry countdown pauses while caution punishment is active.")
+
+        await ctx.send(embed=embed)
+
+    @caution_settings.command(name="holdlist")
+    async def hold_list(self, ctx):
+        """List all members in this server whose warning expiry is currently paused."""
+        all_members = await self.config.all_members(ctx.guild)
+        current_time = datetime.utcnow().timestamp()
+
+        active_holds = []
+        for member_id, member_data in all_members.items():
+            hold_until = member_data.get("caution_hold_until")
+            if hold_until and current_time < hold_until:
+                member = ctx.guild.get_member(int(member_id))
+                display_name = member.mention if member else f"Unknown Member ({member_id})"
+                active_holds.append((hold_until, display_name))
+
+        if not active_holds:
+            return await ctx.send(embed=self._quick_embed("No members currently have warning expiry paused."))
+
+        active_holds.sort(key=lambda x: x[0])
+        lines = [f"{display_name} - ends <t:{int(hold_until)}:R>" for hold_until, display_name in active_holds]
+
+        pages = list(pagify("\n".join(lines), page_length=1500))
+        for index, page in enumerate(pages, start=1):
+            embed = discord.Embed(
+                title=f"Active Caution Holds ({len(active_holds)})",
+                description=page,
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f"Page {index}/{len(pages)}")
+            await ctx.send(embed=embed)
 
     @caution_settings.command(name="expiry")
     async def set_warning_expiry(self, ctx, days: int):
         """Set how many days until warnings expire automatically."""
         if days < 1:
-            return await ctx.send("Expiry time must be at least 1 day.")
+            return await ctx.send(embed=self._quick_embed("Expiry time must be at least 1 day.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).warning_expiry_days.set(days)
-        await ctx.send(f"Warnings will now expire after {days} days.")
+        await ctx.send(embed=self._quick_embed(f"Warnings will now expire after {days} days.", discord.Color.green()))
 
     @caution_settings.command(name="setthreshold")
     async def set_action_threshold(
@@ -607,10 +757,10 @@ class BeriCautions(commands.Cog):
         """
         valid_actions = ["mute", "timeout", "kick", "ban"]
         if action.lower() not in valid_actions:
-            return await ctx.send(f"Invalid action. Choose from: {', '.join(valid_actions)}")
+            return await ctx.send(embed=self._quick_embed(f"Invalid action. Choose from: {', '.join(valid_actions)}", discord.Color.red()))
         
         if action.lower() in ["mute", "timeout"] and duration is None:
-            return await ctx.send(f"Duration (in minutes) is required for {action} action.")
+            return await ctx.send(embed=self._quick_embed(f"Duration (in minutes) is required for {action} action.", discord.Color.red()))
         
         async with self.config.guild(ctx.guild).action_thresholds() as thresholds:
             # Create new threshold entry
@@ -633,7 +783,7 @@ class BeriCautions(commands.Cog):
             confirmation += f" for {duration} minutes"
         confirmation += f" with reason: {new_threshold['reason']}"
         
-        await ctx.send(confirmation)
+        await ctx.send(embed=self._quick_embed(confirmation, discord.Color.green()))
 
     @caution_settings.command(name="removethreshold")
     async def remove_action_threshold(self, ctx, points: int):
@@ -641,9 +791,9 @@ class BeriCautions(commands.Cog):
         async with self.config.guild(ctx.guild).action_thresholds() as thresholds:
             if str(points) in thresholds:
                 del thresholds[str(points)]
-                await ctx.send(f"Removed action threshold for {points} warning points.")
+                await ctx.send(embed=self._quick_embed(f"Removed action threshold for {points} warning points.", discord.Color.green()))
             else:
-                await ctx.send(f"No action threshold set for {points} warning points.")
+                await ctx.send(embed=self._quick_embed(f"No action threshold set for {points} warning points.", discord.Color.orange()))
 
     @caution_settings.command(name="showthresholds")
     async def show_action_thresholds(self, ctx):
@@ -651,7 +801,7 @@ class BeriCautions(commands.Cog):
         thresholds = await self.config.guild(ctx.guild).action_thresholds()
         
         if not thresholds:
-            return await ctx.send("No action thresholds are configured.")
+            return await ctx.send(embed=self._quick_embed("No action thresholds are configured."))
         
         embed = discord.Embed(title="Warning Action Thresholds", color=0x00ff00)
         
@@ -679,7 +829,7 @@ class BeriCautions(commands.Cog):
             channel = ctx.channel
             
         await self.config.guild(ctx.guild).log_channel.set(channel.id)
-        await ctx.send(f"Log channel set to {channel.mention}")
+        await ctx.send(embed=self._quick_embed(f"Log channel set to {channel.mention}", discord.Color.green()))
         
     @caution_settings.command(name="mute")
     @checks.admin_or_permissions(administrator=True)
@@ -689,24 +839,24 @@ class BeriCautions(commands.Cog):
         if role is None:
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
             if not mute_role_id:
-                return await ctx.send("No mute role is currently set. Use this command with a role mention or name to set one.")
+                return await ctx.send(embed=self._quick_embed("No mute role is currently set. Use this command with a role mention or name to set one."))
                 
             mute_role = ctx.guild.get_role(mute_role_id)
             if not mute_role:
-                return await ctx.send("The configured mute role no longer exists. Please set a new one.")
+                return await ctx.send(embed=self._quick_embed("The configured mute role no longer exists. Please set a new one.", discord.Color.orange()))
                 
-            return await ctx.send(f"Current mute role: {mute_role.mention} (ID: {mute_role.id})")
+            return await ctx.send(embed=self._quick_embed(f"Current mute role: {mute_role.mention} (ID: {mute_role.id})"))
         
         # Check if bot has required permissions
         if not ctx.guild.me.guild_permissions.manage_roles:
-            return await ctx.send("I need the 'Manage Roles' permission to apply the mute role.")
+            return await ctx.send(embed=self._quick_embed("I need the 'Manage Roles' permission to apply the mute role.", discord.Color.red()))
         
         # Check role hierarchy - bot needs to be able to manage this role
         if role.position >= ctx.guild.me.top_role.position:
-            return await ctx.send(f"I cannot manage the role {role.mention} because it's position is higher than or equal to my highest role.")
+            return await ctx.send(embed=self._quick_embed(f"I cannot manage the role {role.mention} because it's position is higher than or equal to my highest role.", discord.Color.red()))
         
         await self.config.guild(ctx.guild).mute_role.set(role.id)
-        await ctx.send(f"Mute role set to {role.mention}.")
+        await ctx.send(embed=self._quick_embed(f"Mute role set to {role.mention}.", discord.Color.green()))
 
     @commands.command(name="caution")
     @checks.mod_or_permissions(kick_members=True)
@@ -735,7 +885,7 @@ class BeriCautions(commands.Cog):
                 reason += " " + remaining_reason
         
         if points < 1:
-            return await ctx.send("Warning points must be at least 1.")
+            return await ctx.send(embed=self._quick_embed("Warning points must be at least 1.", discord.Color.red()))
         
         # Calculate fine if Beri is available
         fine_amount = 0
@@ -746,14 +896,18 @@ class BeriCautions(commands.Cog):
         
         # Get warning expiry days first
         expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
+        current_time = datetime.utcnow().timestamp()
+        hold_until = await self.config.member(member).caution_hold_until()
         warning = {
             "points": points,
             "reason": reason or "No reason provided",
             "moderator_id": ctx.author.id,
-            "timestamp": datetime.utcnow().timestamp(),
+            "timestamp": current_time,
             "expiry": (datetime.utcnow() + timedelta(days=expiry_days)).timestamp(),
             "fine_amount": fine_amount,
-            "fine_applied": fine_applied
+            "fine_applied": fine_applied,
+            "paused_seconds": 0,
+            "pause_anchor": current_time if hold_until and current_time < hold_until else None,
         }
         
         # Get member config and update warnings
@@ -866,48 +1020,60 @@ class BeriCautions(commands.Cog):
         if core:
             guild_config = await self.config.guild(ctx.guild).all()
             if action == "mute":
-                fine_amount = guild_config.get("mute_fine", 5000)
+                fine_amount = guild_config.get("mute_fine", 50000)
             elif action == "timeout":
-                fine_amount = guild_config.get("timeout_fine", 3000)
+                fine_amount = guild_config.get("timeout_fine", 30000)
             elif action == "kick":
-                fine_amount = guild_config.get("kick_fine", 10000)
+                fine_amount = guild_config.get("kick_fine", 100000)
             elif action == "ban":
-                fine_amount = guild_config.get("ban_fine", 25000)
+                fine_amount = guild_config.get("ban_fine", 250000)
             
             if fine_amount > 0:
                 fine_applied = await self._apply_beri_fine(member, fine_amount, f"threshold:{action}", self.bot.user)
         
         try:
             if action == "mute":
+                # Ensure member isn't a mod/admin
+                if member.guild_permissions.kick_members or member.guild_permissions.administrator:
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Cannot auto-mute {member.mention} as they have moderator/admin permissions.", discord.Color.red()))
+                    return
+                
+                # Check role hierarchy
+                if member.top_role >= ctx.guild.me.top_role:
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Cannot auto-mute {member.mention} as their highest role is above or equal to mine.", discord.Color.red()))
+                    return
+                
                 # Get the mute role
                 mute_role_id = await self.config.guild(ctx.guild).mute_role()
                 if not mute_role_id:
-                    await self.safe_send_message(ctx.channel, f"Mute role not found. Please set up a mute role with {ctx.clean_prefix}setupmute")
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Mute role not found. Please set up a mute role with `{ctx.clean_prefix}setupmute`", discord.Color.orange()))
                     return
                 
                 mute_role = ctx.guild.get_role(mute_role_id)
                 if not mute_role:
-                    await self.safe_send_message(ctx.channel, f"Mute role not found. Please set up a mute role with {ctx.clean_prefix}setupmute")
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Mute role not found. Please set up a mute role with `{ctx.clean_prefix}setupmute`", discord.Color.orange()))
                     return
                 
                 # Set muted_until time if duration provided
                 if duration:
                     muted_until = datetime.utcnow() + timedelta(minutes=duration)
                     await self.config.member(member).muted_until.set(muted_until.timestamp())
+                    await self._activate_caution_hold(member, muted_until.timestamp())
                 
                 # Apply mute by adding the mute role
                 try:
                     await member.add_roles(mute_role, reason=reason)
                     
-                    message = f"{member.mention} has been muted for {duration} minutes due to: {reason}"
+                    embed = discord.Embed(description=f"{member.mention} has been muted for {duration} minutes.", color=discord.Color.orange())
+                    embed.add_field(name="Reason", value=reason, inline=False)
                     if fine_amount > 0:
-                        message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                    await self.safe_send_message(ctx.channel, message)
+                        embed.add_field(name="Additional Fine", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                    await self.safe_send_message(ctx.channel, embed=embed)
                 except discord.Forbidden:
-                    await self.safe_send_message(ctx.channel, "I don't have permission to manage roles for this member.")
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed("I don't have permission to manage roles for this member.", discord.Color.red()))
                     return
                 except Exception as e:
-                    await self.safe_send_message(ctx.channel, f"Error applying mute: {str(e)}")
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Error applying mute: {str(e)}", discord.Color.red()))
                     return
                 
                 # Log the mute action
@@ -917,13 +1083,19 @@ class BeriCautions(commands.Cog):
                 await self.log_action(ctx.guild, "Auto-Mute", member, self.bot.user, reason, extra_fields=extra_fields)
             
             elif action == "timeout":
+                # Ensure member isn't a mod/admin
+                if member.guild_permissions.kick_members or member.guild_permissions.administrator:
+                    await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Cannot auto-timeout {member.mention} as they have moderator/admin permissions.", discord.Color.red()))
+                    return
+                
                 until = datetime.utcnow() + timedelta(minutes=duration)
                 await member.timeout(until=until, reason=reason)
                 
-                message = f"{member.mention} has been timed out for {duration} minutes due to: {reason}"
+                embed = discord.Embed(description=f"{member.mention} has been timed out for {duration} minutes.", color=discord.Color.orange())
+                embed.add_field(name="Reason", value=reason, inline=False)
                 if fine_amount > 0:
-                    message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                await self.safe_send_message(ctx.channel, message)
+                    embed.add_field(name="Additional Fine", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                await self.safe_send_message(ctx.channel, embed=embed)
                 
                 extra_fields = [{"name": "Duration", "value": f"{duration} minutes"}]
                 if fine_amount > 0:
@@ -933,10 +1105,11 @@ class BeriCautions(commands.Cog):
             elif action == "kick":
                 await member.kick(reason=reason)
                 
-                message = f"{member.mention} has been kicked due to: {reason}"
+                embed = discord.Embed(description=f"{member.mention} has been kicked.", color=discord.Color.red())
+                embed.add_field(name="Reason", value=reason, inline=False)
                 if fine_amount > 0:
-                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                await self.safe_send_message(ctx.channel, message)
+                    embed.add_field(name="Fine Applied", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                await self.safe_send_message(ctx.channel, embed=embed)
                 
                 extra_fields = []
                 if fine_amount > 0:
@@ -946,10 +1119,11 @@ class BeriCautions(commands.Cog):
             elif action == "ban":
                 await member.ban(reason=reason)
                 
-                message = f"{member.mention} has been banned due to: {reason}"
+                embed = discord.Embed(description=f"{member.mention} has been banned.", color=discord.Color.dark_red())
+                embed.add_field(name="Reason", value=reason, inline=False)
                 if fine_amount > 0:
-                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                await self.safe_send_message(ctx.channel, message)
+                    embed.add_field(name="Fine Applied", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                await self.safe_send_message(ctx.channel, embed=embed)
                 
                 extra_fields = []
                 if fine_amount > 0:
@@ -957,7 +1131,7 @@ class BeriCautions(commands.Cog):
                 await self.log_action(ctx.guild, "Auto-Ban", member, self.bot.user, reason, extra_fields=extra_fields)
                 
         except Exception as e:
-            await self.safe_send_message(ctx.channel, f"Failed to apply automatic {action}: {str(e)}")
+            await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Failed to apply automatic {action}: {str(e)}", discord.Color.red()))
             log.error(f"Error in apply_threshold_action: {e}", exc_info=True)
 
     @commands.command(name="quiet")
@@ -974,20 +1148,20 @@ class BeriCautions(commands.Cog):
         try:
             # Ensure member isn't a mod/admin by checking permissions
             if member.guild_permissions.kick_members or member.guild_permissions.administrator:
-                return await ctx.send(f"Cannot mute {member.mention} as they have moderator/admin permissions.")
+                return await ctx.send(embed=self._quick_embed(f"Cannot mute {member.mention} as they have moderator/admin permissions.", discord.Color.red()))
                 
             # Check for role hierarchy - cannot mute someone with a higher role than the bot
             if member.top_role >= ctx.guild.me.top_role:
-                return await ctx.send(f"Cannot mute {member.mention} as their highest role is above or equal to mine.")
+                return await ctx.send(embed=self._quick_embed(f"Cannot mute {member.mention} as their highest role is above or equal to mine.", discord.Color.red()))
             
             # Get mute role
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
             if not mute_role_id:
-                return await ctx.send(f"Mute role not set up. Please use {ctx.clean_prefix}setupmute first.")
+                return await ctx.send(embed=self._quick_embed(f"Mute role not set up. Please use `{ctx.clean_prefix}setupmute` first.", discord.Color.orange()))
             
             mute_role = ctx.guild.get_role(mute_role_id)
             if not mute_role:
-                return await ctx.send(f"Mute role not found. Please use {ctx.clean_prefix}setupmute to create a new one.")
+                return await ctx.send(embed=self._quick_embed(f"Mute role not found. Please use `{ctx.clean_prefix}setupmute` to create a new one.", discord.Color.orange()))
             
             # Apply Beri fine for mute
             core = self._core()
@@ -1004,10 +1178,12 @@ class BeriCautions(commands.Cog):
                 # Update duration if already muted
                 muted_until = datetime.utcnow() + timedelta(minutes=duration)
                 await self.config.member(member).muted_until.set(muted_until.timestamp())
-                message = f"{member.mention} was already muted. Updated mute duration to end {duration} minutes from now."
+                await self._activate_caution_hold(member, muted_until.timestamp())
+                desc = f"{member.mention} was already muted. Updated mute duration to end {duration} minutes from now."
+                embed = discord.Embed(description=desc, color=discord.Color.orange())
                 if fine_amount > 0:
-                    message += f"\nAdditional fine: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                await ctx.send(message)
+                    embed.add_field(name="Additional Fine", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                await ctx.send(embed=embed)
                 return
                 
             # Apply the mute - add the role
@@ -1024,12 +1200,14 @@ class BeriCautions(commands.Cog):
                 # Set muted_until time
                 muted_until = datetime.utcnow() + timedelta(minutes=duration)
                 await self.config.member(member).muted_until.set(muted_until.timestamp())
+                await self._activate_caution_hold(member, muted_until.timestamp())
                 
                 # Confirm the mute
-                message = f"{member.mention} has been muted for {duration} minutes. Reason: {reason or 'No reason provided'}"
+                embed = discord.Embed(description=f"{member.mention} has been muted for {duration} minutes.", color=discord.Color.orange())
+                embed.add_field(name="Reason", value=reason or 'No reason provided', inline=False)
                 if fine_amount > 0:
-                    message += f"\nFine applied: {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-                await ctx.send(message)
+                    embed.add_field(name="Fine Applied", value=f"{humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}")
+                await ctx.send(embed=embed)
                     
                 # Log action
                 extra_fields = [{"name": "Duration", "value": f"{duration} minutes"}]
@@ -1038,13 +1216,13 @@ class BeriCautions(commands.Cog):
                 await self.log_action(ctx.guild, "Mute", member, ctx.author, reason, extra_fields=extra_fields)
                     
             except discord.Forbidden:
-                await ctx.send("I don't have permission to manage roles for this member.")
+                await ctx.send(embed=self._quick_embed("I don't have permission to manage roles for this member.", discord.Color.red()))
             except Exception as e:
-                await ctx.send(f"Error applying mute: {str(e)}")
+                await ctx.send(embed=self._quick_embed(f"Error applying mute: {str(e)}", discord.Color.red()))
                 log.error(f"Error in mute_member command: {e}", exc_info=True)
                 
         except Exception as e:
-            await ctx.send(f"Error in mute command: {str(e)}")
+            await ctx.send(embed=self._quick_embed(f"Error in mute command: {str(e)}", discord.Color.red()))
             log.error(f"Error in mute_member command: {e}", exc_info=True)
 
     @commands.command(name="testmute")
@@ -1055,11 +1233,11 @@ class BeriCautions(commands.Cog):
             mute_role_id = await self.config.guild(ctx.guild).mute_role()
             
             if not mute_role_id:
-                return await ctx.send(f"No mute role has been configured. Please run {ctx.clean_prefix}setupmute first.")
+                return await ctx.send(embed=self._quick_embed(f"No mute role has been configured. Please run `{ctx.clean_prefix}setupmute` first.", discord.Color.orange()))
                 
             mute_role = ctx.guild.get_role(mute_role_id)
             if not mute_role:
-                return await ctx.send(f"Mute role not found. The role may have been deleted. Please run {ctx.clean_prefix}setupmute again.")
+                return await ctx.send(embed=self._quick_embed(f"Mute role not found. The role may have been deleted. Please run `{ctx.clean_prefix}setupmute` again.", discord.Color.orange()))
                 
             # Get bot's position to check hierarchy
             bot_position = ctx.guild.me.top_role.position
@@ -1067,9 +1245,9 @@ class BeriCautions(commands.Cog):
             
             # Check role position
             if mute_position < bot_position - 1:
-                await ctx.send(f"Warning: Mute role position ({mute_position}) is not directly below bot's highest role ({bot_position})")
+                await ctx.send(embed=self._quick_embed(f"⚠️ Mute role position ({mute_position}) is not directly below bot's highest role ({bot_position})", discord.Color.orange()))
             else:
-                await ctx.send(f"Mute role position ({mute_position}) looks good relative to bot's highest role ({bot_position})")
+                await ctx.send(embed=self._quick_embed(f"✅ Mute role position ({mute_position}) looks good relative to bot's highest role ({bot_position})", discord.Color.green()))
                 
             # Check permissions across different channel types
             text_channels_checked = 0
@@ -1093,23 +1271,23 @@ class BeriCautions(commands.Cog):
                     
             # Report results
             if text_channels_with_issues > 0:
-                await ctx.send(f"Issues found in {text_channels_with_issues}/{text_channels_checked} text channels - mute role can still send messages")
+                await ctx.send(embed=self._quick_embed(f"⚠️ Issues in {text_channels_with_issues}/{text_channels_checked} text channels — mute role can still send messages.", discord.Color.orange()))
             else:
-                await ctx.send(f"Text channel permissions look good for {text_channels_checked} channels checked")
+                await ctx.send(embed=self._quick_embed(f"✅ Text channel permissions look good ({text_channels_checked} checked).", discord.Color.green()))
                 
             if voice_channels_with_issues > 0:
-                await ctx.send(f"Issues found in {voice_channels_with_issues}/{voice_channels_checked} voice channels - mute role can still speak")
+                await ctx.send(embed=self._quick_embed(f"⚠️ Issues in {voice_channels_with_issues}/{voice_channels_checked} voice channels — mute role can still speak.", discord.Color.orange()))
             else:
-                await ctx.send(f"Voice channel permissions look good for {voice_channels_checked} channels checked")
+                await ctx.send(embed=self._quick_embed(f"✅ Voice channel permissions look good ({voice_channels_checked} checked).", discord.Color.green()))
                 
             # Overall assessment
             if text_channels_with_issues == 0 and voice_channels_with_issues == 0:
-                await ctx.send("Mute role appears to be correctly configured!")
+                await ctx.send(embed=self._quick_embed("✅ Mute role appears to be correctly configured!", discord.Color.green()))
             else:
-                await ctx.send(f"Mute role has issues - please run {ctx.clean_prefix}setupmute again to fix permissions")
+                await ctx.send(embed=self._quick_embed(f"Mute role has issues — please run `{ctx.clean_prefix}setupmute` again to fix permissions.", discord.Color.red()))
                 
         except Exception as e:
-            await ctx.send(f"Error testing mute setup: {str(e)}")
+            await ctx.send(embed=self._quick_embed(f"Error testing mute setup: {str(e)}", discord.Color.red()))
             log.error(f"Error in test_mute_setup: {e}", exc_info=True)
 
     @commands.command(name="setupmute")
@@ -1124,11 +1302,11 @@ class BeriCautions(commands.Cog):
                 if existing_role:
                     try:
                         await existing_role.delete(reason="Recreating mute role")
-                        await ctx.send(f"Deleted existing mute role to create a new one.")
+                        await ctx.send(embed=self._quick_embed("Deleted existing mute role to create a new one.", discord.Color.green()))
                     except discord.Forbidden:
-                        await ctx.send("I don't have permission to delete the existing mute role.")
+                        await ctx.send(embed=self._quick_embed("I don't have permission to delete the existing mute role.", discord.Color.red()))
                     except Exception as e:
-                        await ctx.send(f"Error deleting existing role: {e}")
+                        await ctx.send(embed=self._quick_embed(f"Error deleting existing role: {e}", discord.Color.red()))
             
             # Create a new role with no permissions
             mute_role = await ctx.guild.create_role(
@@ -1145,16 +1323,16 @@ class BeriCautions(commands.Cog):
                 # Make sure the muted role is positioned directly below the bot's highest role
                 positions = {mute_role: highest_bot_role.position - 1}
                 await ctx.guild.edit_role_positions(positions)
-                await ctx.send(f"Positioned mute role at position {highest_bot_role.position - 1}")
+                await ctx.send(embed=self._quick_embed(f"Positioned mute role at position {highest_bot_role.position - 1}.", discord.Color.green()))
             except Exception as e:
-                await ctx.send(f"Error positioning role: {e}")
+                await ctx.send(embed=self._quick_embed(f"Error positioning role: {e}", discord.Color.red()))
                 log.error(f"Error positioning mute role: {e}", exc_info=True)
             
             # Save the role ID to config
             await self.config.guild(ctx.guild).mute_role.set(mute_role.id)
             
             # Set up permissions for all channels
-            status_msg = await ctx.send("Setting up permissions for the mute role... This may take a moment.")
+            status_msg = await ctx.send(embed=self._quick_embed("Setting up permissions for the mute role... This may take a moment."))
             
             # List to track any errors during permission setup
             permission_errors = []
@@ -1231,16 +1409,17 @@ class BeriCautions(commands.Cog):
                 if len(permission_errors) > 5:
                     error_report += f"\n...and {len(permission_errors) - 5} more errors"
                 
-                await ctx.send(f"Some errors occurred while setting permissions:\n{error_report}")
+                await ctx.send(embed=self._quick_embed(f"Some errors occurred while setting permissions:\n{error_report}", discord.Color.orange()))
             
-            await status_msg.edit(content=f"Mute role setup complete! The role {mute_role.mention} has been configured.")
+            await status_msg.edit(content=None, embed=self._quick_embed(f"✅ Mute role setup complete! The role {mute_role.mention} has been configured.", discord.Color.green()))
             
         except Exception as e:
-            await ctx.send(f"Failed to set up mute role: {str(e)}")
+            await ctx.send(embed=self._quick_embed(f"Failed to set up mute role: {str(e)}", discord.Color.red()))
             log.error(f"Error in setup_mute_role: {e}", exc_info=True)
         
     async def restore_member_roles(self, guild, member):
         """Restore a member's roles after unmuting them."""
+        self._suppress_enforcement.add(member.id)
         try:
             # Get mute role
             mute_role_id = await self.config.guild(guild).mute_role()
@@ -1256,26 +1435,42 @@ class BeriCautions(commands.Cog):
                 except Exception as e:
                     log.error(f"Error removing timeout: {e}")
             
-            # Clear stored mute data
-            await self.config.member(member).muted_until.set(None)
-            
-            # Verify that the mute role was actually removed
-            if mute_role and mute_role in member.roles:
+            # Clear stored mute data only if role was successfully removed
+            if not (mute_role and mute_role in member.roles):
+                # Successfully removed
+                await self.config.member(member).muted_until.set(None)
+                await self._release_caution_hold(member)
+                
+                # Log the unmute action
+                log_channel_id = await self.config.guild(guild).log_channel()
+                if log_channel_id:
+                    log_channel = guild.get_channel(log_channel_id)
+                    if log_channel:
+                        await self.safe_send_message(log_channel, f"{member.mention} has been unmuted.")
+            else:
+                # Verify that the mute role was actually removed
                 log.error(f"Failed to remove mute role from {member.id}")
                 
                 # Try once more with force
                 try:
                     await member.remove_roles(mute_role, reason="Retry: Unmuting member")
+                    # Check again
+                    if not (mute_role and mute_role in member.roles):
+                        # Now successfully removed
+                        await self.config.member(member).muted_until.set(None)
+                        await self._release_caution_hold(member)
+                        
+                        # Log the unmute action
+                        log_channel_id = await self.config.guild(guild).log_channel()
+                        if log_channel_id:
+                            log_channel = guild.get_channel(log_channel_id)
+                            if log_channel:
+                                await self.safe_send_message(log_channel, f"{member.mention} has been unmuted.")
+                    else:
+                        log.warning(f"Failed to remove mute role from {member.id} after retry, keeping mute active")
                 except Exception as e:
                     log.error(f"Second attempt to remove mute role failed: {e}")
-            
-            # Log the unmute action
-            log_channel_id = await self.config.guild(guild).log_channel()
-            if log_channel_id:
-                log_channel = guild.get_channel(log_channel_id)
-                if log_channel:
-                    await self.safe_send_message(log_channel, f"{member.mention} has been unmuted.")
-            
+                    log.warning(f"Keeping mute active for {member.id} due to role removal failure")
         except Exception as e:
             log.error(f"Error restoring member roles: {e}", exc_info=True)
             # Try to get a channel to send the error
@@ -1284,81 +1479,107 @@ class BeriCautions(commands.Cog):
                 log_channel = guild.get_channel(log_channel_id)
                 if log_channel:
                     await self.safe_send_message(log_channel, f"Error unmuting {member.mention}: {str(e)}")
+        finally:
+            self._suppress_enforcement.discard(member.id)
 
-    @commands.command(name="unquiet")
-    @checks.mod_or_permissions(manage_roles=True)
-    async def unmute_member(self, ctx, member: discord.Member):
-        """Unmute a member."""
-        mute_role_id = await self.config.guild(ctx.guild).mute_role()
-        
-        if not mute_role_id:
-            return await ctx.send("No mute role has been set up for this server.")
-        
-        mute_role = ctx.guild.get_role(mute_role_id)
-        
-        if mute_role and mute_role in member.roles:
-            await self.restore_member_roles(ctx.guild, member)
-            await ctx.send(f"{member.mention} has been unmuted.")
-            await self.log_action(ctx.guild, "Unmute", member, ctx.author)
-        else:
-            await ctx.send(f"{member.mention} is not muted.")
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Handle mute role removal to release caution hold."""
+        if after.bot or after.id in self._suppress_enforcement:
+            return
 
-    @commands.command(name="cautions")
-    async def list_warnings(self, ctx, member: Optional[discord.Member] = None):
-        """
-        List all active warnings for a member with Beri fine information.
-        Moderators can check other members. Members can check themselves.
-        """
-        if member is None:
-            member = ctx.author
-        
-        # Check permissions if checking someone else
-        if member != ctx.author and not ctx.author.guild_permissions.kick_members:
-            return await ctx.send("You don't have permission to view other members' warnings.")
-        
-        # Get member data
-        warnings = await self.config.member(member).warnings()
-        total_points = await self.config.member(member).total_points()
-        total_fines = await self.config.member(member).total_fines_paid()
-        
-        if not warnings:
-            return await ctx.send(f"{member.mention} has no active warnings.")
-        
-        # Create embed
-        embed = discord.Embed(title=f"Warnings for {member.display_name}", color=0xff9900)
-        embed.add_field(name="Total Points", value=str(total_points))
-        embed.add_field(name="Total Fines Paid", value=f"{humanize_number(total_fines)} Beri")
-        
-        # List all warnings
-        for i, warning in enumerate(warnings, start=1):
-            moderator = ctx.guild.get_member(warning.get("moderator_id"))
-            moderator_mention = moderator.mention if moderator else "Unknown Moderator"
-            
-            # Format timestamp for display
-            timestamp = warning.get("timestamp", 0)
-            issued_time = f"<t:{int(timestamp)}:R>"
-            
-            # Format expiry timestamp
-            expiry = warning.get("expiry", 0)
-            expiry_time = f"<t:{int(expiry)}:R>"
-            
-            # Build warning details
-            value = f"**Points:** {warning.get('points', 1)}\n"
-            value += f"**Reason:** {warning.get('reason', 'No reason provided')}\n"
-            value += f"**Moderator:** {moderator_mention}\n"
-            value += f"**Issued:** {issued_time}\n"
-            value += f"**Expires:** {expiry_time}\n"
-            
-            # Add fine information if present
-            fine_amount = warning.get("fine_amount", 0)
-            if fine_amount > 0:
-                fine_applied = warning.get("fine_applied", False)
-                value += f"**Fine:** {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
-            
-            embed.add_field(name=f"Warning #{i}", value=value, inline=False)
-        
-        await ctx.send(embed=embed)
+        member_data = await self.config.member(after).all()
+        current_time = datetime.utcnow().timestamp()
 
+        muted_until = member_data.get("muted_until")
+        if not muted_until or current_time >= muted_until:
+            return
+
+        # Check if member still has the mute role; if not, end the mute and release hold
+        mute_role_id = await self.config.guild(after.guild).mute_role()
+        mute_role = after.guild.get_role(mute_role_id) if mute_role_id else None
+        if mute_role and mute_role not in after.roles:
+            await self.config.member(after).muted_until.set(None)
+            await self._release_caution_hold(after)
+
+@commands.command(name="unquiet")
+@checks.mod_or_permissions(manage_roles=True)
+async def unmute_member(self, ctx, member: discord.Member):
+    """Unmute a member."""
+    mute_role_id = await self.config.guild(ctx.guild).mute_role()
+    
+    if not mute_role_id:
+        return await ctx.send(embed=self._quick_embed("No mute role has been set up for this server.", discord.Color.orange()))
+    
+    mute_role = ctx.guild.get_role(mute_role_id)
+    
+    if mute_role and mute_role in member.roles:
+        await self.restore_member_roles(ctx.guild, member)
+        await ctx.send(embed=self._quick_embed(f"{member.mention} has been unmuted.", discord.Color.green()))
+        await self.log_action(ctx.guild, "Unmute", member, ctx.author)
+    else:
+        await ctx.send(embed=self._quick_embed(f"{member.mention} is not currently muted.", discord.Color.orange()))
+
+@commands.command(name="cautions")
+async def list_warnings(self, ctx, member: Optional[discord.Member] = None):
+    """
+    List all active warnings for a member with Beri fine information.
+    Moderators can check other members. Members can check themselves.
+    """
+    if member is None:
+        member = ctx.author
+    
+    # Check permissions if checking someone else
+    if member != ctx.author and not ctx.author.guild_permissions.kick_members:
+        return await ctx.send(embed=self._quick_embed("You don't have permission to view other members' warnings.", discord.Color.red()))
+    
+    # Get member data
+    warnings = await self.config.member(member).warnings()
+    total_points = await self.config.member(member).total_points()
+    total_fines = await self.config.member(member).total_fines_paid()
+    expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
+    hold_until = await self.config.member(member).caution_hold_until()
+    current_time = datetime.utcnow().timestamp()
+    hold_active = bool(hold_until and current_time < hold_until)
+    
+    if not warnings:
+        return await ctx.send(embed=self._quick_embed(f"{member.mention} has no active warnings."))
+    
+    # Create embed
+    embed = discord.Embed(title=f"Warnings for {member.display_name}", color=0xff9900)
+    embed.add_field(name="Total Points", value=str(total_points))
+    embed.add_field(name="Total Fines Paid", value=f"{humanize_number(total_fines)} Beri")
+    
+    # List all warnings
+    for i, warning in enumerate(warnings, start=1):
+        moderator = ctx.guild.get_member(warning.get("moderator_id"))
+        moderator_mention = moderator.mention if moderator else "Unknown Moderator"
+        
+        # Format timestamp for display
+        timestamp = warning.get("timestamp", 0)
+        issued_time = f"<t:{int(timestamp)}:R>"
+        
+        # Format expiry timestamp
+        expiry = self._calculate_warning_expiry(warning, expiry_days, current_time)
+        expiry_time = f"<t:{int(expiry)}:R>"
+        
+        # Build warning details
+        value = f"**Points:** {warning.get('points', 1)}\n"
+        value += f"**Reason:** {warning.get('reason', 'No reason provided')}\n"
+        value += f"**Moderator:** {moderator_mention}\n"
+        value += f"**Issued:** {issued_time}\n"
+        value += f"**Expires:** {expiry_time}\n"
+        if hold_active:
+            value += "**Expiry Status:** Paused while punishment is active\n"
+        
+        # Add fine information if present
+        fine_amount = warning.get("fine_amount", 0)
+        if fine_applied:
+            value += f"**Fine:** {humanize_number(fine_amount)} Beri {'(Applied)' if fine_applied else '(Failed/Partial)'}"
+        
+        embed.add_field(name=f"Warning #{i}", value=value, inline=False)
+    
+    await ctx.send(embed=embed)
     @commands.command(name="clearcautions")
     @checks.mod_or_permissions(kick_members=True)
     async def clear_warnings(self, ctx, member: discord.Member):
@@ -1375,10 +1596,10 @@ class BeriCautions(commands.Cog):
             await self.config.member(member).applied_thresholds.set([])
             
             # Confirm and log
-            await ctx.send(f"All warnings for {member.mention} have been cleared.")
+            await ctx.send(embed=self._quick_embed(f"All warnings for {member.mention} have been cleared.", discord.Color.green()))
             await self.log_action(ctx.guild, "Clear Warnings", member, ctx.author, "Manual clearing of all warnings")
         else:
-            await ctx.send(f"{member.mention} has no warnings to clear.")
+            await ctx.send(embed=self._quick_embed(f"{member.mention} has no warnings to clear."))
 
     @commands.command(name="removecaution")
     @checks.mod_or_permissions(kick_members=True)
@@ -1388,15 +1609,15 @@ class BeriCautions(commands.Cog):
         Use the 'cautions' command to see indexes.
         """
         if warning_index < 1:
-            return await ctx.send("Warning index must be 1 or higher.")
+            return await ctx.send(embed=self._quick_embed("Warning index must be 1 or higher.", discord.Color.red()))
         
         # Get warnings
         async with self.config.member(member).warnings() as warnings:
             if not warnings:
-                return await ctx.send(f"{member.mention} has no warnings.")
+                return await ctx.send(embed=self._quick_embed(f"{member.mention} has no warnings."))
             
             if warning_index > len(warnings):
-                return await ctx.send(f"Invalid warning index. {member.mention} only has {len(warnings)} warnings.")
+                return await ctx.send(embed=self._quick_embed(f"Invalid warning index. {member.mention} only has {len(warnings)} warnings.", discord.Color.red()))
             
             # Remove warning (adjust for 0-based index)
             removed_warning = warnings.pop(warning_index - 1)
@@ -1405,9 +1626,15 @@ class BeriCautions(commands.Cog):
         async with self.config.member(member).warnings() as warnings:
             total_points = sum(w.get("points", 1) for w in warnings)
             await self.config.member(member).total_points.set(total_points)
-            
+
+        # Prune applied_thresholds: any threshold above the new point total can fire again
+        applied_thresholds = await self.config.member(member).applied_thresholds()
+        pruned = [t for t in applied_thresholds if t <= total_points]
+        if pruned != applied_thresholds:
+            await self.config.member(member).applied_thresholds.set(pruned)
+
         # Confirm and log
-        await ctx.send(f"Warning #{warning_index} for {member.mention} has been removed.")
+        await ctx.send(embed=self._quick_embed(f"Warning #{warning_index} for {member.mention} has been removed.", discord.Color.green()))
         
         # Create extra fields for logging
         extra_fields = [
@@ -1438,11 +1665,11 @@ class BeriCautions(commands.Cog):
         
         # Check permissions if checking someone else
         if member != ctx.author and not ctx.author.guild_permissions.kick_members:
-            return await ctx.send("You don't have permission to view other members' fine information.")
+            return await ctx.send(embed=self._quick_embed("You don't have permission to view other members' fine information.", discord.Color.red()))
         
         core = self._core()
         if not core:
-            return await ctx.send("BeriCore is not loaded - fine information unavailable.")
+            return await ctx.send(embed=self._quick_embed("BeriCore is not loaded — fine information unavailable.", discord.Color.orange()))
         
         # Get member data
         member_data = await self.config.member(member).all()
@@ -1605,6 +1832,10 @@ class BeriCautions(commands.Cog):
                 warnings = await self.config.member(member).warnings()
                 total_points = await self.config.member(member).total_points()
                 total_fines = await self.config.member(member).total_fines_paid()
+                expiry_days = await self.config.guild(interaction.guild).warning_expiry_days()
+                hold_until = await self.config.member(member).caution_hold_until()
+                current_time = datetime.utcnow().timestamp()
+                hold_active = bool(hold_until and current_time < hold_until)
                 
                 if not warnings:
                     await interaction.response.send_message(f"{member.mention} has no active warnings.", ephemeral=True)
@@ -1623,7 +1854,7 @@ class BeriCautions(commands.Cog):
                     timestamp = warning.get("timestamp", 0)
                     issued_time = f"<t:{int(timestamp)}:R>"
                     
-                    expiry = warning.get("expiry", 0)
+                    expiry = self._calculate_warning_expiry(warning, expiry_days, current_time)
                     expiry_time = f"<t:{int(expiry)}:R>"
                     
                     value = f"**Points:** {warning.get('points', 1)}\n"
@@ -1631,6 +1862,8 @@ class BeriCautions(commands.Cog):
                     value += f"**Moderator:** {moderator_mention}\n"
                     value += f"**Issued:** {issued_time}\n"
                     value += f"**Expires:** {expiry_time}\n"
+                    if hold_active:
+                        value += "**Expiry Status:** Paused while punishment is active\n"
                     
                     # Add fine info if present
                     fine_amount = warning.get("fine_amount", 0)
@@ -1700,16 +1933,16 @@ class BeriCautions(commands.Cog):
         error = getattr(error, 'original', error)
         
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("You don't have the required permissions to use this command.")
+            await ctx.send(embed=self._quick_embed("You don't have the required permissions to use this command.", discord.Color.red()))
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(f"I'm missing permissions needed for this command: {error}")
+            await ctx.send(embed=self._quick_embed(f"I'm missing permissions needed for this command: {error}", discord.Color.red()))
         elif isinstance(error, commands.MemberNotFound):
-            await ctx.send("Member not found. Please provide a valid member.")
+            await ctx.send(embed=self._quick_embed("Member not found. Please provide a valid member.", discord.Color.orange()))
         elif isinstance(error, commands.BadArgument):
-            await ctx.send(f"Invalid argument: {error}")
+            await ctx.send(embed=self._quick_embed(f"Invalid argument: {error}", discord.Color.orange()))
         elif isinstance(error, commands.CommandInvokeError):
             log.error(f"Error in {ctx.command.qualified_name}:", exc_info=error)
-            await ctx.send(f"An error occurred: {error}")
+            await ctx.send(embed=self._quick_embed(f"An error occurred: {error}", discord.Color.red()))
         else:
             # For other errors, just log them
             log.error(f"Command error in {ctx.command}: {error}", exc_info=True)
