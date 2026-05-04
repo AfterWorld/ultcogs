@@ -482,6 +482,7 @@ class BeriCautions(commands.Cog):
                     f"`{ctx.clean_prefix}cautionset mute [role]` - Set the mute role\n"
                     f"`{ctx.clean_prefix}cautionset holdstatus [member]` - Show if warning expiry is paused\n"
                     f"`{ctx.clean_prefix}cautionset holdlist` - List all members with paused expiry\n"
+                    f"`{ctx.clean_prefix}cautionset releasehold <member>` - Manually release a member's hold\n"
                     f"`{ctx.clean_prefix}cautionset banimmune [role]` - Add/remove role immune to auto-bans\n"
                     f"`{ctx.clean_prefix}cautionset showbanimmune` - Show current auto-ban immune roles\n"
                 ),
@@ -731,6 +732,46 @@ class BeriCautions(commands.Cog):
             )
             embed.set_footer(text=f"Page {index}/{len(pages)}")
             await ctx.send(embed=embed)
+
+    @caution_settings.command(name="releasehold")
+    async def release_caution_hold(self, ctx, member: discord.Member):
+        """Manually release a member's caution hold to resume warning countdown."""
+        member_config = self.config.member(member)
+        member_data = await member_config.all()
+        
+        caution_hold_until = member_data.get("caution_hold_until")
+        if not caution_hold_until:
+            return await ctx.send(embed=self._quick_embed(
+                f"{member.mention} does not currently have a caution hold active.",
+                discord.Color.orange()
+            ))
+        
+        # Release the hold
+        await self._release_caution_hold(member)
+        
+        # Get the updated hold status
+        hold_until = await member_config.caution_hold_until()
+        warnings = await member_config.warnings()
+        
+        embed = discord.Embed(
+            title="Caution Hold Released",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Member", value=member.mention, inline=True)
+        embed.add_field(name="Released By", value=ctx.author.mention, inline=True)
+        embed.add_field(name="Status", value="Hold cleared - warning countdown resumed", inline=False)
+        embed.add_field(name="Active Warnings", value=str(len(warnings)), inline=True)
+        
+        await ctx.send(embed=embed)
+        
+        # Log the action
+        await self.log_action(
+            ctx.guild,
+            "Release Caution Hold",
+            member,
+            ctx.author,
+            "Manually released caution hold to resume warning countdown"
+        )
 
     @caution_settings.command(name="expiry")
     async def set_warning_expiry(self, ctx, days: int):
