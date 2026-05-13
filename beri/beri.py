@@ -16,15 +16,18 @@ from redbot.core.utils.chat_formatting import box, humanize_number
 
 from .audit import AuditLog
 from .games import Games
+from .casino import Casino
+from .work import Work
+from .income import Income
 
 
-class Beri(Games, commands.Cog):
+class Beri(Income, Work, Casino, Games, commands.Cog):
     """
     🏴‍☠️ Beri Economy — the One Piece-themed currency system.
     Runs separately from Red's built-in economy.
     """
 
-    __version__ = "1.0.0"
+    __version__ = "2.0.0"
     __author__ = "UltPanda"
 
     def __init__(self, bot: Red):
@@ -40,6 +43,13 @@ class Beri(Games, commands.Cog):
             "currency_icon": "🪙",
             "audit_channel": None,        # channel id for live audit feed
             "balances": {},               # {user_id_str: int}
+            "income": {                   # message + role stipend config
+                "message_enabled": True,
+                "message_cooldown": 60,
+                "message_min": 5,
+                "message_max": 25,
+                "role_stipends": {},      # {role_id_str: {"amount": int, "interval": "hourly"|"daily"}}
+            },
         }
 
         # ── Default global settings ────────────────────────────────────────
@@ -47,8 +57,15 @@ class Beri(Games, commands.Cog):
             "audit_log": [],              # list of audit entry dicts
         }
 
+        # ── Default member settings ────────────────────────────────────────
+        default_member = {
+            "last_message_income": None,       # ISO timestamp
+            "last_stipend_collect": {},         # {role_id_str: ISO timestamp}
+        }
+
         self.config.register_guild(**default_guild)
         self.config.register_global(**default_global)
+        self.config.register_member(**default_member)
 
         self.audit = AuditLog(bot, self.config)
 
@@ -204,7 +221,6 @@ class Beri(Games, commands.Cog):
         if not balances:
             return await ctx.send("No balances recorded yet.")
 
-        # Sort descending, resolve member names
         sorted_bal = sorted(balances.items(), key=lambda x: x[1], reverse=True)
         per_page = 10
         total_pages = max(1, (len(sorted_bal) + per_page - 1) // per_page)
@@ -276,6 +292,7 @@ class Beri(Games, commands.Cog):
         icon = await self.config.guild(ctx.guild).currency_icon()
         audit_ch_id = await self.config.guild(ctx.guild).audit_channel()
         audit_ch = ctx.guild.get_channel(audit_ch_id) if audit_ch_id else None
+        inc = await self.config.guild(ctx.guild).income()
 
         embed = discord.Embed(title="⚙️ Beri Config", color=discord.Color.blurple())
         embed.add_field(name="Currency", value=f"{icon} {name}", inline=True)
@@ -283,6 +300,21 @@ class Beri(Games, commands.Cog):
         embed.add_field(
             name="Audit Channel",
             value=audit_ch.mention if audit_ch else "Not set",
+            inline=True,
+        )
+        embed.add_field(
+            name="Message Income",
+            value=(
+                f"{'✅' if inc.get('message_enabled', True) else '❌'} "
+                f"{inc.get('message_min', 5)}–{inc.get('message_max', 25)} {icon} "
+                f"/ {inc.get('message_cooldown', 60)}s"
+            ),
+            inline=True,
+        )
+        stipends = inc.get("role_stipends", {})
+        embed.add_field(
+            name="Role Stipends",
+            value=f"{len(stipends)} configured" if stipends else "None",
             inline=True,
         )
         await ctx.send(embed=embed)
