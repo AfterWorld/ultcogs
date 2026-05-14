@@ -243,7 +243,7 @@ class BeriCore(commands.Cog):
         embed.add_field(name="Status", value="✅ Loaded", inline=True)
         embed.add_field(
             name="Beri Cog",
-            value="✅ Connected" if ctx.bot.get_cog("Beri") else "❌ Not loaded",
+            value="✅ Connected" if (ctx.bot.get_cog("Beri") or ctx.bot.get_cog("BeriCog")) else "❌ Not loaded",
             inline=True,
         )
         limit = await self.config.guild(ctx.guild).history_limit()
