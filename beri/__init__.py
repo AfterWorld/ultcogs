@@ -68,6 +68,7 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         self.config.register_global(**self.DEFAULT_GLOBAL)
 
         self._audit = AuditLog(bot, self.config)
+        self._add_beri_sig_cache: set | None = None  # cached kwargs for add_beri
 
     # ══════════════════════════════════════════════════════════════════════
     # BeriCore bridge — ALL balance ops flow through here
@@ -104,26 +105,37 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         if not core:
             raise RuntimeError("BeriCore is not loaded. Ask an admin to load it.")
 
-        # Introspect add_beri so we only pass kwargs it actually accepts.
-        # This keeps us compatible regardless of which optional params the
-        # installed BeriCore version exposes (bypass_cap, metadata, actor, etc.)
-        import inspect
-        try:
-            sig = inspect.signature(core.add_beri)
-            accepted = set(sig.parameters.keys())
-        except (ValueError, TypeError):
-            accepted = set()
+        # Cache which kwargs add_beri actually accepts (introspect once, reuse).
+        # This makes us compatible with any BeriCore version regardless of whether
+        # it supports bypass_cap / actor / metadata.
+        if self._add_beri_sig_cache is None:
+            import inspect
+            try:
+                sig = inspect.signature(core.add_beri)
+                self._add_beri_sig_cache = set(sig.parameters.keys())
+            except (ValueError, TypeError):
+                self._add_beri_sig_cache = set()
 
         candidates = {
             "reason": reason,
             "actor": actor,
-            "bypass_cap": True,   # always True — we never want cap enforcement
+            "bypass_cap": True,   # always True — cap is never enforced
             "metadata": metadata,
         }
         kwargs = {k: v for k, v in candidates.items()
-                  if k in accepted and v is not None}
+                  if k in self._add_beri_sig_cache and v is not None}
 
-        new_balance = await core.add_beri(member, delta, **kwargs)
+        result = await core.add_beri(member, delta, **kwargs)
+
+        # add_beri may return the new balance OR None depending on BeriCore version.
+        # If None, fetch the balance ourselves so callers always receive an int.
+        if result is None:
+            try:
+                new_balance = int(await core.get_beri(member))
+            except Exception:
+                new_balance = 0
+        else:
+            new_balance = int(result)
 
         # Mirror to local audit log as well
         try:
