@@ -242,14 +242,58 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
 
     @commands.command(name="leaderboard", aliases=["lb", "top"])
     @commands.guild_only()
-    async def leaderboard(self, ctx: commands.Context):
-        """Show the Beri leaderboard (top 10 in the server)."""
+    async def leaderboard(self, ctx: commands.Context, page: int = 1):
+        """Show the Beri leaderboard (top 10 per page)."""
         name, icon = await self._currency_fmt(ctx.guild)
         core = self._bericore()
         if not core:
             return await ctx.send("❌ BeriCore is not loaded.")
 
-        await ctx.send(f"📊 Use the BeriCore leaderboard command for rankings. (`{ctx.prefix}beri top` or similar)")
+        async with ctx.typing():
+            all_members = await core.config.all_members(ctx.guild)
+
+        # Build sorted list of (user_id, balance), members only in this guild
+        entries = []
+        for uid, data in all_members.items():
+            bal = data.get("balance", 0)
+            if bal > 0:
+                entries.append((int(uid), bal))
+
+        if not entries:
+            return await ctx.send("No one has any Beri yet!")
+
+        entries.sort(key=lambda x: x[1], reverse=True)
+
+        per_page = 10
+        page = max(1, page)
+        total_pages = max(1, (len(entries) + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        start = (page - 1) * per_page
+        chunk = entries[start:start + per_page]
+
+        lines = []
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        for i, (uid, bal) in enumerate(chunk, start=start + 1):
+            member = ctx.guild.get_member(uid)
+            display = member.display_name if member else f"<Unknown {uid}>"
+            prefix = medals.get(i, f"`#{i}`")
+            you = " ◀" if uid == ctx.author.id else ""
+            lines.append(f"{prefix} **{display}** — {humanize_number(bal)} {icon}{you}")
+
+        # Find caller's rank
+        caller_rank = next((i + 1 for i, (uid, _) in enumerate(entries) if uid == ctx.author.id), None)
+        caller_bal = next((bal for uid, bal in entries if uid == ctx.author.id), 0)
+
+        embed = discord.Embed(
+            title=f"{icon} {name} Leaderboard",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text=(
+            f"Page {page}/{total_pages} • "
+            + (f"Your rank: #{caller_rank} ({humanize_number(caller_bal)} {icon})" if caller_rank else "You have no Beri yet")
+        ))
+        await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════════════════
     # Admin commands
