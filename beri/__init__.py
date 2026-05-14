@@ -104,9 +104,24 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         if not core:
             raise RuntimeError("BeriCore is not loaded. Ask an admin to load it.")
 
-        kwargs = dict(reason=reason, actor=actor, bypass_cap=True)
-        if metadata:
-            kwargs["metadata"] = metadata
+        # Introspect add_beri so we only pass kwargs it actually accepts.
+        # This keeps us compatible regardless of which optional params the
+        # installed BeriCore version exposes (bypass_cap, metadata, actor, etc.)
+        import inspect
+        try:
+            sig = inspect.signature(core.add_beri)
+            accepted = set(sig.parameters.keys())
+        except (ValueError, TypeError):
+            accepted = set()
+
+        candidates = {
+            "reason": reason,
+            "actor": actor,
+            "bypass_cap": True,   # always True — we never want cap enforcement
+            "metadata": metadata,
+        }
+        kwargs = {k: v for k, v in candidates.items()
+                  if k in accepted and v is not None}
 
         new_balance = await core.add_beri(member, delta, **kwargs)
 
