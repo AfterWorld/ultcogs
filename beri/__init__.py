@@ -68,7 +68,6 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         self.config.register_global(**self.DEFAULT_GLOBAL)
 
         self._audit = AuditLog(bot, self.config)
-        self._add_beri_sig_cache: set | None = None  # cached kwargs for add_beri
 
     # ══════════════════════════════════════════════════════════════════════
     # BeriCore bridge — ALL balance ops flow through here
@@ -78,41 +77,6 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         """Return the BeriCore cog instance, or None if not loaded."""
         return self.bot.get_cog("BeriCore")
 
-    async def add_beri(self, member, amount, **kwargs):
-        """
-        Public shim so any cog that does bot.get_cog("BeriCog").add_beri(...)
-        works safely. Strips unsupported kwargs before forwarding to BeriCore.
-        Also used internally to ensure bypass_cap never crashes.
-        """
-        core = self._bericore()
-        if not core:
-            return 0
-
-        if self._add_beri_sig_cache is None:
-            import inspect
-            try:
-                sig = inspect.signature(core.add_beri)
-                self._add_beri_sig_cache = set(sig.parameters.keys())
-            except (ValueError, TypeError):
-                self._add_beri_sig_cache = set()
-
-        safe_kwargs = {k: v for k, v in kwargs.items()
-                       if k in self._add_beri_sig_cache}
-        try:
-            result = await core.add_beri(member, amount, **safe_kwargs)
-            return result if result is not None else await core.get_beri(member)
-        except Exception:
-            return 0
-
-    async def get_beri(self, member):
-        """Public shim mirroring BeriCore.get_beri for cross-cog compatibility."""
-        core = self._bericore()
-        if not core:
-            return 0
-        try:
-            return int(await core.get_beri(member))
-        except Exception:
-            return 0
 
     async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
         """Fetch current Beri balance for a member."""
@@ -141,37 +105,13 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         if not core:
             raise RuntimeError("BeriCore is not loaded. Ask an admin to load it.")
 
-        # Cache which kwargs add_beri actually accepts (introspect once, reuse).
-        # This makes us compatible with any BeriCore version regardless of whether
-        # it supports bypass_cap / actor / metadata.
-        if self._add_beri_sig_cache is None:
-            import inspect
-            try:
-                sig = inspect.signature(core.add_beri)
-                self._add_beri_sig_cache = set(sig.parameters.keys())
-            except (ValueError, TypeError):
-                self._add_beri_sig_cache = set()
-
-        candidates = {
-            "reason": reason,
-            "actor": actor,
-            "bypass_cap": True,   # always True — cap is never enforced
-            "metadata": metadata,
-        }
-        kwargs = {k: v for k, v in candidates.items()
-                  if k in self._add_beri_sig_cache and v is not None}
-
-        result = await core.add_beri(member, delta, **kwargs)
-
-        # add_beri may return the new balance OR None depending on BeriCore version.
-        # If None, fetch the balance ourselves so callers always receive an int.
-        if result is None:
-            try:
-                new_balance = int(await core.get_beri(member))
-            except Exception:
-                new_balance = 0
-        else:
-            new_balance = int(result)
+        new_balance = await core.add_beri(
+            member, delta,
+            reason=reason,
+            actor=actor,
+            bypass_cap=True,
+            metadata=metadata,
+        )
 
         # Mirror to local audit log as well
         try:
