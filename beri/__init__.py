@@ -78,6 +78,42 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         """Return the BeriCore cog instance, or None if not loaded."""
         return self.bot.get_cog("BeriCore")
 
+    async def add_beri(self, member, amount, **kwargs):
+        """
+        Public shim so any cog that does bot.get_cog("BeriCog").add_beri(...)
+        works safely. Strips unsupported kwargs before forwarding to BeriCore.
+        Also used internally to ensure bypass_cap never crashes.
+        """
+        core = self._bericore()
+        if not core:
+            return 0
+
+        if self._add_beri_sig_cache is None:
+            import inspect
+            try:
+                sig = inspect.signature(core.add_beri)
+                self._add_beri_sig_cache = set(sig.parameters.keys())
+            except (ValueError, TypeError):
+                self._add_beri_sig_cache = set()
+
+        safe_kwargs = {k: v for k, v in kwargs.items()
+                       if k in self._add_beri_sig_cache}
+        try:
+            result = await core.add_beri(member, amount, **safe_kwargs)
+            return result if result is not None else await core.get_beri(member)
+        except Exception:
+            return 0
+
+    async def get_beri(self, member):
+        """Public shim mirroring BeriCore.get_beri for cross-cog compatibility."""
+        core = self._bericore()
+        if not core:
+            return 0
+        try:
+            return int(await core.get_beri(member))
+        except Exception:
+            return 0
+
     async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
         """Fetch current Beri balance for a member."""
         core = self._bericore()
