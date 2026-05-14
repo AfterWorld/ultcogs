@@ -1,11 +1,6 @@
 """
 Income system for the Beri economy cog.
-
-Two income streams:
-  1. Message income  — earn Beri once per cooldown window just by chatting.
-  2. Role stipends   — certain roles pay an hourly or daily flat amount,
-                       collected manually with [p]collect or auto-paid by a
-                       background task.
+Balance ops go through BeriCoreBridge (_modify_balance -> BeriCore API).
 """
 
 import asyncio
@@ -17,38 +12,18 @@ import discord
 from redbot.core import commands, checks
 from redbot.core.utils.chat_formatting import humanize_number
 
-
-# ── Defaults ────────────────────────────────────────────────────────────────
-DEFAULT_MSG_COOLDOWN = 60          # seconds between message income ticks
-DEFAULT_MSG_MIN = 5                # min Beri per tick
-DEFAULT_MSG_MAX = 25               # max Beri per tick
+DEFAULT_MSG_COOLDOWN = 60
+DEFAULT_MSG_MIN = 5
+DEFAULT_MSG_MAX = 25
 
 
 class Income(commands.Cog):
     """
-    Passive income mixin.  Expects the parent class to expose:
+    Passive income mixin. Expects parent to expose:
       - self.config
       - self._modify_balance(guild, member, delta, reason=, actor=)
       - self._currency_fmt(guild)
     """
-
-    # ── Per-guild income config stored under config.guild(guild).income ──────
-    # Structure injected by Beri.__init__ via register_guild:
-    #
-    # "income": {
-    #   "message_enabled": True,
-    #   "message_cooldown": 60,
-    #   "message_min": 5,
-    #   "message_max": 25,
-    #   "role_stipends": {},   # {role_id_str: {"amount": int, "interval": "hourly"|"daily"}}
-    # }
-    #
-    # Per-member cooldown tracking: config.member(member).last_message_income  (ISO timestamp)
-    # Per-member last-collect:      config.member(member).last_stipend_collect  {role_id_str: ISO}
-
-    # ══════════════════════════════════════════════════════════════════════
-    # Message income listener
-    # ══════════════════════════════════════════════════════════════════════
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -70,23 +45,25 @@ class Income(commands.Cog):
         if last_str:
             last = datetime.datetime.fromisoformat(last_str)
             if (now - last).total_seconds() < cooldown:
-                return  # still on cooldown
+                return
 
-        # Update timestamp first to prevent race conditions
         await self.config.member(member).last_message_income.set(now.isoformat())
 
         lo = cfg.get("message_min", DEFAULT_MSG_MIN)
         hi = cfg.get("message_max", DEFAULT_MSG_MAX)
         amount = random.randint(lo, hi)
 
-        await self._modify_balance(
-            guild, member, amount,
-            reason="income:message",
-            actor="System",
-        )
+        try:
+            await self._modify_balance(
+                guild, member, amount,
+                reason="income:message",
+                actor="System",
+            )
+        except RuntimeError:
+            pass  # BeriCore not loaded — silently skip
 
     # ══════════════════════════════════════════════════════════════════════
-    # Role stipend — manual collect
+    # Collect stipend
     # ══════════════════════════════════════════════════════════════════════
 
     @commands.command(name="collect", aliases=["payday"])
@@ -134,11 +111,14 @@ class Income(commands.Cog):
 
         if total > 0:
             await self.config.member(ctx.author).last_stipend_collect.set(last_collect)
-            new_bal = await self._modify_balance(
-                ctx.guild, ctx.author, total,
-                reason="income:stipend:collect",
-                actor="System",
-            )
+            try:
+                new_bal = await self._modify_balance(
+                    ctx.guild, ctx.author, total,
+                    reason="income:stipend:collect",
+                    actor="System",
+                )
+            except RuntimeError as e:
+                return await ctx.send(f"❌ {e}")
             embed = discord.Embed(
                 title=f"{icon} Stipend Collected!",
                 description="\n".join(breakdown),
@@ -157,7 +137,7 @@ class Income(commands.Cog):
         await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════════════════
-    # Income admin commands
+    # Income admin
     # ══════════════════════════════════════════════════════════════════════
 
     @commands.group(name="incomeset")
@@ -194,24 +174,15 @@ class Income(commands.Cog):
         await ctx.send(f"✅ Message income set to **{min_amt}–{max_amt}** {icon} per tick.")
 
     @incomeset.command(name="rolestipend")
-    async def incomeset_rolestipend(
-        self,
-        ctx: commands.Context,
-        role: discord.Role,
-        amount: int,
-        interval: str = "hourly",
-    ):
+    async def incomeset_rolestipend(self, ctx, role: discord.Role, amount: int, interval: str = "hourly"):
         """
-        Set a stipend for a role.
-
-        `interval` must be `hourly` or `daily`.
+        Set a stipend for a role. `interval` = `hourly` or `daily`.
         Set `amount` to 0 to remove the stipend.
         """
         interval = interval.lower()
         if interval not in ("hourly", "daily"):
             return await ctx.send("❌ Interval must be `hourly` or `daily`.")
         name, icon = await self._currency_fmt(ctx.guild)
-
         async with self.config.guild(ctx.guild).income() as inc:
             if "role_stipends" not in inc:
                 inc["role_stipends"] = {}
@@ -219,11 +190,7 @@ class Income(commands.Cog):
                 inc["role_stipends"].pop(str(role.id), None)
                 return await ctx.send(f"✅ Removed stipend for {role.mention}.")
             inc["role_stipends"][str(role.id)] = {"amount": amount, "interval": interval}
-
-        await ctx.send(
-            f"✅ {role.mention} now earns **{humanize_number(amount)}** {icon} "
-            f"per **{interval}** collect."
-        )
+        await ctx.send(f"✅ {role.mention} now earns **{humanize_number(amount)}** {icon} per **{interval}** collect.")
 
     @incomeset.command(name="info")
     async def incomeset_info(self, ctx: commands.Context):

@@ -1,13 +1,13 @@
 {
     "name": "Beri",
-    "short": "One Piece-themed economy system with Beri currency.",
-    "description": "A full economy cog featuring wallet management, leaderboard, message income, role stipends, work/crime/hack/slut/rob activity commands, blackjack, roulette, dice, horse racing, video poker, coinflip, slots, and a full audit log. Runs alongside Red's built-in economy with its own separate balance.",
-    "end_user_data_statement": "This cog stores Discord user IDs, Beri balances, transaction history (actor, reason, delta, timestamp), message income cooldown timestamps, and role stipend collection timestamps.",
+    "short": "One Piece-themed economy cog — routes balance through BeriCore API.",
+    "description": "Adds games (blackjack, roulette, dice, horse racing, video poker, coinflip, slots), work/crime/hack/slut/rob activity commands, passive message income, role stipends, and a full audit log on top of BeriCore's balance system. A local leaderboard cache mirrors BeriCore balances per-guild.",
+    "end_user_data_statement": "This cog stores Discord user IDs, message income cooldown timestamps, role stipend collection timestamps, and transaction history (actor, reason, delta, timestamp). Balances are stored and managed by BeriCore.",
     "author": ["UltPanda"],
-    "install_msg": "Thanks for installing Beri v2! Use `[p]beriset info` to check your config. Set up message income with `[p]incomeset info`, role stipends with `[p]incomeset rolestipend`, and an audit channel with `[p]beriset auditchannel #channel`.",
+    "install_msg": "Thanks for installing Beri v2.1! Make sure BeriCore is loaded first. Use `[p]beriset info` to confirm BeriCore status and configure the cog.",
     "required_cogs": {},
     "requirements": [],
-    "tags": ["economy", "beri", "one piece", "gambling", "currency", "casino", "blackjack", "poker", "roulette", "work", "crime", "income"],
+    "tags": ["economy", "beri", "one piece", "gambling", "casino", "blackjack", "poker", "roulette", "work", "crime", "income", "bericore"],
     "min_bot_version": "3.5.0",
     "min_python_version": [3, 11, 0],
     "hidden": false
