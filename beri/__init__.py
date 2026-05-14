@@ -1,6 +1,6 @@
-from .beri import Beri
+from .bericore import BeriCore
 
 
 async def setup(bot):
-    cog = Beri(bot)
+    cog = BeriCore(bot)
     await bot.add_cog(cog)
