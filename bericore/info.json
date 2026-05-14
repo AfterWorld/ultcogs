@@ -1,0 +1,14 @@
+{
+    "name": "BeriCore",
+    "short": "Core balance storage engine for the Beri economy cog.",
+    "description": "Provides the get_beri, add_beri, transfer_beri, and get_user_stats API used by the Beri cog. Stores balances, daily/lifetime stats, and per-member transaction history in Red's Config. Must be loaded before Beri.",
+    "end_user_data_statement": "This cog stores Discord user IDs, Beri balances, daily and lifetime earn/spend stats, and a trimmed transaction history (timestamp, delta, reason, actor) per guild member.",
+    "author": ["UltPanda"],
+    "install_msg": "BeriCore loaded! Make sure to load this BEFORE the Beri cog. Use `[p]bericoreinfo status` to confirm both cogs are connected.",
+    "required_cogs": {},
+    "requirements": [],
+    "tags": ["economy", "beri", "bericore", "one piece", "balance", "core"],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 11, 0],
+    "hidden": false
+}
