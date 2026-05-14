@@ -1,10 +1,10 @@
 {
     "name": "Beri",
-    "short": "One Piece-themed economy cog — routes balance through BeriCore API.",
-    "description": "Adds games (blackjack, roulette, dice, horse racing, video poker, coinflip, slots), work/crime/hack/slut/rob activity commands, passive message income, role stipends, and a full audit log on top of BeriCore's balance system. A local leaderboard cache mirrors BeriCore balances per-guild.",
+    "short": "One Piece-themed economy cog — routes all balances through BeriCore API.",
+    "description": "Adds gambling games (blackjack, roulette, dice, horse racing, video poker, coinflip, slots), work/crime/hack/slut/rob activity commands, passive message income, role stipends, and a full audit log. All balance operations go through BeriCore. No caps, no shop, no boosters.",
     "end_user_data_statement": "This cog stores Discord user IDs, message income cooldown timestamps, role stipend collection timestamps, and transaction history (actor, reason, delta, timestamp). Balances are stored and managed by BeriCore.",
     "author": ["UltPanda"],
-    "install_msg": "Thanks for installing Beri v2.1! Make sure BeriCore is loaded first. Use `[p]beriset info` to confirm BeriCore status and configure the cog.",
+    "install_msg": "Thanks for installing Beri! Make sure BeriCore is loaded first. Use `[p]beriset info` to confirm status and configure the cog.",
     "required_cogs": {},
     "requirements": [],
     "tags": ["economy", "beri", "one piece", "gambling", "casino", "blackjack", "poker", "roulette", "work", "crime", "income", "bericore"],

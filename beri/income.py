@@ -1,12 +1,10 @@
 """
-Income system for the Beri economy cog.
-Balance ops go through BeriCoreBridge (_modify_balance -> BeriCore API).
+Passive income system for the Beri cog.
+All balance ops call BeriCore directly via self._core().
 """
 
-import asyncio
 import datetime
 import random
-from typing import Optional
 
 import discord
 from redbot.core import commands, checks
@@ -18,49 +16,45 @@ DEFAULT_MSG_MAX = 25
 
 
 class Income(commands.Cog):
-    """
-    Passive income mixin. Expects parent to expose:
-      - self.config
-      - self._modify_balance(guild, member, delta, reason=, actor=)
-      - self._currency_fmt(guild)
-    """
+    """Passive income mixin. Inherits _core() and _currency_fmt() from Beri parent."""
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Award message income on a per-user cooldown."""
+        """Award small Beri on a per-user cooldown for chatting."""
         if message.author.bot or not message.guild:
             return
 
-        guild = message.guild
-        member = message.author
+        core = self._core()
+        if not core:
+            return
 
-        cfg = await self.config.guild(guild).income()
+        cfg = await self.config.guild(message.guild).income()
         if not cfg.get("message_enabled", True):
             return
 
         cooldown = cfg.get("message_cooldown", DEFAULT_MSG_COOLDOWN)
         now = datetime.datetime.now(tz=datetime.timezone.utc)
 
-        last_str = await self.config.member(member).last_message_income()
+        last_str = await self.config.member(message.author).last_message_income()
         if last_str:
             last = datetime.datetime.fromisoformat(last_str)
             if (now - last).total_seconds() < cooldown:
                 return
 
-        await self.config.member(member).last_message_income.set(now.isoformat())
+        await self.config.member(message.author).last_message_income.set(now.isoformat())
 
         lo = cfg.get("message_min", DEFAULT_MSG_MIN)
         hi = cfg.get("message_max", DEFAULT_MSG_MAX)
         amount = random.randint(lo, hi)
 
         try:
-            await self._modify_balance(
-                guild, member, amount,
+            await core.add_beri(
+                message.author,
+                amount,
                 reason="income:message",
-                actor="System",
             )
-        except RuntimeError:
-            pass  # BeriCore not loaded — silently skip
+        except Exception:
+            pass
 
     # ══════════════════════════════════════════════════════════════════════
     # Collect stipend
@@ -70,6 +64,10 @@ class Income(commands.Cog):
     @commands.guild_only()
     async def collect(self, ctx: commands.Context):
         """Collect your role stipend income."""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         cfg = await self.config.guild(ctx.guild).income()
         stipends: dict = cfg.get("role_stipends", {})
 
@@ -111,14 +109,11 @@ class Income(commands.Cog):
 
         if total > 0:
             await self.config.member(ctx.author).last_stipend_collect.set(last_collect)
-            try:
-                new_bal = await self._modify_balance(
-                    ctx.guild, ctx.author, total,
-                    reason="income:stipend:collect",
-                    actor="System",
-                )
-            except RuntimeError as e:
-                return await ctx.send(f"❌ {e}")
+            new_bal = await core.add_beri(
+                ctx.author,
+                total,
+                reason="income:stipend:collect",
+            )
             embed = discord.Embed(
                 title=f"{icon} Stipend Collected!",
                 description="\n".join(breakdown),
@@ -174,7 +169,9 @@ class Income(commands.Cog):
         await ctx.send(f"✅ Message income set to **{min_amt}–{max_amt}** {icon} per tick.")
 
     @incomeset.command(name="rolestipend")
-    async def incomeset_rolestipend(self, ctx, role: discord.Role, amount: int, interval: str = "hourly"):
+    async def incomeset_rolestipend(
+        self, ctx, role: discord.Role, amount: int, interval: str = "hourly"
+    ):
         """
         Set a stipend for a role. `interval` = `hourly` or `daily`.
         Set `amount` to 0 to remove the stipend.
@@ -190,7 +187,9 @@ class Income(commands.Cog):
                 inc["role_stipends"].pop(str(role.id), None)
                 return await ctx.send(f"✅ Removed stipend for {role.mention}.")
             inc["role_stipends"][str(role.id)] = {"amount": amount, "interval": interval}
-        await ctx.send(f"✅ {role.mention} now earns **{humanize_number(amount)}** {icon} per **{interval}** collect.")
+        await ctx.send(
+            f"✅ {role.mention} now earns **{humanize_number(amount)}** {icon} per **{interval}** collect."
+        )
 
     @incomeset.command(name="info")
     async def incomeset_info(self, ctx: commands.Context):

@@ -1,6 +1,6 @@
 """
-Casino games for the Beri economy cog.
-Balance ops go through BeriCoreBridge -> BeriCore API.
+Casino games for the Beri cog — blackjack, roulette, dice, horse racing, video poker.
+All balance ops call BeriCore directly via self._core().
 """
 
 import asyncio
@@ -19,15 +19,20 @@ BET_MAX = 50_000
 SUITS = ["♠️", "♥️", "♦️", "♣️"]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
+
 def _new_deck():
     deck = [(r, s) for s in SUITS for r in RANKS]
     random.shuffle(deck)
     return deck
 
+
 def _card_value(rank):
-    if rank in ("J", "Q", "K"): return 10
-    if rank == "A": return 11
+    if rank in ("J", "Q", "K"):
+        return 10
+    if rank == "A":
+        return 11
     return int(rank)
+
 
 def _hand_value(hand):
     total = sum(_card_value(r) for r, _ in hand)
@@ -37,22 +42,29 @@ def _hand_value(hand):
         aces -= 1
     return total
 
+
 def _fmt_hand(hand):
     return "  ".join(f"`{r}{s}`" for r, s in hand)
+
 
 # ── Poker utilities ───────────────────────────────────────────────────────────
 
 POKER_RANKS_ORDER = "23456789TJQKA"
 
+
 def _poker_rank(hand):
-    ranks = sorted([r if r != "10" else "T" for r, _ in hand],
-                   key=lambda r: POKER_RANKS_ORDER.index(r), reverse=True)
+    ranks = sorted(
+        [r if r != "10" else "T" for r, _ in hand],
+        key=lambda r: POKER_RANKS_ORDER.index(r),
+        reverse=True,
+    )
     suits = [s for _, s in hand]
     counts = {r: ranks.count(r) for r in set(ranks)}
     freq = sorted(counts.values(), reverse=True)
     flush = len(set(suits)) == 1
-    straight = (len(set(ranks)) == 5 and
-                POKER_RANKS_ORDER.index(ranks[0]) - POKER_RANKS_ORDER.index(ranks[-1]) == 4)
+    straight = len(set(ranks)) == 5 and (
+        POKER_RANKS_ORDER.index(ranks[0]) - POKER_RANKS_ORDER.index(ranks[-1]) == 4
+    )
     royal = straight and flush and ranks[0] == "A"
 
     if royal:               return "Royal Flush", 800
@@ -63,26 +75,30 @@ def _poker_rank(hand):
     if straight:            return "Straight", 4
     if freq[0] == 3:        return "Three of a Kind", 3
     if freq[:2] == [2, 2]:  return "Two Pair", 2
-    if freq[0] == 2 and max(POKER_RANKS_ORDER.index(r) for r in counts if counts[r]==2) >= POKER_RANKS_ORDER.index("J"):
-                            return "Jacks or Better", 1
+    if freq[0] == 2 and max(
+        POKER_RANKS_ORDER.index(r) for r in counts if counts[r] == 2
+    ) >= POKER_RANKS_ORDER.index("J"):
+        return "Jacks or Better", 1
     return "No Hand", 0
 
 
 class Casino(commands.Cog):
-    """
-    Casino games mixin. Expects parent to expose:
-      - self._get_balance(guild, member)
-      - self._safe_modify(ctx, guild, member, delta, reason=, actor=, bypass_cap=, metadata=)
-      - self._currency_fmt(guild)
-    """
+    """Casino games mixin. Inherits _core() and _currency_fmt() from Beri parent."""
 
     async def _bet_check(self, ctx, bet: int) -> bool:
-        """Validate bet amount and balance. Sends error and returns False on fail."""
+        """Validate bet range and balance. Returns False and sends error on failure."""
         name, icon = await self._currency_fmt(ctx.guild)
-        if bet < BET_MIN or bet > BET_MAX:
-            await ctx.send(f"❌ Bet must be between **{humanize_number(BET_MIN)}** and **{humanize_number(BET_MAX)}** {icon}.")
+        if not BET_MIN <= bet <= BET_MAX:
+            await ctx.send(
+                f"❌ Bet must be between **{humanize_number(BET_MIN)}** "
+                f"and **{humanize_number(BET_MAX)}** {icon}."
+            )
             return False
-        balance = await self._get_balance(ctx.guild, ctx.author)
+        core = self._core()
+        if not core:
+            await ctx.send("❌ BeriCore is not loaded.")
+            return False
+        balance = await core.get_beri(ctx.author)
         if bet > balance:
             await ctx.send(f"❌ You only have **{humanize_number(balance)}** {icon}.")
             return False
@@ -100,6 +116,7 @@ class Casino(commands.Cog):
         if not await self._bet_check(ctx, bet):
             return
 
+        core = self._core()
         name, icon = await self._currency_fmt(ctx.guild)
         deck = _new_deck()
         player = [deck.pop(), deck.pop()]
@@ -111,9 +128,15 @@ class Casino(commands.Cog):
             embed = discord.Embed(title="🃏 Blackjack", color=discord.Color.dark_green())
             embed.add_field(name=f"Your Hand ({pval})", value=_fmt_hand(player), inline=False)
             if reveal_dealer:
-                embed.add_field(name=f"Dealer's Hand ({dval})", value=_fmt_hand(dealer), inline=False)
+                embed.add_field(
+                    name=f"Dealer's Hand ({dval})", value=_fmt_hand(dealer), inline=False
+                )
             else:
-                embed.add_field(name="Dealer's Hand (?)", value=f"`{dealer[0][0]}{dealer[0][1]}`  `??`", inline=False)
+                embed.add_field(
+                    name="Dealer's Hand (?)",
+                    value=f"`{dealer[0][0]}{dealer[0][1]}`  `??`",
+                    inline=False,
+                )
             if result_line:
                 embed.add_field(name="Result", value=result_line, inline=False)
             embed.set_footer(text=f"Bet: {humanize_number(bet)} {icon} • ✅ Hit  ❌ Stand")
@@ -127,7 +150,11 @@ class Casino(commands.Cog):
         stood = False
 
         def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ("✅", "❌") and reaction.message.id == msg.id
+            return (
+                user == ctx.author
+                and str(reaction.emoji) in ("✅", "❌")
+                and reaction.message.id == msg.id
+            )
 
         while not stood and not busted:
             try:
@@ -175,14 +202,13 @@ class Casino(commands.Cog):
         else:
             delta, result, color = -bet, f"💸 Dealer wins! Lost **{humanize_number(bet)}** {icon}.", discord.Color.red()
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:blackjack:{'win' if delta > 0 else 'push' if delta == 0 else 'loss'}",
-            actor=ctx.author, bypass_cap=(delta > 0),
+            actor=ctx.author,
             metadata={"bet": bet, "player_val": pval, "dealer_val": dval},
         )
-        if new_bal is None:
-            return
 
         final_embed = make_embed(reveal_dealer=True, result_line=result)
         final_embed.color = color
@@ -206,9 +232,11 @@ class Casino(commands.Cog):
         if not await self._bet_check(ctx, bet):
             return
 
+        core = self._core()
         name, icon = await self._currency_fmt(ctx.guild)
+
         result = random.randint(0, 36)
-        RED_NUMBERS = {1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36}
+        RED_NUMBERS = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
         is_red = result in RED_NUMBERS
         is_black = result != 0 and not is_red
         result_color = "🔴 Red" if is_red else ("⚫ Black" if is_black else "🟢 Green")
@@ -220,35 +248,45 @@ class Casino(commands.Cog):
         if choice.isdigit():
             n = int(choice)
             if 0 <= n <= 36:
-                won = result == n; multiplier = 36
+                won = result == n
+                multiplier = 36
             else:
                 return await ctx.send("❌ Number must be 0–36.")
-        elif choice in ("red", "r"):         won = is_red;                    multiplier = 2
-        elif choice in ("black", "b"):       won = is_black;                  multiplier = 2
+        elif choice in ("red", "r"):         won = is_red;                         multiplier = 2
+        elif choice in ("black", "b"):       won = is_black;                       multiplier = 2
         elif choice == "odd":                won = result != 0 and result % 2 == 1; multiplier = 2
         elif choice == "even":               won = result != 0 and result % 2 == 0; multiplier = 2
-        elif choice in ("low", "1-18"):      won = 1 <= result <= 18;         multiplier = 2
-        elif choice in ("high", "19-36"):    won = 19 <= result <= 36;        multiplier = 2
-        elif choice == "1st12":              won = 1 <= result <= 12;         multiplier = 3
-        elif choice == "2nd12":              won = 13 <= result <= 24;        multiplier = 3
-        elif choice == "3rd12":              won = 25 <= result <= 36;        multiplier = 3
+        elif choice in ("low", "1-18"):      won = 1 <= result <= 18;              multiplier = 2
+        elif choice in ("high", "19-36"):    won = 19 <= result <= 36;             multiplier = 2
+        elif choice == "1st12":              won = 1 <= result <= 12;              multiplier = 3
+        elif choice == "2nd12":              won = 13 <= result <= 24;             multiplier = 3
+        elif choice == "3rd12":              won = 25 <= result <= 36;             multiplier = 3
         else:
-            return await ctx.send("❌ Invalid choice. Try `red`, `black`, `odd`, `even`, `low`, `high`, `1st12`, `2nd12`, `3rd12`, or 0–36.")
+            return await ctx.send(
+                "❌ Invalid choice. Try `red`, `black`, `odd`, `even`, "
+                "`low`, `high`, `1st12`, `2nd12`, `3rd12`, or 0–36."
+            )
 
         delta = bet * (multiplier - 1) if won else -bet
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:roulette:{'win' if won else 'loss'}",
-            actor=ctx.author, bypass_cap=won,
+            actor=ctx.author,
             metadata={"bet": bet, "choice": choice, "result": result, "multiplier": multiplier},
         )
-        if new_bal is None:
-            return
 
-        embed = discord.Embed(title=f"🎡 Roulette — {'WIN!' if won else 'LOSS'}", color=discord.Color.green() if won else discord.Color.red())
+        embed = discord.Embed(
+            title=f"🎡 Roulette — {'WIN!' if won else 'LOSS'}",
+            color=discord.Color.green() if won else discord.Color.red(),
+        )
         embed.add_field(name="Result", value=f"**{result}** {result_color}", inline=True)
         embed.add_field(name="Your Bet", value=choice.upper(), inline=True)
-        embed.add_field(name="Payout", value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}", inline=True)
+        embed.add_field(
+            name="Payout",
+            value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=ctx.author.display_name)
         await ctx.send(embed=embed)
@@ -267,7 +305,9 @@ class Casino(commands.Cog):
         if not await self._bet_check(ctx, bet):
             return
 
+        core = self._core()
         name, icon = await self._currency_fmt(ctx.guild)
+
         choice = choice.lower()
         if choice not in ("high", "h", "low", "l", "seven", "7"):
             return await ctx.send("❌ Choose `high`, `low`, or `seven`.")
@@ -282,19 +322,25 @@ class Casino(commands.Cog):
         else:                       won = total == 7; multiplier = 4
 
         delta = bet * (multiplier - 1) if won else -bet
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:dice:{'win' if won else 'loss'}",
-            actor=ctx.author, bypass_cap=won,
+            actor=ctx.author,
             metadata={"bet": bet, "d1": d1, "d2": d2, "total": total, "choice": choice_norm},
         )
-        if new_bal is None:
-            return
 
-        embed = discord.Embed(title=f"🎲 Dice — {'WIN!' if won else 'LOSS'}", color=discord.Color.green() if won else discord.Color.red())
+        embed = discord.Embed(
+            title=f"🎲 Dice — {'WIN!' if won else 'LOSS'}",
+            color=discord.Color.green() if won else discord.Color.red(),
+        )
         embed.add_field(name="Roll", value=f"{die_emojis[d1]} {die_emojis[d2]} = **{total}**", inline=True)
         embed.add_field(name="Your Call", value=choice_norm.capitalize(), inline=True)
-        embed.add_field(name="Payout", value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}", inline=True)
+        embed.add_field(
+            name="Payout",
+            value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=ctx.author.display_name)
         await ctx.send(embed=embed)
@@ -319,6 +365,7 @@ class Casino(commands.Cog):
         if not await self._bet_check(ctx, bet):
             return
 
+        core = self._core()
         name, icon = await self._currency_fmt(ctx.guild)
 
         chosen = None
@@ -333,7 +380,9 @@ class Casino(commands.Cog):
                     break
 
         if not chosen:
-            listing = "\n".join(f"`{i+1}.` {h[0]} (odds: {h[2]}x)" for i, h in enumerate(self.HORSES))
+            listing = "\n".join(
+                f"`{i+1}.` {h[0]} (odds: {h[2]}x)" for i, h in enumerate(self.HORSES)
+            )
             return await ctx.send(f"❌ Unknown horse. Options:\n{listing}")
 
         weights = [h[1] for h in self.HORSES]
@@ -347,7 +396,10 @@ class Casino(commands.Cog):
         for _ in range(3):
             for h in self.HORSES:
                 positions[h[0]] += random.randint(1, 5)
-            lines = [f"{h[0][:2]} `{'▓' * positions[h[0]]}{'░' * (20 - positions[h[0]])}` 🏁" for h in self.HORSES]
+            lines = [
+                f"{h[0][:2]} `{'▓' * positions[h[0]]}{'░' * (20 - positions[h[0]])}` 🏁"
+                for h in self.HORSES
+            ]
             embed.description = "\n".join(lines)
             embed.title = "🏇 Racing..."
             await msg.edit(embed=embed)
@@ -357,23 +409,28 @@ class Casino(commands.Cog):
         multiplier = chosen[2]
         delta = int(bet * multiplier) - bet if won else -bet
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:horses:{'win' if won else 'loss'}",
-            actor=ctx.author, bypass_cap=won,
+            actor=ctx.author,
             metadata={"bet": bet, "chosen": chosen[0], "winner": winner[0], "multiplier": multiplier},
         )
-        if new_bal is None:
-            return
 
         result_embed = discord.Embed(
             title=f"🏆 {winner[0]} wins the race!",
             color=discord.Color.green() if won else discord.Color.red(),
         )
-        result_embed.description = f"🎉 Your horse won at **{multiplier}x** odds!" if won else "Better luck next time."
+        result_embed.description = (
+            f"🎉 Your horse won at **{multiplier}x** odds!" if won else "Better luck next time."
+        )
         result_embed.add_field(name="Your Pick", value=chosen[0], inline=True)
         result_embed.add_field(name="Winner", value=winner[0], inline=True)
-        result_embed.add_field(name="Payout", value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}", inline=True)
+        result_embed.add_field(
+            name="Payout",
+            value=f"{'+ ' if won else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         result_embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         result_embed.set_footer(text=ctx.author.display_name)
         await msg.edit(embed=result_embed)
@@ -383,8 +440,15 @@ class Casino(commands.Cog):
     async def raceboard(self, ctx: commands.Context):
         """Show the horse racing odds."""
         name, icon = await self._currency_fmt(ctx.guild)
-        lines = [f"`{i+1}.` {h[0]} — **{h[2]}x** odds (~{int(h[1]*100)}% win rate)" for i, h in enumerate(self.HORSES)]
-        embed = discord.Embed(title="🏇 Race Horses & Odds", description="\n".join(lines), color=discord.Color.gold())
+        lines = [
+            f"`{i+1}.` {h[0]} — **{h[2]}x** odds (~{int(h[1]*100)}% win rate)"
+            for i, h in enumerate(self.HORSES)
+        ]
+        embed = discord.Embed(
+            title="🏇 Race Horses & Odds",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
         embed.set_footer(text=f"Use: {ctx.prefix}horses <bet> <horse number or name>")
         await ctx.send(embed=embed)
 
@@ -400,6 +464,7 @@ class Casino(commands.Cog):
         if not await self._bet_check(ctx, bet):
             return
 
+        core = self._core()
         name, icon = await self._currency_fmt(ctx.guild)
         deck = _new_deck()
         hand = [deck.pop() for _ in range(5)]
@@ -412,10 +477,17 @@ class Casino(commands.Cog):
                 f"`{c[0]}{c[1]}`{' 🔒' if i in held else ''}"
                 for i, c in enumerate(hand)
             )
-            embed = discord.Embed(title="🃏 Video Poker — Jacks or Better", color=discord.Color.dark_teal())
+            embed = discord.Embed(
+                title="🃏 Video Poker — Jacks or Better",
+                color=discord.Color.dark_teal(),
+            )
             embed.add_field(name="Your Hand", value=cards, inline=False)
             if phase == "hold":
-                embed.add_field(name="Instructions", value="React 1️⃣–5️⃣ to hold, then ✅ to draw.", inline=False)
+                embed.add_field(
+                    name="Instructions",
+                    value="React 1️⃣–5️⃣ to hold, then ✅ to draw.",
+                    inline=False,
+                )
             else:
                 hand_name, mult = _poker_rank(hand)
                 embed.add_field(name="Result", value=f"**{hand_name}** — {mult}x", inline=True)
@@ -427,14 +499,20 @@ class Casino(commands.Cog):
             await msg.add_reaction(emoji)
 
         def check(reaction, user):
-            return user == ctx.author and str(reaction.emoji) in ALL_REACTS and reaction.message.id == msg.id
+            return (
+                user == ctx.author
+                and str(reaction.emoji) in ALL_REACTS
+                and reaction.message.id == msg.id
+            )
 
         deadline = asyncio.get_event_loop().time() + 45
         confirmed = False
         while not confirmed and asyncio.get_event_loop().time() < deadline:
             try:
                 remaining = max(1, deadline - asyncio.get_event_loop().time())
-                reaction, _ = await ctx.bot.wait_for("reaction_add", timeout=remaining, check=check)
+                reaction, _ = await ctx.bot.wait_for(
+                    "reaction_add", timeout=remaining, check=check
+                )
             except asyncio.TimeoutError:
                 break
             emoji = str(reaction.emoji)
@@ -455,18 +533,21 @@ class Casino(commands.Cog):
 
         hand_name, multiplier = _poker_rank(hand)
         delta = int(bet * multiplier) - bet if multiplier > 0 else -bet
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:poker:{hand_name.lower().replace(' ', '_')}",
-            actor=ctx.author, bypass_cap=(multiplier > 0),
+            actor=ctx.author,
             metadata={"bet": bet, "hand": hand_name, "multiplier": multiplier},
         )
-        if new_bal is None:
-            return
 
         final_embed = make_hand_embed(phase="result")
         final_embed.color = discord.Color.green() if delta >= 0 else discord.Color.red()
-        final_embed.add_field(name="Payout", value=f"{'+ ' if delta >= 0 else ''}{humanize_number(delta)} {icon}", inline=True)
+        final_embed.add_field(
+            name="Payout",
+            value=f"{'+ ' if delta >= 0 else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         final_embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         await msg.clear_reactions()
         await msg.edit(embed=final_embed)
@@ -484,11 +565,16 @@ class Casino(commands.Cog):
         for h, m in hands:
             lines.append(f"{h:<22} {'x' + str(m):>8}")
         lines.append("```")
-        embed = discord.Embed(title="🃏 Video Poker Paytable", description="\n".join(lines), color=discord.Color.gold())
+        embed = discord.Embed(
+            title="🃏 Video Poker Paytable",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
         embed.set_footer(text="Jacks or Better — 5-card draw")
         await ctx.send(embed=embed)
 
     # ── Error handlers ─────────────────────────────────────────────────────
+
     @blackjack.error
     @roulette.error
     @dice.error

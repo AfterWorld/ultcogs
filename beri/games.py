@@ -1,6 +1,6 @@
 """
-Games mixin for the Beri economy cog — coinflip and slots.
-Balance ops go through BeriCoreBridge -> BeriCore API.
+Games mixin for the Beri cog — coinflip and slots.
+All balance ops call BeriCore directly via self._core().
 """
 
 import random
@@ -21,27 +21,30 @@ BET_MAX = 50_000
 
 
 class Games(commands.Cog):
-    """
-    Gambling games mixin. Expects parent to expose:
-      - self._get_balance(guild, member)
-      - self._safe_modify(ctx, guild, member, delta, reason=, actor=, bypass_cap=, metadata=)
-      - self._currency_fmt(guild)
-    """
+    """Coinflip and slots. Inherits _core() from Beri parent."""
 
     @commands.command(name="coinflip", aliases=["flip", "cf"])
     @commands.guild_only()
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def coinflip(self, ctx: commands.Context, bet: int, choice: str = "heads"):
-        """Flip a coin. Win 2x or lose your bet. Usage: `[p]coinflip <amount> [heads|tails]`"""
+        """Flip a coin. Win 2x or lose your bet.\n`[p]coinflip <amount> [heads|tails]`"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
         choice = choice.lower()
+
         if choice not in ("heads", "tails", "h", "t"):
             return await ctx.send("❌ Choose `heads` or `tails`.")
         choice_norm = "heads" if choice in ("heads", "h") else "tails"
 
-        if bet < BET_MIN or bet > BET_MAX:
-            return await ctx.send(f"❌ Bet must be {humanize_number(BET_MIN)}–{humanize_number(BET_MAX)} {icon}.")
-        balance = await self._get_balance(ctx.guild, ctx.author)
+        if not BET_MIN <= bet <= BET_MAX:
+            return await ctx.send(
+                f"❌ Bet must be {humanize_number(BET_MIN)}–{humanize_number(BET_MAX)} {icon}."
+            )
+
+        balance = await core.get_beri(ctx.author)
         if bet > balance:
             return await ctx.send(f"❌ You only have **{humanize_number(balance)}** {icon}.")
 
@@ -49,20 +52,26 @@ class Games(commands.Cog):
         won = result == choice_norm
         delta = bet if won else -bet
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:coinflip:{'win' if won else 'loss'}",
-            actor=ctx.author, bypass_cap=won,
+            actor=ctx.author,
             metadata={"bet": bet, "choice": choice_norm, "result": result},
         )
-        if new_bal is None:
-            return
 
         coin_emoji = "🪙" if result == "heads" else "🌑"
-        embed = discord.Embed(title=f"{coin_emoji} Coin Flip — {'**WIN!** 🎉' if won else '**LOSS** 💸'}", color=discord.Color.green() if won else discord.Color.red())
+        embed = discord.Embed(
+            title=f"{coin_emoji} Coin Flip — {'**WIN!** 🎉' if won else '**LOSS** 💸'}",
+            color=discord.Color.green() if won else discord.Color.red(),
+        )
         embed.add_field(name="Your Pick", value=choice_norm.capitalize(), inline=True)
         embed.add_field(name="Result", value=result.capitalize(), inline=True)
-        embed.add_field(name="Payout", value=f"{'+' if won else ''}{humanize_number(delta)} {icon}", inline=True)
+        embed.add_field(
+            name="Payout",
+            value=f"{'+' if won else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         embed.add_field(name="New Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=ctx.author.display_name)
         await ctx.send(embed=embed)
@@ -71,11 +80,19 @@ class Games(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 8, commands.BucketType.user)
     async def slots(self, ctx: commands.Context, bet: int):
-        """Spin the slot machine! Usage: `[p]slots <amount>`"""
+        """Spin the slot machine!\n`[p]slots <amount>`"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
-        if bet < BET_MIN or bet > BET_MAX:
-            return await ctx.send(f"❌ Bet must be {humanize_number(BET_MIN)}–{humanize_number(BET_MAX)} {icon}.")
-        balance = await self._get_balance(ctx.guild, ctx.author)
+
+        if not BET_MIN <= bet <= BET_MAX:
+            return await ctx.send(
+                f"❌ Bet must be {humanize_number(BET_MIN)}–{humanize_number(BET_MAX)} {icon}."
+            )
+
+        balance = await core.get_beri(ctx.author)
         if bet > balance:
             return await ctx.send(f"❌ You only have **{humanize_number(balance)}** {icon}.")
 
@@ -84,14 +101,13 @@ class Games(commands.Cog):
         multiplier, label = self._evaluate_slots(reels)
         delta = int(bet * multiplier) - bet
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, delta,
+        new_bal = await core.add_beri(
+            ctx.author,
+            delta,
             reason=f"game:slots:{'win' if delta >= 0 else 'loss'}",
-            actor=ctx.author, bypass_cap=(delta > 0),
+            actor=ctx.author,
             metadata={"bet": bet, "reels": reels, "multiplier": multiplier},
         )
-        if new_bal is None:
-            return
 
         won = delta > 0
         jackpot = multiplier >= 10
@@ -103,12 +119,16 @@ class Games(commands.Cog):
         if label:
             embed.add_field(name="Combo", value=label, inline=True)
         embed.add_field(name="Multiplier", value=f"x{multiplier}", inline=True)
-        embed.add_field(name="Payout", value=f"{'+' if delta >= 0 else ''}{humanize_number(delta)} {icon}", inline=True)
+        embed.add_field(
+            name="Payout",
+            value=f"{'+' if delta >= 0 else ''}{humanize_number(delta)} {icon}",
+            inline=True,
+        )
         embed.add_field(name="New Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=ctx.author.display_name)
         await ctx.send(embed=embed)
 
-    def _evaluate_slots(self, reels):
+    def _evaluate_slots(self, reels: list) -> tuple:
         if reels.count("💀") >= 2:
             return 0, "💀 Cursed Reels — lose it all!"
         for sym in set(reels):
@@ -131,5 +151,18 @@ class Games(commands.Cog):
         for (sym, count), mult in sorted(SLOT_PAYOUTS.items(), key=lambda x: x[1]):
             lines.append(f"{sym} × {count:<17} {'x' + str(mult):>10}")
         lines += ["```", "", "**🪙 Coinflip** — Pick heads or tails. Win = **2x**, Lose = **0x**."]
-        embed = discord.Embed(title=f"{icon} {name} Games — Paytable", description="\n".join(lines), color=discord.Color.gold())
+        embed = discord.Embed(
+            title=f"{icon} {name} Games — Paytable",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
         await ctx.send(embed=embed)
+
+    @coinflip.error
+    @slots.error
+    async def _games_cooldown_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            m, s = divmod(int(error.retry_after), 60)
+            await ctx.send(f"⏳ Cooldown! Try again in **{m}m {s}s**.")
+        else:
+            raise error

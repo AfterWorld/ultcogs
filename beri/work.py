@@ -1,9 +1,8 @@
 """
-DankMemer-style activity commands for the Beri economy cog.
-Balance ops go through BeriCoreBridge -> BeriCore API.
+DankMemer-style activity commands for the Beri cog.
+All balance ops call BeriCore directly via self._core().
 """
 
-import asyncio
 import random
 from typing import Optional
 
@@ -12,18 +11,18 @@ from redbot.core import commands
 from redbot.core.utils.chat_formatting import humanize_number
 
 WORK_JOBS = [
-    ("🍕 Pizza Delivery", 150, 400),
-    ("🔧 Mechanic", 200, 500),
-    ("🎸 Street Musician", 50, 300),
-    ("⚓ Ship Deckhand", 250, 600),
-    ("🏴‍☠️ Bounty Hunter", 300, 700),
-    ("🐟 Fisherman", 100, 350),
-    ("🗡️ Mercenary", 400, 800),
-    ("🍜 Ramen Chef", 150, 450),
-    ("📦 Warehouse Worker", 100, 300),
-    ("🗺️ Navigator", 250, 550),
-    ("⚔️ Swordsmith Apprentice", 200, 600),
-    ("🌺 Flower Shop Assistant", 80, 250),
+    ("🍕 Pizza Delivery",          150, 400),
+    ("🔧 Mechanic",                200, 500),
+    ("🎸 Street Musician",          50, 300),
+    ("⚓ Ship Deckhand",           250, 600),
+    ("🏴‍☠️ Bounty Hunter",          300, 700),
+    ("🐟 Fisherman",               100, 350),
+    ("🗡️ Mercenary",               400, 800),
+    ("🍜 Ramen Chef",              150, 450),
+    ("📦 Warehouse Worker",        100, 300),
+    ("🗺️ Navigator",               250, 550),
+    ("⚔️ Swordsmith Apprentice",   200, 600),
+    ("🌺 Flower Shop Assistant",    80, 250),
 ]
 
 WORK_SUCCESS = [
@@ -35,13 +34,13 @@ WORK_SUCCESS = [
 ]
 
 CRIME_SCENARIOS = [
-    ("🎭 Con Artist", 300, 900, 0.55),
-    ("🏦 Bank Heist", 500, 2000, 0.35),
-    ("🎰 Rigged Card Game", 200, 800, 0.50),
-    ("🚢 Smuggling Contraband", 600, 1500, 0.40),
-    ("🎪 Festival Pickpocket", 100, 500, 0.65),
+    ("🎭 Con Artist",                  300,  900, 0.55),
+    ("🏦 Bank Heist",                  500, 2000, 0.35),
+    ("🎰 Rigged Card Game",            200,  800, 0.50),
+    ("🚢 Smuggling Contraband",        600, 1500, 0.40),
+    ("🎪 Festival Pickpocket",         100,  500, 0.65),
     ("💣 Explosive Distraction Robbery", 800, 2500, 0.30),
-    ("🌃 Night Market Scam", 150, 700, 0.60),
+    ("🌃 Night Market Scam",           150,  700, 0.60),
 ]
 
 CRIME_SUCCESS = [
@@ -56,11 +55,11 @@ CRIME_FAIL = [
 ]
 
 HACK_TARGETS = [
-    ("💻 Marine Database", 400, 1200, 0.50),
+    ("💻 Marine Database",          400, 1200, 0.50),
     ("🏦 World Government Treasury", 1000, 3000, 0.25),
-    ("📡 Enies Lobby Comms", 300, 900, 0.55),
-    ("🛒 Black Market Server", 200, 700, 0.60),
-    ("📱 Celestial Dragon Phone", 500, 1500, 0.40),
+    ("📡 Enies Lobby Comms",        300,  900, 0.55),
+    ("🛒 Black Market Server",      200,  700, 0.60),
+    ("📱 Celestial Dragon Phone",   500, 1500, 0.40),
 ]
 
 HACK_SUCCESS = [
@@ -75,11 +74,11 @@ HACK_FAIL = [
 ]
 
 SLUT_SCENARIOS = [
-    ("💃 Cabaret Performance", 200, 800),
-    ("🎤 Suggestive Karaoke", 100, 500),
-    ("🃏 Strip Poker Host", 300, 900),
-    ("🌹 Companion for Hire", 150, 700),
-    ("🎭 Risqué Theater Act", 200, 600),
+    ("💃 Cabaret Performance",  200, 800),
+    ("🎤 Suggestive Karaoke",   100, 500),
+    ("🃏 Strip Poker Host",     300, 900),
+    ("🌹 Companion for Hire",   150, 700),
+    ("🎭 Risqué Theater Act",   200, 600),
 ]
 SLUT_SUCCESS = [
     "The crowd went wild. You collected {amount} {icon} in tips.",
@@ -89,30 +88,27 @@ SLUT_SUCCESS = [
 
 
 class Work(commands.Cog):
-    """
-    Activity commands mixin. Expects parent to expose:
-      - self._get_balance(guild, member)
-      - self._safe_modify(ctx, guild, member, delta, reason=, actor=, bypass_cap=)
-      - self._modify_balance(guild, member, delta, reason=, actor=, bypass_cap=)
-      - self._currency_fmt(guild)
-    """
+    """Activity commands mixin. Inherits _core() and _currency_fmt() from Beri parent."""
 
     @commands.command(name="work")
     @commands.guild_only()
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def work(self, ctx: commands.Context):
         """Work a job and earn Beri. (1 hour cooldown)"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi = random.choice(WORK_JOBS)
         amount = random.randint(lo, hi)
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, amount,
-            reason="activity:work", actor="System",
+        new_bal = await core.add_beri(
+            ctx.author,
+            amount,
+            reason="activity:work",
             metadata={"job": job_name},
         )
-        if new_bal is None:
-            return
 
         msg = random.choice(WORK_SUCCESS).format(amount=humanize_number(amount), icon=icon)
         embed = discord.Embed(title=f"👷 {job_name}", description=msg, color=discord.Color.green())
@@ -126,34 +122,40 @@ class Work(commands.Cog):
     @commands.cooldown(1, 7200, commands.BucketType.user)
     async def crime(self, ctx: commands.Context):
         """Attempt a criminal act. High risk, high reward. (2 hour cooldown)"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi, success_rate = random.choice(CRIME_SCENARIOS)
         won = random.random() < success_rate
 
         if won:
             amount = random.randint(lo, hi)
-            new_bal = await self._safe_modify(
-                ctx, ctx.guild, ctx.author, amount,
-                reason="activity:crime:success", actor="System",
+            new_bal = await core.add_beri(
+                ctx.author,
+                amount,
+                reason="activity:crime:success",
                 metadata={"crime": job_name, "outcome": "success"},
             )
-            if new_bal is None:
-                return
             msg = random.choice(CRIME_SUCCESS).format(amount=humanize_number(amount), icon=icon)
-            embed = discord.Embed(title=f"🦹 {job_name} — SUCCESS", description=msg, color=discord.Color.green())
+            embed = discord.Embed(
+                title=f"🦹 {job_name} — SUCCESS", description=msg, color=discord.Color.green()
+            )
             embed.add_field(name="Earned", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
         else:
-            balance = await self._get_balance(ctx.guild, ctx.author)
+            balance = await core.get_beri(ctx.author)
             fine = min(random.randint(lo // 3, hi // 3), balance)
-            new_bal = await self._safe_modify(
-                ctx, ctx.guild, ctx.author, -fine,
-                reason="activity:crime:caught", actor="System", bypass_cap=True,
+            new_bal = await core.add_beri(
+                ctx.author,
+                -fine,
+                reason="activity:crime:caught",
                 metadata={"crime": job_name, "outcome": "caught"},
             )
-            if new_bal is None:
-                return
             msg = random.choice(CRIME_FAIL).format(fine=humanize_number(fine), icon=icon)
-            embed = discord.Embed(title=f"🦹 {job_name} — CAUGHT", description=msg, color=discord.Color.red())
+            embed = discord.Embed(
+                title=f"🦹 {job_name} — CAUGHT", description=msg, color=discord.Color.red()
+            )
             embed.add_field(name="Fine", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
 
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
@@ -165,49 +167,75 @@ class Work(commands.Cog):
     @commands.cooldown(1, 5400, commands.BucketType.user)
     async def hack(self, ctx: commands.Context, target: Optional[discord.Member] = None):
         """Hack a system (or another user) for Beri. (90 min cooldown)"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
 
         if target and target != ctx.author and not target.bot:
-            victim_bal = await self._get_balance(ctx.guild, target)
+            victim_bal = await core.get_beri(target)
             if victim_bal < 50:
                 return await ctx.send(f"❌ {target.mention} is too broke to hack.")
+
             won = random.random() < 0.45
             if won:
                 amount = random.randint(50, min(500, victim_bal // 4))
-                try:
-                    await self._modify_balance(ctx.guild, target, -amount, reason=f"hack:victim:{ctx.author.id}", actor=ctx.author, bypass_cap=True)
-                    new_bal = await self._modify_balance(ctx.guild, ctx.author, amount, reason=f"hack:attacker:{target.id}", actor="System", metadata={"victim_id": target.id})
-                except RuntimeError as e:
-                    return await ctx.send(f"❌ {e}")
-                embed = discord.Embed(title="💻 Hack — SUCCESS", description=f"You cracked {target.mention}'s wallet and siphoned **{humanize_number(amount)}** {icon}.", color=discord.Color.green())
+                await core.add_beri(
+                    target, -amount,
+                    reason=f"hack:victim:{ctx.author.id}",
+                    actor=ctx.author,
+                )
+                new_bal = await core.add_beri(
+                    ctx.author, amount,
+                    reason=f"hack:attacker:{target.id}",
+                    metadata={"victim_id": target.id},
+                )
+                embed = discord.Embed(
+                    title="💻 Hack — SUCCESS",
+                    description=f"You cracked {target.mention}'s wallet and siphoned **{humanize_number(amount)}** {icon}.",
+                    color=discord.Color.green(),
+                )
                 embed.add_field(name="Stolen", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
             else:
-                balance = await self._get_balance(ctx.guild, ctx.author)
+                balance = await core.get_beri(ctx.author)
                 fine = min(random.randint(50, 300), balance)
-                new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:fail", actor="System", bypass_cap=True)
-                if new_bal is None:
-                    return
-                embed = discord.Embed(title="💻 Hack — TRACED", description=f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}.", color=discord.Color.red())
+                new_bal = await core.add_beri(
+                    ctx.author, -fine,
+                    reason="hack:fail",
+                )
+                embed = discord.Embed(
+                    title="💻 Hack — TRACED",
+                    description=f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}.",
+                    color=discord.Color.red(),
+                )
                 embed.add_field(name="Lost", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
         else:
             sys_name, lo, hi, success_rate = random.choice(HACK_TARGETS)
             won = random.random() < success_rate
             if won:
                 amount = random.randint(lo, hi)
-                new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, amount, reason="activity:hack:success", actor="System", metadata={"target": sys_name})
-                if new_bal is None:
-                    return
+                new_bal = await core.add_beri(
+                    ctx.author, amount,
+                    reason="activity:hack:success",
+                    metadata={"target": sys_name},
+                )
                 msg = random.choice(HACK_SUCCESS).format(amount=humanize_number(amount), icon=icon)
-                embed = discord.Embed(title=f"💻 {sys_name} — BREACHED", description=msg, color=discord.Color.green())
+                embed = discord.Embed(
+                    title=f"💻 {sys_name} — BREACHED", description=msg, color=discord.Color.green()
+                )
                 embed.add_field(name="Stolen", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
             else:
-                balance = await self._get_balance(ctx.guild, ctx.author)
+                balance = await core.get_beri(ctx.author)
                 fine = min(random.randint(lo // 4, hi // 4), balance)
-                new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="activity:hack:fail", actor="System", bypass_cap=True)
-                if new_bal is None:
-                    return
+                new_bal = await core.add_beri(
+                    ctx.author, -fine,
+                    reason="activity:hack:fail",
+                )
                 msg = random.choice(HACK_FAIL).format(fine=humanize_number(fine), icon=icon)
-                embed = discord.Embed(title=f"💻 {sys_name} — TRACED", description=msg, color=discord.Color.red())
+                embed = discord.Embed(
+                    title=f"💻 {sys_name} — TRACED", description=msg, color=discord.Color.red()
+                )
                 embed.add_field(name="Fine", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
 
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
@@ -219,16 +247,18 @@ class Work(commands.Cog):
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def slut(self, ctx: commands.Context):
         """Use your... assets to earn Beri. (1 hour cooldown)"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi = random.choice(SLUT_SCENARIOS)
         amount = random.randint(lo, hi)
 
-        new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, amount,
-            reason="activity:slut", actor="System",
+        new_bal = await core.add_beri(
+            ctx.author, amount,
+            reason="activity:slut",
         )
-        if new_bal is None:
-            return
 
         msg = random.choice(SLUT_SUCCESS).format(amount=humanize_number(amount), icon=icon)
         embed = discord.Embed(title=f"💋 {job_name}", description=msg, color=discord.Color.magenta())
@@ -242,6 +272,10 @@ class Work(commands.Cog):
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def rob(self, ctx: commands.Context, target: discord.Member):
         """Attempt to rob another user. (1 hour cooldown)"""
+        core = self._core()
+        if not core:
+            return await ctx.send("❌ BeriCore is not loaded.")
+
         name, icon = await self._currency_fmt(ctx.guild)
 
         if target == ctx.author:
@@ -249,11 +283,13 @@ class Work(commands.Cog):
         if target.bot:
             return await ctx.send("❌ Bots don't carry Beri.")
 
-        victim_bal = await self._get_balance(ctx.guild, target)
-        robber_bal = await self._get_balance(ctx.guild, ctx.author)
+        victim_bal = await core.get_beri(target)
+        robber_bal = await core.get_beri(ctx.author)
 
         if victim_bal < 100:
-            return await ctx.send(f"❌ {target.mention} doesn't have enough to be worth robbing.")
+            return await ctx.send(
+                f"❌ {target.mention} doesn't have enough to be worth robbing."
+            )
 
         ratio = min(robber_bal / max(victim_bal, 1), 2.0)
         success_rate = max(0.25, min(0.65, 0.40 + (ratio - 1) * 0.15))
@@ -261,30 +297,37 @@ class Work(commands.Cog):
 
         if won:
             stolen = max(50, random.randint(int(victim_bal * 0.05), int(victim_bal * 0.25)))
-            try:
-                await self._modify_balance(ctx.guild, target, -stolen, reason=f"rob:victim:{ctx.author.id}", actor=ctx.author, bypass_cap=True)
-                new_bal = await self._modify_balance(ctx.guild, ctx.author, stolen, reason=f"rob:success:{target.id}", actor="System", metadata={"victim_id": target.id, "amount": stolen})
-            except RuntimeError as e:
-                return await ctx.send(f"❌ {e}")
+            await core.add_beri(
+                target, -stolen,
+                reason=f"rob:victim:{ctx.author.id}",
+                actor=ctx.author,
+            )
+            new_bal = await core.add_beri(
+                ctx.author, stolen,
+                reason=f"rob:success:{target.id}",
+                metadata={"victim_id": target.id, "amount": stolen},
+            )
             embed = discord.Embed(
                 title="🔫 Robbery — SUCCESS",
-                description=f"You cornered {target.mention} in a dark alley and made off with **{humanize_number(stolen)}** {icon}!",
+                description=f"You cornered {target.mention} and made off with **{humanize_number(stolen)}** {icon}!",
                 color=discord.Color.green(),
             )
             embed.add_field(name="Stolen", value=f"**+{humanize_number(stolen)}** {icon}", inline=True)
         else:
             fine = max(50, min(random.randint(int(robber_bal * 0.10), int(robber_bal * 0.30)), robber_bal))
             victim_share = fine // 2
-            try:
-                await self._modify_balance(ctx.guild, target, victim_share, reason=f"rob:damages:{ctx.author.id}", actor="System")
-                new_bal = await self._modify_balance(ctx.guild, ctx.author, -fine, reason=f"rob:fail:{target.id}", actor="System", bypass_cap=True)
-            except RuntimeError as e:
-                return await ctx.send(f"❌ {e}")
+            await core.add_beri(
+                target, victim_share,
+                reason=f"rob:damages:{ctx.author.id}",
+            )
+            new_bal = await core.add_beri(
+                ctx.author, -fine,
+                reason=f"rob:fail:{target.id}",
+            )
             embed = discord.Embed(
                 title="🔫 Robbery — BUSTED",
                 description=(
-                    f"{target.mention} fought back and called the marines! "
-                    f"You were fined **{humanize_number(fine)}** {icon}.\n"
+                    f"{target.mention} fought back! You were fined **{humanize_number(fine)}** {icon}.\n"
                     f"{target.mention} received **{humanize_number(victim_share)}** {icon} in damages."
                 ),
                 color=discord.Color.red(),
