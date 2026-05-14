@@ -123,6 +123,7 @@ class BeriCore(commands.Cog):
         reason: str = "unknown",
         actor: Optional[Union[discord.Member, str]] = None,
         metadata: Optional[dict] = None,
+        bypass_cap: bool = False,   # accepted for compatibility; BeriCore has no cap
     ) -> int:
         """
         Add (or subtract) ``delta`` Beri from ``member``.
