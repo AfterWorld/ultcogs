@@ -584,64 +584,38 @@ class OnePieceFruit(commands.Cog):
         skipped = 0
         errors = 0
 
-        # vertyco's LevelUp stores all user data via Red's Config system.
-        # Guild-level user data lives at: config.guild(guild).users()
-        # Each entry: { "level": int, "xp": int, ... }
+        # vertyco's LevelUp exposes data via LevelUp.db.get_conf(guild).get_profile(member_id).level
+        # This is confirmed working from the OnePieceBounties cog pattern.
         try:
-            lu_config = getattr(levelup_cog, "config", None)
-            if lu_config is None:
+            lu_db = getattr(levelup_cog, "db", None)
+            if lu_db is None:
                 return await ctx.send(
-                    "❌ LevelUp's `config` attribute not found — unsupported LevelUp version."
+                    "❌ LevelUp's `.db` attribute not found — unsupported LevelUp version. "
+                    "Make sure vertyco's LevelUp is installed and up to date."
                 )
-
-            # Primary path: guild-scoped users dict
-            try:
-                lu_guild_data: dict = await lu_config.guild(ctx.guild).users()
-            except AttributeError:
-                lu_guild_data = {}
-
-            # Fallback: all_members keyed by member id
-            if not lu_guild_data:
-                try:
-                    all_data = await lu_config.all_members(ctx.guild)
-                    lu_guild_data = {str(uid): v for uid, v in all_data.items()}
-                except Exception:
-                    lu_guild_data = {}
-
-            if not lu_guild_data:
-                return await ctx.send(
-                    "ℹ️ No LevelUp user data found for this guild — nobody has levelled up yet, "
-                    "or the data is stored under an unexpected key. No fruits were assigned."
-                )
-
+            lu_conf = lu_db.get_conf(ctx.guild)
         except Exception as exc:
-            log.error("OnePieceFruit bulkassign: failed to read LevelUp config.", exc_info=exc)
-            return await ctx.send(f"❌ Error reading LevelUp data: `{exc}`")
+            log.error("OnePieceFruit bulkassign: failed to access LevelUp db.", exc_info=exc)
+            return await ctx.send(f"❌ Error accessing LevelUp db: `{exc}`")
 
-        for uid_str, member_data in lu_guild_data.items():
+        # Iterate all guild members and look up their level via LevelUp's profile system.
+        # Pattern: lu_db.get_conf(guild).get_profile(member_id).level
+        for member in ctx.guild.members:
+            if member.bot:
+                skipped += 1
+                continue
             try:
-                uid = int(uid_str)
-                member = ctx.guild.get_member(uid)
-                if member is None or member.bot:
-                    skipped += 1
-                    continue
-
-                # vertyco's LevelUp stores level under "level"; guard against non-dict values
-                if not isinstance(member_data, dict):
-                    skipped += 1
-                    continue
-                level = member_data.get("level") or member_data.get("lvl") or 0
+                profile = lu_conf.get_profile(member.id)
+                level = getattr(profile, "level", 0) or 0
                 if level < FRUIT_ASSIGN_LEVEL:
                     skipped += 1
                     continue
 
-                existing = guild_data.get_user(uid)
+                existing = guild_data.get_user(member.id)
 
                 if existing is None:
-                    # Assign a fresh fruit
+                    # Assign a fresh fruit with correct retroactive awakening stage
                     rarity, fruit = _draw_fruit()
-
-                    # Determine correct awakening stage based on current level
                     if level >= AWAKENING_STAGE2_LEVEL:
                         awakening_stage = 2
                     elif level >= AWAKENING_STAGE1_LEVEL:
@@ -649,17 +623,17 @@ class OnePieceFruit(commands.Cog):
                     else:
                         awakening_stage = 0
 
-                    user_data = UserFruitData(
+                    new_data = UserFruitData(
                         fruit_name=fruit["name"],
                         fruit_type=rarity,
                         assigned_at_level=level,
                         awakening_stage=awakening_stage,
                     )
-                    guild_data.set_user(uid, user_data)
+                    guild_data.set_user(member.id, new_data)
                     assigned += 1
 
                 else:
-                    # Already has a fruit — check if awakening needs catching up
+                    # Already has a fruit — catch up awakening stage if needed
                     updated = False
                     if level >= AWAKENING_STAGE2_LEVEL and existing.awakening_stage < 2:
                         existing.awakening_stage = 2
@@ -669,13 +643,13 @@ class OnePieceFruit(commands.Cog):
                         updated = True
 
                     if updated:
-                        guild_data.set_user(uid, existing)
+                        guild_data.set_user(member.id, existing)
                         awakening_updated += 1
                     else:
                         skipped += 1
 
             except Exception as exc:
-                log.warning(f"OnePieceFruit bulkassign: error processing uid {uid_str}", exc_info=exc)
+                log.warning(f"OnePieceFruit bulkassign: error processing {member.id}", exc_info=exc)
                 errors += 1
 
         await self._save()
