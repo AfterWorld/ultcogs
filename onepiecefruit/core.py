@@ -5,6 +5,11 @@ Assigns Devil Fruits at level 5, tracks awakenings at levels 50 and 100,
 and lets users reroll using Beri (Red economy credits) at unlimited but
 ever-escalating costs.
 
+Includes Pirate Rep system (piraterep.py):
+  - Tracks total messages, weekly activity, daily streaks, and rep points.
+  - Appends rep fields to [p]df info embeds.
+  - New commands: [p]df rep, [p]df weekly, [p]df streak.
+
 MIT License — feel free to use and modify.
 """
 
@@ -33,6 +38,7 @@ from .fruits import (
     REROLL_COST_SCALE_FACTOR,
 )
 from .models import DB, GuildData, UserFruitData
+from .piraterep import RepTracker  # ← Pirate Rep integration
 
 log = logging.getLogger("red.onepiecefruit")
 
@@ -62,7 +68,6 @@ AWAKENING_LABELS = {0: "Base Form", 1: "Awakening — Stage 1", 2: "Full Awakeni
 
 # ---------------------------------------------------------------------------
 # Helper — weighted random fruit draw
-# No duplicate-prevention: multiple users can share the same fruit.
 # ---------------------------------------------------------------------------
 def _draw_fruit() -> tuple[str, dict]:
     """Return (rarity_type, fruit_dict) using RARITY_WEIGHTS."""
@@ -74,19 +79,9 @@ def _draw_fruit() -> tuple[str, dict]:
 
 
 def _next_reroll_cost(reroll_count: int) -> int:
-    """
-    Return the cost for the next reroll.
-
-    Rerolls 1–10 follow the fixed REROLL_COST_TABLE.
-    Beyond the 10th reroll, each additional reroll multiplies the previous
-    cost by REROLL_COST_SCALE_FACTOR (compounding), rounded to the nearest
-    whole Beri. There is NO cap — the sky (and your Beri balance) is the limit.
-    """
     table_len = len(REROLL_COST_TABLE)
     if reroll_count < table_len:
         return REROLL_COST_TABLE[reroll_count]
-
-    # Compound from the last table entry
     extra = reroll_count - (table_len - 1)
     base = REROLL_COST_TABLE[-1]
     return int(math.floor(base * (REROLL_COST_SCALE_FACTOR ** extra)))
@@ -97,8 +92,14 @@ def _build_fruit_embed(
     data: UserFruitData,
     *,
     title_prefix: str = "",
+    rep_tracker: t.Optional[RepTracker] = None,
 ) -> discord.Embed:
-    """Build a Discord embed showing a user's Devil Fruit status."""
+    """
+    Build a Discord embed showing a user's Devil Fruit status.
+
+    If rep_tracker is provided (for the [p]df info command), Pirate Rep
+    fields are appended automatically.
+    """
     rarity = data.fruit_type
     colour = RARITY_COLOURS.get(rarity, discord.Colour.blurple())
     emoji = RARITY_EMOJIS.get(rarity, "❓")
@@ -131,6 +132,11 @@ def _build_fruit_embed(
     embed.add_field(name="\u200b", value="\u200b", inline=True)
     embed.add_field(name="Power", value=ability_text, inline=False)
 
+    # ── Pirate Rep section ──────────────────────────────────────────────────
+    if rep_tracker is not None and member.guild is not None:
+        for name, value, inline in rep_tracker.rep_embed_fields(member.guild.id, member.id):
+            embed.add_field(name=name, value=value, inline=inline)
+
     if data.awakening_stage < 2:
         next_lvl = AWAKENING_STAGE2_LEVEL if data.awakening_stage == 1 else AWAKENING_STAGE1_LEVEL
         embed.set_footer(text=f"Next awakening unlocks at Level {next_lvl}.")
@@ -150,22 +156,29 @@ class OnePieceFruit(commands.Cog):
     Assigns Devil Fruits at level 5, tracks awakenings at 50 and 100,
     and lets users reroll using Beri (Red economy) with no reroll cap —
     but costs escalate significantly with each attempt.
+
+    Also tracks Pirate Rep: message activity, daily streaks, weekly standings,
+    and a rank ladder from Cabin Boy to Yonko.
     """
 
     __author__ = "UltPanda"
-    __version__ = "1.1.0"
+    __version__ = "1.2.0"
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
         self.db = DB()
         self._io_lock = asyncio.Lock()
         self._settings_file: t.Optional[Path] = None
+        self.rep_tracker: t.Optional[RepTracker] = None  # initialised in cog_load
 
     # -----------------------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------------------
     async def cog_load(self) -> None:
-        self._settings_file = cog_data_path(self) / "onepiecefruit.json"
+        data_path = cog_data_path(self)
+
+        # Devil Fruit DB
+        self._settings_file = data_path / "onepiecefruit.json"
         if self._settings_file.exists():
             try:
                 self.db = await asyncio.to_thread(DB.from_file, self._settings_file)
@@ -173,11 +186,17 @@ class OnePieceFruit(commands.Cog):
             except Exception as exc:
                 log.error("OnePieceFruit: failed to load config.", exc_info=exc)
 
+        # Pirate Rep tracker
+        self.rep_tracker = RepTracker(data_path / "piraterep.json")
+        await self.rep_tracker.load()
+
     async def cog_unload(self) -> None:
         await self._save()
+        if self.rep_tracker:
+            await self.rep_tracker.save()
 
     # -----------------------------------------------------------------------
-    # Persistence
+    # Persistence — Devil Fruit DB
     # -----------------------------------------------------------------------
     async def _save(self) -> None:
         if self._settings_file is None:
@@ -189,6 +208,21 @@ class OnePieceFruit(commands.Cog):
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
 
     # -----------------------------------------------------------------------
+    # Message tracking → Pirate Rep
+    # -----------------------------------------------------------------------
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Record every non-bot guild message for Pirate Rep tracking."""
+        if message.author.bot or message.guild is None:
+            return
+        if self.rep_tracker is None:
+            return
+        # Fire-and-forget; save is debounced inside RepTracker
+        asyncio.create_task(
+            self.rep_tracker.record_message(message.guild.id, message.author.id)
+        )
+
+    # -----------------------------------------------------------------------
     # Profile command hook — append Devil Fruit embed after [p]profile / [p]pf
     # -----------------------------------------------------------------------
     @commands.Cog.listener("on_command_completion")
@@ -196,25 +230,19 @@ class OnePieceFruit(commands.Cog):
         """
         After a LevelUp profile command completes, send the user's Devil Fruit
         card into the same channel as a follow-up embed.
-
-        Triggers on: profile, pf, and any aliases LevelUp registers for them.
         """
         if ctx.command is None or ctx.guild is None:
             return
 
-        # Match the LevelUp profile command by name and its known aliases
         cmd_name = ctx.command.qualified_name.lower()
         profile_names = {"profile", "pf"}
 
-        # Also catch "levelup profile" style qualified names
         if not (cmd_name in profile_names or cmd_name.endswith(" profile") or cmd_name.endswith(" pf")):
             return
 
-        # Make sure this command actually belongs to the LevelUp cog
         if ctx.command.cog is None or "levelup" not in type(ctx.command.cog).__name__.lower():
             return
 
-        # The profile target: LevelUp accepts an optional member arg; fall back to author
         target: discord.Member = None
         try:
             target = ctx.kwargs.get("member") or (ctx.args[2] if len(ctx.args) > 2 else None)
@@ -227,10 +255,9 @@ class OnePieceFruit(commands.Cog):
         user_data = guild_data.get_user(target.id)
 
         if user_data is None or not user_data.fruit_name:
-            # Silently do nothing — not everyone has a fruit yet
             return
 
-        embed = _build_fruit_embed(target, user_data)
+        embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
         footer_text = embed.footer.text or ""
         embed.set_footer(text=f"🍎 Devil Fruit  •  {footer_text}" if footer_text else "🍎 Devil Fruit")
 
@@ -248,14 +275,7 @@ class OnePieceFruit(commands.Cog):
         level: int,
         channel: t.Optional[discord.TextChannel],
     ) -> None:
-        """
-        Fired by vertyco's LevelUp cog via bot.dispatch('levelup', guild, member, level, channel).
-
-        Handles:
-        - Level 5:  Assign a random Devil Fruit
-        - Level 50: Stage 1 Awakening
-        - Level 100: Full Awakening
-        """
+        """Fired by LevelUp cog. Handles fruit assignment and awakenings."""
         if level < FRUIT_ASSIGN_LEVEL:
             return
 
@@ -301,7 +321,7 @@ class OnePieceFruit(commands.Cog):
                 await channel.send(embed=embed)
             return
 
-        # ── Level 100: Full Awakening ──────────────────────────────────────
+        # ── Level 100: Full Awakening ─────────────────────────────────────
         if level == AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
             user_data.awakening_stage = 2
             guild_data.set_user(member.id, user_data)
@@ -317,7 +337,7 @@ class OnePieceFruit(commands.Cog):
             return
 
     # -----------------------------------------------------------------------
-    # Commands
+    # Commands — Devil Fruit
     # -----------------------------------------------------------------------
     @commands.group(name="devilfruit", aliases=["df"])
     @commands.guild_only()
@@ -327,7 +347,7 @@ class OnePieceFruit(commands.Cog):
     # ── [p]df info ──────────────────────────────────────────────────────────
     @devilfruit.command(name="info", aliases=["check", "fruit"])
     async def df_info(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
-        """Show your (or another member's) Devil Fruit."""
+        """Show your (or another member's) Devil Fruit — including Pirate Rep."""
         target = member or ctx.author
         guild_data = self.db.get_guild(ctx.guild.id)
         user_data = guild_data.get_user(target.id)
@@ -337,7 +357,109 @@ class OnePieceFruit(commands.Cog):
             await ctx.send(f"🌊 {who} eaten a Devil Fruit yet. Reach **Level {FRUIT_ASSIGN_LEVEL}** to receive one!")
             return
 
-        embed = _build_fruit_embed(target, user_data)
+        # Pass rep_tracker so rep fields are included
+        embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
+        await ctx.send(embed=embed)
+
+    # ── [p]df rep ───────────────────────────────────────────────────────────
+    @devilfruit.command(name="rep")
+    async def df_rep(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
+        """Show your full Pirate Rep card (or another member's)."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised yet.")
+        target = member or ctx.author
+
+        weekly_lb = self.rep_tracker.weekly_leaderboard(ctx.guild.id)
+        streak_lb = self.rep_tracker.streak_leaderboard(ctx.guild.id)
+        rep_lb = self.rep_tracker.rep_leaderboard(ctx.guild.id)
+
+        uid_str = str(target.id)
+        weekly_rank = next((i + 1 for i, (uid, _) in enumerate(weekly_lb) if uid == uid_str), None)
+        streak_rank = next((i + 1 for i, (uid, _) in enumerate(streak_lb) if uid == uid_str), None)
+        rep_rank = next((i + 1 for i, (uid, _) in enumerate(rep_lb) if uid == uid_str), None)
+
+        embed = self.rep_tracker.full_rep_embed(
+            target,
+            ctx.guild.id,
+            weekly_rank=weekly_rank,
+            streak_rank=streak_rank,
+            rep_rank=rep_rank,
+        )
+        await ctx.send(embed=embed)
+
+    # ── [p]df weekly ────────────────────────────────────────────────────────
+    @devilfruit.command(name="weekly")
+    async def df_weekly(self, ctx: commands.Context) -> None:
+        """Show the weekly most-active pirates leaderboard."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised yet.")
+
+        from .piraterep import _week_key, _weekly_badge
+
+        lb = self.rep_tracker.weekly_leaderboard(ctx.guild.id)
+        embed = discord.Embed(
+            title=f"📅 Weekly Active Pirates — {_week_key()}",
+            colour=discord.Colour.blurple(),
+        )
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+
+        if not lb:
+            embed.description = "No messages tracked yet this week. Get chatting! 🗣️"
+            return await ctx.send(embed=embed)
+
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for i, (uid_str, count) in enumerate(lb[:15]):
+            m = ctx.guild.get_member(int(uid_str))
+            name = m.mention if m else f"<@{uid_str}>"
+            badge = _weekly_badge(count)
+            medal = medals[i] if i < 3 else f"`#{i + 1}`"
+            badge_str = f" {badge}" if badge else ""
+            lines.append(f"{medal} {name} — **{count:,}**{badge_str}")
+
+        embed.description = "\n".join(lines)
+        embed.set_footer(text="Week resets every Sunday at midnight UTC.")
+        await ctx.send(embed=embed)
+
+    # ── [p]df streak ────────────────────────────────────────────────────────
+    @devilfruit.command(name="streak")
+    async def df_streak(self, ctx: commands.Context) -> None:
+        """Show the current daily streak leaderboard."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised yet.")
+
+        from .piraterep import _utc_today
+        from datetime import date
+
+        lb = self.rep_tracker.streak_leaderboard(ctx.guild.id)
+        embed = discord.Embed(
+            title="🔥 Pirate Streak Leaderboard",
+            colour=discord.Colour.orange(),
+        )
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+
+        if not lb:
+            embed.description = "No active streaks yet. Start chatting every day! 🔥"
+            return await ctx.send(embed=embed)
+
+        today = _utc_today()
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for i, (uid_str, streak) in enumerate(lb[:15]):
+            m = ctx.guild.get_member(int(uid_str))
+            name = m.mention if m else f"<@{uid_str}>"
+            u = self.rep_tracker.get_user(ctx.guild.id, int(uid_str))
+            active = ""
+            if u.last_seen:
+                last = date.fromisoformat(u.last_seen)
+                active = " 🔥" if (today - last).days <= 1 else " 💤"
+            medal = medals[i] if i < 3 else f"`#{i + 1}`"
+            lines.append(f"{medal} {name} — **{streak}** day{'s' if streak != 1 else ''}{active}")
+
+        embed.description = "\n".join(lines)
+        embed.set_footer(text="🔥 = active today/yesterday  💤 = streak at risk")
         await ctx.send(embed=embed)
 
     # ── [p]df reroll ────────────────────────────────────────────────────────
@@ -363,7 +485,6 @@ class OnePieceFruit(commands.Cog):
         currency_name = await bank.get_currency_name(ctx.guild)
         next_cost_preview = _next_reroll_cost(user_data.reroll_count + 1)
 
-        # Confirm
         confirm_msg = await ctx.send(
             f"⚠️ Rerolling your Devil Fruit costs **{cost:,} {currency_name}**.\n"
             f"Your current fruit (**{user_data.fruit_name}**) will be **permanently lost**.\n"
@@ -388,7 +509,6 @@ class OnePieceFruit(commands.Cog):
         if str(reaction.emoji) == "❌":
             return await ctx.send("❌ Reroll cancelled.")
 
-        # Check balance
         try:
             await bank.withdraw_credits(ctx.author, cost)
         except ValueError:
@@ -398,13 +518,12 @@ class OnePieceFruit(commands.Cog):
                 f"You need **{cost:,}** but only have **{balance:,}**."
             )
 
-        # Draw new fruit — no uniqueness enforcement, any fruit is fair game
         old_type = user_data.fruit_type
         rarity, fruit = _draw_fruit()
 
         user_data.fruit_name = fruit["name"]
         user_data.fruit_type = rarity
-        user_data.awakening_stage = 0   # reset awakening on reroll
+        user_data.awakening_stage = 0
         user_data.reroll_count += 1
         user_data.last_reroll_cost = cost
         guild_data.set_user(ctx.author.id, user_data)
@@ -456,11 +575,9 @@ class OnePieceFruit(commands.Cog):
             embed.set_footer(text=f"Page {page_idx + 1}/{total_pages}  •  {total_users} pirates total")
             return embed
 
-        # Single page — no controls needed
         if total_pages == 1:
             return await ctx.send(embed=make_embed(0))
 
-        # Multi-page — reaction paginator
         current = 0
         msg = await ctx.send(embed=make_embed(current))
 
@@ -481,7 +598,6 @@ class OnePieceFruit(commands.Cog):
                     "reaction_add", timeout=60.0, check=check
                 )
             except asyncio.TimeoutError:
-                # Remove controls on timeout so it looks clean
                 with suppress(discord.HTTPException):
                     await msg.clear_reactions()
                 break
@@ -526,7 +642,6 @@ class OnePieceFruit(commands.Cog):
         currency_name = await bank.get_currency_name(ctx.guild)
 
         count = user_data.reroll_count if user_data else 0
-        current_cost = _next_reroll_cost(count)
         preview_lines = []
         for i in range(5):
             n = count + i
@@ -559,12 +674,7 @@ class OnePieceFruit(commands.Cog):
         *,
         fruit_name: t.Optional[str] = None,
     ) -> None:
-        """
-        Assign (or randomly assign) a Devil Fruit to a member.
-
-        If fruit_name is omitted, a random fruit is drawn.
-        Use the exact fruit name from [p]df browse to assign a specific one.
-        """
+        """Assign (or randomly assign) a Devil Fruit to a member."""
         guild_data = self.db.get_guild(ctx.guild.id)
 
         if fruit_name:
@@ -638,20 +748,27 @@ class OnePieceFruit(commands.Cog):
         await self._save()
         await ctx.send(f"✅ Reset reroll counter for **{member.display_name}**.")
 
-    # ── Admin: [p]df admin bulkassign ───────────────────────────────────────
+    @df_admin.command(name="resetrep")
+    async def df_admin_reset_rep(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Reset a member's Pirate Rep data (streak, messages, rep score)."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised.")
+        g = self.rep_tracker._db.get_guild(ctx.guild.id)
+        uid_str = str(member.id)
+        if uid_str in g.users:
+            del g.users[uid_str]
+            await self.rep_tracker.save()
+            await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}**.")
+        else:
+            await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
+
+    # ── Admin: [p]df admin bulkassign ────────────────────────────────────────
     @df_admin.command(name="bulkassign")
     async def df_admin_bulk_assign(self, ctx: commands.Context) -> None:
         """
         Scan all server members via LevelUp and assign a Devil Fruit to anyone
         at Level 5+ who doesn't already have one.
-
-        Also retroactively applies awakening stages based on current level:
-        - Level 50+: Stage 1 Awakening
-        - Level 100+: Full Awakening
-
-        Sends a summary embed when complete. This may take a moment on large servers.
         """
-        # Check LevelUp is available — try all known name variants
         levelup_cog = (
             ctx.bot.get_cog("LevelUp")
             or ctx.bot.get_cog("Levelup")
@@ -659,7 +776,6 @@ class OnePieceFruit(commands.Cog):
             or ctx.bot.get_cog("Level")
         )
         if levelup_cog is None:
-            # Last resort: fuzzy search through all loaded cog names
             for name, cog in ctx.bot.cogs.items():
                 if "level" in name.lower():
                     levelup_cog = cog
@@ -667,9 +783,7 @@ class OnePieceFruit(commands.Cog):
 
         if levelup_cog is None:
             loaded = ", ".join(f"`{n}`" for n in ctx.bot.cogs)
-            return await ctx.send(
-                f"❌ Could not find the LevelUp cog. Loaded cogs: {loaded}"
-            )
+            return await ctx.send(f"❌ Could not find the LevelUp cog. Loaded cogs: {loaded}")
 
         await ctx.send(f"⏳ Found LevelUp cog as `{type(levelup_cog).__name__}`. Scanning all members...")
 
@@ -679,22 +793,15 @@ class OnePieceFruit(commands.Cog):
         skipped = 0
         errors = 0
 
-        # vertyco's LevelUp exposes data via LevelUp.db.get_conf(guild).get_profile(member_id).level
-        # This is confirmed working from the OnePieceBounties cog pattern.
         try:
             lu_db = getattr(levelup_cog, "db", None)
             if lu_db is None:
-                return await ctx.send(
-                    "❌ LevelUp's `.db` attribute not found — unsupported LevelUp version. "
-                    "Make sure vertyco's LevelUp is installed and up to date."
-                )
+                return await ctx.send("❌ LevelUp's `.db` attribute not found — unsupported LevelUp version.")
             lu_conf = lu_db.get_conf(ctx.guild)
         except Exception as exc:
             log.error("OnePieceFruit bulkassign: failed to access LevelUp db.", exc_info=exc)
             return await ctx.send(f"❌ Error accessing LevelUp db: `{exc}`")
 
-        # Iterate all guild members and look up their level via LevelUp's profile system.
-        # Pattern: lu_db.get_conf(guild).get_profile(member_id).level
         for member in ctx.guild.members:
             if member.bot:
                 skipped += 1
@@ -709,7 +816,6 @@ class OnePieceFruit(commands.Cog):
                 existing = guild_data.get_user(member.id)
 
                 if existing is None:
-                    # Assign a fresh fruit with correct retroactive awakening stage
                     rarity, fruit = _draw_fruit()
                     if level >= AWAKENING_STAGE2_LEVEL:
                         awakening_stage = 2
@@ -726,9 +832,7 @@ class OnePieceFruit(commands.Cog):
                     )
                     guild_data.set_user(member.id, new_data)
                     assigned += 1
-
                 else:
-                    # Already has a fruit — catch up awakening stage if needed
                     updated = False
                     if level >= AWAKENING_STAGE2_LEVEL and existing.awakening_stage < 2:
                         existing.awakening_stage = 2
@@ -749,10 +853,7 @@ class OnePieceFruit(commands.Cog):
 
         await self._save()
 
-        embed = discord.Embed(
-            title="🍎 Bulk Assign Complete",
-            colour=discord.Colour.green(),
-        )
+        embed = discord.Embed(title="🍎 Bulk Assign Complete", colour=discord.Colour.green())
         embed.add_field(name="✅ Fruits Assigned", value=str(assigned), inline=True)
         embed.add_field(name="⚡ Awakenings Updated", value=str(awakening_updated), inline=True)
         embed.add_field(name="⏭️ Skipped", value=str(skipped), inline=True)
@@ -764,11 +865,7 @@ class OnePieceFruit(commands.Cog):
     # ── [p]df browse ────────────────────────────────────────────────────────
     @devilfruit.command(name="browse")
     async def df_browse(self, ctx: commands.Context, rarity: t.Optional[str] = None) -> None:
-        """
-        Browse available Devil Fruits by rarity.
-
-        Usage: [p]df browse [Paramecia|Zoan|Logia|Ancient Zoan|Mythical Zoan|Legendary]
-        """
+        """Browse available Devil Fruits by rarity."""
         valid = list(DEVIL_FRUITS.keys())
 
         if rarity is None:
@@ -782,9 +879,7 @@ class OnePieceFruit(commands.Cog):
 
         matched = next((r for r in valid if r.lower() == rarity.lower()), None)
         if matched is None:
-            return await ctx.send(
-                f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}"
-            )
+            return await ctx.send(f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}")
 
         fruits = DEVIL_FRUITS[matched]
         emoji = RARITY_EMOJIS[matched]
