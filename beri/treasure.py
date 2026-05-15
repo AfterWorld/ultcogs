@@ -150,9 +150,11 @@ class Treasure(commands.Cog):
 
     def cog_load(self):
         self._lottery_loop.start()
+        self._lottery_update_loop.start()
 
     def cog_unload(self):
         self._lottery_loop.cancel()
+        self._lottery_update_loop.cancel()
 
     @tasks.loop(minutes=5)
     async def _lottery_loop(self):
@@ -171,6 +173,49 @@ class Treasure(commands.Cog):
 
     @_lottery_loop.before_loop
     async def _before_lottery_loop(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(minutes=60)
+    async def _lottery_update_loop(self):
+        """Hourly announcement of current pot / tickets to the configured channel."""
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for guild in self.bot.guilds:
+            try:
+                cfg = await self._lottery_cfg(guild)
+                pot = cfg.get("pot", 0)
+                tickets: dict = cfg.get("tickets", {})
+                if not pot:
+                    continue
+
+                ch_id = cfg.get("channel")
+                channel = guild.get_channel(ch_id) if ch_id else guild.system_channel
+                if not channel:
+                    continue
+
+                name, icon = await self._currency_fmt(guild)
+                total_tickets = sum(tickets.values())
+                schedule = cfg.get("schedule", "daily")
+                next_draw = self._next_draw_dt(cfg.get("last_draw"), schedule)
+                remaining = next_draw - now
+
+                embed = discord.Embed(
+                    title="📞 Den Den Mushi Lottery — Update",
+                    color=discord.Color.gold(),
+                )
+                embed.add_field(name="🏆 Current Pot", value=f"**{humanize_number(pot)}** {icon}", inline=False)
+                embed.add_field(name="🎟️ Total Tickets", value=str(total_tickets), inline=True)
+                embed.add_field(name="💸 Ticket Price", value=f"{humanize_number(cfg.get('ticket_price', LOTTERY_DEFAULTS['ticket_price']))} {icon}", inline=True)
+                embed.add_field(name="⏰ Next Draw In", value=self._fmt_timedelta(remaining), inline=True)
+                embed.set_footer(text="Buy tickets with the buyticket command.")
+                try:
+                    await channel.send(embed=embed)
+                except discord.HTTPException:
+                    pass
+            except Exception:
+                pass
+
+    @_lottery_update_loop.before_loop
+    async def _before_lottery_update_loop(self):
         await self.bot.wait_until_ready()
 
     # ─────────────────────────────────────────────────────────────────────
