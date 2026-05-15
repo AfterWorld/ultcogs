@@ -207,6 +207,58 @@ class OnePieceFruit(commands.Cog):
             except Exception as exc:
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
 
+    def _bericog(self) -> t.Optional[object]:
+        return self.bot.get_cog("BeriCog")
+
+    async def _get_currency_name(self, guild: discord.Guild) -> str:
+        beri = self._bericog()
+        if beri is not None:
+            return (await beri._currency_fmt(guild))[0]
+        return await bank.get_currency_name(guild)
+
+    async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
+        beri = self._bericog()
+        if beri is not None:
+            return await beri._get_balance(guild, member)
+        return await bank.get_balance(member)
+
+    async def _withdraw_currency(self, ctx: commands.Context, member: discord.Member, amount: int) -> int:
+        beri = self._bericog()
+        if beri is not None:
+            balance = await beri._get_balance(ctx.guild, member)
+            if balance < amount:
+                raise ValueError("Insufficient funds")
+            return await beri._modify_balance(
+                ctx.guild,
+                member,
+                -amount,
+                reason="devilfruit:reroll",
+                actor=ctx.author or "System",
+            )
+        return await bank.withdraw_credits(member, amount)
+
+    async def _resolve_profile_target(self, ctx: commands.Context) -> discord.Member:
+        target = ctx.kwargs.get("member")
+        if isinstance(target, discord.Member):
+            return target
+
+        if ctx.guild is None:
+            return ctx.author
+
+        if ctx.message and ctx.message.content:
+            parts = ctx.message.content.strip().split()
+            if len(parts) > 1:
+                query = " ".join(parts[1:])
+                try:
+                    return await commands.MemberConverter().convert(ctx, query)
+                except Exception:
+                    query_lower = query.lower()
+                    for member in ctx.guild.members:
+                        if member.display_name.lower() == query_lower or member.name.lower() == query_lower:
+                            return member
+
+        return ctx.author
+
     # -----------------------------------------------------------------------
     # Message tracking → Pirate Rep
     # -----------------------------------------------------------------------
@@ -243,11 +295,7 @@ class OnePieceFruit(commands.Cog):
         if ctx.command.cog is None or "levelup" not in type(ctx.command.cog).__name__.lower():
             return
 
-        target: discord.Member = None
-        try:
-            target = ctx.kwargs.get("member") or (ctx.args[2] if len(ctx.args) > 2 else None)
-        except (IndexError, TypeError):
-            pass
+        target = await self._resolve_profile_target(ctx)
         if not isinstance(target, discord.Member):
             target = ctx.author
 
@@ -482,7 +530,7 @@ class OnePieceFruit(commands.Cog):
             )
 
         cost = _next_reroll_cost(user_data.reroll_count)
-        currency_name = await bank.get_currency_name(ctx.guild)
+        currency_name = await self._get_currency_name(ctx.guild)
         next_cost_preview = _next_reroll_cost(user_data.reroll_count + 1)
 
         confirm_msg = await ctx.send(
@@ -510,9 +558,9 @@ class OnePieceFruit(commands.Cog):
             return await ctx.send("❌ Reroll cancelled.")
 
         try:
-            await bank.withdraw_credits(ctx.author, cost)
+            await self._withdraw_currency(ctx, ctx.author, cost)
         except ValueError:
-            balance = await bank.get_balance(ctx.author)
+            balance = await self._get_balance(ctx.guild, ctx.author)
             return await ctx.send(
                 f"💸 You don't have enough {currency_name}! "
                 f"You need **{cost:,}** but only have **{balance:,}**."
@@ -639,7 +687,7 @@ class OnePieceFruit(commands.Cog):
         target = member or ctx.author
         guild_data = self.db.get_guild(ctx.guild.id)
         user_data = guild_data.get_user(target.id)
-        currency_name = await bank.get_currency_name(ctx.guild)
+        currency_name = await self._get_currency_name(ctx.guild)
 
         count = user_data.reroll_count if user_data else 0
         preview_lines = []
