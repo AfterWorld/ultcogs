@@ -1,7 +1,7 @@
 """
 OnePieceFruit — a Red-DiscordBot companion cog for vertyco's LevelUp.
 
-Assigns Devil Fruits at level 5, tracks awakenings at levels 15 and 30,
+Assigns Devil Fruits at level 5, tracks awakenings at levels 50 and 100,
 and lets users reroll using Beri (Red economy credits) at unlimited but
 ever-escalating costs.
 
@@ -147,7 +147,7 @@ class OnePieceFruit(commands.Cog):
     """
     One Piece Devil Fruit companion cog for LevelUp.
 
-    Assigns Devil Fruits at level 5, tracks awakenings at 15 and 30,
+    Assigns Devil Fruits at level 5, tracks awakenings at 50 and 100,
     and lets users reroll using Beri (Red economy) with no reroll cap —
     but costs escalate significantly with each attempt.
     """
@@ -253,8 +253,8 @@ class OnePieceFruit(commands.Cog):
 
         Handles:
         - Level 5:  Assign a random Devil Fruit
-        - Level 15: Stage 1 Awakening
-        - Level 30: Full Awakening
+        - Level 50: Stage 1 Awakening
+        - Level 100: Full Awakening
         """
         if level < FRUIT_ASSIGN_LEVEL:
             return
@@ -286,7 +286,7 @@ class OnePieceFruit(commands.Cog):
                     await member.send(embed=embed)
             return
 
-        # ── Level 15: Stage 1 Awakening ──────────────────────────────────
+        # ── Level 50: Stage 1 Awakening ──────────────────────────────────
         if level == AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
             user_data.awakening_stage = 1
             guild_data.set_user(member.id, user_data)
@@ -301,7 +301,7 @@ class OnePieceFruit(commands.Cog):
                 await channel.send(embed=embed)
             return
 
-        # ── Level 30: Full Awakening ──────────────────────────────────────
+        # ── Level 100: Full Awakening ──────────────────────────────────────
         if level == AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
             user_data.awakening_stage = 2
             guild_data.set_user(member.id, user_data)
@@ -646,8 +646,8 @@ class OnePieceFruit(commands.Cog):
         at Level 5+ who doesn't already have one.
 
         Also retroactively applies awakening stages based on current level:
-        - Level 15+: Stage 1 Awakening
-        - Level 30+: Full Awakening
+        - Level 50+: Stage 1 Awakening
+        - Level 100+: Full Awakening
 
         Sends a summary embed when complete. This may take a moment on large servers.
         """
