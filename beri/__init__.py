@@ -5,12 +5,13 @@ All balance mutations go through _modify_balance(), which always sets
 bypass_cap=True so the daily cap is never a concern.
 
 Mixins loaded:
-  - casino.py  → blackjack, roulette, dice, horses, video poker
-  - games.py   → coinflip, slots
-  - work.py    → work, crime, hack, slut, rob, daily, plunder
-  - income.py  → on_message income, collect (stipends), incomeset admin
-  - audit.py   → local audit log (supplemental to BeriCore's own audit)
-  - xkcd.py    → Random comic
+  - casino.py   → blackjack, roulette, dice, horses, video poker
+  - games.py    → coinflip, slots
+  - work.py     → work, crime, hack, slut, rob, daily, plunder, beg
+  - income.py   → on_message income, collect (stipends), incomeset admin
+  - audit.py    → local audit log (supplemental to BeriCore's own audit)
+  - xkcd.py     → random comic
+  - treasure.py → treasure maps, den den mushi lottery
 """
 
 from redbot.core import commands, Config
@@ -25,15 +26,17 @@ from .work import Work
 from .income import Income
 from .audit import AuditLog
 from .xkcd import XKCD
+from .treasure import Treasure
 
 
-class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
+class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
     """
     One Piece-themed Beri economy powered by BeriCore.
-    Provides games, gambling, activity commands, and passive income.
+    Provides games, gambling, activity commands, passive income,
+    treasure maps, and the Den Den Mushi Lottery.
     """
 
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
     # ── Default guild config ───────────────────────────────────────────────
     DEFAULT_GUILD = {
@@ -47,11 +50,27 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
             "message_max": 25,
             "role_stipends": {},
         },
+        # Den Den Mushi Lottery (owned by treasure.py)
+        "lottery": {
+            "ticket_price": 250,
+            "schedule": "daily",
+            "last_draw": None,
+            "pot": 0,
+            "tickets": {},
+            "channel": None,
+            "house_cut": 0.10,
+        },
     }
 
     DEFAULT_MEMBER = {
         "last_message_income": None,
         "last_stipend_collect": {},
+        # Treasure maps inventory (owned by treasure.py)
+        "maps": {
+            "eastblue": 0,
+            "grandline": 0,
+            "newworld": 0,
+        },
     }
 
     DEFAULT_GLOBAL = {
@@ -71,6 +90,14 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
 
         self._audit = AuditLog(bot, self.config)
 
+    # ── Lifecycle hooks (required for Treasure's background task) ──────────
+
+    def cog_load(self):
+        Treasure.cog_load(self)
+
+    def cog_unload(self):
+        Treasure.cog_unload(self)
+
     # ══════════════════════════════════════════════════════════════════════
     # BeriCore bridge — ALL balance ops flow through here
     # ══════════════════════════════════════════════════════════════════════
@@ -78,7 +105,6 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
     def _bericore(self):
         """Return the BeriCore cog instance, or None if not loaded."""
         return self.bot.get_cog("BeriCore")
-
 
     async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
         """Fetch current Beri balance for a member."""
@@ -95,7 +121,7 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
         *,
         reason: str = "bericog:unknown",
         actor=None,
-        bypass_cap: bool = True,   # always True — we don't use the cap
+        bypass_cap: bool = True,
         metadata: Optional[dict] = None,
     ) -> int:
         """
@@ -265,7 +291,6 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
         async with ctx.typing():
             all_members = await core.config.all_members(ctx.guild)
 
-        # Build sorted list of (user_id, balance), members only in this guild
         entries = []
         for uid, data in all_members.items():
             bal = data.get("balance", 0)
@@ -293,7 +318,6 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
             you = " ◀" if uid == ctx.author.id else ""
             lines.append(f"{prefix} **{display}** — {humanize_number(bal)} {icon}{you}")
 
-        # Find caller's rank
         caller_rank = next((i + 1 for i, (uid, _) in enumerate(entries) if uid == ctx.author.id), None)
         caller_bal = next((bal for uid, bal in entries if uid == ctx.author.id), 0)
 
@@ -374,12 +398,16 @@ class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
         core = self._bericore()
         audit_ch_id = await self.config.guild(ctx.guild).audit_channel()
         audit_ch = ctx.guild.get_channel(audit_ch_id) if audit_ch_id else None
+        lottery = await self._lottery_cfg(ctx.guild)
+        lotto_ch = ctx.guild.get_channel(lottery.get("channel")) if lottery.get("channel") else None
 
         embed = discord.Embed(title="⚙️ BeriCog Config", color=discord.Color.blurple())
         embed.add_field(name="Currency", value=f"{icon} {name}", inline=True)
         embed.add_field(name="BeriCore", value="✅ Loaded" if core else "❌ Not loaded", inline=True)
         embed.add_field(name="Daily Cap", value="🚫 Disabled (bypass_cap=True always)", inline=True)
         embed.add_field(name="Audit Channel", value=audit_ch.mention if audit_ch else "Not set", inline=True)
+        embed.add_field(name="Lottery Schedule", value=lottery.get("schedule", "daily").capitalize(), inline=True)
+        embed.add_field(name="Lottery Channel", value=lotto_ch.mention if lotto_ch else "System channel", inline=True)
         await ctx.send(embed=embed)
 
     # ══════════════════════════════════════════════════════════════════════
