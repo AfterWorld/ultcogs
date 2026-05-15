@@ -19,7 +19,8 @@ import random
 from typing import Optional
 
 import discord
-from redbot.core import commands, checks, tasks
+from redbot.core import commands, checks
+from discord.ext import tasks
 from redbot.core.utils.chat_formatting import humanize_number
 
 # ══════════════════════════════════════════════════════════════════════════════
