@@ -177,7 +177,7 @@ class Treasure(commands.Cog):
     # Core lottery draw logic
     # ─────────────────────────────────────────────────────────────────────
 
-    async def _run_lottery(self, guild: discord.Guild, forced_by=None):
+    async def _run_lottery(self, guild: discord.Guild, forced_by=None, announce_channel: Optional[discord.TextChannel] = None):
         """
         Pick a winner, pay out, reset the pot and ticket pool.
         Returns the winner Member or None if no tickets.
@@ -220,12 +220,15 @@ class Treasure(commands.Cog):
                 pass
 
         # Announce
-        cfg_fresh = await self._lottery_cfg(guild)
-        ch_id = cfg_fresh.get("channel")
-        channel = guild.get_channel(ch_id) if ch_id else None
-        if not channel:
-            # Fallback: system channel
-            channel = guild.system_channel
+        if announce_channel is not None:
+            channel = announce_channel
+        else:
+            cfg_fresh = await self._lottery_cfg(guild)
+            ch_id = cfg_fresh.get("channel")
+            channel = guild.get_channel(ch_id) if ch_id else None
+            if not channel:
+                # Fallback: system channel
+                channel = guild.system_channel
 
         if channel:
             embed = discord.Embed(
@@ -447,6 +450,8 @@ class Treasure(commands.Cog):
             uid = str(ctx.author.id)
             lotto["tickets"][uid] = lotto["tickets"].get(uid, 0) + qty
             lotto["pot"] = lotto.get("pot", 0) + total_cost
+            if lotto.get("last_draw") is None:
+                lotto["last_draw"] = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
             total_held = lotto["tickets"][uid]
             pot = lotto["pot"]
 
@@ -556,6 +561,21 @@ class Treasure(commands.Cog):
             return await ctx.send("❌ No tickets have been sold yet — nothing to draw.")
         await ctx.send("📞 Calling the Den Den Mushi… drawing now!")
         winner = await self._run_lottery(ctx.guild, forced_by=ctx.author.display_name)
+        if not winner:
+            await ctx.send("❌ Draw failed — no tickets or pot was empty.")
+
+    @lotteryset.command(name="test", aliases=["drawhere", "testdraw"])
+    async def lotteryset_test(self, ctx: commands.Context):
+        """Force a lottery draw announcement in the current channel."""
+        cfg = await self._lottery_cfg(ctx.guild)
+        if not cfg.get("tickets"):
+            return await ctx.send("❌ No tickets have been sold yet — nothing to draw.")
+        await ctx.send("📞 Calling the Den Den Mushi… drawing now in this channel!")
+        winner = await self._run_lottery(
+            ctx.guild,
+            forced_by=ctx.author.display_name,
+            announce_channel=ctx.channel,
+        )
         if not winner:
             await ctx.send("❌ Draw failed — no tickets or pot was empty.")
 
