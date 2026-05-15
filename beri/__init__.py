@@ -105,13 +105,24 @@ class BeriCog(Casino, Games, Work, Income, commands.Cog):
         if not core:
             raise RuntimeError("BeriCore is not loaded. Ask an admin to load it.")
 
-        new_balance = await core.add_beri(
-            member, delta,
-            reason=reason,
-            actor=actor,
-            bypass_cap=True,
-            metadata=metadata,
-        )
+        try:
+            new_balance = await core.add_beri(
+                member, delta,
+                reason=reason,
+                actor=actor,
+                bypass_cap=True,
+                metadata=metadata,
+            )
+        except TypeError as exc:
+            if "bypass_cap" in str(exc):
+                new_balance = await core.add_beri(
+                    member, delta,
+                    reason=reason,
+                    actor=actor,
+                    metadata=metadata,
+                )
+            else:
+                raise
 
         # Mirror to local audit log as well
         try:
