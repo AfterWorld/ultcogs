@@ -7,9 +7,10 @@ bypass_cap=True so the daily cap is never a concern.
 Mixins loaded:
   - casino.py  → blackjack, roulette, dice, horses, video poker
   - games.py   → coinflip, slots
-  - work.py    → work, crime, hack, slut, rob
+  - work.py    → work, crime, hack, slut, rob, daily, plunder
   - income.py  → on_message income, collect (stipends), incomeset admin
   - audit.py   → local audit log (supplemental to BeriCore's own audit)
+  - xkcd.py    → Random comic
 """
 
 from redbot.core import commands, Config
