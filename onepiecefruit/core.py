@@ -2,7 +2,8 @@
 OnePieceFruit — a Red-DiscordBot companion cog for vertyco's LevelUp.
 
 Assigns Devil Fruits at level 5, tracks awakenings at levels 15 and 30,
-and lets users reroll using Beri (Red economy credits) at escalating costs.
+and lets users reroll using Beri (Red economy credits) at unlimited but
+ever-escalating costs.
 
 MIT License — feel free to use and modify.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 import typing as t
 from contextlib import suppress
@@ -28,6 +30,7 @@ from .fruits import (
     AWAKENING_STAGE2_LEVEL,
     RARITY_WEIGHTS,
     REROLL_COST_TABLE,
+    REROLL_COST_SCALE_FACTOR,
 )
 from .models import DB, GuildData, UserFruitData
 
@@ -59,6 +62,7 @@ AWAKENING_LABELS = {0: "Base Form", 1: "Awakening — Stage 1", 2: "Full Awakeni
 
 # ---------------------------------------------------------------------------
 # Helper — weighted random fruit draw
+# No duplicate-prevention: multiple users can share the same fruit.
 # ---------------------------------------------------------------------------
 def _draw_fruit() -> tuple[str, dict]:
     """Return (rarity_type, fruit_dict) using RARITY_WEIGHTS."""
@@ -69,19 +73,23 @@ def _draw_fruit() -> tuple[str, dict]:
     return chosen_type, chosen_fruit
 
 
-def _create_random_fruit_data(assigned_at_level: int = 0) -> UserFruitData:
-    rarity, fruit = _draw_fruit()
-    return UserFruitData(
-        fruit_name=fruit["name"],
-        fruit_type=rarity,
-        assigned_at_level=assigned_at_level,
-        awakening_stage=0,
-    )
-
-
 def _next_reroll_cost(reroll_count: int) -> int:
-    idx = min(reroll_count, len(REROLL_COST_TABLE) - 1)
-    return REROLL_COST_TABLE[idx]
+    """
+    Return the cost for the next reroll.
+
+    Rerolls 1–10 follow the fixed REROLL_COST_TABLE.
+    Beyond the 10th reroll, each additional reroll multiplies the previous
+    cost by REROLL_COST_SCALE_FACTOR (compounding), rounded to the nearest
+    whole Beri. There is NO cap — the sky (and your Beri balance) is the limit.
+    """
+    table_len = len(REROLL_COST_TABLE)
+    if reroll_count < table_len:
+        return REROLL_COST_TABLE[reroll_count]
+
+    # Compound from the last table entry
+    extra = reroll_count - (table_len - 1)
+    base = REROLL_COST_TABLE[-1]
+    return int(math.floor(base * (REROLL_COST_SCALE_FACTOR ** extra)))
 
 
 def _build_fruit_embed(
@@ -96,8 +104,6 @@ def _build_fruit_embed(
     emoji = RARITY_EMOJIS.get(rarity, "❓")
     stage_label = AWAKENING_LABELS.get(data.awakening_stage, "Base Form")
 
-    # Pick the right ability description
-    # Find the fruit dict by name
     fruit_dict = None
     for fruit in DEVIL_FRUITS.get(rarity, []):
         if fruit["name"] == data.fruit_name:
@@ -142,11 +148,12 @@ class OnePieceFruit(commands.Cog):
     One Piece Devil Fruit companion cog for LevelUp.
 
     Assigns Devil Fruits at level 5, tracks awakenings at 15 and 30,
-    and lets users reroll using Beri (Red economy) at escalating costs.
+    and lets users reroll using Beri (Red economy) with no reroll cap —
+    but costs escalate significantly with each attempt.
     """
 
-    __author__ = "your-name-here"
-    __version__ = "1.0.0"
+    __author__ = "UltPanda"
+    __version__ = "1.1.0"
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
@@ -180,53 +187,6 @@ class OnePieceFruit(commands.Cog):
                 await asyncio.to_thread(self.db.to_file, self._settings_file)
             except Exception as exc:
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
-
-    async def _get_levelup_level(self, guild: discord.Guild, member: discord.Member) -> t.Optional[int]:
-        levelup = self.bot.get_cog("LevelUp")
-        if levelup is None:
-            return None
-
-        candidates = [
-            ("get_level", (guild, member)),
-            ("get_level", (guild.id, member.id)),
-            ("get_member_level", (member,)),
-            ("get_member_level", (guild.id, member.id)),
-            ("get_user_level", (member,)),
-            ("get_user_level", (guild.id, member.id)),
-            ("get_level_for_member", (member,)),
-            ("get_level_for_member", (guild.id, member.id)),
-            ("user_level", (guild.id, member.id)),
-        ]
-
-        for name, args in candidates:
-            method = getattr(levelup, name, None)
-            if method is None:
-                continue
-
-            try:
-                result = method(*args)
-            except TypeError:
-                continue
-            except Exception:
-                continue
-
-            if asyncio.iscoroutine(result):
-                try:
-                    result = await result
-                except Exception:
-                    continue
-
-            if isinstance(result, int):
-                return result
-            if isinstance(result, dict):
-                maybe = result.get(str(member.id)) or result.get(member.id)
-                if isinstance(maybe, int):
-                    return maybe
-                maybe = result.get("level")
-                if isinstance(maybe, int):
-                    return maybe
-
-        return None
 
     # -----------------------------------------------------------------------
     # LevelUp event hook
@@ -335,10 +295,12 @@ class OnePieceFruit(commands.Cog):
     @devilfruit.command(name="reroll", aliases=["change", "new"])
     async def df_reroll(self, ctx: commands.Context) -> None:
         """
-        Reroll your Devil Fruit for Beri.
+        Reroll your Devil Fruit for Beri. Unlimited rerolls — but costs grow significantly each time.
 
-        Cost increases with each reroll:
-        1st → 10,000 ⬩ 2nd → 25,000 ⬩ 3rd → 50,000 ⬩ 4th+ → 100,000
+        Cost schedule (first 10):
+        1st → 10,000 ⬩ 2nd → 25,000 ⬩ 3rd → 50,000 ⬩ 4th → 100,000 ⬩ 5th → 200,000
+        6th → 350,000 ⬩ 7th → 500,000 ⬩ 8th → 750,000 ⬩ 9th → 1,000,000 ⬩ 10th → 1,500,000
+        Beyond 10th: ×1.5 compounding each time — costs skyrocket fast.
         """
         guild_data = self.db.get_guild(ctx.guild.id)
         user_data = guild_data.get_user(ctx.author.id)
@@ -350,11 +312,13 @@ class OnePieceFruit(commands.Cog):
 
         cost = _next_reroll_cost(user_data.reroll_count)
         currency_name = await bank.get_currency_name(ctx.guild)
+        next_cost_preview = _next_reroll_cost(user_data.reroll_count + 1)
 
         # Confirm
         confirm_msg = await ctx.send(
             f"⚠️ Rerolling your Devil Fruit costs **{cost:,} {currency_name}**.\n"
             f"Your current fruit (**{user_data.fruit_name}**) will be **permanently lost**.\n"
+            f"*Next reroll after this would cost: **{next_cost_preview:,} {currency_name}***\n"
             f"React with ✅ to confirm, or ❌ to cancel."
         )
         await confirm_msg.add_reaction("✅")
@@ -385,12 +349,9 @@ class OnePieceFruit(commands.Cog):
                 f"You need **{cost:,}** but only have **{balance:,}**."
             )
 
-        # Draw new fruit (guaranteed different type if possible)
+        # Draw new fruit — no uniqueness enforcement, any fruit is fair game
         old_type = user_data.fruit_type
-        for _ in range(10):
-            rarity, fruit = _draw_fruit()
-            if fruit["name"] != user_data.fruit_name:
-                break
+        rarity, fruit = _draw_fruit()
 
         user_data.fruit_name = fruit["name"]
         user_data.fruit_type = rarity
@@ -407,7 +368,7 @@ class OnePieceFruit(commands.Cog):
         )
 
         next_cost = _next_reroll_cost(user_data.reroll_count)
-        embed.set_footer(text=f"Next reroll will cost {next_cost:,} {currency_name}.")
+        embed.set_footer(text=f"Reroll #{user_data.reroll_count} complete. Next reroll: {next_cost:,} {currency_name}.")
         await ctx.send(embed=embed)
 
     # ── [p]df list ──────────────────────────────────────────────────────────
@@ -432,7 +393,6 @@ class OnePieceFruit(commands.Cog):
         if not lines:
             return await ctx.send("🌊 No active Devil Fruit users found.")
 
-        # Paginate naively if long
         chunk_size = 15
         pages = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
 
@@ -461,7 +421,36 @@ class OnePieceFruit(commands.Cog):
             )
         await ctx.send(embed=embed)
 
-    # ── Admin: [p]df admin assign ────────────────────────────────────────────
+    # ── [p]df rerollcost ────────────────────────────────────────────────────
+    @devilfruit.command(name="rerollcost", aliases=["cost"])
+    async def df_reroll_cost(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
+        """Show the current and upcoming reroll costs for yourself or another member."""
+        target = member or ctx.author
+        guild_data = self.db.get_guild(ctx.guild.id)
+        user_data = guild_data.get_user(target.id)
+        currency_name = await bank.get_currency_name(ctx.guild)
+
+        count = user_data.reroll_count if user_data else 0
+        current_cost = _next_reroll_cost(count)
+        preview_lines = []
+        for i in range(5):
+            n = count + i
+            c = _next_reroll_cost(n)
+            label = f"Reroll #{n + 1}"
+            if i == 0:
+                label += " ← next"
+            preview_lines.append(f"`{label}`: **{c:,} {currency_name}**")
+
+        who = target.display_name
+        embed = discord.Embed(
+            title=f"💸 Reroll Costs — {who}",
+            description="\n".join(preview_lines),
+            colour=discord.Colour.dark_gold(),
+        )
+        embed.set_footer(text=f"Total rerolls so far: {count}. Costs compound ×1.5 after reroll #10.")
+        await ctx.send(embed=embed)
+
+    # ── Admin: [p]df admin ───────────────────────────────────────────────────
     @devilfruit.group(name="admin")
     @commands.admin_or_permissions(administrator=True)
     async def df_admin(self, ctx: commands.Context) -> None:
@@ -484,7 +473,6 @@ class OnePieceFruit(commands.Cog):
         guild_data = self.db.get_guild(ctx.guild.id)
 
         if fruit_name:
-            # Search by name (case-insensitive partial match)
             found_type, found_fruit = None, None
             for rarity, fruits in DEVIL_FRUITS.items():
                 for f in fruits:
@@ -510,56 +498,6 @@ class OnePieceFruit(commands.Cog):
 
         embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
         await ctx.send(embed=embed)
-
-    @df_admin.command(name="assignall")
-    @commands.cooldown(1, 30, commands.BucketType.guild)
-    async def df_admin_assign_all(
-        self,
-        ctx: commands.Context,
-        min_level: int = FRUIT_ASSIGN_LEVEL,
-    ) -> None:
-        """Assign a random Devil Fruit to all guild members at or above a LevelUp level."""
-        guild_data = self.db.get_guild(ctx.guild.id)
-
-        assigned = 0
-        already_assigned = 0
-        skipped_no_level = 0
-
-        for member in ctx.guild.members:
-            if member.bot:
-                continue
-
-            existing = guild_data.get_user(member.id)
-            if existing is not None and existing.fruit_name:
-                already_assigned += 1
-                continue
-
-            level = await self._get_levelup_level(ctx.guild, member)
-            if level is None:
-                skipped_no_level += 1
-                continue
-
-            if level < min_level:
-                skipped_no_level += 1
-                continue
-
-            user_data = _create_random_fruit_data(assigned_at_level=level)
-            guild_data.set_user(member.id, user_data)
-            assigned += 1
-
-        if assigned > 0:
-            await self._save()
-
-        if assigned == 0:
-            return await ctx.send(
-                f"⚠️ No eligible members were assigned a Devil Fruit. "
-                f"Make sure the LevelUp cog is loaded, members are cached, and their level is at or above {min_level}."
-            )
-
-        await ctx.send(
-            f"✅ Assigned Devil Fruits to **{assigned}** members with LevelUp level >= {min_level}. "
-            f"Skipped **{already_assigned}** members who already had a fruit and **{skipped_no_level}** members with no accessible LevelUp level."
-        )
 
     @df_admin.command(name="reset")
     async def df_admin_reset(self, ctx: commands.Context, member: discord.Member) -> None:
@@ -605,6 +543,128 @@ class OnePieceFruit(commands.Cog):
         await self._save()
         await ctx.send(f"✅ Reset reroll counter for **{member.display_name}**.")
 
+    # ── Admin: [p]df admin bulkassign ───────────────────────────────────────
+    @df_admin.command(name="bulkassign")
+    async def df_admin_bulk_assign(self, ctx: commands.Context) -> None:
+        """
+        Scan all server members via LevelUp and assign a Devil Fruit to anyone
+        at Level 5+ who doesn't already have one.
+
+        Also retroactively applies awakening stages based on current level:
+        - Level 15+: Stage 1 Awakening
+        - Level 30+: Full Awakening
+
+        Sends a summary embed when complete. This may take a moment on large servers.
+        """
+        # Check LevelUp is available
+        levelup_cog = ctx.bot.get_cog("LevelUp")
+        if levelup_cog is None:
+            return await ctx.send(
+                "❌ The **LevelUp** cog is not loaded. Please load it and try again."
+            )
+
+        await ctx.send("⏳ Scanning all members... this may take a moment on large servers.")
+
+        guild_data = self.db.get_guild(ctx.guild.id)
+        assigned = 0
+        awakening_updated = 0
+        skipped = 0
+        errors = 0
+
+        # LevelUp stores data per-guild per-user. We iterate guild members and
+        # call the cog's internal data accessor. The attribute is `data` (a dict
+        # keyed by guild_id → member_id → level info). We fall back gracefully
+        # if the internal structure differs across LevelUp versions.
+        try:
+            # Most LevelUp versions expose get_level_data or similar; we access
+            # the raw cache as a reliable fallback.
+            lu_guild_data: dict = {}
+
+            # Try the most common internal attribute patterns
+            if hasattr(levelup_cog, "data"):
+                lu_guild_data = levelup_cog.data.get(str(ctx.guild.id), {})
+            elif hasattr(levelup_cog, "cache"):
+                lu_guild_data = levelup_cog.cache.get(str(ctx.guild.id), {})
+            else:
+                return await ctx.send(
+                    "❌ Could not read LevelUp data — the cog's internal structure may have changed. "
+                    "Please open an issue with your LevelUp version."
+                )
+        except Exception as exc:
+            log.error("OnePieceFruit bulkassign: failed to read LevelUp data.", exc_info=exc)
+            return await ctx.send(f"❌ Error reading LevelUp data: `{exc}`")
+
+        for uid_str, member_data in lu_guild_data.items():
+            try:
+                uid = int(uid_str)
+                member = ctx.guild.get_member(uid)
+                if member is None or member.bot:
+                    skipped += 1
+                    continue
+
+                # LevelUp stores levels under the key "level"
+                level = member_data.get("level", 0)
+                if level < FRUIT_ASSIGN_LEVEL:
+                    skipped += 1
+                    continue
+
+                existing = guild_data.get_user(uid)
+
+                if existing is None:
+                    # Assign a fresh fruit
+                    rarity, fruit = _draw_fruit()
+
+                    # Determine correct awakening stage based on current level
+                    if level >= AWAKENING_STAGE2_LEVEL:
+                        awakening_stage = 2
+                    elif level >= AWAKENING_STAGE1_LEVEL:
+                        awakening_stage = 1
+                    else:
+                        awakening_stage = 0
+
+                    user_data = UserFruitData(
+                        fruit_name=fruit["name"],
+                        fruit_type=rarity,
+                        assigned_at_level=level,
+                        awakening_stage=awakening_stage,
+                    )
+                    guild_data.set_user(uid, user_data)
+                    assigned += 1
+
+                else:
+                    # Already has a fruit — check if awakening needs catching up
+                    updated = False
+                    if level >= AWAKENING_STAGE2_LEVEL and existing.awakening_stage < 2:
+                        existing.awakening_stage = 2
+                        updated = True
+                    elif level >= AWAKENING_STAGE1_LEVEL and existing.awakening_stage < 1:
+                        existing.awakening_stage = 1
+                        updated = True
+
+                    if updated:
+                        guild_data.set_user(uid, existing)
+                        awakening_updated += 1
+                    else:
+                        skipped += 1
+
+            except Exception as exc:
+                log.warning(f"OnePieceFruit bulkassign: error processing uid {uid_str}", exc_info=exc)
+                errors += 1
+
+        await self._save()
+
+        embed = discord.Embed(
+            title="🍎 Bulk Assign Complete",
+            colour=discord.Colour.green(),
+        )
+        embed.add_field(name="✅ Fruits Assigned", value=str(assigned), inline=True)
+        embed.add_field(name="⚡ Awakenings Updated", value=str(awakening_updated), inline=True)
+        embed.add_field(name="⏭️ Skipped", value=str(skipped), inline=True)
+        if errors:
+            embed.add_field(name="⚠️ Errors", value=str(errors), inline=True)
+        embed.set_footer(text="Members below Level 5, bots, and members already fully up-to-date are skipped.")
+        await ctx.send(embed=embed)
+
     # ── [p]df browse ────────────────────────────────────────────────────────
     @devilfruit.command(name="browse")
     async def df_browse(self, ctx: commands.Context, rarity: t.Optional[str] = None) -> None:
@@ -624,7 +684,6 @@ class OnePieceFruit(commands.Cog):
             )
             return await ctx.send(embed=embed)
 
-        # Fuzzy match rarity
         matched = next((r for r in valid if r.lower() == rarity.lower()), None)
         if matched is None:
             return await ctx.send(
