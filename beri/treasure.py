@@ -447,9 +447,8 @@ class Treasure(commands.Cog):
             uid = str(ctx.author.id)
             lotto["tickets"][uid] = lotto["tickets"].get(uid, 0) + qty
             lotto["pot"] = lotto.get("pot", 0) + total_cost
-
-        total_held = (await self._lottery_cfg(ctx.guild))["tickets"].get(str(ctx.author.id), 0)
-        pot = (await self._lottery_cfg(ctx.guild))["pot"]
+            total_held = lotto["tickets"][uid]
+            pot = lotto["pot"]
 
         embed = discord.Embed(
             title="📞 Den Den Mushi — Tickets Purchased!",
@@ -463,7 +462,7 @@ class Treasure(commands.Cog):
         embed.set_footer(text=f"Use {ctx.prefix}lotteryinfo to see draw schedule.")
         await ctx.send(embed=embed)
 
-    @commands.command(name="lotteryinfo", aliases=["lotto info", "lottoinfo"])
+    @commands.command(name="lotteryinfo", aliases=["lottoinfo"])
     @commands.guild_only()
     async def lotteryinfo(self, ctx: commands.Context):
         """Show the current lottery pot, ticket counts, and next draw time."""
