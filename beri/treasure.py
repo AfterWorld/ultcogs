@@ -414,7 +414,7 @@ class Treasure(commands.Cog):
     # Den Den Mushi Lottery commands
     # ══════════════════════════════════════════════════════════════════════
 
-    @commands.command(name="buyticket", aliases=["ticket", "lotto"])
+    @commands.command(name="buyticket", aliases=["lotto"])
     @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def buyticket(self, ctx: commands.Context, qty: int = 1):
