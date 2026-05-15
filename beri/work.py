@@ -335,6 +335,40 @@ class Work(commands.Cog):
         embed.set_footer(text=f"{ctx.author.display_name} • Next rob in 1 hour")
         await ctx.send(embed=embed)
 
+    @commands.command(name="cooldowns", aliases=["cd", "activitycd", "cooldown"])
+    @commands.guild_only()
+    async def cooldowns(self, ctx: commands.Context):
+        """Show remaining cooldowns for Beri activity commands."""
+        command_names = ["work", "crime", "hack", "slut", "beg", "rob"]
+        lines = []
+        for name in command_names:
+            command = self.get_command(name)
+            if command is None:
+                continue
+            bucket = command._buckets.get_bucket(ctx.message)
+            retry = bucket.get_retry_after(ctx.message) if bucket else 0.0
+            if retry and retry > 0:
+                seconds = int(retry)
+                mins, secs = divmod(seconds, 60)
+                hours, mins = divmod(mins, 60)
+                if hours:
+                    remaining = f"{hours}h {mins}m {secs}s"
+                elif mins:
+                    remaining = f"{mins}m {secs}s"
+                else:
+                    remaining = f"{secs}s"
+                lines.append(f"**.{name}** — {remaining}")
+            else:
+                lines.append(f"**.{name}** — Ready")
+
+        embed = discord.Embed(
+            title="🕒 Activity Cooldowns",
+            description="\n".join(lines) if lines else "No activity commands found.",
+            color=discord.Color.blurple(),
+        )
+        embed.set_footer(text="Check back when the sea calls you again.")
+        await ctx.send(embed=embed)
+
     @work.error
     @crime.error
     @hack.error
