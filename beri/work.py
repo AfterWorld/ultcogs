@@ -27,11 +27,11 @@ WORK_JOBS = [
 ]
 
 WORK_SUCCESS = [
-    "You clocked in and busted your ass. Earned {amount} {icon}.",
-    "Solid shift. The foreman handed you {amount} {icon}.",
-    "Long day, but worth it — {amount} {icon} in your pocket.",
-    "Finished the job without complaining. You pocketed {amount} {icon}.",
-    "Customer left a fat tip. Total: {amount} {icon}.",
+    "You pulled a hard watch on deck and pocketed {amount} {icon}.",
+    "The crew paid up for your ship duties. Earned {amount} {icon}.",
+    "A solid shift on the Grand Line paid off — {amount} {icon} in your pocket.",
+    "You finished your share of chores and got {amount} {icon} from the captain.",
+    "A salty sailor tipped you nicely. Total: {amount} {icon}.",
 ]
 
 CRIME_SCENARIOS = [
@@ -45,14 +45,14 @@ CRIME_SCENARIOS = [
 ]
 
 CRIME_SUCCESS = [
-    "Pulled it off without a hitch. Scored {amount} {icon}.",
-    "Daring move. It worked — you walk away with {amount} {icon}.",
-    "Chaos everywhere, you slipped out with {amount} {icon}.",
+    "Pulled it off without a hitch and escaped with {amount} {icon}.",
+    "The crew's plan worked — you made off with {amount} {icon}.",
+    "You dodged the Marines and slipped away with {amount} {icon}.",
 ]
 CRIME_FAIL = [
-    "The marines were waiting. You got away but lost {fine} {icon} in fines.",
-    "Someone ratted you out. Paid {fine} {icon} to avoid jail.",
-    "Got caught red-handed and fined {fine} {icon}.",
+    "The Marines were waiting. You escaped, but paid {fine} {icon} in fines.",
+    "A rat in the crew sold you out. You paid {fine} {icon} to stay alive.",
+    "Caught with the loot — lost {fine} {icon} while fleeing.",
 ]
 
 HACK_TARGETS = [
@@ -64,14 +64,14 @@ HACK_TARGETS = [
 ]
 
 HACK_SUCCESS = [
-    "You breached their firewall. Transferred {amount} {icon} before they noticed.",
-    "Root access granted. Quietly drained {amount} {icon}.",
-    "Flawless intrusion — {amount} {icon} wire-transferred to your wallet.",
+    "You ghosted the Marine firewall and siphoned {amount} {icon} unnoticed.",
+    "Cipher Pol never knew what hit them — {amount} {icon} drained cleanly.",
+    "A flawless breach. {amount} {icon} slid into your wallet in silence.",
 ]
 HACK_FAIL = [
-    "They traced your IP. Lost {fine} {icon} covering your tracks.",
-    "Honeypot detected! Locked out and fined {fine} {icon}.",
-    "Intrusion detected — {fine} {icon} seized by authorities.",
+    "The World Government traced you. Lost {fine} {icon} covering your escape.",
+    "Their counter-hack hit hard. Locked out and fined {fine} {icon}.",
+    "Cipher Pol caught your signal — {fine} {icon} seized before you could flee.",
 ]
 
 SLUT_SCENARIOS = [
@@ -82,9 +82,9 @@ SLUT_SCENARIOS = [
     ("🎭 Risqué Theater Act", 200, 600),
 ]
 SLUT_SUCCESS = [
-    "The crowd went wild. You collected {amount} {icon} in tips.",
-    "Sold out the venue. Walked away with {amount} {icon}.",
-    "Five-star reviews and {amount} {icon} richer.",
+    "The crowd at the tavern went wild. You collected {amount} {icon} in tips.",
+    "Sold out the seaside lounge. Walked away with {amount} {icon}.",
+    "The performance was a hit. You left {amount} {icon} richer.",
 ]
 
 
@@ -101,7 +101,7 @@ class Work(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def work(self, ctx: commands.Context):
-        """Work a job and earn Beri. (1 hour cooldown)"""
+        """Take on a One Piece-themed job and earn Beri. (1 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi = random.choice(WORK_JOBS)
         amount = random.randint(lo, hi)
@@ -125,7 +125,7 @@ class Work(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 7200, commands.BucketType.user)
     async def crime(self, ctx: commands.Context):
-        """Attempt a criminal act. High risk, high reward. (2 hour cooldown)"""
+        """Attempt a shady One Piece caper for Beri. (2 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi, success_rate = random.choice(CRIME_SCENARIOS)
         won = random.random() < success_rate
@@ -164,7 +164,7 @@ class Work(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 5400, commands.BucketType.user)
     async def hack(self, ctx: commands.Context, target: Optional[discord.Member] = None):
-        """Hack a system (or another user) for Beri. (90 min cooldown)"""
+        """Hack World Government systems or siphon another pirate's Beri. (90 min cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
 
         if target and target != ctx.author and not target.bot:
@@ -218,7 +218,7 @@ class Work(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def slut(self, ctx: commands.Context):
-        """Use your... assets to earn Beri. (1 hour cooldown)"""
+        """Use your charm and earn Beri in a Grand Line venue. (1 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi = random.choice(SLUT_SCENARIOS)
         amount = random.randint(lo, hi)
@@ -235,6 +235,46 @@ class Work(commands.Cog):
         embed.add_field(name="Earned", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=f"{ctx.author.display_name} • Next in 1 hour")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="beg")
+    @commands.guild_only()
+    @commands.cooldown(1, 3600, commands.BucketType.user)
+    async def beg(self, ctx: commands.Context):
+        """Plead your case and scrounge up some Beri from the crew. (1 hour cooldown)"""
+        name, icon = await self._currency_fmt(ctx.guild)
+
+        success = random.random() < 0.75
+        if success:
+            outcomes = [
+                ("A passing pirate dropped some coins in your hat.", random.randint(25, 100)),
+                ("A shipmate felt sorry for you and tossed you some Beri.", random.randint(40, 120)),
+                ("You sang a sorrowful shanty and earned a few generous tips.", random.randint(30, 110)),
+            ]
+            message, amount = random.choice(outcomes)
+            new_bal = await self._safe_modify(
+                ctx, ctx.guild, ctx.author, amount,
+                reason="activity:beg", actor="System",
+            )
+            if new_bal is None:
+                return
+            embed = discord.Embed(
+                title="🪖 Begging — SUCCESS",
+                description=message,
+                color=discord.Color.green(),
+            )
+            embed.add_field(name="Earned", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
+        else:
+            new_bal = await self._get_balance(ctx.guild, ctx.author)
+            embed = discord.Embed(
+                title="🪖 Begging — NO LUCK",
+                description="The crew is too stingy today. No Beri came your way.",
+                color=discord.Color.red(),
+            )
+            embed.add_field(name="Earned", value=f"**+0** {icon}", inline=True)
+
+        embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
+        embed.set_footer(text=f"{ctx.author.display_name} • Next beg in 1 hour")
         await ctx.send(embed=embed)
 
     @commands.command(name="rob", aliases=["steal"])
