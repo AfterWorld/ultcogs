@@ -26,7 +26,7 @@ from .audit import AuditLog
 from .xkcd import XKCD
 
 
-class BeriCog(Casino, Games, Work, Income, commands.Cog):
+class BeriCog(Casino, Games, Work, Income, XKCD, commands.Cog):
     """
     One Piece-themed Beri economy powered by BeriCore.
     Provides games, gambling, activity commands, and passive income.
