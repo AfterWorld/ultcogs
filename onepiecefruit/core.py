@@ -584,40 +584,38 @@ class OnePieceFruit(commands.Cog):
         skipped = 0
         errors = 0
 
-        # Probe LevelUp's internal data structure — vertyco's LevelUp uses
-        # `data` keyed by guild_id (int or str) -> user_id (str) -> dict with "level".
+        # vertyco's LevelUp stores all user data via Red's Config system.
+        # Guild-level user data lives at: config.guild(guild).users()
+        # Each entry: { "level": int, "xp": int, ... }
         try:
-            lu_guild_data: dict = {}
-            found_attr = None
-
-            for attr in ("data", "cache", "db", "_data", "user_data"):
-                val = getattr(levelup_cog, attr, None)
-                if isinstance(val, dict) and val:
-                    found_attr = attr
-                    # Key may be int guild id or str — try both
-                    lu_guild_data = (
-                        val.get(ctx.guild.id)
-                        or val.get(str(ctx.guild.id))
-                        or {}
-                    )
-                    if lu_guild_data:
-                        break
-
-            if not lu_guild_data and found_attr is None:
-                attrs = [a for a in dir(levelup_cog) if not a.startswith("__")]
+            lu_config = getattr(levelup_cog, "config", None)
+            if lu_config is None:
                 return await ctx.send(
-                    f"❌ Could not read LevelUp data. Available attributes: `{', '.join(attrs[:30])}`\n"
-                    f"Please share this with UltPanda so the cog can be updated."
+                    "❌ LevelUp's `config` attribute not found — unsupported LevelUp version."
                 )
+
+            # Primary path: guild-scoped users dict
+            try:
+                lu_guild_data: dict = await lu_config.guild(ctx.guild).users()
+            except AttributeError:
+                lu_guild_data = {}
+
+            # Fallback: all_members keyed by member id
+            if not lu_guild_data:
+                try:
+                    all_data = await lu_config.all_members(ctx.guild)
+                    lu_guild_data = {str(uid): v for uid, v in all_data.items()}
+                except Exception:
+                    lu_guild_data = {}
 
             if not lu_guild_data:
                 return await ctx.send(
-                    f"ℹ️ LevelUp data found (attr: `{found_attr}`) but no data for this guild yet. "
-                    f"No members to assign."
+                    "ℹ️ No LevelUp user data found for this guild — nobody has levelled up yet, "
+                    "or the data is stored under an unexpected key. No fruits were assigned."
                 )
 
         except Exception as exc:
-            log.error("OnePieceFruit bulkassign: failed to read LevelUp data.", exc_info=exc)
+            log.error("OnePieceFruit bulkassign: failed to read LevelUp config.", exc_info=exc)
             return await ctx.send(f"❌ Error reading LevelUp data: `{exc}`")
 
         for uid_str, member_data in lu_guild_data.items():
