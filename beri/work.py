@@ -341,12 +341,13 @@ class Work(commands.Cog):
         """Show remaining cooldowns for Beri activity commands."""
         command_names = ["work", "crime", "hack", "slut", "beg", "rob"]
         lines = []
+        current = ctx.message.created_at.timestamp()
         for name in command_names:
             command = ctx.bot.get_command(name)
             if command is None:
                 continue
             bucket = command._buckets.get_bucket(ctx.message)
-            retry = bucket.get_retry_after(ctx.message) if bucket else 0.0
+            retry = bucket.get_retry_after(current) if bucket else 0.0
             if retry and retry > 0:
                 seconds = int(retry)
                 mins, secs = divmod(seconds, 60)
