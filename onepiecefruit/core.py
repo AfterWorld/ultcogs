@@ -13,6 +13,7 @@ import asyncio
 import logging
 import random
 import typing as t
+from contextlib import suppress
 from pathlib import Path
 
 import discord
@@ -66,6 +67,16 @@ def _draw_fruit() -> tuple[str, dict]:
     chosen_type = random.choices(types, weights=weights, k=1)[0]
     chosen_fruit = random.choice(DEVIL_FRUITS[chosen_type])
     return chosen_type, chosen_fruit
+
+
+def _create_random_fruit_data(assigned_at_level: int = 0) -> UserFruitData:
+    rarity, fruit = _draw_fruit()
+    return UserFruitData(
+        fruit_name=fruit["name"],
+        fruit_type=rarity,
+        assigned_at_level=assigned_at_level,
+        awakening_stage=0,
+    )
 
 
 def _next_reroll_cost(reroll_count: int) -> int:
@@ -169,6 +180,53 @@ class OnePieceFruit(commands.Cog):
                 await asyncio.to_thread(self.db.to_file, self._settings_file)
             except Exception as exc:
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
+
+    async def _get_levelup_level(self, guild: discord.Guild, member: discord.Member) -> t.Optional[int]:
+        levelup = self.bot.get_cog("LevelUp")
+        if levelup is None:
+            return None
+
+        candidates = [
+            ("get_level", (guild, member)),
+            ("get_level", (guild.id, member.id)),
+            ("get_member_level", (member,)),
+            ("get_member_level", (guild.id, member.id)),
+            ("get_user_level", (member,)),
+            ("get_user_level", (guild.id, member.id)),
+            ("get_level_for_member", (member,)),
+            ("get_level_for_member", (guild.id, member.id)),
+            ("user_level", (guild.id, member.id)),
+        ]
+
+        for name, args in candidates:
+            method = getattr(levelup, name, None)
+            if method is None:
+                continue
+
+            try:
+                result = method(*args)
+            except TypeError:
+                continue
+            except Exception:
+                continue
+
+            if asyncio.iscoroutine(result):
+                try:
+                    result = await result
+                except Exception:
+                    continue
+
+            if isinstance(result, int):
+                return result
+            if isinstance(result, dict):
+                maybe = result.get(str(member.id)) or result.get(member.id)
+                if isinstance(maybe, int):
+                    return maybe
+                maybe = result.get("level")
+                if isinstance(maybe, int):
+                    return maybe
+
+        return None
 
     # -----------------------------------------------------------------------
     # LevelUp event hook
@@ -452,6 +510,55 @@ class OnePieceFruit(commands.Cog):
 
         embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
         await ctx.send(embed=embed)
+
+    @df_admin.command(name="assignall")
+    async def df_admin_assign_all(
+        self,
+        ctx: commands.Context,
+        min_level: int = FRUIT_ASSIGN_LEVEL,
+    ) -> None:
+        """Assign a random Devil Fruit to all guild members at or above a LevelUp level."""
+        guild_data = self.db.get_guild(ctx.guild.id)
+
+        assigned = 0
+        already_assigned = 0
+        skipped_no_level = 0
+
+        for member in ctx.guild.members:
+            if member.bot:
+                continue
+
+            existing = guild_data.get_user(member.id)
+            if existing is not None and existing.fruit_name:
+                already_assigned += 1
+                continue
+
+            level = await self._get_levelup_level(ctx.guild, member)
+            if level is None:
+                skipped_no_level += 1
+                continue
+
+            if level < min_level:
+                skipped_no_level += 1
+                continue
+
+            user_data = _create_random_fruit_data(assigned_at_level=level)
+            guild_data.set_user(member.id, user_data)
+            assigned += 1
+
+        if assigned > 0:
+            await self._save()
+
+        if assigned == 0:
+            return await ctx.send(
+                f"⚠️ No eligible members were assigned a Devil Fruit. "
+                f"Make sure the LevelUp cog is loaded, members are cached, and their level is at or above {min_level}."
+            )
+
+        await ctx.send(
+            f"✅ Assigned Devil Fruits to **{assigned}** members with LevelUp level >= {min_level}. "
+            f"Skipped **{already_assigned}** members who already had a fruit and **{skipped_no_level}** members with no accessible LevelUp level."
+        )
 
     @df_admin.command(name="reset")
     async def df_admin_reset(self, ctx: commands.Context, member: discord.Member) -> None:
