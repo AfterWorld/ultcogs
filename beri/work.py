@@ -87,6 +87,27 @@ SLUT_SUCCESS = [
     "The performance was a hit. You left {amount} {icon} richer.",
 ]
 
+PLUNDER_SCENARIOS = [
+    ("Marine Supply Ship", 200, 700, 0.65),
+    ("Cargo Transport", 150, 650, 0.70),
+    ("Treasure Convoy", 250, 900, 0.55),
+    ("Black Market Caravan", 180, 600, 0.60),
+    ("Government Escort", 300, 1000, 0.50),
+]
+
+PLUNDER_SUCCESS = [
+    "You boarded the vessel and absconded with {amount} {icon}.",
+    "The raid paid off — the hold is lighter and your purse is heavier by {amount} {icon}.",
+    "Your crew stole away with {amount} {icon} in supplies and coin.",
+]
+PLUNDER_FAIL = [
+    "The guards fought back. You escaped, but lost {fine} {icon} in damaged cargo.",
+    "The convoy broke formation and you had to flee empty-handed.",
+    "A failed plunder cost you {fine} {icon} while you made your escape.",
+]
+
+DAILY_REWARDS = [250, 300, 350, 400, 450, 500]
+
 
 class Work(commands.Cog):
     """
@@ -277,6 +298,75 @@ class Work(commands.Cog):
         embed.set_footer(text=f"{ctx.author.display_name} • Next beg in 1 hour")
         await ctx.send(embed=embed)
 
+    @commands.command(name="plunder")
+    @commands.guild_only()
+    @commands.cooldown(1, 10800, commands.BucketType.user)
+    async def plunder(self, ctx: commands.Context):
+        """Raid a ship or convoy and claim loot for your crew. (3 hour cooldown)"""
+        name, icon = await self._currency_fmt(ctx.guild)
+        target_name, lo, hi, success_rate = random.choice(PLUNDER_SCENARIOS)
+        won = random.random() < success_rate
+
+        if won:
+            amount = random.randint(lo, hi)
+            new_bal = await self._safe_modify(
+                ctx, ctx.guild, ctx.author, amount,
+                reason="activity:plunder:success", actor="System",
+                metadata={"target": target_name, "outcome": "success"},
+            )
+            if new_bal is None:
+                return
+            msg = random.choice(PLUNDER_SUCCESS).format(amount=humanize_number(amount), icon=icon)
+            embed = discord.Embed(
+                title=f"🏴‍☠️ Plunder — {target_name}",
+                description=msg,
+                color=discord.Color.gold(),
+            )
+            embed.add_field(name="Loot", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
+        else:
+            fine = min(random.randint(50, 200), await self._get_balance(ctx.guild, ctx.author))
+            new_bal = await self._safe_modify(
+                ctx, ctx.guild, ctx.author, -fine,
+                reason="activity:plunder:fail", actor="System", bypass_cap=True,
+                metadata={"target": target_name, "outcome": "fail"},
+            )
+            if new_bal is None:
+                return
+            msg = random.choice(PLUNDER_FAIL).format(fine=humanize_number(fine), icon=icon)
+            embed = discord.Embed(
+                title=f"🏴‍☠️ Plunder — {target_name} Failed",
+                description=msg,
+                color=discord.Color.red(),
+            )
+            embed.add_field(name="Loss", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
+
+        embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
+        embed.set_footer(text=f"{ctx.author.display_name} • Next plunder in 3 hours")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="daily")
+    @commands.guild_only()
+    @commands.cooldown(1, 86400, commands.BucketType.user)
+    async def daily(self, ctx: commands.Context):
+        """Claim your daily Beri ration. (24 hour cooldown)"""
+        name, icon = await self._currency_fmt(ctx.guild)
+        amount = random.choice(DAILY_REWARDS)
+        new_bal = await self._safe_modify(
+            ctx, ctx.guild, ctx.author, amount,
+            reason="activity:daily", actor="System",
+        )
+        if new_bal is None:
+            return
+
+        embed = discord.Embed(
+            title="🌅 Daily Rations",
+            description=f"You claimed your daily Beri ration and gained **{humanize_number(amount)}** {icon}.",
+            color=discord.Color.blue(),
+        )
+        embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
+        embed.set_footer(text=f"{ctx.author.display_name} • Next daily in 24 hours")
+        await ctx.send(embed=embed)
+
     @commands.command(name="rob", aliases=["steal"])
     @commands.guild_only()
     @commands.cooldown(1, 3600, commands.BucketType.user)
@@ -339,7 +429,7 @@ class Work(commands.Cog):
     @commands.guild_only()
     async def cooldowns(self, ctx: commands.Context):
         """Show remaining cooldowns for Beri activity commands."""
-        command_names = ["work", "crime", "hack", "slut", "beg", "rob"]
+        command_names = ["work", "crime", "hack", "slut", "beg", "plunder", "daily", "rob"]
         lines = []
         current = ctx.message.created_at.timestamp()
         for name in command_names:
@@ -374,6 +464,9 @@ class Work(commands.Cog):
     @crime.error
     @hack.error
     @slut.error
+    @beg.error
+    @plunder.error
+    @daily.error
     @rob.error
     async def _activity_cooldown_error(self, ctx: commands.Context, error):
         if isinstance(error, commands.CommandOnCooldown):
