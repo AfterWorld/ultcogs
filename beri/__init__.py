@@ -23,6 +23,7 @@ from .games import Games
 from .work import Work
 from .income import Income
 from .audit import AuditLog
+from .xkcd import XKCD
 
 
 class BeriCog(Casino, Games, Work, Income, commands.Cog):
