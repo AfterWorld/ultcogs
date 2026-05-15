@@ -342,7 +342,7 @@ class Work(commands.Cog):
         command_names = ["work", "crime", "hack", "slut", "beg", "rob"]
         lines = []
         for name in command_names:
-            command = self.get_command(name)
+            command = ctx.bot.get_command(name)
             if command is None:
                 continue
             bucket = command._buckets.get_bucket(ctx.message)
