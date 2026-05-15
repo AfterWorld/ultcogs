@@ -512,6 +512,7 @@ class OnePieceFruit(commands.Cog):
         await ctx.send(embed=embed)
 
     @df_admin.command(name="assignall")
+    @commands.cooldown(1, 30, commands.BucketType.guild)
     async def df_admin_assign_all(
         self,
         ctx: commands.Context,
