@@ -17,31 +17,16 @@ RARITY_WEIGHTS: Dict[str, float] = {
     "Legendary":      0.5,
 }
 
-# ---------------------------------------------------------------------------
-# Reroll costs — NO CAP, unlimited rerolls.
-# Indexes 0–9 are fixed costs; beyond that, costs scale by REROLL_COST_SCALE_FACTOR
-# each additional reroll, compounding from the 10th reroll cost.
-# ---------------------------------------------------------------------------
 REROLL_COST_TABLE: List[int] = [
-    10_000,    # 1st reroll
-    25_000,    # 2nd
-    50_000,    # 3rd
-    100_000,   # 4th
-    200_000,   # 5th
-    350_000,   # 6th
-    500_000,   # 7th
-    750_000,   # 8th
-    1_000_000, # 9th
-    1_500_000, # 10th
-    # Beyond 10th: computed dynamically — see _next_reroll_cost() in core.py
+    10_000,   # 1st reroll
+    25_000,   # 2nd
+    50_000,   # 3rd
+    100_000,  # 4th+ (cap)
 ]
 
-# Each reroll beyond the 10th multiplies the previous cost by this factor (compounding).
-REROLL_COST_SCALE_FACTOR: float = 1.5
-
 FRUIT_ASSIGN_LEVEL     = 5
-AWAKENING_STAGE1_LEVEL = 15
-AWAKENING_STAGE2_LEVEL = 30
+AWAKENING_STAGE1_LEVEL = 50
+AWAKENING_STAGE2_LEVEL = 100
 
 # ---------------------------------------------------------------------------
 # Fruit definitions
@@ -72,7 +57,7 @@ DEVIL_FRUITS: Dict[str, List[dict]] = {
             "name": "Bomu Bomu no Mi (Bomb-Bomb Fruit)",
             "ability": "Any part of your body — breath, sweat, hair — becomes explosive. You are immune to explosions.",
             "awakening_1": "Your explosive energy radiates passively. You can prime nearby objects with delayed detonations just by touching them.",
-            "awakening_2": "You generate a massive sustained explosion field, detonating the very air around you in rhythmic concussive waves.",
+            "awakening_2": "You can generate a massive sustained explosion field, detonating the very air around you in rhythmic concussive waves.",
         },
         {
             "name": "Kiro Kiro no Mi (Kilo-Kilo Fruit)",
