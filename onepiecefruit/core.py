@@ -556,14 +556,27 @@ class OnePieceFruit(commands.Cog):
 
         Sends a summary embed when complete. This may take a moment on large servers.
         """
-        # Check LevelUp is available
-        levelup_cog = ctx.bot.get_cog("LevelUp")
+        # Check LevelUp is available — try all known name variants
+        levelup_cog = (
+            ctx.bot.get_cog("LevelUp")
+            or ctx.bot.get_cog("Levelup")
+            or ctx.bot.get_cog("levelup")
+            or ctx.bot.get_cog("Level")
+        )
         if levelup_cog is None:
+            # Last resort: fuzzy search through all loaded cog names
+            for name, cog in ctx.bot.cogs.items():
+                if "level" in name.lower():
+                    levelup_cog = cog
+                    break
+
+        if levelup_cog is None:
+            loaded = ", ".join(f"`{n}`" for n in ctx.bot.cogs)
             return await ctx.send(
-                "❌ The **LevelUp** cog is not loaded. Please load it and try again."
+                f"❌ Could not find the LevelUp cog. Loaded cogs: {loaded}"
             )
 
-        await ctx.send("⏳ Scanning all members... this may take a moment on large servers.")
+        await ctx.send(f"⏳ Found LevelUp cog as `{type(levelup_cog).__name__}`. Scanning all members...")
 
         guild_data = self.db.get_guild(ctx.guild.id)
         assigned = 0
@@ -571,25 +584,38 @@ class OnePieceFruit(commands.Cog):
         skipped = 0
         errors = 0
 
-        # LevelUp stores data per-guild per-user. We iterate guild members and
-        # call the cog's internal data accessor. The attribute is `data` (a dict
-        # keyed by guild_id → member_id → level info). We fall back gracefully
-        # if the internal structure differs across LevelUp versions.
+        # Probe LevelUp's internal data structure — vertyco's LevelUp uses
+        # `data` keyed by guild_id (int or str) -> user_id (str) -> dict with "level".
         try:
-            # Most LevelUp versions expose get_level_data or similar; we access
-            # the raw cache as a reliable fallback.
             lu_guild_data: dict = {}
+            found_attr = None
 
-            # Try the most common internal attribute patterns
-            if hasattr(levelup_cog, "data"):
-                lu_guild_data = levelup_cog.data.get(str(ctx.guild.id), {})
-            elif hasattr(levelup_cog, "cache"):
-                lu_guild_data = levelup_cog.cache.get(str(ctx.guild.id), {})
-            else:
+            for attr in ("data", "cache", "db", "_data", "user_data"):
+                val = getattr(levelup_cog, attr, None)
+                if isinstance(val, dict) and val:
+                    found_attr = attr
+                    # Key may be int guild id or str — try both
+                    lu_guild_data = (
+                        val.get(ctx.guild.id)
+                        or val.get(str(ctx.guild.id))
+                        or {}
+                    )
+                    if lu_guild_data:
+                        break
+
+            if not lu_guild_data and found_attr is None:
+                attrs = [a for a in dir(levelup_cog) if not a.startswith("__")]
                 return await ctx.send(
-                    "❌ Could not read LevelUp data — the cog's internal structure may have changed. "
-                    "Please open an issue with your LevelUp version."
+                    f"❌ Could not read LevelUp data. Available attributes: `{', '.join(attrs[:30])}`\n"
+                    f"Please share this with UltPanda so the cog can be updated."
                 )
+
+            if not lu_guild_data:
+                return await ctx.send(
+                    f"ℹ️ LevelUp data found (attr: `{found_attr}`) but no data for this guild yet. "
+                    f"No members to assign."
+                )
+
         except Exception as exc:
             log.error("OnePieceFruit bulkassign: failed to read LevelUp data.", exc_info=exc)
             return await ctx.send(f"❌ Error reading LevelUp data: `{exc}`")
@@ -602,8 +628,11 @@ class OnePieceFruit(commands.Cog):
                     skipped += 1
                     continue
 
-                # LevelUp stores levels under the key "level"
-                level = member_data.get("level", 0)
+                # vertyco's LevelUp stores level under "level"; guard against non-dict values
+                if not isinstance(member_data, dict):
+                    skipped += 1
+                    continue
+                level = member_data.get("level") or member_data.get("lvl") or 0
                 if level < FRUIT_ASSIGN_LEVEL:
                     skipped += 1
                     continue
