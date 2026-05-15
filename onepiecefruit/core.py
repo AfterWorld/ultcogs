@@ -189,6 +189,55 @@ class OnePieceFruit(commands.Cog):
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
 
     # -----------------------------------------------------------------------
+    # Profile command hook — append Devil Fruit embed after [p]profile / [p]pf
+    # -----------------------------------------------------------------------
+    @commands.Cog.listener("on_command_completion")
+    async def on_command_completion(self, ctx: commands.Context) -> None:
+        """
+        After a LevelUp profile command completes, send the user's Devil Fruit
+        card into the same channel as a follow-up embed.
+
+        Triggers on: profile, pf, and any aliases LevelUp registers for them.
+        """
+        if ctx.command is None or ctx.guild is None:
+            return
+
+        # Match the LevelUp profile command by name and its known aliases
+        cmd_name = ctx.command.qualified_name.lower()
+        profile_names = {"profile", "pf"}
+
+        # Also catch "levelup profile" style qualified names
+        if not (cmd_name in profile_names or cmd_name.endswith(" profile") or cmd_name.endswith(" pf")):
+            return
+
+        # Make sure this command actually belongs to the LevelUp cog
+        if ctx.command.cog is None or "levelup" not in type(ctx.command.cog).__name__.lower():
+            return
+
+        # The profile target: LevelUp accepts an optional member arg; fall back to author
+        target: discord.Member = None
+        try:
+            target = ctx.kwargs.get("member") or (ctx.args[2] if len(ctx.args) > 2 else None)
+        except (IndexError, TypeError):
+            pass
+        if not isinstance(target, discord.Member):
+            target = ctx.author
+
+        guild_data = self.db.get_guild(ctx.guild.id)
+        user_data = guild_data.get_user(target.id)
+
+        if user_data is None or not user_data.fruit_name:
+            # Silently do nothing — not everyone has a fruit yet
+            return
+
+        embed = _build_fruit_embed(target, user_data)
+        footer_text = embed.footer.text or ""
+        embed.set_footer(text=f"🍎 Devil Fruit  •  {footer_text}" if footer_text else "🍎 Devil Fruit")
+
+        with suppress(discord.HTTPException):
+            await ctx.send(embed=embed)
+
+    # -----------------------------------------------------------------------
     # LevelUp event hook
     # -----------------------------------------------------------------------
     @commands.Cog.listener("on_levelup")
@@ -374,7 +423,7 @@ class OnePieceFruit(commands.Cog):
     # ── [p]df list ──────────────────────────────────────────────────────────
     @devilfruit.command(name="list", aliases=["leaderboard", "lb"])
     async def df_list(self, ctx: commands.Context) -> None:
-        """Show all Devil Fruit users in the server."""
+        """Show all Devil Fruit users in the server, paginated."""
         guild_data = self.db.get_guild(ctx.guild.id)
 
         if not guild_data.users:
@@ -394,17 +443,63 @@ class OnePieceFruit(commands.Cog):
             return await ctx.send("🌊 No active Devil Fruit users found.")
 
         chunk_size = 15
-        pages = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
+        page_chunks = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
+        total_pages = len(page_chunks)
+        total_users = len(lines)
 
-        for i, page in enumerate(pages):
+        def make_embed(page_idx: int) -> discord.Embed:
             embed = discord.Embed(
                 title=f"🍎 Devil Fruit Users — {ctx.guild.name}",
-                description="\n".join(page),
+                description="\n".join(page_chunks[page_idx]),
                 colour=discord.Colour.dark_red(),
             )
-            if len(pages) > 1:
-                embed.set_footer(text=f"Page {i + 1}/{len(pages)}")
-            await ctx.send(embed=embed)
+            embed.set_footer(text=f"Page {page_idx + 1}/{total_pages}  •  {total_users} pirates total")
+            return embed
+
+        # Single page — no controls needed
+        if total_pages == 1:
+            return await ctx.send(embed=make_embed(0))
+
+        # Multi-page — reaction paginator
+        current = 0
+        msg = await ctx.send(embed=make_embed(current))
+
+        controls = ["⬅️", "➡️", "❌"]
+        for emoji in controls:
+            await msg.add_reaction(emoji)
+
+        def check(reaction: discord.Reaction, user: discord.User) -> bool:
+            return (
+                user == ctx.author
+                and reaction.message.id == msg.id
+                and str(reaction.emoji) in controls
+            )
+
+        while True:
+            try:
+                reaction, _ = await self.bot.wait_for(
+                    "reaction_add", timeout=60.0, check=check
+                )
+            except asyncio.TimeoutError:
+                # Remove controls on timeout so it looks clean
+                with suppress(discord.HTTPException):
+                    await msg.clear_reactions()
+                break
+
+            emoji_str = str(reaction.emoji)
+
+            if emoji_str == "❌":
+                with suppress(discord.HTTPException):
+                    await msg.clear_reactions()
+                break
+            elif emoji_str == "⬅️":
+                current = (current - 1) % total_pages
+            elif emoji_str == "➡️":
+                current = (current + 1) % total_pages
+
+            with suppress(discord.HTTPException):
+                await msg.edit(embed=make_embed(current))
+                await msg.remove_reaction(reaction, ctx.author)
 
     # ── [p]df types ─────────────────────────────────────────────────────────
     @devilfruit.command(name="types")
