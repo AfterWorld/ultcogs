@@ -18,11 +18,19 @@ RARITY_WEIGHTS: Dict[str, float] = {
 }
 
 REROLL_COST_TABLE: List[int] = [
-    10_000,   # 1st reroll
-    25_000,   # 2nd
-    50_000,   # 3rd
-    100_000,  # 4th+ (cap)
+    10_000,    # 1st reroll
+    25_000,    # 2nd
+    50_000,    # 3rd
+    100_000,   # 4th
+    200_000,   # 5th
+    350_000,   # 6th
+    500_000,   # 7th
+    750_000,   # 8th
+    1_000_000, # 9th
+    1_500_000, # 10th
 ]
+
+REROLL_COST_SCALE_FACTOR: float = 1.5  # multiplier applied beyond the table
 
 FRUIT_ASSIGN_LEVEL     = 5
 AWAKENING_STAGE1_LEVEL = 50
