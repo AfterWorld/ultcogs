@@ -107,3 +107,4 @@ Aliases: `[p]devilfruit` = `[p]df`
 - Awakening stage is tied to the **current fruit** — rerolling resets it.
 - The cog stores data in `cog_data_path/onepiecefruit.json`.
 - Fruit descriptions are flavor text only — no actual game mechanics are modified.
+- Certain rarity fruits now grant small Beri perks, like reroll discounts and daily Beri stipends.

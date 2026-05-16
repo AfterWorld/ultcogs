@@ -268,6 +268,76 @@ class OnePieceFruit(commands.Cog):
             )
         return await bank.withdraw_credits(member, amount)
 
+    async def _modify_currency(
+        self,
+        member: discord.Member,
+        amount: int,
+        guild: t.Optional[discord.Guild] = None,
+        actor: t.Union[discord.Member, str] = "System",
+        reason: str = "devilfruit:perk",
+    ) -> int:
+        beri_core = self._bericore()
+        if beri_core is not None:
+            return await beri_core.add_beri(member, amount, reason=reason, actor=actor)
+
+        beri = self._bericog()
+        if beri is not None and guild is not None:
+            return await beri._modify_balance(guild, member, amount, reason=reason, actor=actor)
+
+        if amount >= 0:
+            return await bank.deposit_credits(member, amount)
+        return await bank.withdraw_credits(member, -amount)
+
+    def _reroll_cost_multiplier(self, rarity: str) -> float:
+        return {
+            "Paramecia": 0.90,
+            "Zoan": 0.95,
+            "Legendary": 0.90,
+        }.get(rarity, 1.0)
+
+    def _daily_stipend_amount(self, rarity: str) -> int:
+        return {
+            "Logia": 150,
+            "Mythical Zoan": 100,
+            "Legendary": 250,
+        }.get(rarity, 0)
+
+    async def _maybe_grant_daily_stipend(self, message: discord.Message) -> None:
+        if message.guild is None or self.db is None:
+            return
+        guild_data = self.db.get_guild(message.guild.id)
+        user_data = guild_data.get_user(message.author.id)
+        if user_data is None or not user_data.fruit_name:
+            return
+
+        amount = self._daily_stipend_amount(user_data.fruit_type)
+        if amount <= 0:
+            return
+
+        today = _utc_today().isoformat()
+        if user_data.last_daily_stipend == today:
+            return
+
+        try:
+            await self._modify_currency(
+                message.author,
+                amount,
+                guild=message.guild,
+                actor=message.author,
+                reason="devilfruit:daily_stipend",
+            )
+        except Exception:
+            return
+
+        user_data.last_daily_stipend = today
+        guild_data.set_user(message.author.id, user_data)
+        await self._save()
+
+        with suppress(discord.HTTPException):
+            await message.channel.send(
+                f"✨ {message.author.mention}, your {user_data.fruit_type} Devil Fruit grants you a daily Beri stipend of **{amount:,} Beri**!"
+            )
+
     async def _send_paginated_embed(
         self,
         ctx: commands.Context,
@@ -382,6 +452,8 @@ class OnePieceFruit(commands.Cog):
             new_emoji,
             rep,
         )
+
+        await self._maybe_grant_daily_stipend(message)
 
     async def _resolve_profile_target(self, ctx: commands.Context) -> discord.Member:
         target = ctx.kwargs.get("member")
@@ -732,14 +804,21 @@ class OnePieceFruit(commands.Cog):
                 f"🌊 You haven't eaten a Devil Fruit yet. Reach **Level {FRUIT_ASSIGN_LEVEL}** first!"
             )
 
-        cost = _next_reroll_cost(user_data.reroll_count)
+        raw_cost = _next_reroll_cost(user_data.reroll_count)
+        multiplier = self._reroll_cost_multiplier(user_data.fruit_type)
+        cost = max(1, int(math.ceil(raw_cost * multiplier)))
         currency_name = await self._get_currency_name(ctx.guild)
         next_cost_preview = _next_reroll_cost(user_data.reroll_count + 1)
+
+        discount_text = ""
+        if multiplier < 1.0:
+            discount_pct = int((1.0 - multiplier) * 100)
+            discount_text = f"\n*Your {user_data.fruit_type} fruit gives a {discount_pct}% reroll discount.*"
 
         confirm_msg = await ctx.send(
             f"⚠️ Rerolling your Devil Fruit costs **{cost:,} {currency_name}**.\n"
             f"Your current fruit (**{user_data.fruit_name}**) will be **permanently lost**.\n"
-            f"*Next reroll after this would cost: **{next_cost_preview:,} {currency_name}***\n"
+            f"*Next reroll after this would cost: **{next_cost_preview:,} {currency_name}***{discount_text}\n"
             f"React with ✅ to confirm, or ❌ to cancel."
         )
         await confirm_msg.add_reaction("✅")
@@ -781,10 +860,14 @@ class OnePieceFruit(commands.Cog):
         await self._save()
 
         embed = _build_fruit_embed(ctx.author, user_data, title_prefix="🍎 New Fruit! ")
-        embed.description = (
+        description = (
             f"You spent **{cost:,} {currency_name}** and ate a new Devil Fruit!\n"
             f"*Your previous {old_type} fruit is gone forever...*"
         )
+        if multiplier < 1.0:
+            discount_pct = int((1.0 - multiplier) * 100)
+            description += f"\n*{user_data.fruit_type} fruits get a {discount_pct}% reroll discount.*"
+        embed.description = description
 
         next_cost = _next_reroll_cost(user_data.reroll_count)
         embed.set_footer(text=f"Reroll #{user_data.reroll_count} complete. Next reroll: {next_cost:,} {currency_name}.")
