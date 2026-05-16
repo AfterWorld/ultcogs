@@ -86,6 +86,7 @@ LOTTERY_DEFAULTS = {
     "pot": 0,
     "tickets": {},              # {str(user_id): int count}
     "channel": None,            # channel id to announce results
+    "announcement_message_id": None,
     "house_cut": 0.10,          # 10 % goes to the house (sink)
 }
 
@@ -144,6 +145,52 @@ class Treasure(commands.Cog):
         if s or not parts: parts.append(f"{s}s")
         return " ".join(parts)
 
+    async def _lottery_announcement_embed(self, guild: discord.Guild, cfg: dict, now: datetime.datetime) -> discord.Embed:
+        _, icon = await self._currency_fmt(guild)
+        pot = cfg.get("pot", 0)
+        tickets: dict = cfg.get("tickets", {})
+        schedule = cfg.get("schedule", "daily")
+        price = cfg.get("ticket_price", LOTTERY_DEFAULTS["ticket_price"])
+        total_tickets = sum(tickets.values())
+        next_draw = self._next_draw_dt(cfg.get("last_draw"), schedule)
+        remaining = next_draw - now
+
+        embed = discord.Embed(
+            title="📞 Den Den Mushi Lottery — Current Update",
+            color=discord.Color.gold(),
+        )
+        embed.add_field(name="🏆 Current Pot", value=f"**{humanize_number(pot)}** {icon}", inline=False)
+        embed.add_field(name="🎟️ Total Tickets", value=str(total_tickets), inline=True)
+        embed.add_field(name="💸 Ticket Price", value=f"{humanize_number(price)} {icon}", inline=True)
+        embed.add_field(name="⏰ Next Draw In", value=self._fmt_timedelta(remaining), inline=True)
+        embed.set_footer(text="Buy tickets with the buyticket command.")
+        return embed
+
+    async def _update_lottery_announcement(self, guild: discord.Guild, cfg: dict):
+        ch_id = cfg.get("channel")
+        channel = guild.get_channel(ch_id) if ch_id else guild.system_channel
+        if not channel:
+            return
+
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        embed = await self._lottery_announcement_embed(guild, cfg, now)
+        message_id = cfg.get("announcement_message_id")
+
+        if message_id:
+            try:
+                message = await channel.fetch_message(message_id)
+                await message.edit(embed=embed)
+                return
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                pass
+
+        try:
+            message = await channel.send(embed=embed)
+            async with self.config.guild(guild).lottery() as write_cfg:
+                write_cfg["announcement_message_id"] = message.id
+        except discord.HTTPException:
+            pass
+
     # ─────────────────────────────────────────────────────────────────────
     # Lottery auto-draw background task
     # ─────────────────────────────────────────────────────────────────────
@@ -178,39 +225,12 @@ class Treasure(commands.Cog):
     @tasks.loop(minutes=60)
     async def _lottery_update_loop(self):
         """Hourly announcement of current pot / tickets to the configured channel."""
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
         for guild in self.bot.guilds:
             try:
                 cfg = await self._lottery_cfg(guild)
-                pot = cfg.get("pot", 0)
-                tickets: dict = cfg.get("tickets", {})
-                if not pot:
+                if not cfg.get("pot", 0) and not cfg.get("announcement_message_id"):
                     continue
-
-                ch_id = cfg.get("channel")
-                channel = guild.get_channel(ch_id) if ch_id else guild.system_channel
-                if not channel:
-                    continue
-
-                name, icon = await self._currency_fmt(guild)
-                total_tickets = sum(tickets.values())
-                schedule = cfg.get("schedule", "daily")
-                next_draw = self._next_draw_dt(cfg.get("last_draw"), schedule)
-                remaining = next_draw - now
-
-                embed = discord.Embed(
-                    title="📞 Den Den Mushi Lottery — Update",
-                    color=discord.Color.gold(),
-                )
-                embed.add_field(name="🏆 Current Pot", value=f"**{humanize_number(pot)}** {icon}", inline=False)
-                embed.add_field(name="🎟️ Total Tickets", value=str(total_tickets), inline=True)
-                embed.add_field(name="💸 Ticket Price", value=f"{humanize_number(cfg.get('ticket_price', LOTTERY_DEFAULTS['ticket_price']))} {icon}", inline=True)
-                embed.add_field(name="⏰ Next Draw In", value=self._fmt_timedelta(remaining), inline=True)
-                embed.set_footer(text="Buy tickets with the buyticket command.")
-                try:
-                    await channel.send(embed=embed)
-                except discord.HTTPException:
-                    pass
+                await self._update_lottery_announcement(guild, cfg)
             except Exception:
                 pass
 
@@ -300,6 +320,7 @@ class Treasure(commands.Cog):
             except discord.HTTPException:
                 pass
 
+        await self._update_lottery_announcement(guild, await self._lottery_cfg(guild))
         return winner
 
     # ══════════════════════════════════════════════════════════════════════
@@ -511,6 +532,7 @@ class Treasure(commands.Cog):
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=f"Use {ctx.prefix}lotteryinfo to see draw schedule.")
         await ctx.send(embed=embed)
+        await self._update_lottery_announcement(ctx.guild, await self._lottery_cfg(ctx.guild))
 
     @commands.command(name="lotteryinfo", aliases=["lottoinfo"])
     @commands.guild_only()
@@ -584,6 +606,7 @@ class Treasure(commands.Cog):
         """Set the channel where lottery results are announced."""
         async with self.config.guild(ctx.guild).lottery() as cfg:
             cfg["channel"] = channel.id if channel else None
+            cfg["announcement_message_id"] = None
         if channel:
             await ctx.send(f"✅ Lottery results will post in {channel.mention}.")
         else:
@@ -650,3 +673,4 @@ class Treasure(commands.Cog):
             cfg["tickets"] = {}
             cfg["pot"] = 0
         await ctx.send(f"✅ Lottery cancelled. Refunded **{refunded}** ticket holder(s).")
+        await self._update_lottery_announcement(ctx.guild, await self._lottery_cfg(ctx.guild))
