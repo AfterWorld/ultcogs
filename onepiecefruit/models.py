@@ -16,6 +16,7 @@ class UserFruitData(BaseModel):
     awakening_stage: int = 0       # 0=base, 1=first awakening, 2=full awakening
     reroll_count: int = 0
     last_reroll_cost: int = 0
+    profile_visible: bool = True   # Show Devil Fruit on profile / pf views by default
 
 
 class GuildData(BaseModel):

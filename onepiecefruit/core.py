@@ -302,7 +302,7 @@ class OnePieceFruit(commands.Cog):
         guild_data = self.db.get_guild(ctx.guild.id)
         user_data = guild_data.get_user(target.id)
 
-        if user_data is None or not user_data.fruit_name:
+        if user_data is None or not user_data.fruit_name or not user_data.profile_visible:
             return
 
         embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
@@ -408,6 +408,39 @@ class OnePieceFruit(commands.Cog):
         # Pass rep_tracker so rep fields are included
         embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
         await ctx.send(embed=embed)
+
+    @devilfruit.command(name="toggle")
+    async def df_toggle(self, ctx: commands.Context, state: t.Optional[str] = None) -> None:
+        """Toggle whether your Devil Fruit appears after [p]profile / [p]pf."""
+        guild_data = self.db.get_guild(ctx.guild.id)
+        user_data = guild_data.get_user(ctx.author.id)
+
+        if user_data is None or not user_data.fruit_name:
+            return await ctx.send(
+                f"🌊 You haven't eaten a Devil Fruit yet. Reach **Level {FRUIT_ASSIGN_LEVEL}** to receive one!"
+            )
+
+        if state is None:
+            user_data.profile_visible = not user_data.profile_visible
+        else:
+            normalized = state.lower()
+            if normalized in {"on", "enable", "enabled", "yes", "true"}:
+                user_data.profile_visible = True
+            elif normalized in {"off", "disable", "disabled", "no", "false"}:
+                user_data.profile_visible = False
+            else:
+                return await ctx.send(
+                    "❌ Usage: `.df toggle [on/off]` — omit the argument to flip the current state."
+                )
+
+        guild_data.set_user(ctx.author.id, user_data)
+        await self._save()
+
+        status = "enabled" if user_data.profile_visible else "disabled"
+        await ctx.send(
+            f"✅ Devil Fruit profile cards are now **{status}** for your [p]profile / [p]pf view. "
+            f"You can still use `.df info` to view your fruit directly."
+        )
 
     # ── [p]df rep ───────────────────────────────────────────────────────────
     @devilfruit.command(name="rep")
