@@ -479,3 +479,69 @@ DEVIL_FRUITS: Dict[str, List[dict]] = {
         },
     ],
 }
+
+SEASONAL_EVENTS: dict[str, dict] = {
+    "halloween": {
+        "name": "Halloween",
+        "emoji": "🎃",
+        "description": "Spooky limited-time devil fruits appear during Halloween events.",
+        "fruits": [
+            {
+                "name": "Yurei Yurei no Mi (Ghost-Ghost Fruit)",
+                "fruit_type": "Paramecia",
+                "ability": "Your body becomes ghostly and intangible, letting you phase through attacks and manipulate fear itself.",
+                "awakening_1": "Your haunting presence spreads around you — enemies within range become chilled and struggle to act normally.",
+                "awakening_2": "You become a living nightmare. Invisible ghosts swarm your foes, sapping their strength and leaving them paralyzed with dread.",
+            },
+            {
+                "name": "Oni Oni no Mi, Model: Demon (Oni-Oni Fruit, Demon)",
+                "fruit_type": "Zoan",
+                "ability": "You transform into a fearsome demon or hybrid form, gaining massive strength, claws, and intimidating presence.",
+                "awakening_1": "Your demonic form becomes faster and more resilient, with supernatural regeneration and explosive bursts of power.",
+                "awakening_2": "You become a true nightmare beast. Your aura terrifies enemies and your strikes can shatter both flesh and spirit.",
+            },
+            {
+                "name": "Kuri Kuri no Mi (Curse-Curse Fruit)",
+                "fruit_type": "Paramecia",
+                "ability": "You can place a curse on any target you touch, causing strange and unpredictable effects to harm your opponents.",
+                "awakening_1": "Your curses now linger and spread, infecting multiple enemies and weakening their attacks over time.",
+                "awakening_2": "Your maledictions become inescapable. Enemies suffer continuous debuffs and lose control of their own abilities.",
+            },
+            {
+                "name": "Kumo Kumo no Mi, Model: Shadow Spider (Spider-Spider Fruit, Shadow Spider)",
+                "fruit_type": "Mythical Zoan",
+                "ability": "You transform into a shadow spider hybrid, able to weave dark silk and silently strike from the shadows.",
+                "awakening_1": "Your shadow webs ensnare many foes at once and make it difficult for enemies to see or move freely.",
+                "awakening_2": "You become virtually one with the darkness — your attacks appear from nowhere and your prey cannot tell where the next strike will come from.",
+            },
+        ],
+    },
+    "winter": {
+        "name": "Winter Festival",
+        "emoji": "❄️",
+        "description": "Limited winter fruits with cold-themed power and festive flare.",
+        "fruits": [
+            {
+                "name": "Fuyu Fuyu no Mi (Winter-Winter Fruit)",
+                "fruit_type": "Logia",
+                "ability": "You become winter itself — freezing air, snow, and ice obey your will, and you are immune to cold damage.",
+                "awakening_1": "You create artic blizzards that slow and shatter enemies while your body secretes protective frost armor.",
+                "awakening_2": "You envelop entire battlefields in perpetual winter. Ice pillars rise and froststorms ravage foes automatically.",
+            },
+            {
+                "name": "Yuki Yuki no Mi, Model: Ice Dragon (Snow-Snow Fruit, Ice Dragon)",
+                "fruit_type": "Mythical Zoan",
+                "ability": "You transform into a legendary ice dragon hybrid, breathing crystalline frost and soaring through frozen skies.",
+                "awakening_1": "Your scales become harder than diamond and your breath freezes anything it touches instantly.",
+                "awakening_2": "You become a titanic frost wyrm — icicle storms and arctic shockwaves radiate from you with unstoppable force.",
+            },
+            {
+                "name": "Kori Kori no Mi (Ice-Ice Fruit)",
+                "fruit_type": "Logia",
+                "ability": "You turn into pure ice, creating ice sculptures, blades, and fields with every movement.",
+                "awakening_1": "Your ice becomes razor-sharp and regenerates instantly, allowing you to reshape the battlefield continuously.",
+                "awakening_2": "Your presence chills the air to absolute zero — enemies slow to a crawl and even their abilities freeze mid-action.",
+            },
+        ],
+    },
+}

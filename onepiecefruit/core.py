@@ -36,6 +36,7 @@ from .fruits import (
     RARITY_WEIGHTS,
     REROLL_COST_TABLE,
     REROLL_COST_SCALE_FACTOR,
+    SEASONAL_EVENTS,
 )
 from .models import DB, GuildData, UserFruitData
 from .piraterep import RepTracker  # ← Pirate Rep integration
@@ -69,8 +70,14 @@ AWAKENING_LABELS = {0: "Base Form", 1: "Awakening — Stage 1", 2: "Full Awakeni
 # ---------------------------------------------------------------------------
 # Helper — weighted random fruit draw
 # ---------------------------------------------------------------------------
-def _draw_fruit() -> tuple[str, dict]:
-    """Return (rarity_type, fruit_dict) using RARITY_WEIGHTS."""
+def _draw_fruit(event: t.Optional[str] = None) -> tuple[str, dict]:
+    """Return (rarity_type, fruit_dict), using a seasonal event pool when active."""
+    if event:
+        event_info = SEASONAL_EVENTS.get(event.lower())
+        if event_info and event_info["fruits"]:
+            chosen_fruit = random.choice(event_info["fruits"])
+            return chosen_fruit["fruit_type"], chosen_fruit
+
     types = list(RARITY_WEIGHTS.keys())
     weights = [RARITY_WEIGHTS[t] for t in types]
     chosen_type = random.choices(types, weights=weights, k=1)[0]
@@ -180,7 +187,7 @@ class OnePieceFruit(commands.Cog):
         self.rep_tracker: t.Optional[RepTracker] = None  # initialised in cog_load
 
         self.config = Config.get_conf(self, identifier=0x99ac92bc1d2e3f44, force_registration=True)
-        self.config.register_guild(rank_announcement_channel=None)
+        self.config.register_guild(rank_announcement_channel=None, active_event=None)
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -401,6 +408,15 @@ class OnePieceFruit(commands.Cog):
     async def _rank_announcement_channel(self, guild: discord.Guild) -> t.Optional[int]:
         return await self.config.guild(guild).rank_announcement_channel()
 
+    async def _get_active_event(self, guild: discord.Guild) -> t.Optional[str]:
+        return await self.config.guild(guild).active_event()
+
+    def _event_label(self, event_key: str) -> str:
+        event_def = SEASONAL_EVENTS.get(event_key.lower())
+        if event_def:
+            return f"{event_def['emoji']} {event_def['name']}"
+        return event_key
+
     async def _send_rank_announcement(
         self,
         guild: discord.Guild,
@@ -558,7 +574,8 @@ class OnePieceFruit(commands.Cog):
 
         # ── Level 5: first fruit assignment ──────────────────────────────
         if level == FRUIT_ASSIGN_LEVEL and user_data is None:
-            rarity, fruit = _draw_fruit()
+            active_event = await self._get_active_event(guild)
+            rarity, fruit = _draw_fruit(active_event)
             user_data = UserFruitData(
                 fruit_name=fruit["name"],
                 fruit_type=rarity,
@@ -573,6 +590,12 @@ class OnePieceFruit(commands.Cog):
                 f"Congratulations {member.mention}! You've eaten a **Devil Fruit** and gained a mysterious power!\n"
                 f"You can never swim again — but the power is worth it. 💀"
             )
+            if active_event:
+                event_def = SEASONAL_EVENTS.get(active_event.lower())
+                if event_def:
+                    embed.description += (
+                        f"\n\n*Seasonal event active: {event_def['emoji']} {event_def['name']}.*"
+                    )
             if channel:
                 await channel.send(embed=embed)
             else:
@@ -633,6 +656,14 @@ class OnePieceFruit(commands.Cog):
 
         # Pass rep_tracker so rep fields are included
         embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
+        active_event = await self._get_active_event(ctx.guild)
+        if active_event:
+            event_def = SEASONAL_EVENTS.get(active_event.lower())
+            if event_def:
+                footer_text = embed.footer.text or ""
+                embed.set_footer(
+                    text=f"{event_def['emoji']} {event_def['name']} event active • {footer_text}"
+                )
         await ctx.send(embed=embed)
 
     @devilfruit.command(name="toggle")
@@ -965,7 +996,8 @@ class OnePieceFruit(commands.Cog):
             )
 
         old_type = user_data.fruit_type
-        rarity, fruit = _draw_fruit()
+        active_event = await self._get_active_event(ctx.guild)
+        rarity, fruit = _draw_fruit(active_event)
 
         user_data.fruit_name = fruit["name"]
         user_data.fruit_type = rarity
@@ -980,6 +1012,13 @@ class OnePieceFruit(commands.Cog):
             f"You spent **{cost:,} {currency_name}** and ate a new Devil Fruit!\n"
             f"*Your previous {old_type} fruit is gone forever...*"
         )
+        if active_event:
+            event_def = SEASONAL_EVENTS.get(active_event.lower())
+            if event_def:
+                description += (
+                    f"\n*Seasonal event active: {event_def['emoji']} {event_def['name']} — "
+                    f"new fruits are drawn from the limited-time pool.*"
+                )
         if multiplier < 1.0:
             discount_pct = int((1.0 - multiplier) * 100)
             description += f"\n*{user_data.fruit_type} fruits get a {discount_pct}% reroll discount.*"
@@ -1196,6 +1235,60 @@ class OnePieceFruit(commands.Cog):
             f"✅ Pirate rank announcements will now post in {channel.mention}."
         )
 
+    @df_admin.command(name="event")
+    async def df_admin_event(self, ctx: commands.Context, *, event_name: t.Optional[str] = None) -> None:
+        """Set or clear the active seasonal Devil Fruit event pool."""
+        if event_name is None:
+            active = await self._get_active_event(ctx.guild)
+            if active is None:
+                available = ", ".join(
+                    f"{data['emoji']} `{key}`" for key, data in SEASONAL_EVENTS.items()
+                )
+                return await ctx.send(
+                    "ℹ️ No seasonal event is currently active. "
+                    f"Available events: {available}. Use `.df admin event <name>` to enable one."
+                )
+
+            event_def = SEASONAL_EVENTS.get(active.lower())
+            if event_def is None:
+                await self.config.guild(ctx.guild).active_event.set(None)
+                return await ctx.send(
+                    "⚠️ The configured event is no longer available and has been cleared."
+                )
+            return await ctx.send(
+                f"🎉 Seasonal event active: {event_def['emoji']} **{event_def['name']}**. "
+                f"New Devil Fruits will draw from that limited pool."
+            )
+
+        lookup = event_name.strip().lower()
+        if lookup in {"off", "none", "clear", "disable"}:
+            await self.config.guild(ctx.guild).active_event.set(None)
+            return await ctx.send("✅ Seasonal event cleared. Devil Fruit draws return to normal.")
+
+        normalized = "".join(lookup.split())
+        matched = next(
+            (
+                key
+                for key, data in SEASONAL_EVENTS.items()
+                if key == normalized or "".join(data["name"].lower().split()) == normalized
+            ),
+            None,
+        )
+        if matched is None:
+            available = ", ".join(
+                f"{data['emoji']} `{key}` ({data['name']})" for key, data in SEASONAL_EVENTS.items()
+            )
+            return await ctx.send(
+                f"❌ Unknown event `{event_name}`. Available seasonal events: {available}."
+            )
+
+        await self.config.guild(ctx.guild).active_event.set(matched)
+        event_def = SEASONAL_EVENTS[matched]
+        await ctx.send(
+            f"✅ Seasonal event enabled: {event_def['emoji']} **{event_def['name']}**. "
+            f"New Devil Fruits will now draw from the event fruit pool."
+        )
+
     # ── Admin: [p]df admin bulkassign ────────────────────────────────────────
     @df_admin.command(name="bulkassign")
     async def df_admin_bulk_assign(self, ctx: commands.Context) -> None:
@@ -1303,10 +1396,22 @@ class OnePieceFruit(commands.Cog):
         valid = list(DEVIL_FRUITS.keys())
 
         if rarity is None:
+            active_event = await self._get_active_event(ctx.guild)
+            description = (
+                "Use `[p]df browse <type>` to see fruits in a category.\n\n"
+                + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid)
+            )
+            if active_event:
+                event_def = SEASONAL_EVENTS.get(active_event.lower())
+                if event_def:
+                    description += (
+                        f"\n\n🎉 Active seasonal event: {event_def['emoji']} **{event_def['name']}** — "
+                        f"use `[p]df browse {active_event}` to preview its fruits."
+                    )
+
             embed = discord.Embed(
                 title="🍎 Available Devil Fruit Types",
-                description="Use `[p]df browse <type>` to see fruits in a category.\n\n"
-                + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid),
+                description=description,
                 colour=discord.Colour.dark_red(),
             )
             return await ctx.send(embed=embed)
@@ -1322,6 +1427,29 @@ class OnePieceFruit(commands.Cog):
             None,
         )
         if matched is None:
+            event_match = next(
+                (
+                    key
+                    for key, data in SEASONAL_EVENTS.items()
+                    if key == normalized_lookup
+                    or "".join(data["name"].lower().split()) == normalized_lookup
+                ),
+                None,
+            )
+            if event_match is not None:
+                event_def = SEASONAL_EVENTS[event_match]
+                fruits = event_def["fruits"]
+                emoji = event_def["emoji"]
+                lines = [f"• {f['name']} — {f['fruit_type']}" for f in fruits]
+
+                embed = discord.Embed(
+                    title=f"{emoji} {event_def['name']} Seasonal Fruits ({len(fruits)} total)",
+                    description="\n".join(lines),
+                    colour=discord.Colour.dark_purple(),
+                )
+                embed.set_footer(text="Seasonal event fruit pool")
+                return await ctx.send(embed=embed)
+
             return await ctx.send(f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}")
 
         fruits = DEVIL_FRUITS[matched]

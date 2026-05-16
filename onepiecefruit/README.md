@@ -100,6 +100,7 @@ Aliases: `[p]devilfruit` = `[p]df`
 | `[p]df admin awaken <member> <0\|1\|2>` | Manually set awakening stage |
 | `[p]df admin resetrerolls <member>` | Reset reroll counter to 0 |
 | `[p]df admin rankchannel [#channel]` | Set or view Pirate rank announcement channel |
+| `[p]df admin event [name|off]` | Enable or disable a seasonal Devil Fruit event |
 
 ---
 
@@ -107,6 +108,7 @@ Aliases: `[p]devilfruit` = `[p]df`
 
 - Users cannot have two Devil Fruits — rerolling replaces the old one permanently.
 - Awakening stage is tied to the **current fruit** — rerolling resets it.
+- Seasonal events can be enabled with `[p]df admin event <name>` to draw from a limited-time event fruit pool.
 - The cog stores data in `cog_data_path/onepiecefruit.json`.
 - Fruit descriptions are flavor text only — no actual game mechanics are modified.
 - Certain rarity fruits now grant small Beri perks, like reroll discounts and daily Beri stipends.
