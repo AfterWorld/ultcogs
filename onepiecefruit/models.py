@@ -20,6 +20,25 @@ class UserFruitData(BaseModel):
     last_daily_stipend: str = ""
     profile_visible: bool = True   # Show Devil Fruit on profile / pf views by default
 
+    # Stores the names of the last ≤3 fruits the user rerolled away from.
+    # Most-recent is at the end (index -1).  Never exceeds REROLL_HISTORY_MAX.
+    reroll_history: list[str] = Field(default_factory=list)
+
+    # ------------------------------------------------------------------
+    # Convenience
+    # ------------------------------------------------------------------
+
+    REROLL_HISTORY_MAX: int = 3
+
+    def push_reroll_history(self, fruit_name: str) -> None:
+        """
+        Record *fruit_name* as the most-recently-lost fruit.
+        Trims the list to at most REROLL_HISTORY_MAX entries.
+        """
+        self.reroll_history.append(fruit_name)
+        if len(self.reroll_history) > self.REROLL_HISTORY_MAX:
+            self.reroll_history = self.reroll_history[-self.REROLL_HISTORY_MAX :]
+
 
 class GuildData(BaseModel):
     """Per-guild storage: maps user_id (str) → UserFruitData."""
