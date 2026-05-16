@@ -83,6 +83,7 @@ Rerolling **resets awakening stage to 0** — you start fresh with the new fruit
 | `[p]df search <term>` | Search Devil Fruits by partial name |
 | `[p]df top` | Show the server's top Pirate Rep leaders |
 | `[p]df duel <member> [wager]` | Challenge another member to a Devil Fruit duel |
+| `[p]df rep` | Show your full Pirate Rep card (or another member's). Inactivity can cause rep decay after one week away. |
 | `[p]df reroll` | Reroll your fruit for Beri |
 | `[p]df list` | Show all fruit users in the server |
 | `[p]df types` | Show rarity tiers and drop chances |

@@ -438,20 +438,30 @@ class OnePieceFruit(commands.Cog):
         if message.author.bot or message.guild is None or self.rep_tracker is None:
             return
 
-        promotion = await self.rep_tracker.record_message(message.guild.id, message.author.id)
-        if promotion is None:
+        result = await self.rep_tracker.record_message(message.guild.id, message.author.id)
+        if result is None:
+            await self._maybe_grant_daily_stipend(message)
             return
 
-        old_title, old_emoji, new_title, new_emoji, rep = promotion
-        await self._send_rank_announcement(
-            message.guild,
-            message.author,
-            old_title,
-            old_emoji,
-            new_title,
-            new_emoji,
-            rep,
-        )
+        promotion, decay_amount, decay_days = result
+        if decay_amount > 0:
+            with suppress(discord.HTTPException):
+                await message.channel.send(
+                    f"💨 {message.author.mention}, your Pirate Rep decayed by **{decay_amount:,}** "
+                    f"after {decay_days} days of inactivity. Keep chatting to recover!"
+                )
+
+        if promotion is not None:
+            old_title, old_emoji, new_title, new_emoji, rep = promotion
+            await self._send_rank_announcement(
+                message.guild,
+                message.author,
+                old_title,
+                old_emoji,
+                new_title,
+                new_emoji,
+                rep,
+            )
 
         await self._maybe_grant_daily_stipend(message)
 

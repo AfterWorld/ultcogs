@@ -77,6 +77,11 @@ STREAK_MILESTONES: dict[int, int] = {
     365: 1_000,
 }
 
+# Rep decay for inactivity
+INACTIVITY_DECAY_DAYS = 7
+INACTIVITY_DECAY_RATE = 0.05
+INACTIVITY_DECAY_MIN = 10
+
 # Weekly activity badges (weekly msg count → badge label)
 WEEKLY_BADGES: list[tuple[int, str]] = [
     (500, "🌊 Tidal Force"),
@@ -117,6 +122,14 @@ def _next_rank(rep: int) -> Optional[tuple[int, str, str]]:
         if rep < min_rep:
             return min_rep, t, e
     return None
+
+
+def _calculate_inactivity_decay(rep: int, days_inactive: int) -> int:
+    if days_inactive < INACTIVITY_DECAY_DAYS or rep <= 0:
+        return 0
+    weeks = days_inactive // INACTIVITY_DECAY_DAYS
+    decay = max(INACTIVITY_DECAY_MIN, int(rep * INACTIVITY_DECAY_RATE * weeks))
+    return min(decay, rep)
 
 
 def _weekly_badge(weekly_msgs: int) -> Optional[str]:
@@ -262,12 +275,21 @@ class RepTracker:
 
     # ── Message recording ───────────────────────────────────────────────────
 
-    async def record_message(self, guild_id: int, user_id: int) -> Optional[tuple[str, str, str, str, int]]:
+    async def record_message(
+        self,
+        guild_id: int,
+        user_id: int,
+    ) -> Optional[tuple[Optional[tuple[str, str, str, str, int]], int, int]]:
         """
         Record one message for a user. Updates total, weekly, streak, rep.
         Saves automatically (debounced via asyncio — fire-and-forget in the cog).
 
-        Returns rank promotion details if the user advances rank.
+        Returns a tuple with:
+            - rank promotion details if the user advances rank
+            - rep decay amount due to inactivity
+            - days inactive used for decay calculation
+
+        Returns None if no promotion or decay occurred.
         """
         today = _utc_today()
         week = _week_key(today)
@@ -275,6 +297,8 @@ class RepTracker:
         u = g.get_user(user_id)
 
         old_title, old_emoji = _rank_for_rep(u.rep)
+        decay_amount = 0
+        inactive_days = 0
 
         # ── Weekly reset ─────────────────────────────────────────────────
         if u.current_week != week:
@@ -294,6 +318,10 @@ class RepTracker:
             elif delta == 1:
                 u.streak += 1  # consecutive day
             else:
+                inactive_days = delta
+                decay_amount = _calculate_inactivity_decay(u.rep, inactive_days)
+                if decay_amount:
+                    u.rep -= decay_amount
                 u.streak = 1   # streak broken
         else:
             u.streak = 1  # first ever message
@@ -322,7 +350,9 @@ class RepTracker:
         self._dirty = True
         self._schedule_save()
 
-        return promotion
+        if promotion is None and decay_amount == 0:
+            return None
+        return promotion, decay_amount, inactive_days
 
     # ── Read helpers ────────────────────────────────────────────────────────
 
