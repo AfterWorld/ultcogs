@@ -265,6 +265,66 @@ class OnePieceFruit(commands.Cog):
             )
         return await bank.withdraw_credits(member, amount)
 
+    async def _send_paginated_embed(
+        self,
+        ctx: commands.Context,
+        title: str,
+        lines: list[str],
+        colour: discord.Colour,
+        footer: str,
+        max_per_page: int = 15,
+    ) -> None:
+        page_chunks = [lines[i : i + max_per_page] for i in range(0, len(lines), max_per_page)]
+        total_pages = len(page_chunks)
+        total_items = len(lines)
+
+        def make_embed(page_idx: int) -> discord.Embed:
+            embed = discord.Embed(
+                title=title,
+                description="\n".join(page_chunks[page_idx]),
+                colour=colour,
+            )
+            embed.set_footer(text=f"{footer} • Page {page_idx + 1}/{total_pages}")
+            return embed
+
+        if total_pages == 1:
+            return await ctx.send(embed=make_embed(0))
+
+        current = 0
+        msg = await ctx.send(embed=make_embed(current))
+        controls = ["⬅️", "➡️", "❌"]
+        for emoji in controls:
+            await msg.add_reaction(emoji)
+
+        def check(reaction: discord.Reaction, user: discord.User) -> bool:
+            return (
+                user == ctx.author
+                and reaction.message.id == msg.id
+                and str(reaction.emoji) in controls
+            )
+
+        while True:
+            try:
+                reaction, _ = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+            except asyncio.TimeoutError:
+                with suppress(discord.HTTPException):
+                    await msg.clear_reactions()
+                break
+
+            emoji_str = str(reaction.emoji)
+            if emoji_str == "❌":
+                with suppress(discord.HTTPException):
+                    await msg.clear_reactions()
+                break
+            elif emoji_str == "⬅️":
+                current = (current - 1) % total_pages
+            elif emoji_str == "➡️":
+                current = (current + 1) % total_pages
+
+            with suppress(discord.HTTPException):
+                await msg.edit(embed=make_embed(current))
+                await msg.remove_reaction(reaction, ctx.author)
+
     async def _resolve_profile_target(self, ctx: commands.Context) -> discord.Member:
         target = ctx.kwargs.get("member")
         if isinstance(target, discord.Member):
@@ -508,19 +568,19 @@ class OnePieceFruit(commands.Cog):
 
         lines = []
         medals = ["🥇", "🥈", "🥉"]
-        for i, (uid_str, rep) in enumerate(lb[:15]):
+        for i, (uid_str, rep) in enumerate(lb):
             member = ctx.guild.get_member(int(uid_str))
             name = member.mention if member else f"<@{uid_str}>"
             medal = medals[i] if i < 3 else f"`#{i + 1}`"
             lines.append(f"{medal} {name} — **{rep:,}** rep")
 
-        embed = discord.Embed(
+        await self._send_paginated_embed(
+            ctx,
             title="🏆 Pirate Rep Leaders",
-            description="\n".join(lines),
+            lines=lines,
             colour=discord.Colour.gold(),
+            footer="Use .df rep to see a full Pirate Rep card.",
         )
-        embed.set_footer(text="Use .df rep to see a full Pirate Rep card.")
-        await ctx.send(embed=embed)
 
     # ── [p]df weekly ────────────────────────────────────────────────────────
     @devilfruit.command(name="weekly")
@@ -696,61 +756,13 @@ class OnePieceFruit(commands.Cog):
         if not lines:
             return await ctx.send("🌊 No active Devil Fruit users found.")
 
-        chunk_size = 15
-        page_chunks = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
-        total_pages = len(page_chunks)
-        total_users = len(lines)
-
-        def make_embed(page_idx: int) -> discord.Embed:
-            embed = discord.Embed(
-                title=f"🍎 Devil Fruit Users — {ctx.guild.name}",
-                description="\n".join(page_chunks[page_idx]),
-                colour=discord.Colour.dark_red(),
-            )
-            embed.set_footer(text=f"Page {page_idx + 1}/{total_pages}  •  {total_users} pirates total")
-            return embed
-
-        if total_pages == 1:
-            return await ctx.send(embed=make_embed(0))
-
-        current = 0
-        msg = await ctx.send(embed=make_embed(current))
-
-        controls = ["⬅️", "➡️", "❌"]
-        for emoji in controls:
-            await msg.add_reaction(emoji)
-
-        def check(reaction: discord.Reaction, user: discord.User) -> bool:
-            return (
-                user == ctx.author
-                and reaction.message.id == msg.id
-                and str(reaction.emoji) in controls
-            )
-
-        while True:
-            try:
-                reaction, _ = await self.bot.wait_for(
-                    "reaction_add", timeout=60.0, check=check
-                )
-            except asyncio.TimeoutError:
-                with suppress(discord.HTTPException):
-                    await msg.clear_reactions()
-                break
-
-            emoji_str = str(reaction.emoji)
-
-            if emoji_str == "❌":
-                with suppress(discord.HTTPException):
-                    await msg.clear_reactions()
-                break
-            elif emoji_str == "⬅️":
-                current = (current - 1) % total_pages
-            elif emoji_str == "➡️":
-                current = (current + 1) % total_pages
-
-            with suppress(discord.HTTPException):
-                await msg.edit(embed=make_embed(current))
-                await msg.remove_reaction(reaction, ctx.author)
+        await self._send_paginated_embed(
+            ctx,
+            title=f"🍎 Devil Fruit Users — {ctx.guild.name}",
+            lines=lines,
+            colour=discord.Colour.dark_red(),
+            footer=f"{len(lines)} pirates total",
+        )
 
     # ── [p]df types ─────────────────────────────────────────────────────────
     @devilfruit.command(name="types")
