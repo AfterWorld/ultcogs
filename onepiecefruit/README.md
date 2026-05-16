@@ -82,6 +82,7 @@ Rerolling **resets awakening stage to 0** — you start fresh with the new fruit
 | `[p]df toggle [on/off]` | Enable or disable your fruit embed on `[p]profile` / `[p]pf` |
 | `[p]df search <term>` | Search Devil Fruits by partial name |
 | `[p]df top` | Show the server's top Pirate Rep leaders |
+| `[p]df duel <member> [wager]` | Challenge another member to a Devil Fruit duel |
 | `[p]df reroll` | Reroll your fruit for Beri |
 | `[p]df list` | Show all fruit users in the server |
 | `[p]df types` | Show rarity tiers and drop chances |

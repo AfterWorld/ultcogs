@@ -710,6 +710,112 @@ class OnePieceFruit(commands.Cog):
             footer="Use .df rep to see a full Pirate Rep card.",
         )
 
+    @devilfruit.command(name="duel", aliases=["spar", "fight"])
+    async def df_duel(
+        self,
+        ctx: commands.Context,
+        target: discord.Member,
+        wager: t.Optional[int] = None,
+    ) -> None:
+        """Challenge another member to a Devil Fruit duel with an optional Beri wager."""
+        if target.bot:
+            return await ctx.send("🤖 You can't duel bots.")
+        if target == ctx.author:
+            return await ctx.send("❌ You can't duel yourself.")
+
+        guild_data = self.db.get_guild(ctx.guild.id)
+        challenger_data = guild_data.get_user(ctx.author.id)
+        target_data = guild_data.get_user(target.id)
+
+        if challenger_data is None or not challenger_data.fruit_name:
+            return await ctx.send("🌊 You need a Devil Fruit to duel.")
+        if target_data is None or not target_data.fruit_name:
+            return await ctx.send(f"🌊 {target.display_name} doesn't have a Devil Fruit to duel.")
+
+        if wager is None:
+            wager = 0
+        elif wager < 0:
+            return await ctx.send("❌ Wager must be a positive amount of Beri.")
+
+        currency_name = await self._get_currency_name(ctx.guild)
+
+        if wager > 0:
+            challenger_balance = await self._get_balance(ctx.guild, ctx.author)
+            target_balance = await self._get_balance(ctx.guild, target)
+            if challenger_balance < wager:
+                return await ctx.send(
+                    f"💸 You need **{wager:,} {currency_name}** for that wager, but only have **{challenger_balance:,}**."
+                )
+            if target_balance < wager:
+                return await ctx.send(
+                    f"💸 {target.display_name} needs at least **{wager:,} {currency_name}** to accept the duel."
+                )
+
+        strength_values = {
+            "Paramecia": 70,
+            "Zoan": 85,
+            "Logia": 100,
+            "Ancient Zoan": 110,
+            "Mythical Zoan": 120,
+            "Legendary": 140,
+        }
+        stage_bonus = {0: 0, 1: 10, 2: 25}
+
+        def combat_strength(data: UserFruitData) -> int:
+            base = strength_values.get(data.fruit_type, 80)
+            return base + stage_bonus.get(data.awakening_stage, 0)
+
+        challenger_strength = combat_strength(challenger_data)
+        target_strength = combat_strength(target_data)
+        differential = challenger_strength - target_strength
+        win_chance = 0.5 + (differential / 200)
+        win_chance = max(0.10, min(0.90, win_chance))
+
+        if wager > 0:
+            await self._withdraw_currency(ctx, ctx.author, wager)
+            try:
+                await self._withdraw_currency(ctx, target, wager)
+            except ValueError:
+                await self._modify_currency(ctx.author, wager, ctx.guild, actor=ctx.bot, reason="devilfruit:duel_refund")
+                return await ctx.send(
+                    f"💸 {target.display_name} can't cover the wager right now."
+                )
+
+        winner = ctx.author if random.random() < win_chance else target
+        upset = (
+            winner == target and challenger_strength > target_strength
+            or winner == ctx.author and challenger_strength < target_strength
+        )
+
+        result_text = (
+            f"⚔️ **{ctx.author.display_name}** ({challenger_data.fruit_type}) vs "
+            f"**{target.display_name}** ({target_data.fruit_type})\n"
+            f"Chance to win: **{int(win_chance * 100)}%** for {ctx.author.display_name}."
+        )
+
+        if wager > 0:
+            total_pot = wager * 2
+            winner_name = winner.display_name
+            await self._modify_currency(winner, total_pot, ctx.guild, actor=ctx.bot, reason="devilfruit:duel")
+            result_text += f"\n🏆 {winner_name} wins **{total_pot:,} {currency_name}**!"
+        else:
+            result_text += f"\n🏆 {winner.display_name} wins the duel!"
+
+        if upset:
+            result_text += "\n✨ What an upset!"
+
+        embed = discord.Embed(
+            title="⚔️ Devil Fruit Duel",
+            description=result_text,
+            colour=discord.Colour.dark_red(),
+        )
+        embed.add_field(name="Your strength", value=str(challenger_strength), inline=True)
+        embed.add_field(name=f"{target.display_name}'s strength", value=str(target_strength), inline=True)
+        if wager > 0:
+            embed.set_footer(text=f"{currency_name} wager: {wager:,}")
+
+        await ctx.send(embed=embed)
+
     # ── [p]df weekly ────────────────────────────────────────────────────────
     @devilfruit.command(name="weekly")
     async def df_weekly(self, ctx: commands.Context) -> None:
