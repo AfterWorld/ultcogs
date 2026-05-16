@@ -37,8 +37,8 @@ bot.dispatch("levelup", guild, member, level, channel)
 | Level | Event |
 |-------|-------|
 | 5     | 🍎 Random Devil Fruit assigned |
-| 15    | ⚡ Stage 1 Awakening unlocked |
-| 30    | 🌟 Full Awakening achieved |
+| 50    | ⚡ Stage 1 Awakening unlocked |
+| 100   | 🌟 Full Awakening achieved |
 
 ### Rarity Tiers
 
@@ -58,7 +58,15 @@ bot.dispatch("levelup", guild, member, level, channel)
 | 1st | 10,000 |
 | 2nd | 25,000 |
 | 3rd | 50,000 |
-| 4th+ | 100,000 (cap) |
+| 4th | 100,000 |
+| 5th | 200,000 |
+| 6th | 350,000 |
+| 7th | 500,000 |
+| 8th | 750,000 |
+| 9th | 1,000,000 |
+| 10th | 1,500,000 |
+
+Costs continue rising by about ×1.5 after the 10th reroll.
 
 Rerolling **resets awakening stage to 0** — you start fresh with the new fruit.
 
@@ -71,6 +79,7 @@ Rerolling **resets awakening stage to 0** — you start fresh with the new fruit
 | Command | Description |
 |---------|-------------|
 | `[p]df info [member]` | Show your (or another's) Devil Fruit |
+| `[p]df toggle [on/off]` | Enable or disable your fruit embed on `[p]profile` / `[p]pf` |
 | `[p]df reroll` | Reroll your fruit for Beri |
 | `[p]df list` | Show all fruit users in the server |
 | `[p]df types` | Show rarity tiers and drop chances |
