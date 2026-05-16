@@ -21,6 +21,7 @@ import math
 import random
 import typing as t
 from contextlib import suppress
+from datetime import datetime, timezone
 from pathlib import Path
 
 import discord
@@ -38,7 +39,7 @@ from .fruits import (
     REROLL_COST_SCALE_FACTOR,
     SEASONAL_EVENTS,
 )
-from .models import DB, GuildData, UserFruitData
+from .models import AuditEntry, DB, GuildData, UserFruitData
 from .piraterep import RepTracker  # ← Pirate Rep integration
 
 log = logging.getLogger("red.onepiecefruit")
@@ -410,6 +411,49 @@ class OnePieceFruit(commands.Cog):
 
     async def _get_active_event(self, guild: discord.Guild) -> t.Optional[str]:
         return await self.config.guild(guild).active_event()
+
+    def _audit_line(self, entry: AuditEntry) -> str:
+        actor = f"<@{entry.actor_id}>" if entry.actor_id else "System"
+        target = f" → <@{entry.target_id}>" if entry.target_id else ""
+        details = f" — {entry.details}" if entry.details else ""
+        ts = entry.timestamp.replace("T", " ").replace("Z", " UTC")
+        return f"`{ts}` **{entry.action}** by {actor}{target}{details}"
+
+    def _log_audit(
+        self,
+        guild_id: int,
+        actor_id: int,
+        action: str,
+        target_id: t.Optional[int] = None,
+        details: str = "",
+    ) -> None:
+        self.db.add_audit(
+            AuditEntry(
+                guild_id=guild_id,
+                actor_id=actor_id,
+                action=action,
+                target_id=target_id,
+                details=details,
+            )
+        )
+
+    async def _send_audit_entries(
+        self,
+        ctx: commands.Context,
+        entries: list[AuditEntry],
+        title: str,
+    ) -> None:
+        if not entries:
+            return await ctx.send("ℹ️ No audit records found.")
+
+        lines = [self._audit_line(entry) for entry in entries]
+        await self._send_paginated_embed(
+            ctx,
+            title=title,
+            lines=lines,
+            colour=discord.Colour.dark_grey(),
+            footer="Audit log — most recent first",
+        )
 
     def _event_label(self, event_key: str) -> str:
         event_def = SEASONAL_EVENTS.get(event_key.lower())
@@ -1006,6 +1050,13 @@ class OnePieceFruit(commands.Cog):
         user_data.last_reroll_cost = cost
         guild_data.set_user(ctx.author.id, user_data)
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "reroll",
+            target_id=ctx.author.id,
+            details=f"from={old_type}, to={user_data.fruit_name}, cost={cost}",
+        )
 
         embed = _build_fruit_embed(ctx.author, user_data, title_prefix="🍎 New Fruit! ")
         description = (
@@ -1141,6 +1192,13 @@ class OnePieceFruit(commands.Cog):
         )
         guild_data.set_user(member.id, user_data)
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "assign",
+            target_id=member.id,
+            details=f"{fruit['name']} ({rarity})",
+        )
 
         embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
         await ctx.send(embed=embed)
@@ -1151,6 +1209,12 @@ class OnePieceFruit(commands.Cog):
         guild_data = self.db.get_guild(ctx.guild.id)
         guild_data.remove_user(member.id)
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "reset",
+            target_id=member.id,
+        )
         await ctx.send(f"🗑️ Devil Fruit data cleared for **{member.display_name}**.")
 
     @df_admin.command(name="awaken")
@@ -1172,6 +1236,13 @@ class OnePieceFruit(commands.Cog):
         user_data.awakening_stage = stage
         guild_data.set_user(member.id, user_data)
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "awaken",
+            target_id=member.id,
+            details=f"stage={stage}",
+        )
 
         label = AWAKENING_LABELS[stage]
         await ctx.send(f"✅ Set **{member.display_name}**'s awakening to **{label}**.")
@@ -1187,6 +1258,12 @@ class OnePieceFruit(commands.Cog):
         user_data.last_reroll_cost = 0
         guild_data.set_user(member.id, user_data)
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "resetrerolls",
+            target_id=member.id,
+        )
         await ctx.send(f"✅ Reset reroll counter for **{member.display_name}**.")
 
     @df_admin.command(name="resetrep")
@@ -1199,6 +1276,12 @@ class OnePieceFruit(commands.Cog):
         if uid_str in g.users:
             del g.users[uid_str]
             await self.rep_tracker.save()
+            self._log_audit(
+                ctx.guild.id,
+                ctx.author.id,
+                "resetrep",
+                target_id=member.id,
+            )
             await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}**.")
         else:
             await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
@@ -1231,9 +1314,162 @@ class OnePieceFruit(commands.Cog):
             )
 
         await self.config.guild(ctx.guild).rank_announcement_channel.set(channel.id)
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "rankchannel",
+            details=f"channel={channel.id}",
+        )
         await ctx.send(
             f"✅ Pirate rank announcements will now post in {channel.mention}."
         )
+
+    @df_admin.command(name="setrep")
+    async def df_admin_set_rep(self, ctx: commands.Context, member: discord.Member, rep: int) -> None:
+        """Set a member's Pirate Rep total directly."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised.")
+        if rep < 0:
+            return await ctx.send("❌ Rep must be 0 or greater.")
+
+        user_data = self.rep_tracker.get_user(ctx.guild.id, member.id)
+        old_rep = user_data.rep
+        user_data.rep = rep
+        await self.rep_tracker.save()
+
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "setrep",
+            target_id=member.id,
+            details=f"{old_rep} → {rep}",
+        )
+        await ctx.send(
+            f"✅ Set **{member.display_name}**'s Pirate Rep to **{rep:,}**."
+        )
+
+    @df_admin.command(name="giveaway")
+    async def df_admin_giveaway(
+        self,
+        ctx: commands.Context,
+        amount: int,
+        winners: int = 1,
+        *,
+        rarity: t.Optional[str] = None,
+    ) -> None:
+        """Give Beri prizes to random Devil Fruit owners, optionally filtered by rarity or event."""
+        if amount <= 0 or winners <= 0:
+            return await ctx.send("❌ Amount and winners must both be positive numbers.")
+
+        guild_data = self.db.get_guild(ctx.guild.id)
+        candidates = []
+        for uid_str, user_data in guild_data.users.items():
+            if not user_data.fruit_name:
+                continue
+            if rarity:
+                lookup = rarity.strip().lower()
+                normalized = "".join(lookup.split())
+                if any(
+                    normalized == key or normalized == "".join(key.lower().split())
+                    for key in DEVIL_FRUITS
+                ):
+                    if user_data.fruit_type.lower() != lookup and "".join(user_data.fruit_type.lower().split()) != normalized:
+                        continue
+                else:
+                    vote = next(
+                        (
+                            key
+                            for key, data in SEASONAL_EVENTS.items()
+                            if key == normalized
+                            or "".join(data["name"].lower().split()) == normalized
+                        ),
+                        None,
+                    )
+                    if vote is None:
+                        return await ctx.send(
+                            f"❌ Unknown rarity or event `{rarity}`."
+                        )
+                    event_fruits = {f["name"] for f in SEASONAL_EVENTS[vote]["fruits"]}
+                    if user_data.fruit_name not in event_fruits:
+                        continue
+            candidates.append(int(uid_str))
+
+        if not candidates:
+            return await ctx.send(
+                "⚠️ No eligible users found for that giveaway filter."
+            )
+
+        winners = min(winners, len(candidates))
+        chosen = random.sample(candidates, winners)
+        currency_name = await self._get_currency_name(ctx.guild)
+        winners_lines = []
+
+        for uid in chosen:
+            member = ctx.guild.get_member(uid)
+            if member is None:
+                continue
+            try:
+                await self._modify_currency(
+                    member,
+                    amount,
+                    guild=ctx.guild,
+                    actor=ctx.author,
+                    reason="devilfruit:giveaway",
+                )
+                winners_lines.append(f"• {member.mention} — **{amount:,} {currency_name}**")
+            except Exception:
+                winners_lines.append(f"• {member.mention} — failed to credit {currency_name}")
+
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "giveaway",
+            details=f"amount={amount}, winners={len(chosen)}, filter={rarity or 'all'}",
+        )
+
+        embed = discord.Embed(
+            title="🎁 Devil Fruit Giveaway",
+            description="\n".join(winners_lines),
+            colour=discord.Colour.dark_magenta(),
+        )
+        embed.set_footer(text=f"Each winner receives {amount:,} {currency_name}.")
+        await ctx.send(embed=embed)
+
+    @df_admin.command(name="audit")
+    async def df_admin_audit(
+        self,
+        ctx: commands.Context,
+        member: t.Optional[discord.Member] = None,
+        limit: int = 10,
+    ) -> None:
+        """Show recent audit records for this guild."""
+        if limit <= 0:
+            return await ctx.send("❌ Limit must be greater than 0.")
+
+        entries = self.db.audit_for_guild(ctx.guild.id)
+        if member is not None:
+            entries = [
+                entry
+                for entry in entries
+                if entry.actor_id == member.id or entry.target_id == member.id
+            ]
+
+        entries = sorted(entries, key=lambda e: e.timestamp, reverse=True)[:limit]
+        if not entries:
+            return await ctx.send("ℹ️ No matching audit records found.")
+
+        await self._send_audit_entries(
+            ctx,
+            entries,
+            title=f"🧾 Audit Log — Last {len(entries)} Records",
+        )
+
+    @df_admin.command(name="clearaudit", aliases=["auditclear"])
+    async def df_admin_clear_audit(self, ctx: commands.Context) -> None:
+        """Clear all audit records for this guild."""
+        self.db.clear_audit(ctx.guild.id)
+        await self._save()
+        await ctx.send("🧹 Audit log cleared for this server.")
 
     @df_admin.command(name="event")
     async def df_admin_event(self, ctx: commands.Context, *, event_name: t.Optional[str] = None) -> None:
@@ -1263,6 +1499,12 @@ class OnePieceFruit(commands.Cog):
         lookup = event_name.strip().lower()
         if lookup in {"off", "none", "clear", "disable"}:
             await self.config.guild(ctx.guild).active_event.set(None)
+            self._log_audit(
+                ctx.guild.id,
+                ctx.author.id,
+                "event",
+                details="cleared",
+            )
             return await ctx.send("✅ Seasonal event cleared. Devil Fruit draws return to normal.")
 
         normalized = "".join(lookup.split())
@@ -1283,6 +1525,12 @@ class OnePieceFruit(commands.Cog):
             )
 
         await self.config.guild(ctx.guild).active_event.set(matched)
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "event",
+            details=f"enabled={matched}",
+        )
         event_def = SEASONAL_EVENTS[matched]
         await ctx.send(
             f"✅ Seasonal event enabled: {event_def['emoji']} **{event_def['name']}**. "
@@ -1379,6 +1627,12 @@ class OnePieceFruit(commands.Cog):
                 errors += 1
 
         await self._save()
+        self._log_audit(
+            ctx.guild.id,
+            ctx.author.id,
+            "bulkassign",
+            details=f"assigned={assigned}, awakened={awakening_updated}, skipped={skipped}, errors={errors}",
+        )
 
         embed = discord.Embed(title="🍎 Bulk Assign Complete", colour=discord.Colour.green())
         embed.add_field(name="✅ Fruits Assigned", value=str(assigned), inline=True)
