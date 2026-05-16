@@ -14,7 +14,7 @@ This module is self-contained. OnePieceFruit's core.py imports it and:
   1. Calls RepTracker.record_message(guild_id, user_id) inside on_message.
   2. Calls RepTracker.rep_embed_fields(guild_id, user_id) to append fields
      to the [p]df info embed.
-  3. Uses the commands mixin (RepCommandsMixin) for [p]df rep/weekly/streak.
+  3. Provides rep leaderboard helpers for [p]df rep/weekly/streak.
 
 MIT License — feel free to use and modify.
 """
@@ -231,6 +231,8 @@ class RepTracker:
         self._path = path
         self._db = RepDB()
         self._io_lock = asyncio.Lock()
+        self._dirty = False
+        self._save_task: Optional[asyncio.Task] = None
 
     async def load(self) -> None:
         if self._path.exists():
@@ -246,6 +248,17 @@ class RepTracker:
                 await asyncio.to_thread(self._db.to_file, self._path)
             except Exception as exc:
                 log.error("PirateRep: failed to save.", exc_info=exc)
+
+    async def _debounced_save(self) -> None:
+        await asyncio.sleep(30)
+        if self._dirty:
+            await self.save()
+            self._dirty = False
+        self._save_task = None
+
+    def _schedule_save(self) -> None:
+        if self._save_task is None or self._save_task.done():
+            self._save_task = asyncio.create_task(self._debounced_save())
 
     # ── Message recording ───────────────────────────────────────────────────
 
@@ -296,8 +309,9 @@ class RepTracker:
                 u.rep += award
                 u.awarded_streak_milestones.append(streak_days)
 
-        # save is deferred — caller should fire-and-forget or await
-        await self.save()
+        # save is deferred and debounced to avoid excessive disk writes
+        self._dirty = True
+        self._schedule_save()
 
     # ── Read helpers ────────────────────────────────────────────────────────
 
@@ -448,112 +462,3 @@ class RepTracker:
         return embed
 
 
-# ---------------------------------------------------------------------------
-# Commands mixin — mixed into OnePieceFruit in core.py
-# ---------------------------------------------------------------------------
-
-class RepCommandsMixin:
-    """
-    Add this as a mixin base class on OnePieceFruit (alongside commands.Cog).
-
-    Requires self.rep_tracker: RepTracker to be set in cog_load.
-    """
-
-    @commands.group(name="devilfruit", aliases=["df"])
-    @commands.guild_only()
-    async def devilfruit(self, ctx: commands.Context) -> None:
-        """Devil Fruit commands."""
-
-    # ── [p]df rep ──────────────────────────────────────────────────────────
-    @devilfruit.command(name="rep")
-    async def df_rep(self, ctx: commands.Context, member: Optional[discord.Member] = None) -> None:
-        """Show your full Pirate Rep card (or another member's)."""
-        target = member or ctx.author
-        tracker: RepTracker = self.rep_tracker  # type: ignore[attr-defined]
-
-        weekly_lb = tracker.weekly_leaderboard(ctx.guild.id)
-        streak_lb = tracker.streak_leaderboard(ctx.guild.id)
-        rep_lb = tracker.rep_leaderboard(ctx.guild.id)
-
-        uid_str = str(target.id)
-        weekly_rank = next((i + 1 for i, (uid, _) in enumerate(weekly_lb) if uid == uid_str), None)
-        streak_rank = next((i + 1 for i, (uid, _) in enumerate(streak_lb) if uid == uid_str), None)
-        rep_rank = next((i + 1 for i, (uid, _) in enumerate(rep_lb) if uid == uid_str), None)
-
-        embed = tracker.full_rep_embed(
-            target,
-            ctx.guild.id,
-            weekly_rank=weekly_rank,
-            streak_rank=streak_rank,
-            rep_rank=rep_rank,
-        )
-        await ctx.send(embed=embed)
-
-    # ── [p]df weekly ───────────────────────────────────────────────────────
-    @devilfruit.command(name="weekly")
-    async def df_weekly(self, ctx: commands.Context) -> None:
-        """Show the weekly most-active pirates leaderboard."""
-        tracker: RepTracker = self.rep_tracker  # type: ignore[attr-defined]
-        lb = tracker.weekly_leaderboard(ctx.guild.id)
-
-        embed = discord.Embed(
-            title=f"📅 Weekly Active Pirates — {_week_key()}",
-            colour=discord.Colour.blurple(),
-        )
-        if ctx.guild.icon:
-            embed.set_thumbnail(url=ctx.guild.icon.url)
-
-        if not lb:
-            embed.description = "No messages tracked yet this week. Get chatting! 🗣️"
-            return await ctx.send(embed=embed)
-
-        lines = []
-        medals = ["🥇", "🥈", "🥉"]
-        for i, (uid_str, count) in enumerate(lb[:15]):
-            m = ctx.guild.get_member(int(uid_str))
-            name = m.mention if m else f"<@{uid_str}>"
-            badge = _weekly_badge(count)
-            medal = medals[i] if i < 3 else f"`#{i + 1}`"
-            badge_str = f" {badge}" if badge else ""
-            lines.append(f"{medal} {name} — **{count:,}**{badge_str}")
-
-        embed.description = "\n".join(lines)
-        embed.set_footer(text="Week resets every Sunday at midnight UTC.")
-        await ctx.send(embed=embed)
-
-    # ── [p]df streak ───────────────────────────────────────────────────────
-    @devilfruit.command(name="streak")
-    async def df_streak(self, ctx: commands.Context) -> None:
-        """Show the current daily streak leaderboard."""
-        tracker: RepTracker = self.rep_tracker  # type: ignore[attr-defined]
-        lb = tracker.streak_leaderboard(ctx.guild.id)
-
-        embed = discord.Embed(
-            title="🔥 Pirate Streak Leaderboard",
-            colour=discord.Colour.orange(),
-        )
-        if ctx.guild.icon:
-            embed.set_thumbnail(url=ctx.guild.icon.url)
-
-        if not lb:
-            embed.description = "No active streaks yet. Start chatting every day! 🔥"
-            return await ctx.send(embed=embed)
-
-        today = _utc_today()
-        lines = []
-        medals = ["🥇", "🥈", "🥉"]
-        for i, (uid_str, streak) in enumerate(lb[:15]):
-            m = ctx.guild.get_member(int(uid_str))
-            name = m.mention if m else f"<@{uid_str}>"
-            # Check if streak is active
-            u = tracker.get_user(ctx.guild.id, int(uid_str))
-            active = ""
-            if u.last_seen:
-                last = date.fromisoformat(u.last_seen)
-                active = " 🔥" if (today - last).days <= 1 else " 💤"
-            medal = medals[i] if i < 3 else f"`#{i + 1}`"
-            lines.append(f"{medal} {name} — **{streak}** day{'s' if streak != 1 else ''}{active}")
-
-        embed.description = "\n".join(lines)
-        embed.set_footer(text="🔥 = active today/yesterday  💤 = streak at risk")
-        await ctx.send(embed=embed)

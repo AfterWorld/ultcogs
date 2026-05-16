@@ -945,20 +945,29 @@ class OnePieceFruit(commands.Cog):
 
     # ── [p]df browse ────────────────────────────────────────────────────────
     @devilfruit.command(name="browse")
-    async def df_browse(self, ctx: commands.Context, rarity: t.Optional[str] = None) -> None:
+    async def df_browse(self, ctx: commands.Context, *, rarity: t.Optional[str] = None) -> None:
         """Browse available Devil Fruits by rarity."""
         valid = list(DEVIL_FRUITS.keys())
 
         if rarity is None:
             embed = discord.Embed(
                 title="🍎 Available Devil Fruit Types",
-                description="Use `.df browse <type>` to see fruits in a category.\n\n"
+                description="Use `[p]df browse <type>` to see fruits in a category.\n\n"
                 + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid),
                 colour=discord.Colour.dark_red(),
             )
             return await ctx.send(embed=embed)
 
-        matched = next((r for r in valid if r.lower() == rarity.lower()), None)
+        lookup = rarity.strip().lower()
+        normalized_lookup = "".join(lookup.split())
+        matched = next(
+            (
+                r
+                for r in valid
+                if r.lower() == lookup or "".join(r.lower().split()) == normalized_lookup
+            ),
+            None,
+        )
         if matched is None:
             return await ctx.send(f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}")
 

@@ -3,6 +3,10 @@
         "/^python -m py_compile onepiecefruit\\\\core\\.py onepiecefruit\\\\models\\.py$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^python -m py_compile onepiecefruit\\\\core\\.py onepiecefruit\\\\models\\.py onepiecefruit\\\\piraterep\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

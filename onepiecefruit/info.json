@@ -1,7 +1,7 @@
 {
     "name": "OnePieceFruit",
     "short": "Devil Fruit assignment + awakening companion for LevelUp.",
-    "description": "Assigns random Devil Fruits at level 5, tracks awakenings at levels 15 and 30, and allows Beri-cost rerolls. Hooks into vertyco's LevelUp cog via the on_levelup event.",
+    "description": "Assigns random Devil Fruits at level 5, tracks awakenings at levels 50 and 100, and allows Beri-cost rerolls. Hooks into vertyco's LevelUp cog via the on_levelup event.",
     "end_user_data_statement": "Stores Discord user IDs and Devil Fruit assignment data (fruit name, type, awakening stage, reroll count) per guild.",
     "author": ["UltPanda"],
     "install_msg": "Thanks for installing OnePieceFruit! Make sure vertyco's LevelUp cog is also installed and loaded. Load with: [p]load onepiecefruit",
