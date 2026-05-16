@@ -262,15 +262,19 @@ class RepTracker:
 
     # ── Message recording ───────────────────────────────────────────────────
 
-    async def record_message(self, guild_id: int, user_id: int) -> None:
+    async def record_message(self, guild_id: int, user_id: int) -> Optional[tuple[str, str, str, str, int]]:
         """
         Record one message for a user. Updates total, weekly, streak, rep.
         Saves automatically (debounced via asyncio — fire-and-forget in the cog).
+
+        Returns rank promotion details if the user advances rank.
         """
         today = _utc_today()
         week = _week_key(today)
         g = self._db.get_guild(guild_id)
         u = g.get_user(user_id)
+
+        old_title, old_emoji = _rank_for_rep(u.rep)
 
         # ── Weekly reset ─────────────────────────────────────────────────
         if u.current_week != week:
@@ -309,9 +313,16 @@ class RepTracker:
                 u.rep += award
                 u.awarded_streak_milestones.append(streak_days)
 
+        new_title, new_emoji = _rank_for_rep(u.rep)
+        promotion: Optional[tuple[str, str, str, str, int]] = None
+        if (old_title, old_emoji) != (new_title, new_emoji):
+            promotion = (old_title, old_emoji, new_title, new_emoji, u.rep)
+
         # save is deferred and debounced to avoid excessive disk writes
         self._dirty = True
         self._schedule_save()
+
+        return promotion
 
     # ── Read helpers ────────────────────────────────────────────────────────
 

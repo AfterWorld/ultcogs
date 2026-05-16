@@ -24,7 +24,7 @@ from contextlib import suppress
 from pathlib import Path
 
 import discord
-from redbot.core import bank, commands
+from redbot.core import bank, commands, Config
 from redbot.core.bot import Red
 from redbot.core.data_manager import cog_data_path
 
@@ -179,6 +179,9 @@ class OnePieceFruit(commands.Cog):
         self._settings_file: t.Optional[Path] = None
         self.rep_tracker: t.Optional[RepTracker] = None  # initialised in cog_load
 
+        self.config = Config.get_conf(self, identifier=0x99ac92bc1d2e3f44, force_registration=True)
+        self.config.register_guild(rank_announcement_channel=None)
+
     # -----------------------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------------------
@@ -325,6 +328,61 @@ class OnePieceFruit(commands.Cog):
                 await msg.edit(embed=make_embed(current))
                 await msg.remove_reaction(reaction, ctx.author)
 
+    async def _rank_announcement_channel(self, guild: discord.Guild) -> t.Optional[int]:
+        return await self.config.guild(guild).rank_announcement_channel()
+
+    async def _send_rank_announcement(
+        self,
+        guild: discord.Guild,
+        member: discord.Member,
+        old_title: str,
+        old_emoji: str,
+        new_title: str,
+        new_emoji: str,
+        rep: int,
+    ) -> None:
+        channel_id = await self._rank_announcement_channel(guild)
+        if channel_id is None:
+            return
+
+        channel = guild.get_channel(channel_id)
+        if channel is None:
+            return
+
+        embed = discord.Embed(
+            title="🏴‍☠️ Pirate Rank Up!",
+            description=(
+                f"{member.mention} has advanced from **{old_title}** {old_emoji}"
+                f" to **{new_title}** {new_emoji}!"
+            ),
+            colour=discord.Colour.gold(),
+        )
+        embed.add_field(name="New Rank", value=f"{new_emoji} {new_title}", inline=True)
+        embed.add_field(name="Total Rep", value=f"**{rep:,}** rep", inline=True)
+        embed.set_footer(text="Keep chatting to climb the ranks!")
+
+        with suppress(discord.HTTPException):
+            await channel.send(embed=embed)
+
+    async def _process_rep_message(self, message: discord.Message) -> None:
+        if message.author.bot or message.guild is None or self.rep_tracker is None:
+            return
+
+        promotion = await self.rep_tracker.record_message(message.guild.id, message.author.id)
+        if promotion is None:
+            return
+
+        old_title, old_emoji, new_title, new_emoji, rep = promotion
+        await self._send_rank_announcement(
+            message.guild,
+            message.author,
+            old_title,
+            old_emoji,
+            new_title,
+            new_emoji,
+            rep,
+        )
+
     async def _resolve_profile_target(self, ctx: commands.Context) -> discord.Member:
         target = ctx.kwargs.get("member")
         if isinstance(target, discord.Member):
@@ -358,9 +416,7 @@ class OnePieceFruit(commands.Cog):
         if self.rep_tracker is None:
             return
         # Fire-and-forget; save is debounced inside RepTracker
-        asyncio.create_task(
-            self.rep_tracker.record_message(message.guild.id, message.author.id)
-        )
+        asyncio.create_task(self._process_rep_message(message))
 
     # -----------------------------------------------------------------------
     # Profile command hook — append Devil Fruit embed after [p]profile / [p]pf
@@ -908,6 +964,38 @@ class OnePieceFruit(commands.Cog):
             await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}**.")
         else:
             await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
+
+    @df_admin.command(name="rankchannel")
+    async def df_admin_rank_channel(
+        self,
+        ctx: commands.Context,
+        channel: t.Optional[discord.TextChannel] = None,
+    ) -> None:
+        """Set or view the Pirate rank announcement channel."""
+        if channel is None:
+            current = await self.config.guild(ctx.guild).rank_announcement_channel()
+            if current is None:
+                return await ctx.send(
+                    "ℹ️ Pirate rank announcements are not configured."
+                    " Use `.df admin rankchannel #channel` to enable them."
+                )
+
+            existing = ctx.guild.get_channel(current)
+            if existing is None:
+                await self.config.guild(ctx.guild).rank_announcement_channel.set(None)
+                return await ctx.send(
+                    "⚠️ The configured rank announcement channel no longer exists."
+                    " It has been cleared."
+                )
+
+            return await ctx.send(
+                f"🏴‍☠️ Pirate rank announcements are currently enabled in {existing.mention}."
+            )
+
+        await self.config.guild(ctx.guild).rank_announcement_channel.set(channel.id)
+        await ctx.send(
+            f"✅ Pirate rank announcements will now post in {channel.mention}."
+        )
 
     # ── Admin: [p]df admin bulkassign ────────────────────────────────────────
     @df_admin.command(name="bulkassign")

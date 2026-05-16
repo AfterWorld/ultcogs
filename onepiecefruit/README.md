@@ -97,6 +97,7 @@ Aliases: `[p]devilfruit` = `[p]df`
 | `[p]df admin reset <member>` | Remove a member's fruit data |
 | `[p]df admin awaken <member> <0\|1\|2>` | Manually set awakening stage |
 | `[p]df admin resetrerolls <member>` | Reset reroll counter to 0 |
+| `[p]df admin rankchannel [#channel]` | Set or view Pirate rank announcement channel |
 
 ---
 
