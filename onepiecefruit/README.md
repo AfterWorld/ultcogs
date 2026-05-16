@@ -17,8 +17,8 @@ Assigns Devil Fruits to users as they level up, tracks awakenings, and lets user
 ## Installation
 
 ```
-[p]repo add <your-repo-name> <your-repo-url>
-[p]cog install <your-repo-name> onepiecefruit
+[p]repo add ults https://github.com/AfterWorld/ultcogs
+[p]cog install ults onepiecefruit
 [p]load onepiecefruit
 ```
 
