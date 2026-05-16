@@ -411,7 +411,7 @@ class OnePieceFruit(commands.Cog):
 
     @devilfruit.command(name="toggle")
     async def df_toggle(self, ctx: commands.Context, state: t.Optional[str] = None) -> None:
-        """Toggle whether your Devil Fruit appears after [p]profile / [p]pf."""
+        """Toggle whether your Devil Fruit appears after .profile / .pf."""
         guild_data = self.db.get_guild(ctx.guild.id)
         user_data = guild_data.get_user(ctx.author.id)
 
@@ -438,7 +438,7 @@ class OnePieceFruit(commands.Cog):
 
         status = "enabled" if user_data.profile_visible else "disabled"
         await ctx.send(
-            f"✅ Devil Fruit profile cards are now **{status}** for your [p]profile / [p]pf view. "
+            f"✅ Devil Fruit profile cards are now **{status}** for your .profile / .pf view. "
             f"You can still use `.df info` to view your fruit directly."
         )
 
@@ -768,7 +768,7 @@ class OnePieceFruit(commands.Cog):
                 if found_fruit:
                     break
             if found_fruit is None:
-                return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `[p]df browse`.")
+                return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
             rarity, fruit = found_type, found_fruit
         else:
             rarity, fruit = _draw_fruit()
@@ -952,7 +952,7 @@ class OnePieceFruit(commands.Cog):
         if rarity is None:
             embed = discord.Embed(
                 title="🍎 Available Devil Fruit Types",
-                description="Use `[p]df browse <type>` to see fruits in a category.\n\n"
+                description="Use `.df browse <type>` to see fruits in a category.\n\n"
                 + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid),
                 colour=discord.Colour.dark_red(),
             )
