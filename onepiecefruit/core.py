@@ -131,6 +131,14 @@ def _build_fruit_embed(
     embed.add_field(name="Stage", value=f"**{stage_label}**", inline=True)
     embed.add_field(name="\u200b", value="\u200b", inline=True)
     embed.add_field(name="Power", value=ability_text, inline=False)
+    embed.add_field(
+        name="Reroll Info",
+        value=(
+            f"**{data.reroll_count}** reroll{'s' if data.reroll_count != 1 else ''}\n"
+            f"Next cost: **{_next_reroll_cost(data.reroll_count):,}**"
+        ),
+        inline=False,
+    )
 
     # ── Pirate Rep section ──────────────────────────────────────────────────
     if rep_tracker is not None and member.guild is not None:
@@ -210,19 +218,39 @@ class OnePieceFruit(commands.Cog):
     def _bericog(self) -> t.Optional[object]:
         return self.bot.get_cog("BeriCog")
 
+    def _bericore(self) -> t.Optional[object]:
+        return self.bot.get_cog("BeriCore")
+
     async def _get_currency_name(self, guild: discord.Guild) -> str:
+        beri_core = self._bericore()
+        if beri_core is not None:
+            return "Beri"
         beri = self._bericog()
         if beri is not None:
             return (await beri._currency_fmt(guild))[0]
         return await bank.get_currency_name(guild)
 
     async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
+        beri_core = self._bericore()
+        if beri_core is not None:
+            return await beri_core.get_beri(member)
         beri = self._bericog()
         if beri is not None:
             return await beri._get_balance(guild, member)
         return await bank.get_balance(member)
 
     async def _withdraw_currency(self, ctx: commands.Context, member: discord.Member, amount: int) -> int:
+        beri_core = self._bericore()
+        if beri_core is not None:
+            balance = await beri_core.get_beri(member)
+            if balance < amount:
+                raise ValueError("Insufficient funds")
+            return await beri_core.add_beri(
+                member,
+                -amount,
+                reason="devilfruit:reroll",
+                actor=ctx.author or "System",
+            )
         beri = self._bericog()
         if beri is not None:
             balance = await beri._get_balance(ctx.guild, member)
@@ -466,6 +494,32 @@ class OnePieceFruit(commands.Cog):
             streak_rank=streak_rank,
             rep_rank=rep_rank,
         )
+        await ctx.send(embed=embed)
+
+    @devilfruit.command(name="top", aliases=["leaders"])
+    async def df_top(self, ctx: commands.Context) -> None:
+        """Show the server's top Pirate Rep leaders."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised yet.")
+
+        lb = self.rep_tracker.rep_leaderboard(ctx.guild.id)
+        if not lb:
+            return await ctx.send("🌊 No rep data found on this server yet.")
+
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for i, (uid_str, rep) in enumerate(lb[:15]):
+            member = ctx.guild.get_member(int(uid_str))
+            name = member.mention if member else f"<@{uid_str}>"
+            medal = medals[i] if i < 3 else f"`#{i + 1}`"
+            lines.append(f"{medal} {name} — **{rep:,}** rep")
+
+        embed = discord.Embed(
+            title="🏆 Pirate Rep Leaders",
+            description="\n".join(lines),
+            colour=discord.Colour.gold(),
+        )
+        embed.set_footer(text="Use .df rep to see a full Pirate Rep card.")
         await ctx.send(embed=embed)
 
     # ── [p]df weekly ────────────────────────────────────────────────────────
@@ -981,6 +1035,32 @@ class OnePieceFruit(commands.Cog):
             colour=RARITY_COLOURS[matched],
         )
         embed.set_footer(text=f"Drop chance: {RARITY_WEIGHTS[matched]}%")
+        await ctx.send(embed=embed)
+
+    @devilfruit.command(name="search")
+    async def df_search(self, ctx: commands.Context, *, query: str) -> None:
+        """Search Devil Fruits by partial name."""
+        normalized = query.strip().lower()
+        if not normalized:
+            return await ctx.send("❌ Usage: `.df search <term>`")
+
+        results = []
+        for rarity, fruits in DEVIL_FRUITS.items():
+            for fruit in fruits:
+                if normalized in fruit["name"].lower():
+                    results.append(f"{RARITY_EMOJIS.get(rarity, '❓')} **{fruit['name']}** — {rarity}")
+
+        if not results:
+            return await ctx.send(f"❌ No Devil Fruits found matching `{query}`.")
+
+        if len(results) > 20:
+            results = results[:20] + ["...and more results not shown."]
+
+        embed = discord.Embed(
+            title=f"🔎 Devil Fruit Search — {query}",
+            description="\n".join(results),
+            colour=discord.Colour.dark_red(),
+        )
         await ctx.send(embed=embed)
 
     # ── Format help ──────────────────────────────────────────────────────────

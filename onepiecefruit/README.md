@@ -10,7 +10,7 @@ Assigns Devil Fruits to users as they level up, tracks awakenings, and lets user
 
 - Red-DiscordBot v3.5+
 - vertyco's `LevelUp` cog installed and loaded
-- Red's built-in `bank` (economy) system
+- Red's built-in `bank` system, or optional `BeriCog` / `BeriCore` support for custom Beri economies
 
 ---
 
@@ -80,6 +80,8 @@ Rerolling **resets awakening stage to 0** — you start fresh with the new fruit
 |---------|-------------|
 | `[p]df info [member]` | Show your (or another's) Devil Fruit |
 | `[p]df toggle [on/off]` | Enable or disable your fruit embed on `[p]profile` / `[p]pf` |
+| `[p]df search <term>` | Search Devil Fruits by partial name |
+| `[p]df top` | Show the server's top Pirate Rep leaders |
 | `[p]df reroll` | Reroll your fruit for Beri |
 | `[p]df list` | Show all fruit users in the server |
 | `[p]df types` | Show rarity tiers and drop chances |
