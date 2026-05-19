@@ -12,18 +12,18 @@ from redbot.core import commands
 from redbot.core.utils.chat_formatting import humanize_number
 
 WORK_JOBS = [
-    ("🍕 Pizza Delivery", 150, 400),
-    ("🔧 Mechanic", 200, 500),
-    ("🎸 Street Musician", 50, 300),
-    ("⚓ Ship Deckhand", 250, 600),
-    ("🏴‍☠️ Bounty Hunter", 300, 700),
-    ("🐟 Fisherman", 100, 350),
-    ("🗡️ Mercenary", 400, 800),
-    ("🍜 Ramen Chef", 150, 450),
-    ("📦 Warehouse Worker", 100, 300),
-    ("🗺️ Navigator", 250, 550),
-    ("⚔️ Swordsmith Apprentice", 200, 600),
-    ("🌺 Flower Shop Assistant", 80, 250),
+    ("🍕 Pizza Delivery", 500, 1200),
+    ("🔧 Mechanic", 700, 1500),
+    ("🎸 Street Musician", 250, 900),
+    ("⚓ Ship Deckhand", 900, 1700),
+    ("🏴‍☠️ Bounty Hunter", 1000, 2000),
+    ("🐟 Fisherman", 400, 1200),
+    ("🗡️ Mercenary", 1400, 2400),
+    ("🍜 Ramen Chef", 600, 1300),
+    ("📦 Warehouse Worker", 400, 900),
+    ("🗺️ Navigator", 900, 1800),
+    ("⚔️ Swordsmith Apprentice", 800, 1700),
+    ("🌺 Flower Shop Assistant", 300, 900),
 ]
 
 WORK_SUCCESS = [
@@ -35,13 +35,13 @@ WORK_SUCCESS = [
 ]
 
 CRIME_SCENARIOS = [
-    ("🎭 Con Artist", 300, 900, 0.55),
-    ("🏦 Bank Heist", 500, 2000, 0.35),
-    ("🎰 Rigged Card Game", 200, 800, 0.50),
-    ("🚢 Smuggling Contraband", 600, 1500, 0.40),
-    ("🎪 Festival Pickpocket", 100, 500, 0.65),
-    ("💣 Explosive Distraction Robbery", 800, 2500, 0.30),
-    ("🌃 Night Market Scam", 150, 700, 0.60),
+    ("🎭 Con Artist", 800, 2500, 0.55),
+    ("🏦 Bank Heist", 1500, 6000, 0.35),
+    ("🎰 Rigged Card Game", 600, 2200, 0.50),
+    ("🚢 Smuggling Contraband", 1800, 4200, 0.40),
+    ("🎪 Festival Pickpocket", 300, 1500, 0.65),
+    ("💣 Explosive Distraction Robbery", 2400, 6000, 0.30),
+    ("🌃 Night Market Scam", 500, 2100, 0.60),
 ]
 
 CRIME_SUCCESS = [
@@ -56,11 +56,11 @@ CRIME_FAIL = [
 ]
 
 HACK_TARGETS = [
-    ("💻 Marine Database", 400, 1200, 0.50),
-    ("🏦 World Government Treasury", 1000, 3000, 0.25),
-    ("📡 Enies Lobby Comms", 300, 900, 0.55),
-    ("🛒 Black Market Server", 200, 700, 0.60),
-    ("📱 Celestial Dragon Phone", 500, 1500, 0.40),
+    ("💻 Marine Database", 1200, 3600, 0.50),
+    ("🏦 World Government Treasury", 3000, 9000, 0.25),
+    ("📡 Enies Lobby Comms", 900, 2700, 0.55),
+    ("🛒 Black Market Server", 600, 2100, 0.60),
+    ("📱 Celestial Dragon Phone", 1500, 4500, 0.40),
 ]
 
 HACK_SUCCESS = [
@@ -75,11 +75,11 @@ HACK_FAIL = [
 ]
 
 SLUT_SCENARIOS = [
-    ("💃 Cabaret Performance", 200, 800),
-    ("🎤 Suggestive Karaoke", 100, 500),
-    ("🃏 Strip Poker Host", 300, 900),
-    ("🌹 Companion for Hire", 150, 700),
-    ("🎭 Risqué Theater Act", 200, 600),
+    ("💃 Cabaret Performance", 600, 2200),
+    ("🎤 Suggestive Karaoke", 300, 1500),
+    ("🃏 Strip Poker Host", 900, 2600),
+    ("🌹 Companion for Hire", 500, 1800),
+    ("🎭 Risqué Theater Act", 600, 1600),
 ]
 SLUT_SUCCESS = [
     "The crowd at the tavern went wild. You collected {amount} {icon} in tips.",
@@ -268,9 +268,9 @@ class Work(commands.Cog):
         success = random.random() < 0.75
         if success:
             outcomes = [
-                ("A passing pirate dropped some coins in your hat.", random.randint(25, 100)),
-                ("A shipmate felt sorry for you and tossed you some Beri.", random.randint(40, 120)),
-                ("You sang a sorrowful shanty and earned a few generous tips.", random.randint(30, 110)),
+                ("A passing pirate dropped some coins in your hat.", random.randint(100, 400)),
+                ("A shipmate felt sorry for you and tossed you some Beri.", random.randint(150, 500)),
+                ("You sang a sorrowful shanty and earned a few generous tips.", random.randint(120, 450)),
             ]
             message, amount = random.choice(outcomes)
             new_bal = await self._safe_modify(
