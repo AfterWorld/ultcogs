@@ -11,6 +11,15 @@ import discord
 from redbot.core import commands
 from redbot.core.utils.chat_formatting import humanize_number
 
+VAULT_SECURITY_LEVELS = {
+    "basic": {"label": "Basic", "protection": 0.0, "cost": 0},
+    "secure": {"label": "Secure", "protection": 0.25, "cost": 5000},
+    "fortified": {"label": "Fortified", "protection": 0.50, "cost": 15000},
+    "impenetrable": {"label": "Impenetrable", "protection": 0.75, "cost": 40000},
+}
+
+VAULT_ORDER = ["basic", "secure", "fortified", "impenetrable"]
+
 WORK_JOBS = [
     ("🍕 Pizza Delivery", 500, 1200),
     ("🔧 Mechanic", 700, 1500),
@@ -184,32 +193,63 @@ class Work(commands.Cog):
     @commands.command(name="hack")
     @commands.guild_only()
     @commands.cooldown(1, 5400, commands.BucketType.user)
-    async def hack(self, ctx: commands.Context, target: Optional[discord.Member] = None):
-        """Hack World Government systems or siphon another pirate's Beri. (90 min cooldown)"""
+    async def hack(self, ctx: commands.Context, target: Optional[discord.Member] = None, *, mode: str = "wallet"):
+        """Hack World Government systems or siphon another pirate's wallet or vault. (90 min cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        mode = mode.lower() if mode else "wallet"
 
         if target and target != ctx.author and not target.bot:
-            victim_bal = await self._get_balance(ctx.guild, target)
-            if victim_bal < 50:
-                return await ctx.send(f"❌ {target.mention} is too broke to hack.")
-            won = random.random() < 0.45
-            if won:
-                amount = random.randint(50, min(500, victim_bal // 4))
-                try:
-                    await self._modify_balance(ctx.guild, target, -amount, reason=f"hack:victim:{ctx.author.id}", actor=ctx.author)
-                    new_bal = await self._modify_balance(ctx.guild, ctx.author, amount, reason=f"hack:attacker:{target.id}", actor="System", metadata={"victim_id": target.id})
-                except RuntimeError as e:
-                    return await ctx.send(f"❌ {e}")
-                embed = discord.Embed(title="💻 Hack — SUCCESS", description=f"You cracked {target.mention}'s wallet and siphoned **{humanize_number(amount)}** {icon}.", color=discord.Color.green())
-                embed.add_field(name="Stolen", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
+            if mode in ("vault", "bank"):
+                vault = await self.config.member(target).vault()
+                vault_balance = vault.get("balance", 0)
+                if vault_balance < 50:
+                    return await ctx.send(f"❌ {target.mention}'s vault doesn't have enough Beri to hack.")
+
+                security = vault.get("security", "basic")
+                protection = VAULT_SECURITY_LEVELS.get(security, VAULT_SECURITY_LEVELS["basic"])["protection"]
+                success_rate = max(0.10, 0.50 - protection * 0.35)
+                won = random.random() < success_rate
+                if won:
+                    amount = random.randint(50, min(500, vault_balance // 4))
+                    amount = min(amount, vault_balance)
+                    vault["balance"] = vault_balance - amount
+                    await self.config.member(target).vault.set(vault)
+                    try:
+                        new_bal = await self._modify_balance(ctx.guild, ctx.author, amount, reason=f"hack:vault:success", actor="System", metadata={"target_id": target.id, "target_type": "vault"})
+                    except RuntimeError as e:
+                        return await ctx.send(f"❌ {e}")
+                    embed = discord.Embed(title="💻 Vault Hack — SUCCESS", description=f"You cracked {target.mention}'s vault and siphoned **{humanize_number(amount)}** {icon}.", color=discord.Color.green())
+                    embed.add_field(name="Stolen", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
+                else:
+                    balance = await self._get_balance(ctx.guild, ctx.author)
+                    fine = min(random.randint(75, 450), balance)
+                    new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:vault:fail", actor="System", bypass_cap=True)
+                    if new_bal is None:
+                        return
+                    embed = discord.Embed(title="💻 Vault Hack — TRACED", description=f"{target.mention}'s vault security blocked your attempt. You lost **{humanize_number(fine)}** {icon}.", color=discord.Color.red())
+                    embed.add_field(name="Lost", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
             else:
-                balance = await self._get_balance(ctx.guild, ctx.author)
-                fine = min(random.randint(50, 300), balance)
-                new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:fail", actor="System", bypass_cap=True)
-                if new_bal is None:
-                    return
-                embed = discord.Embed(title="💻 Hack — TRACED", description=f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}.", color=discord.Color.red())
-                embed.add_field(name="Lost", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
+                victim_bal = await self._get_balance(ctx.guild, target)
+                if victim_bal < 50:
+                    return await ctx.send(f"❌ {target.mention} is too broke to hack.")
+                won = random.random() < 0.45
+                if won:
+                    amount = random.randint(50, min(500, victim_bal // 4))
+                    try:
+                        await self._modify_balance(ctx.guild, target, -amount, reason=f"hack:victim:{ctx.author.id}", actor=ctx.author)
+                        new_bal = await self._modify_balance(ctx.guild, ctx.author, amount, reason=f"hack:attacker:{target.id}", actor="System", metadata={"victim_id": target.id})
+                    except RuntimeError as e:
+                        return await ctx.send(f"❌ {e}")
+                    embed = discord.Embed(title="💻 Hack — SUCCESS", description=f"You cracked {target.mention}'s wallet and siphoned **{humanize_number(amount)}** {icon}.", color=discord.Color.green())
+                    embed.add_field(name="Stolen", value=f"**+{humanize_number(amount)}** {icon}", inline=True)
+                else:
+                    balance = await self._get_balance(ctx.guild, ctx.author)
+                    fine = min(random.randint(50, 300), balance)
+                    new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:fail", actor="System", bypass_cap=True)
+                    if new_bal is None:
+                        return
+                    embed = discord.Embed(title="💻 Hack — TRACED", description=f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}.", color=discord.Color.red())
+                    embed.add_field(name="Lost", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
         else:
             sys_name, lo, hi, success_rate = random.choice(HACK_TARGETS)
             won = random.random() < success_rate

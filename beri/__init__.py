@@ -22,7 +22,7 @@ from typing import Optional, Tuple
 
 from .casino import Casino
 from .games import Games
-from .work import Work
+from .work import Work, VAULT_SECURITY_LEVELS, VAULT_ORDER
 from .income import Income
 from .audit import AuditLog
 from .xkcd import XKCD
@@ -70,6 +70,11 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
             "eastblue": 0,
             "grandline": 0,
             "newworld": 0,
+        },
+        # Personal vault/bank storage
+        "vault": {
+            "balance": 0,
+            "security": "basic",
         },
     }
 
@@ -201,6 +206,18 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
         icon = await self.config.guild(guild).currency_icon()
         return name, icon
 
+    async def _get_vault_info(self, member: discord.Member) -> dict:
+        return await self.config.member(member).vault()
+
+    async def _get_vault_balance(self, member: discord.Member) -> int:
+        return (await self._get_vault_info(member)).get("balance", 0)
+
+    async def _get_vault_security(self, member: discord.Member) -> str:
+        return (await self._get_vault_info(member)).get("security", "basic")
+
+    async def _set_vault_info(self, member: discord.Member, vault: dict):
+        await self.config.member(member).vault.set(vault)
+
     # ══════════════════════════════════════════════════════════════════════
     # Core commands
     # ══════════════════════════════════════════════════════════════════════
@@ -230,6 +247,13 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
             value=f"**{humanize_number(balance)}** {icon}",
             inline=False,
         )
+        vault = await self._get_vault_info(target)
+        vault_balance = vault.get("balance", 0)
+        security = vault.get("security", "basic")
+        security_info = VAULT_SECURITY_LEVELS.get(security, VAULT_SECURITY_LEVELS["basic"])
+
+        embed.add_field(name="Vault Balance", value=f"**{humanize_number(vault_balance)}** {icon}", inline=True)
+        embed.add_field(name="Vault Security", value=f"{security_info['label']} ({int(security_info['protection'] * 100)}% protection)", inline=True)
         if stats:
             embed.add_field(name="Earned Today", value=humanize_number(stats.get("earned_today", 0)), inline=True)
             embed.add_field(name="Lifetime Earned", value=humanize_number(stats.get("lifetime_earned", 0)), inline=True)
@@ -237,6 +261,112 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_footer(text=f"Requested by {ctx.author.display_name}")
         await ctx.send(embed=embed)
+
+    @commands.group(name="vault", aliases=["bank"], invoke_without_command=True)
+    @commands.guild_only()
+    async def vault(self, ctx: commands.Context):
+        """View your personal vault status and available vault commands."""
+        name, icon = await self._currency_fmt(ctx.guild)
+        vault = await self._get_vault_info(ctx.author)
+        balance = vault.get("balance", 0)
+        security = vault.get("security", "basic")
+        security_info = VAULT_SECURITY_LEVELS.get(security, VAULT_SECURITY_LEVELS["basic"])
+
+        embed = discord.Embed(
+            title=f"🏦 {ctx.author.display_name}'s Vault",
+            description=(
+                f"Deposit Beri into your vault to protect it from wallet theft.\n"
+                f"Use `{ctx.clean_prefix}vault deposit <amount>`, `{ctx.clean_prefix}vault withdraw <amount>`, or `{ctx.clean_prefix}vault upgrade <level>`.")
+            ,
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(name="Vault Balance", value=f"**{humanize_number(balance)}** {icon}", inline=False)
+        embed.add_field(name="Security Level", value=f"{security_info['label']} ({int(security_info['protection'] * 100)}% protection)", inline=False)
+        embed.add_field(name="Next Upgrade", value="secure → fortified → impenetrable", inline=False)
+        embed.set_footer(text="Your wallet is always on the line when you hack others.")
+        await ctx.send(embed=embed)
+
+    @vault.command(name="deposit")
+    async def vault_deposit(self, ctx: commands.Context, amount: int):
+        """Deposit Beri from your wallet into your vault."""
+        if amount <= 0:
+            return await ctx.send("❌ Deposit amount must be positive.")
+
+        balance = await self._get_balance(ctx.guild, ctx.author)
+        if amount > balance:
+            name, icon = await self._currency_fmt(ctx.guild)
+            return await ctx.send(f"❌ You only have **{humanize_number(balance)}** {icon} in your wallet.")
+
+        vault = await self._get_vault_info(ctx.author)
+        vault_balance = vault.get("balance", 0) + amount
+        vault["balance"] = vault_balance
+        new_bal = await self._safe_modify(
+            ctx, ctx.guild, ctx.author, -amount,
+            reason="vault:deposit", actor="System",
+        )
+        if new_bal is None:
+            return
+        await self._set_vault_info(ctx.author, vault)
+        name, icon = await self._currency_fmt(ctx.guild)
+        await ctx.send(f"✅ Deposited **{humanize_number(amount)}** {icon} into your vault. Vault balance: **{humanize_number(vault_balance)}** {icon}.")
+
+    @vault.command(name="withdraw")
+    async def vault_withdraw(self, ctx: commands.Context, amount: int):
+        """Withdraw Beri from your vault back into your wallet."""
+        if amount <= 0:
+            return await ctx.send("❌ Withdrawal amount must be positive.")
+
+        vault = await self._get_vault_info(ctx.author)
+        vault_balance = vault.get("balance", 0)
+        if amount > vault_balance:
+            name, icon = await self._currency_fmt(ctx.guild)
+            return await ctx.send(f"❌ Your vault only contains **{humanize_number(vault_balance)}** {icon}.")
+
+        vault["balance"] = vault_balance - amount
+        new_bal = await self._safe_modify(
+            ctx, ctx.guild, ctx.author, amount,
+            reason="vault:withdraw", actor="System",
+        )
+        if new_bal is None:
+            return
+        await self._set_vault_info(ctx.author, vault)
+        name, icon = await self._currency_fmt(ctx.guild)
+        await ctx.send(f"✅ Withdrew **{humanize_number(amount)}** {icon} from your vault. Vault balance: **{humanize_number(vault['balance'])}** {icon}.")
+
+    @vault.command(name="upgrade")
+    async def vault_upgrade(self, ctx: commands.Context, level: str):
+        """Upgrade your vault security level."""
+        level = level.lower()
+        if level not in VAULT_SECURITY_LEVELS:
+            levels = ", ".join([lvl for lvl in VAULT_ORDER])
+            return await ctx.send(f"❌ Invalid security level. Choose: {levels}.")
+
+        vault = await self._get_vault_info(ctx.author)
+        current_level = vault.get("security", "basic")
+        if VAULT_ORDER.index(level) <= VAULT_ORDER.index(current_level):
+            return await ctx.send(f"❌ Your vault is already {current_level} or better.")
+
+        cost = VAULT_SECURITY_LEVELS[level]["cost"]
+        balance = await self._get_balance(ctx.guild, ctx.author)
+        if balance < cost:
+            name, icon = await self._currency_fmt(ctx.guild)
+            return await ctx.send(f"❌ You need **{humanize_number(cost)}** {icon} to upgrade to {VAULT_SECURITY_LEVELS[level]['label']}.")
+
+        new_bal = await self._safe_modify(
+            ctx, ctx.guild, ctx.author, -cost,
+            reason=f"vault:upgrade:{level}", actor="System",
+        )
+        if new_bal is None:
+            return
+
+        vault["security"] = level
+        await self._set_vault_info(ctx.author, vault)
+        await ctx.send(f"✅ Vault upgraded to {VAULT_SECURITY_LEVELS[level]['label']} for **{humanize_number(cost)}** {icon}.")
+
+    @vault.command(name="info")
+    async def vault_info(self, ctx: commands.Context):
+        """Show your vault details."""
+        await self.vault(ctx)
 
     @commands.command(name="give", aliases=["pay", "transfer"])
     @commands.guild_only()
