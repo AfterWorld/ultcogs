@@ -368,6 +368,12 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
         """Show your vault details."""
         await self.vault(ctx)
 
+    @commands.command(name="vaultstatus", aliases=["bankstatus"])
+    @commands.guild_only()
+    async def vaultstatus(self, ctx: commands.Context):
+        """Show your vault status."""
+        await self.vault(ctx)
+
     @commands.command(name="give", aliases=["pay", "transfer"])
     @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.user)
