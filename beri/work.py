@@ -88,17 +88,17 @@ SLUT_SUCCESS = [
 ]
 
 PLUNDER_SCENARIOS = [
-    ("Marine Supply Ship", 200, 700, 0.65),
-    ("Cargo Transport", 150, 650, 0.70),
-    ("Treasure Convoy", 250, 900, 0.55),
-    ("Black Market Caravan", 180, 600, 0.60),
-    ("Government Escort", 300, 1000, 0.50),
+    ("Merchant Bank Caravan", 800, 2600, 0.55),
+    ("Vaulted Treasure Convoy", 1200, 3600, 0.45),
+    ("Black Market Caravan", 1000, 3000, 0.50),
+    ("Government Escort", 1500, 4200, 0.40),
+    ("Imperial Vault Shipment", 2200, 7200, 0.30),
 ]
 
 PLUNDER_SUCCESS = [
-    "You boarded the vessel and absconded with {amount} {icon}.",
-    "The raid paid off — the hold is lighter and your purse is heavier by {amount} {icon}.",
-    "Your crew stole away with {amount} {icon} in supplies and coin.",
+    "You raided the shipment and absconded with {amount} {icon}.",
+    "The operation paid off — the hold is lighter and your purse is heavier by {amount} {icon}.",
+    "Your crew walked away with {amount} {icon} in loot and valuables.",
 ]
 PLUNDER_FAIL = [
     "The guards fought back. You escaped, but lost {fine} {icon} in damaged cargo.",
