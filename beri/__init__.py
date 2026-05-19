@@ -218,6 +218,17 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
     async def _set_vault_info(self, member: discord.Member, vault: dict):
         await self.config.member(member).vault.set(vault)
 
+    async def _parse_amount(self, ctx: commands.Context, raw_amount: str) -> Optional[int]:
+        """Parse user-supplied amount strings like '42' or 'all'."""
+        raw_amount = raw_amount.strip().lower()
+        if raw_amount in ("all", "max"):
+            return -1
+        try:
+            return int(raw_amount)
+        except ValueError:
+            await ctx.send('❌ Invalid amount. Use a positive integer or "all".')
+            return None
+
     # ══════════════════════════════════════════════════════════════════════
     # Core commands
     # ══════════════════════════════════════════════════════════════════════
@@ -287,51 +298,66 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
         await ctx.send(embed=embed)
 
     @vault.command(name="deposit")
-    async def vault_deposit(self, ctx: commands.Context, amount: int):
+    async def vault_deposit(self, ctx: commands.Context, amount: str):
         """Deposit Beri from your wallet into your vault."""
-        if amount <= 0:
-            return await ctx.send("❌ Deposit amount must be positive.")
+        parsed_amount = await self._parse_amount(ctx, amount)
+        if parsed_amount is None:
+            return
 
         balance = await self._get_balance(ctx.guild, ctx.author)
-        if amount > balance:
+        if parsed_amount < 0:
+            parsed_amount = balance
+
+        if parsed_amount <= 0:
+            return await ctx.send("❌ Deposit amount must be positive.")
+
+        if parsed_amount > balance:
             name, icon = await self._currency_fmt(ctx.guild)
             return await ctx.send(f"❌ You only have **{humanize_number(balance)}** {icon} in your wallet.")
 
         vault = await self._get_vault_info(ctx.author)
-        vault_balance = vault.get("balance", 0) + amount
+        vault_balance = vault.get("balance", 0) + parsed_amount
         vault["balance"] = vault_balance
         new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, -amount,
+            ctx, ctx.guild, ctx.author, -parsed_amount,
             reason="vault:deposit", actor="System",
         )
         if new_bal is None:
             return
         await self._set_vault_info(ctx.author, vault)
         name, icon = await self._currency_fmt(ctx.guild)
-        await ctx.send(f"✅ Deposited **{humanize_number(amount)}** {icon} into your vault. Vault balance: **{humanize_number(vault_balance)}** {icon}.")
+        await ctx.send(f"✅ Deposited **{humanize_number(parsed_amount)}** {icon} into your vault. Vault balance: **{humanize_number(vault_balance)}** {icon}.")
 
     @vault.command(name="withdraw")
-    async def vault_withdraw(self, ctx: commands.Context, amount: int):
+    async def vault_withdraw(self, ctx: commands.Context, amount: str):
         """Withdraw Beri from your vault back into your wallet."""
-        if amount <= 0:
-            return await ctx.send("❌ Withdrawal amount must be positive.")
-
         vault = await self._get_vault_info(ctx.author)
         vault_balance = vault.get("balance", 0)
-        if amount > vault_balance:
+
+        parsed_amount = await self._parse_amount(ctx, amount)
+        if parsed_amount is None:
+            return
+
+        if parsed_amount < 0:
+            parsed_amount = vault_balance
+
+        if parsed_amount <= 0:
+            return await ctx.send("❌ Withdrawal amount must be positive.")
+
+        if parsed_amount > vault_balance:
             name, icon = await self._currency_fmt(ctx.guild)
             return await ctx.send(f"❌ Your vault only contains **{humanize_number(vault_balance)}** {icon}.")
 
-        vault["balance"] = vault_balance - amount
+        vault["balance"] = vault_balance - parsed_amount
         new_bal = await self._safe_modify(
-            ctx, ctx.guild, ctx.author, amount,
+            ctx, ctx.guild, ctx.author, parsed_amount,
             reason="vault:withdraw", actor="System",
         )
         if new_bal is None:
             return
         await self._set_vault_info(ctx.author, vault)
         name, icon = await self._currency_fmt(ctx.guild)
-        await ctx.send(f"✅ Withdrew **{humanize_number(amount)}** {icon} from your vault. Vault balance: **{humanize_number(vault['balance'])}** {icon}.")
+        await ctx.send(f"✅ Withdrew **{humanize_number(parsed_amount)}** {icon} from your vault. Vault balance: **{humanize_number(vault['balance'])}** {icon}.")
 
     @vault.command(name="upgrade")
     async def vault_upgrade(self, ctx: commands.Context, level: str):
