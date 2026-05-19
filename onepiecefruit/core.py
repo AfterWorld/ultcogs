@@ -25,10 +25,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import discord
-from redbot.core import bank, commands, Config
+from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.data_manager import cog_data_path
 
+from .currency import CurrencyAdapter, InsufficientFunds
 from .fruits import (
     DEVIL_FRUITS,
     FRUIT_ASSIGN_LEVEL,
@@ -40,7 +41,7 @@ from .fruits import (
     SEASONAL_EVENTS,
 )
 from .models import AuditEntry, DB, GuildData, UserFruitData
-from .piraterep import RepTracker  # ← Pirate Rep integration
+from .piraterep import RepTracker, RANK_LADDER
 
 log = logging.getLogger("red.onepiecefruit")
 
@@ -107,6 +108,8 @@ def _build_fruit_embed(
 
     If rep_tracker is provided (for the [p]df info command), Pirate Rep
     fields are appended automatically.
+
+    Reroll history (last ≤3 previous fruits) is shown when present.
     """
     rarity = data.fruit_type
     colour = RARITY_COLOURS.get(rarity, discord.Colour.blurple())
@@ -139,14 +142,22 @@ def _build_fruit_embed(
     embed.add_field(name="Stage", value=f"**{stage_label}**", inline=True)
     embed.add_field(name="\u200b", value="\u200b", inline=True)
     embed.add_field(name="Power", value=ability_text, inline=False)
-    embed.add_field(
-        name="Reroll Info",
-        value=(
-            f"**{data.reroll_count}** reroll{'s' if data.reroll_count != 1 else ''}\n"
-            f"Next cost: **{_next_reroll_cost(data.reroll_count):,}**"
-        ),
-        inline=False,
-    )
+
+    # ── Reroll info (count + next cost + history) ───────────────────────────
+    next_cost = _next_reroll_cost(data.reroll_count)
+    reroll_lines = [
+        f"**{data.reroll_count}** reroll{'s' if data.reroll_count != 1 else ''}",
+        f"Next cost: **{next_cost:,}**",
+    ]
+    if data.reroll_history:
+        # Show most recent first (reverse the stored order)
+        history_display = ", ".join(
+            f"*{name.split('(')[0].strip()}*"
+            for name in reversed(data.reroll_history)
+        )
+        reroll_lines.append(f"Previous: {history_display}")
+
+    embed.add_field(name="Reroll Info", value="\n".join(reroll_lines), inline=False)
 
     # ── Pirate Rep section ──────────────────────────────────────────────────
     if rep_tracker is not None and member.guild is not None:
@@ -178,14 +189,14 @@ class OnePieceFruit(commands.Cog):
     """
 
     __author__ = "UltPanda"
-    __version__ = "1.2.0"
+    __version__ = "1.4.0"
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
         self.db = DB()
         self._io_lock = asyncio.Lock()
         self._settings_file: t.Optional[Path] = None
-        self.rep_tracker: t.Optional[RepTracker] = None  # initialised in cog_load
+        self.rep_tracker: t.Optional[RepTracker] = None
 
         self.config = Config.get_conf(self, identifier=0x99ac92bc1d2e3f44, force_registration=True)
         self.config.register_guild(rank_announcement_channel=None, active_event=None)
@@ -196,7 +207,6 @@ class OnePieceFruit(commands.Cog):
     async def cog_load(self) -> None:
         data_path = cog_data_path(self)
 
-        # Devil Fruit DB
         self._settings_file = data_path / "onepiecefruit.json"
         if self._settings_file.exists():
             try:
@@ -205,7 +215,6 @@ class OnePieceFruit(commands.Cog):
             except Exception as exc:
                 log.error("OnePieceFruit: failed to load config.", exc_info=exc)
 
-        # Pirate Rep tracker
         self.rep_tracker = RepTracker(data_path / "piraterep.json")
         await self.rep_tracker.load()
 
@@ -215,7 +224,7 @@ class OnePieceFruit(commands.Cog):
             await self.rep_tracker.save()
 
     # -----------------------------------------------------------------------
-    # Persistence — Devil Fruit DB
+    # Persistence
     # -----------------------------------------------------------------------
     async def _save(self) -> None:
         if self._settings_file is None:
@@ -226,55 +235,29 @@ class OnePieceFruit(commands.Cog):
             except Exception as exc:
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
 
-    def _bericog(self) -> t.Optional[object]:
-        return self.bot.get_cog("BeriCog")
+    # -----------------------------------------------------------------------
+    # Currency adapter factory
+    # -----------------------------------------------------------------------
+    def _currency(self, guild: discord.Guild) -> CurrencyAdapter:
+        """Return a CurrencyAdapter scoped to *guild*."""
+        return CurrencyAdapter(self.bot, guild)
 
-    def _bericore(self) -> t.Optional[object]:
-        return self.bot.get_cog("BeriCore")
-
+    # -----------------------------------------------------------------------
+    # Legacy helpers kept for internal callers (on_levelup, giveaway, duel)
+    # -----------------------------------------------------------------------
     async def _get_currency_name(self, guild: discord.Guild) -> str:
-        beri_core = self._bericore()
-        if beri_core is not None:
-            return "Beri"
-        beri = self._bericog()
-        if beri is not None:
-            return (await beri._currency_fmt(guild))[0]
-        return await bank.get_currency_name(guild)
+        return await self._currency(guild).currency_name()
 
     async def _get_balance(self, guild: discord.Guild, member: discord.Member) -> int:
-        beri_core = self._bericore()
-        if beri_core is not None:
-            return await beri_core.get_beri(member)
-        beri = self._bericog()
-        if beri is not None:
-            return await beri._get_balance(guild, member)
-        return await bank.get_balance(member)
+        return await self._currency(guild).get_balance(member)
 
     async def _withdraw_currency(self, ctx: commands.Context, member: discord.Member, amount: int) -> int:
-        beri_core = self._bericore()
-        if beri_core is not None:
-            balance = await beri_core.get_beri(member)
-            if balance < amount:
-                raise ValueError("Insufficient funds")
-            return await beri_core.add_beri(
-                member,
-                -amount,
-                reason="devilfruit:reroll",
-                actor=ctx.author or "System",
+        try:
+            return await self._currency(ctx.guild).withdraw(
+                member, amount, reason="devilfruit:reroll", actor=ctx.author
             )
-        beri = self._bericog()
-        if beri is not None:
-            balance = await beri._get_balance(ctx.guild, member)
-            if balance < amount:
-                raise ValueError("Insufficient funds")
-            return await beri._modify_balance(
-                ctx.guild,
-                member,
-                -amount,
-                reason="devilfruit:reroll",
-                actor=ctx.author or "System",
-            )
-        return await bank.withdraw_credits(member, amount)
+        except InsufficientFunds as exc:
+            raise ValueError(str(exc)) from exc
 
     async def _modify_currency(
         self,
@@ -284,17 +267,12 @@ class OnePieceFruit(commands.Cog):
         actor: t.Union[discord.Member, str] = "System",
         reason: str = "devilfruit:perk",
     ) -> int:
-        beri_core = self._bericore()
-        if beri_core is not None:
-            return await beri_core.add_beri(member, amount, reason=reason, actor=actor)
-
-        beri = self._bericog()
-        if beri is not None and guild is not None:
-            return await beri._modify_balance(guild, member, amount, reason=reason, actor=actor)
-
+        if guild is None:
+            raise RuntimeError("_modify_currency requires a guild")
+        adapter = self._currency(guild)
         if amount >= 0:
-            return await bank.deposit_credits(member, amount)
-        return await bank.withdraw_credits(member, -amount)
+            return await adapter.deposit(member, amount, reason=reason, actor=actor)
+        return await adapter.withdraw(member, -amount, reason=reason, actor=actor)
 
     def _reroll_cost_multiplier(self, rarity: str) -> float:
         return {
@@ -327,12 +305,10 @@ class OnePieceFruit(commands.Cog):
             return
 
         try:
-            await self._modify_currency(
-                message.author,
-                amount,
-                guild=message.guild,
-                actor=message.author,
+            await self._currency(message.guild).deposit(
+                message.author, amount,
                 reason="devilfruit:daily_stipend",
+                actor=message.author,
             )
         except Exception:
             return
@@ -343,7 +319,8 @@ class OnePieceFruit(commands.Cog):
 
         with suppress(discord.HTTPException):
             await message.channel.send(
-                f"✨ {message.author.mention}, your {user_data.fruit_type} Devil Fruit grants you a daily Beri stipend of **{amount:,} Beri**!"
+                f"✨ {message.author.mention}, your {user_data.fruit_type} Devil Fruit grants you "
+                f"a daily Beri stipend of **{amount:,} Beri**!"
             )
 
     async def _send_paginated_embed(
@@ -357,7 +334,6 @@ class OnePieceFruit(commands.Cog):
     ) -> None:
         page_chunks = [lines[i : i + max_per_page] for i in range(0, len(lines), max_per_page)]
         total_pages = len(page_chunks)
-        total_items = len(lines)
 
         def make_embed(page_idx: int) -> discord.Embed:
             embed = discord.Embed(
@@ -416,7 +392,7 @@ class OnePieceFruit(commands.Cog):
         actor = f"<@{entry.actor_id}>" if entry.actor_id else "System"
         target = f" → <@{entry.target_id}>" if entry.target_id else ""
         details = f" — {entry.details}" if entry.details else ""
-        ts = entry.timestamp.replace("T", " ").replace("Z", " UTC")
+        ts = entry.timestamp.replace("T", " ").replace("Z", " UTC")[:19]
         return f"`{ts}` **{entry.action}** by {actor}{target}{details}"
 
     def _log_audit(
@@ -548,27 +524,18 @@ class OnePieceFruit(commands.Cog):
         return ctx.author
 
     # -----------------------------------------------------------------------
-    # Message tracking → Pirate Rep
+    # Listeners
     # -----------------------------------------------------------------------
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        """Record every non-bot guild message for Pirate Rep tracking."""
         if message.author.bot or message.guild is None:
             return
         if self.rep_tracker is None:
             return
-        # Fire-and-forget; save is debounced inside RepTracker
         asyncio.create_task(self._process_rep_message(message))
 
-    # -----------------------------------------------------------------------
-    # Profile command hook — append Devil Fruit embed after [p]profile / [p]pf
-    # -----------------------------------------------------------------------
     @commands.Cog.listener("on_command_completion")
     async def on_command_completion(self, ctx: commands.Context) -> None:
-        """
-        After a LevelUp profile command completes, send the user's Devil Fruit
-        card into the same channel as a follow-up embed.
-        """
         if ctx.command is None or ctx.guild is None:
             return
 
@@ -609,14 +576,12 @@ class OnePieceFruit(commands.Cog):
         level: int,
         channel: t.Optional[discord.TextChannel],
     ) -> None:
-        """Fired by LevelUp cog. Handles fruit assignment and awakenings."""
         if level < FRUIT_ASSIGN_LEVEL:
             return
 
         guild_data = self.db.get_guild(guild.id)
         user_data = guild_data.get_user(member.id)
 
-        # ── Level 5: first fruit assignment ──────────────────────────────
         if level == FRUIT_ASSIGN_LEVEL and user_data is None:
             active_event = await self._get_active_event(guild)
             rarity, fruit = _draw_fruit(active_event)
@@ -647,7 +612,6 @@ class OnePieceFruit(commands.Cog):
                     await member.send(embed=embed)
             return
 
-        # ── Level 50: Stage 1 Awakening ──────────────────────────────────
         if level == AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
             user_data.awakening_stage = 1
             guild_data.set_user(member.id, user_data)
@@ -662,7 +626,6 @@ class OnePieceFruit(commands.Cog):
                 await channel.send(embed=embed)
             return
 
-        # ── Level 100: Full Awakening ─────────────────────────────────────
         if level == AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
             user_data.awakening_stage = 2
             guild_data.set_user(member.id, user_data)
@@ -685,7 +648,6 @@ class OnePieceFruit(commands.Cog):
     async def devilfruit(self, ctx: commands.Context) -> None:
         """Devil Fruit commands."""
 
-    # ── [p]df info ──────────────────────────────────────────────────────────
     @devilfruit.command(name="info", aliases=["check", "fruit"])
     async def df_info(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
         """Show your (or another member's) Devil Fruit — including Pirate Rep."""
@@ -698,7 +660,6 @@ class OnePieceFruit(commands.Cog):
             await ctx.send(f"🌊 {who} eaten a Devil Fruit yet. Reach **Level {FRUIT_ASSIGN_LEVEL}** to receive one!")
             return
 
-        # Pass rep_tracker so rep fields are included
         embed = _build_fruit_embed(target, user_data, rep_tracker=self.rep_tracker)
         active_event = await self._get_active_event(ctx.guild)
         if active_event:
@@ -743,7 +704,6 @@ class OnePieceFruit(commands.Cog):
             f"You can still use `.df info` to view your fruit directly."
         )
 
-    # ── [p]df rep ───────────────────────────────────────────────────────────
     @devilfruit.command(name="rep")
     async def df_rep(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
         """Show your full Pirate Rep card (or another member's)."""
@@ -823,10 +783,11 @@ class OnePieceFruit(commands.Cog):
             return await ctx.send("❌ Wager must be a positive amount of Beri.")
 
         currency_name = await self._get_currency_name(ctx.guild)
+        adapter = self._currency(ctx.guild)
 
         if wager > 0:
-            challenger_balance = await self._get_balance(ctx.guild, ctx.author)
-            target_balance = await self._get_balance(ctx.guild, target)
+            challenger_balance = await adapter.get_balance(ctx.author)
+            target_balance = await adapter.get_balance(target)
             if challenger_balance < wager:
                 return await ctx.send(
                     f"💸 You need **{wager:,} {currency_name}** for that wager, but only have **{challenger_balance:,}**."
@@ -837,12 +798,8 @@ class OnePieceFruit(commands.Cog):
                 )
 
         strength_values = {
-            "Paramecia": 70,
-            "Zoan": 85,
-            "Logia": 100,
-            "Ancient Zoan": 110,
-            "Mythical Zoan": 120,
-            "Legendary": 140,
+            "Paramecia": 70, "Zoan": 85, "Logia": 100,
+            "Ancient Zoan": 110, "Mythical Zoan": 120, "Legendary": 140,
         }
         stage_bonus = {0: 0, 1: 10, 2: 25}
 
@@ -853,18 +810,15 @@ class OnePieceFruit(commands.Cog):
         challenger_strength = combat_strength(challenger_data)
         target_strength = combat_strength(target_data)
         differential = challenger_strength - target_strength
-        win_chance = 0.5 + (differential / 200)
-        win_chance = max(0.10, min(0.90, win_chance))
+        win_chance = max(0.10, min(0.90, 0.5 + (differential / 200)))
 
         if wager > 0:
-            await self._withdraw_currency(ctx, ctx.author, wager)
+            await adapter.withdraw(ctx.author, wager, reason="devilfruit:duel", actor=ctx.author)
             try:
-                await self._withdraw_currency(ctx, target, wager)
-            except ValueError:
-                await self._modify_currency(ctx.author, wager, ctx.guild, actor=ctx.bot, reason="devilfruit:duel_refund")
-                return await ctx.send(
-                    f"💸 {target.display_name} can't cover the wager right now."
-                )
+                await adapter.withdraw(target, wager, reason="devilfruit:duel", actor=ctx.author)
+            except InsufficientFunds:
+                await adapter.deposit(ctx.author, wager, reason="devilfruit:duel_refund", actor=self.bot)
+                return await ctx.send(f"💸 {target.display_name} can't cover the wager right now.")
 
         winner = ctx.author if random.random() < win_chance else target
         upset = (
@@ -880,20 +834,15 @@ class OnePieceFruit(commands.Cog):
 
         if wager > 0:
             total_pot = wager * 2
-            winner_name = winner.display_name
-            await self._modify_currency(winner, total_pot, ctx.guild, actor=ctx.bot, reason="devilfruit:duel")
-            result_text += f"\n🏆 {winner_name} wins **{total_pot:,} {currency_name}**!"
+            await adapter.deposit(winner, total_pot, reason="devilfruit:duel_win", actor=self.bot)
+            result_text += f"\n🏆 {winner.display_name} wins **{total_pot:,} {currency_name}**!"
         else:
             result_text += f"\n🏆 {winner.display_name} wins the duel!"
 
         if upset:
             result_text += "\n✨ What an upset!"
 
-        embed = discord.Embed(
-            title="⚔️ Devil Fruit Duel",
-            description=result_text,
-            colour=discord.Colour.dark_red(),
-        )
+        embed = discord.Embed(title="⚔️ Devil Fruit Duel", description=result_text, colour=discord.Colour.dark_red())
         embed.add_field(name="Your strength", value=str(challenger_strength), inline=True)
         embed.add_field(name=f"{target.display_name}'s strength", value=str(target_strength), inline=True)
         if wager > 0:
@@ -901,7 +850,6 @@ class OnePieceFruit(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    # ── [p]df weekly ────────────────────────────────────────────────────────
     @devilfruit.command(name="weekly")
     async def df_weekly(self, ctx: commands.Context) -> None:
         """Show the weekly most-active pirates leaderboard."""
@@ -936,7 +884,6 @@ class OnePieceFruit(commands.Cog):
         embed.set_footer(text="Week resets every Sunday at midnight UTC.")
         await ctx.send(embed=embed)
 
-    # ── [p]df streak ────────────────────────────────────────────────────────
     @devilfruit.command(name="streak")
     async def df_streak(self, ctx: commands.Context) -> None:
         """Show the current daily streak leaderboard."""
@@ -947,10 +894,7 @@ class OnePieceFruit(commands.Cog):
         from datetime import date
 
         lb = self.rep_tracker.streak_leaderboard(ctx.guild.id)
-        embed = discord.Embed(
-            title="🔥 Pirate Streak Leaderboard",
-            colour=discord.Colour.orange(),
-        )
+        embed = discord.Embed(title="🔥 Pirate Streak Leaderboard", colour=discord.Colour.orange())
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
 
@@ -976,7 +920,6 @@ class OnePieceFruit(commands.Cog):
         embed.set_footer(text="🔥 = active today/yesterday  💤 = streak at risk")
         await ctx.send(embed=embed)
 
-    # ── [p]df reroll ────────────────────────────────────────────────────────
     @devilfruit.command(name="reroll", aliases=["change", "new"])
     async def df_reroll(self, ctx: commands.Context) -> None:
         """
@@ -1030,18 +973,24 @@ class OnePieceFruit(commands.Cog):
         if str(reaction.emoji) == "❌":
             return await ctx.send("❌ Reroll cancelled.")
 
+        adapter = self._currency(ctx.guild)
         try:
-            await self._withdraw_currency(ctx, ctx.author, cost)
-        except ValueError:
-            balance = await self._get_balance(ctx.guild, ctx.author)
+            await adapter.withdraw(ctx.author, cost, reason="devilfruit:reroll", actor=ctx.author)
+        except InsufficientFunds:
+            balance = await adapter.get_balance(ctx.author)
             return await ctx.send(
                 f"💸 You don't have enough {currency_name}! "
                 f"You need **{cost:,}** but only have **{balance:,}**."
             )
 
+        old_fruit_name = user_data.fruit_name
         old_type = user_data.fruit_type
+
         active_event = await self._get_active_event(ctx.guild)
         rarity, fruit = _draw_fruit(active_event)
+
+        # Record the old fruit in history before overwriting
+        user_data.push_reroll_history(old_fruit_name)
 
         user_data.fruit_name = fruit["name"]
         user_data.fruit_type = rarity
@@ -1055,13 +1004,13 @@ class OnePieceFruit(commands.Cog):
             ctx.author.id,
             "reroll",
             target_id=ctx.author.id,
-            details=f"from={old_type}, to={user_data.fruit_name}, cost={cost}",
+            details=f"from={old_type} ({old_fruit_name}), to={user_data.fruit_name}, cost={cost}",
         )
 
         embed = _build_fruit_embed(ctx.author, user_data, title_prefix="🍎 New Fruit! ")
         description = (
             f"You spent **{cost:,} {currency_name}** and ate a new Devil Fruit!\n"
-            f"*Your previous {old_type} fruit is gone forever...*"
+            f"*Your previous {old_type} fruit ({old_fruit_name}) is gone forever...*"
         )
         if active_event:
             event_def = SEASONAL_EVENTS.get(active_event.lower())
@@ -1079,7 +1028,6 @@ class OnePieceFruit(commands.Cog):
         embed.set_footer(text=f"Reroll #{user_data.reroll_count} complete. Next reroll: {next_cost:,} {currency_name}.")
         await ctx.send(embed=embed)
 
-    # ── [p]df list ──────────────────────────────────────────────────────────
     @devilfruit.command(name="list", aliases=["leaderboard", "lb"])
     async def df_list(self, ctx: commands.Context) -> None:
         """Show all Devil Fruit users in the server, paginated."""
@@ -1109,7 +1057,6 @@ class OnePieceFruit(commands.Cog):
             footer=f"{len(lines)} pirates total",
         )
 
-    # ── [p]df types ─────────────────────────────────────────────────────────
     @devilfruit.command(name="types")
     async def df_types(self, ctx: commands.Context) -> None:
         """Show Devil Fruit rarity tiers and drop weights."""
@@ -1124,7 +1071,6 @@ class OnePieceFruit(commands.Cog):
             )
         await ctx.send(embed=embed)
 
-    # ── [p]df rerollcost ────────────────────────────────────────────────────
     @devilfruit.command(name="rerollcost", aliases=["cost"])
     async def df_reroll_cost(self, ctx: commands.Context, member: t.Optional[discord.Member] = None) -> None:
         """Show the current and upcoming reroll costs for yourself or another member."""
@@ -1152,7 +1098,103 @@ class OnePieceFruit(commands.Cog):
         embed.set_footer(text=f"Total rerolls so far: {count}. Costs compound ×1.5 after reroll #10.")
         await ctx.send(embed=embed)
 
-    # ── Admin: [p]df admin ───────────────────────────────────────────────────
+    @devilfruit.command(name="browse")
+    async def df_browse(self, ctx: commands.Context, *, rarity: t.Optional[str] = None) -> None:
+        """Browse available Devil Fruits by rarity."""
+        valid = list(DEVIL_FRUITS.keys())
+
+        if rarity is None:
+            active_event = await self._get_active_event(ctx.guild)
+            description = (
+                "Use `[p]df browse <type>` to see fruits in a category.\n\n"
+                + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid)
+            )
+            if active_event:
+                event_def = SEASONAL_EVENTS.get(active_event.lower())
+                if event_def:
+                    description += (
+                        f"\n\n🎉 Active seasonal event: {event_def['emoji']} **{event_def['name']}** — "
+                        f"use `[p]df browse {active_event}` to preview its fruits."
+                    )
+
+            embed = discord.Embed(
+                title="🍎 Available Devil Fruit Types",
+                description=description,
+                colour=discord.Colour.dark_red(),
+            )
+            return await ctx.send(embed=embed)
+
+        lookup = rarity.strip().lower()
+        normalized_lookup = "".join(lookup.split())
+        matched = next(
+            (r for r in valid if r.lower() == lookup or "".join(r.lower().split()) == normalized_lookup),
+            None,
+        )
+        if matched is None:
+            event_match = next(
+                (
+                    key
+                    for key, data in SEASONAL_EVENTS.items()
+                    if key == normalized_lookup
+                    or "".join(data["name"].lower().split()) == normalized_lookup
+                ),
+                None,
+            )
+            if event_match is not None:
+                event_def = SEASONAL_EVENTS[event_match]
+                fruits = event_def["fruits"]
+                emoji = event_def["emoji"]
+                lines = [f"• {f['name']} — {f['fruit_type']}" for f in fruits]
+                embed = discord.Embed(
+                    title=f"{emoji} {event_def['name']} Seasonal Fruits ({len(fruits)} total)",
+                    description="\n".join(lines),
+                    colour=discord.Colour.dark_purple(),
+                )
+                embed.set_footer(text="Seasonal event fruit pool")
+                return await ctx.send(embed=embed)
+
+            return await ctx.send(f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}")
+
+        fruits = DEVIL_FRUITS[matched]
+        emoji = RARITY_EMOJIS[matched]
+        lines = [f"• {f['name']}" for f in fruits]
+        embed = discord.Embed(
+            title=f"{emoji} {matched} Fruits ({len(fruits)} total)",
+            description="\n".join(lines),
+            colour=RARITY_COLOURS[matched],
+        )
+        embed.set_footer(text=f"Drop chance: {RARITY_WEIGHTS[matched]}%")
+        await ctx.send(embed=embed)
+
+    @devilfruit.command(name="search")
+    async def df_search(self, ctx: commands.Context, *, query: str) -> None:
+        """Search Devil Fruits by partial name."""
+        normalized = query.strip().lower()
+        if not normalized:
+            return await ctx.send("❌ Usage: `.df search <term>`")
+
+        results = []
+        for rarity, fruits in DEVIL_FRUITS.items():
+            for fruit in fruits:
+                if normalized in fruit["name"].lower():
+                    results.append(f"{RARITY_EMOJIS.get(rarity, '❓')} **{fruit['name']}** — {rarity}")
+
+        if not results:
+            return await ctx.send(f"❌ No Devil Fruits found matching `{query}`.")
+
+        if len(results) > 20:
+            results = results[:20] + ["...and more results not shown."]
+
+        embed = discord.Embed(
+            title=f"🔎 Devil Fruit Search — {query}",
+            description="\n".join(results),
+            colour=discord.Colour.dark_red(),
+        )
+        await ctx.send(embed=embed)
+
+    # -----------------------------------------------------------------------
+    # Admin commands
+    # -----------------------------------------------------------------------
     @devilfruit.group(name="admin")
     @commands.admin_or_permissions(administrator=True)
     async def df_admin(self, ctx: commands.Context) -> None:
@@ -1193,11 +1235,8 @@ class OnePieceFruit(commands.Cog):
         guild_data.set_user(member.id, user_data)
         await self._save()
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "assign",
-            target_id=member.id,
-            details=f"{fruit['name']} ({rarity})",
+            ctx.guild.id, ctx.author.id, "assign",
+            target_id=member.id, details=f"{fruit['name']} ({rarity})",
         )
 
         embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
@@ -1209,21 +1248,11 @@ class OnePieceFruit(commands.Cog):
         guild_data = self.db.get_guild(ctx.guild.id)
         guild_data.remove_user(member.id)
         await self._save()
-        self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "reset",
-            target_id=member.id,
-        )
+        self._log_audit(ctx.guild.id, ctx.author.id, "reset", target_id=member.id)
         await ctx.send(f"🗑️ Devil Fruit data cleared for **{member.display_name}**.")
 
     @df_admin.command(name="awaken")
-    async def df_admin_awaken(
-        self,
-        ctx: commands.Context,
-        member: discord.Member,
-        stage: int,
-    ) -> None:
+    async def df_admin_awaken(self, ctx: commands.Context, member: discord.Member, stage: int) -> None:
         """Manually set a member's awakening stage (0, 1, or 2)."""
         if stage not in (0, 1, 2):
             return await ctx.send("❌ Stage must be 0 (base), 1 (stage 1), or 2 (full).")
@@ -1233,19 +1262,15 @@ class OnePieceFruit(commands.Cog):
         if user_data is None:
             return await ctx.send(f"❌ {member.display_name} has no Devil Fruit assigned.")
 
+        old_stage = user_data.awakening_stage
         user_data.awakening_stage = stage
         guild_data.set_user(member.id, user_data)
         await self._save()
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "awaken",
-            target_id=member.id,
-            details=f"stage={stage}",
+            ctx.guild.id, ctx.author.id, "awaken",
+            target_id=member.id, details=f"stage: {old_stage} → {stage}",
         )
-
-        label = AWAKENING_LABELS[stage]
-        await ctx.send(f"✅ Set **{member.display_name}**'s awakening to **{label}**.")
+        await ctx.send(f"✅ Set **{member.display_name}**'s awakening to **{AWAKENING_LABELS[stage]}**.")
 
     @df_admin.command(name="resetrerolls")
     async def df_admin_reset_rerolls(self, ctx: commands.Context, member: discord.Member) -> None:
@@ -1254,75 +1279,16 @@ class OnePieceFruit(commands.Cog):
         user_data = guild_data.get_user(member.id)
         if user_data is None:
             return await ctx.send(f"❌ {member.display_name} has no Devil Fruit data.")
+        old_count = user_data.reroll_count
         user_data.reroll_count = 0
         user_data.last_reroll_cost = 0
         guild_data.set_user(member.id, user_data)
         await self._save()
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "resetrerolls",
-            target_id=member.id,
+            ctx.guild.id, ctx.author.id, "resetrerolls",
+            target_id=member.id, details=f"count was {old_count}",
         )
-        await ctx.send(f"✅ Reset reroll counter for **{member.display_name}**.")
-
-    @df_admin.command(name="resetrep")
-    async def df_admin_reset_rep(self, ctx: commands.Context, member: discord.Member) -> None:
-        """Reset a member's Pirate Rep data (streak, messages, rep score)."""
-        if self.rep_tracker is None:
-            return await ctx.send("⚠️ Pirate Rep tracker is not initialised.")
-        g = self.rep_tracker._db.get_guild(ctx.guild.id)
-        uid_str = str(member.id)
-        if uid_str in g.users:
-            del g.users[uid_str]
-            await self.rep_tracker.save()
-            self._log_audit(
-                ctx.guild.id,
-                ctx.author.id,
-                "resetrep",
-                target_id=member.id,
-            )
-            await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}**.")
-        else:
-            await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
-
-    @df_admin.command(name="rankchannel")
-    async def df_admin_rank_channel(
-        self,
-        ctx: commands.Context,
-        channel: t.Optional[discord.TextChannel] = None,
-    ) -> None:
-        """Set or view the Pirate rank announcement channel."""
-        if channel is None:
-            current = await self.config.guild(ctx.guild).rank_announcement_channel()
-            if current is None:
-                return await ctx.send(
-                    "ℹ️ Pirate rank announcements are not configured."
-                    " Use `.df admin rankchannel #channel` to enable them."
-                )
-
-            existing = ctx.guild.get_channel(current)
-            if existing is None:
-                await self.config.guild(ctx.guild).rank_announcement_channel.set(None)
-                return await ctx.send(
-                    "⚠️ The configured rank announcement channel no longer exists."
-                    " It has been cleared."
-                )
-
-            return await ctx.send(
-                f"🏴‍☠️ Pirate rank announcements are currently enabled in {existing.mention}."
-            )
-
-        await self.config.guild(ctx.guild).rank_announcement_channel.set(channel.id)
-        self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "rankchannel",
-            details=f"channel={channel.id}",
-        )
-        await ctx.send(
-            f"✅ Pirate rank announcements will now post in {channel.mention}."
-        )
+        await ctx.send(f"✅ Reset reroll counter for **{member.display_name}** (was {old_count}).")
 
     @df_admin.command(name="setrep")
     async def df_admin_set_rep(self, ctx: commands.Context, member: discord.Member, rep: int) -> None:
@@ -1336,17 +1302,123 @@ class OnePieceFruit(commands.Cog):
         old_rep = user_data.rep
         user_data.rep = rep
         await self.rep_tracker.save()
+        self._log_audit(ctx.guild.id, ctx.author.id, "setrep", target_id=member.id, details=f"{old_rep} → {rep}")
+        await ctx.send(f"✅ Set **{member.display_name}**'s Pirate Rep to **{rep:,}**.")
 
+    @df_admin.command(name="setrank")
+    async def df_admin_set_rank(self, ctx: commands.Context, member: discord.Member, *, rank_name: str) -> None:
+        """Set a member's Pirate Rep to the minimum required for a named rank."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised.")
+
+        lookup = rank_name.strip().lower()
+        matched_entry = next(
+            ((min_rep, title, emoji) for min_rep, title, emoji in RANK_LADDER if title.lower() == lookup),
+            None,
+        )
+        if matched_entry is None:
+            valid_ranks = "\n".join(f"• **{title}** {emoji} — {min_rep:,} rep" for min_rep, title, emoji in RANK_LADDER)
+            embed = discord.Embed(
+                title="❌ Unknown Rank",
+                description=f"Could not find rank `{rank_name}`. Valid ranks:\n\n{valid_ranks}",
+                colour=discord.Colour.red(),
+            )
+            return await ctx.send(embed=embed)
+
+        min_rep, title, emoji = matched_entry
+        user_data = self.rep_tracker.get_user(ctx.guild.id, member.id)
+        old_rep = user_data.rep
+        user_data.rep = min_rep
+        await self.rep_tracker.save()
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "setrep",
-            target_id=member.id,
-            details=f"{old_rep} → {rep}",
+            ctx.guild.id, ctx.author.id, "setrank",
+            target_id=member.id, details=f"rep {old_rep} → {min_rep} ({title})",
         )
-        await ctx.send(
-            f"✅ Set **{member.display_name}**'s Pirate Rep to **{rep:,}**."
+        embed = discord.Embed(
+            title="⚓ Rank Set",
+            description=f"{member.mention} is now rank **{title}** {emoji}.",
+            colour=discord.Colour.gold(),
         )
+        embed.add_field(name="Rep Before", value=f"{old_rep:,}", inline=True)
+        embed.add_field(name="Rep Now", value=f"{min_rep:,}", inline=True)
+        embed.add_field(name="Set By", value=ctx.author.display_name, inline=True)
+        await ctx.send(embed=embed)
+
+    @df_admin.command(name="resetrep")
+    async def df_admin_reset_rep(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Reset a member's Pirate Rep data (streak, messages, rep score)."""
+        if self.rep_tracker is None:
+            return await ctx.send("⚠️ Pirate Rep tracker is not initialised.")
+        g = self.rep_tracker._db.get_guild(ctx.guild.id)
+        uid_str = str(member.id)
+        if uid_str in g.users:
+            old_rep = g.users[uid_str].rep
+            del g.users[uid_str]
+            await self.rep_tracker.save()
+            self._log_audit(ctx.guild.id, ctx.author.id, "resetrep", target_id=member.id, details=f"rep was {old_rep}")
+            await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}** (had {old_rep:,} rep).")
+        else:
+            await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
+
+    @df_admin.command(name="rankchannel")
+    async def df_admin_rank_channel(
+        self, ctx: commands.Context, channel: t.Optional[discord.TextChannel] = None
+    ) -> None:
+        """Set or view the Pirate rank announcement channel."""
+        if channel is None:
+            current = await self.config.guild(ctx.guild).rank_announcement_channel()
+            if current is None:
+                return await ctx.send(
+                    "ℹ️ Pirate rank announcements are not configured."
+                    " Use `.df admin rankchannel #channel` to enable them."
+                )
+            existing = ctx.guild.get_channel(current)
+            if existing is None:
+                await self.config.guild(ctx.guild).rank_announcement_channel.set(None)
+                return await ctx.send("⚠️ The configured rank announcement channel no longer exists. It has been cleared.")
+            return await ctx.send(f"🏴‍☠️ Pirate rank announcements are currently enabled in {existing.mention}.")
+
+        await self.config.guild(ctx.guild).rank_announcement_channel.set(channel.id)
+        self._log_audit(ctx.guild.id, ctx.author.id, "rankchannel", details=f"channel={channel.id}")
+        await ctx.send(f"✅ Pirate rank announcements will now post in {channel.mention}.")
+
+    @df_admin.command(name="event")
+    async def df_admin_event(self, ctx: commands.Context, *, event_name: t.Optional[str] = None) -> None:
+        """Set or clear the active seasonal Devil Fruit event pool."""
+        if event_name is None:
+            active = await self._get_active_event(ctx.guild)
+            if active is None:
+                available = ", ".join(f"{data['emoji']} `{key}`" for key, data in SEASONAL_EVENTS.items())
+                return await ctx.send(
+                    f"ℹ️ No seasonal event is currently active. Available events: {available}."
+                )
+            event_def = SEASONAL_EVENTS.get(active.lower())
+            if event_def is None:
+                await self.config.guild(ctx.guild).active_event.set(None)
+                return await ctx.send("⚠️ The configured event is no longer available and has been cleared.")
+            return await ctx.send(
+                f"🎉 Seasonal event active: {event_def['emoji']} **{event_def['name']}**."
+            )
+
+        lookup = "".join(event_name.strip().lower().split())
+        if lookup in {"off", "none", "clear", "disable"}:
+            await self.config.guild(ctx.guild).active_event.set(None)
+            self._log_audit(ctx.guild.id, ctx.author.id, "event", details="cleared")
+            return await ctx.send("✅ Seasonal event cleared.")
+
+        matched = next(
+            (key for key, data in SEASONAL_EVENTS.items()
+             if key == lookup or "".join(data["name"].lower().split()) == lookup),
+            None,
+        )
+        if matched is None:
+            available = ", ".join(f"{data['emoji']} `{key}` ({data['name']})" for key, data in SEASONAL_EVENTS.items())
+            return await ctx.send(f"❌ Unknown event `{event_name}`. Available: {available}.")
+
+        await self.config.guild(ctx.guild).active_event.set(matched)
+        self._log_audit(ctx.guild.id, ctx.author.id, "event", details=f"enabled={matched}")
+        event_def = SEASONAL_EVENTS[matched]
+        await ctx.send(f"✅ Seasonal event enabled: {event_def['emoji']} **{event_def['name']}**.")
 
     @df_admin.command(name="giveaway")
     async def df_admin_giveaway(
@@ -1367,41 +1439,33 @@ class OnePieceFruit(commands.Cog):
             if not user_data.fruit_name:
                 continue
             if rarity:
-                lookup = rarity.strip().lower()
-                normalized = "".join(lookup.split())
-                if any(
-                    normalized == key or normalized == "".join(key.lower().split())
-                    for key in DEVIL_FRUITS
-                ):
-                    if user_data.fruit_type.lower() != lookup and "".join(user_data.fruit_type.lower().split()) != normalized:
+                lookup = "".join(rarity.strip().lower().split())
+                rarity_match = any(
+                    lookup == "".join(k.lower().split()) for k in DEVIL_FRUITS
+                )
+                if rarity_match:
+                    if "".join(user_data.fruit_type.lower().split()) != lookup:
                         continue
                 else:
-                    vote = next(
-                        (
-                            key
-                            for key, data in SEASONAL_EVENTS.items()
-                            if key == normalized
-                            or "".join(data["name"].lower().split()) == normalized
-                        ),
+                    event_key = next(
+                        (k for k, d in SEASONAL_EVENTS.items()
+                         if k == lookup or "".join(d["name"].lower().split()) == lookup),
                         None,
                     )
-                    if vote is None:
-                        return await ctx.send(
-                            f"❌ Unknown rarity or event `{rarity}`."
-                        )
-                    event_fruits = {f["name"] for f in SEASONAL_EVENTS[vote]["fruits"]}
+                    if event_key is None:
+                        return await ctx.send(f"❌ Unknown rarity or event `{rarity}`.")
+                    event_fruits = {f["name"] for f in SEASONAL_EVENTS[event_key]["fruits"]}
                     if user_data.fruit_name not in event_fruits:
                         continue
             candidates.append(int(uid_str))
 
         if not candidates:
-            return await ctx.send(
-                "⚠️ No eligible users found for that giveaway filter."
-            )
+            return await ctx.send("⚠️ No eligible users found for that giveaway filter.")
 
-        winners = min(winners, len(candidates))
-        chosen = random.sample(candidates, winners)
+        winners_count = min(winners, len(candidates))
+        chosen = random.sample(candidates, winners_count)
         currency_name = await self._get_currency_name(ctx.guild)
+        adapter = self._currency(ctx.guild)
         winners_lines = []
 
         for uid in chosen:
@@ -1409,30 +1473,26 @@ class OnePieceFruit(commands.Cog):
             if member is None:
                 continue
             try:
-                await self._modify_currency(
-                    member,
-                    amount,
-                    guild=ctx.guild,
-                    actor=ctx.author,
-                    reason="devilfruit:giveaway",
-                )
+                await adapter.deposit(member, amount, reason="devilfruit:giveaway", actor=ctx.author)
                 winners_lines.append(f"• {member.mention} — **{amount:,} {currency_name}**")
             except Exception:
                 winners_lines.append(f"• {member.mention} — failed to credit {currency_name}")
 
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "giveaway",
+            ctx.guild.id, ctx.author.id, "giveaway",
             details=f"amount={amount}, winners={len(chosen)}, filter={rarity or 'all'}",
         )
 
+        filter_str = f" (filter: {rarity})" if rarity else ""
         embed = discord.Embed(
-            title="🎁 Devil Fruit Giveaway",
-            description="\n".join(winners_lines),
+            title=f"🎁 Devil Fruit Giveaway{filter_str}",
+            description="\n".join(winners_lines) if winners_lines else "No members could be credited.",
             colour=discord.Colour.dark_magenta(),
         )
-        embed.set_footer(text=f"Each winner receives {amount:,} {currency_name}.")
+        embed.add_field(name="Prize Each", value=f"{amount:,} {currency_name}", inline=True)
+        embed.add_field(name="Total Paid", value=f"{amount * len(winners_lines):,} {currency_name}", inline=True)
+        embed.add_field(name="Eligible Pool", value=f"{len(candidates)} pirates", inline=True)
+        embed.set_footer(text=f"Run by {ctx.author.display_name}")
         await ctx.send(embed=embed)
 
     @df_admin.command(name="audit")
@@ -1445,110 +1505,57 @@ class OnePieceFruit(commands.Cog):
         """Show recent audit records for this guild."""
         if limit <= 0:
             return await ctx.send("❌ Limit must be greater than 0.")
+        limit = min(limit, 100)
 
         entries = self.db.audit_for_guild(ctx.guild.id)
         if member is not None:
-            entries = [
-                entry
-                for entry in entries
-                if entry.actor_id == member.id or entry.target_id == member.id
-            ]
+            entries = [e for e in entries if e.actor_id == member.id or e.target_id == member.id]
 
         entries = sorted(entries, key=lambda e: e.timestamp, reverse=True)[:limit]
         if not entries:
             return await ctx.send("ℹ️ No matching audit records found.")
 
         await self._send_audit_entries(
-            ctx,
-            entries,
-            title=f"🧾 Audit Log — Last {len(entries)} Records",
+            ctx, entries,
+            title=f"🧾 Audit Log — Last {len(entries)} Records"
+            + (f" for {member.display_name}" if member else ""),
         )
 
     @df_admin.command(name="clearaudit", aliases=["auditclear"])
     async def df_admin_clear_audit(self, ctx: commands.Context) -> None:
-        """Clear all audit records for this guild."""
+        """Clear all audit records for this guild. This cannot be undone."""
+        confirm_msg = await ctx.send(
+            "⚠️ This will permanently delete **all audit records** for this server. "
+            "React ✅ to confirm or ❌ to cancel."
+        )
+        await confirm_msg.add_reaction("✅")
+        await confirm_msg.add_reaction("❌")
+
+        def check(reaction: discord.Reaction, user: discord.User) -> bool:
+            return (
+                user == ctx.author
+                and str(reaction.emoji) in ("✅", "❌")
+                and reaction.message.id == confirm_msg.id
+            )
+
+        try:
+            reaction, _ = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+        except asyncio.TimeoutError:
+            return await ctx.send("⏰ Cancelled — timed out.")
+
+        if str(reaction.emoji) == "❌":
+            return await ctx.send("❌ Audit clear cancelled.")
+
         self.db.clear_audit(ctx.guild.id)
         await self._save()
         await ctx.send("🧹 Audit log cleared for this server.")
 
-    @df_admin.command(name="event")
-    async def df_admin_event(self, ctx: commands.Context, *, event_name: t.Optional[str] = None) -> None:
-        """Set or clear the active seasonal Devil Fruit event pool."""
-        if event_name is None:
-            active = await self._get_active_event(ctx.guild)
-            if active is None:
-                available = ", ".join(
-                    f"{data['emoji']} `{key}`" for key, data in SEASONAL_EVENTS.items()
-                )
-                return await ctx.send(
-                    "ℹ️ No seasonal event is currently active. "
-                    f"Available events: {available}. Use `.df admin event <name>` to enable one."
-                )
-
-            event_def = SEASONAL_EVENTS.get(active.lower())
-            if event_def is None:
-                await self.config.guild(ctx.guild).active_event.set(None)
-                return await ctx.send(
-                    "⚠️ The configured event is no longer available and has been cleared."
-                )
-            return await ctx.send(
-                f"🎉 Seasonal event active: {event_def['emoji']} **{event_def['name']}**. "
-                f"New Devil Fruits will draw from that limited pool."
-            )
-
-        lookup = event_name.strip().lower()
-        if lookup in {"off", "none", "clear", "disable"}:
-            await self.config.guild(ctx.guild).active_event.set(None)
-            self._log_audit(
-                ctx.guild.id,
-                ctx.author.id,
-                "event",
-                details="cleared",
-            )
-            return await ctx.send("✅ Seasonal event cleared. Devil Fruit draws return to normal.")
-
-        normalized = "".join(lookup.split())
-        matched = next(
-            (
-                key
-                for key, data in SEASONAL_EVENTS.items()
-                if key == normalized or "".join(data["name"].lower().split()) == normalized
-            ),
-            None,
-        )
-        if matched is None:
-            available = ", ".join(
-                f"{data['emoji']} `{key}` ({data['name']})" for key, data in SEASONAL_EVENTS.items()
-            )
-            return await ctx.send(
-                f"❌ Unknown event `{event_name}`. Available seasonal events: {available}."
-            )
-
-        await self.config.guild(ctx.guild).active_event.set(matched)
-        self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "event",
-            details=f"enabled={matched}",
-        )
-        event_def = SEASONAL_EVENTS[matched]
-        await ctx.send(
-            f"✅ Seasonal event enabled: {event_def['emoji']} **{event_def['name']}**. "
-            f"New Devil Fruits will now draw from the event fruit pool."
-        )
-
-    # ── Admin: [p]df admin bulkassign ────────────────────────────────────────
     @df_admin.command(name="bulkassign")
     async def df_admin_bulk_assign(self, ctx: commands.Context) -> None:
-        """
-        Scan all server members via LevelUp and assign a Devil Fruit to anyone
-        at Level 5+ who doesn't already have one.
-        """
+        """Scan all server members via LevelUp and assign/update Devil Fruits where missing."""
         levelup_cog = (
-            ctx.bot.get_cog("LevelUp")
-            or ctx.bot.get_cog("Levelup")
-            or ctx.bot.get_cog("levelup")
-            or ctx.bot.get_cog("Level")
+            ctx.bot.get_cog("LevelUp") or ctx.bot.get_cog("Levelup")
+            or ctx.bot.get_cog("levelup") or ctx.bot.get_cog("Level")
         )
         if levelup_cog is None:
             for name, cog in ctx.bot.cogs.items():
@@ -1563,10 +1570,7 @@ class OnePieceFruit(commands.Cog):
         await ctx.send(f"⏳ Found LevelUp cog as `{type(levelup_cog).__name__}`. Scanning all members...")
 
         guild_data = self.db.get_guild(ctx.guild.id)
-        assigned = 0
-        awakening_updated = 0
-        skipped = 0
-        errors = 0
+        assigned = awakening_updated = skipped = errors = 0
 
         try:
             lu_db = getattr(levelup_cog, "db", None)
@@ -1589,23 +1593,13 @@ class OnePieceFruit(commands.Cog):
                     continue
 
                 existing = guild_data.get_user(member.id)
-
                 if existing is None:
                     rarity, fruit = _draw_fruit()
-                    if level >= AWAKENING_STAGE2_LEVEL:
-                        awakening_stage = 2
-                    elif level >= AWAKENING_STAGE1_LEVEL:
-                        awakening_stage = 1
-                    else:
-                        awakening_stage = 0
-
-                    new_data = UserFruitData(
-                        fruit_name=fruit["name"],
-                        fruit_type=rarity,
-                        assigned_at_level=level,
-                        awakening_stage=awakening_stage,
-                    )
-                    guild_data.set_user(member.id, new_data)
+                    awakening_stage = 2 if level >= AWAKENING_STAGE2_LEVEL else (1 if level >= AWAKENING_STAGE1_LEVEL else 0)
+                    guild_data.set_user(member.id, UserFruitData(
+                        fruit_name=fruit["name"], fruit_type=rarity,
+                        assigned_at_level=level, awakening_stage=awakening_stage,
+                    ))
                     assigned += 1
                 else:
                     updated = False
@@ -1628,9 +1622,7 @@ class OnePieceFruit(commands.Cog):
 
         await self._save()
         self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "bulkassign",
+            ctx.guild.id, ctx.author.id, "bulkassign",
             details=f"assigned={assigned}, awakened={awakening_updated}, skipped={skipped}, errors={errors}",
         )
 
@@ -1640,111 +1632,90 @@ class OnePieceFruit(commands.Cog):
         embed.add_field(name="⏭️ Skipped", value=str(skipped), inline=True)
         if errors:
             embed.add_field(name="⚠️ Errors", value=str(errors), inline=True)
-        embed.set_footer(text="Members below Level 5, bots, and members already fully up-to-date are skipped.")
+        embed.set_footer(text="Members below Level 5, bots, and already-current members are skipped.")
         await ctx.send(embed=embed)
 
-    # ── [p]df browse ────────────────────────────────────────────────────────
-    @devilfruit.command(name="browse")
-    async def df_browse(self, ctx: commands.Context, *, rarity: t.Optional[str] = None) -> None:
-        """Browse available Devil Fruits by rarity."""
-        valid = list(DEVIL_FRUITS.keys())
+    @df_admin.command(name="info")
+    async def df_admin_info(self, ctx: commands.Context, member: discord.Member) -> None:
+        """Show a detailed admin view of a member's Devil Fruit and Rep data."""
+        guild_data = self.db.get_guild(ctx.guild.id)
+        user_data = guild_data.get_user(member.id)
 
-        if rarity is None:
-            active_event = await self._get_active_event(ctx.guild)
-            description = (
-                "Use `[p]df browse <type>` to see fruits in a category.\n\n"
-                + "\n".join(f"{RARITY_EMOJIS[r]} **{r}** — {len(DEVIL_FRUITS[r])} fruits" for r in valid)
+        embed = discord.Embed(title=f"🔍 Admin Info — {member.display_name}", colour=discord.Colour.blurple())
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        if user_data and user_data.fruit_name:
+            emoji = RARITY_EMOJIS.get(user_data.fruit_type, "❓")
+            stage_label = AWAKENING_LABELS.get(user_data.awakening_stage, "Unknown")
+            next_cost = _next_reroll_cost(user_data.reroll_count)
+            history_str = (
+                ", ".join(reversed(user_data.reroll_history)) if user_data.reroll_history else "None"
             )
-            if active_event:
-                event_def = SEASONAL_EVENTS.get(active_event.lower())
-                if event_def:
-                    description += (
-                        f"\n\n🎉 Active seasonal event: {event_def['emoji']} **{event_def['name']}** — "
-                        f"use `[p]df browse {active_event}` to preview its fruits."
-                    )
-
-            embed = discord.Embed(
-                title="🍎 Available Devil Fruit Types",
-                description=description,
-                colour=discord.Colour.dark_red(),
-            )
-            return await ctx.send(embed=embed)
-
-        lookup = rarity.strip().lower()
-        normalized_lookup = "".join(lookup.split())
-        matched = next(
-            (
-                r
-                for r in valid
-                if r.lower() == lookup or "".join(r.lower().split()) == normalized_lookup
-            ),
-            None,
-        )
-        if matched is None:
-            event_match = next(
-                (
-                    key
-                    for key, data in SEASONAL_EVENTS.items()
-                    if key == normalized_lookup
-                    or "".join(data["name"].lower().split()) == normalized_lookup
+            embed.add_field(
+                name="🍎 Devil Fruit",
+                value=(
+                    f"{emoji} **{user_data.fruit_name}**\n"
+                    f"Type: {user_data.fruit_type}\n"
+                    f"Awakening: {stage_label}\n"
+                    f"Assigned at level: {user_data.assigned_at_level}"
                 ),
-                None,
+                inline=True,
             )
-            if event_match is not None:
-                event_def = SEASONAL_EVENTS[event_match]
-                fruits = event_def["fruits"]
-                emoji = event_def["emoji"]
-                lines = [f"• {f['name']} — {f['fruit_type']}" for f in fruits]
+            embed.add_field(
+                name="🔄 Rerolls",
+                value=(
+                    f"Total rerolls: **{user_data.reroll_count}**\n"
+                    f"Last cost: {user_data.last_reroll_cost:,}\n"
+                    f"Next cost: {next_cost:,}\n"
+                    f"Previous fruits: {history_str}\n"
+                    f"Profile visible: {'Yes' if user_data.profile_visible else 'No'}"
+                ),
+                inline=True,
+            )
+        else:
+            embed.add_field(name="🍎 Devil Fruit", value="*No fruit assigned*", inline=True)
+            embed.add_field(name="🔄 Rerolls", value="—", inline=True)
 
-                embed = discord.Embed(
-                    title=f"{emoji} {event_def['name']} Seasonal Fruits ({len(fruits)} total)",
-                    description="\n".join(lines),
-                    colour=discord.Colour.dark_purple(),
-                )
-                embed.set_footer(text="Seasonal event fruit pool")
-                return await ctx.send(embed=embed)
+        if self.rep_tracker is not None:
+            u = self.rep_tracker.get_user(ctx.guild.id, member.id)
+            from .piraterep import _rank_for_rep, _week_key
+            title, rank_emoji = _rank_for_rep(u.rep)
+            week = _week_key()
+            weekly = u.weekly_messages if u.current_week == week else 0
+            embed.add_field(
+                name="⚓ Pirate Rep",
+                value=(
+                    f"Rep: **{u.rep:,}**\n"
+                    f"Rank: {rank_emoji} {title}\n"
+                    f"Streak: {u.streak} days (best: {u.longest_streak})\n"
+                    f"Total messages: {u.total_messages:,}\n"
+                    f"This week: {weekly:,}\n"
+                    f"Last seen: {u.last_seen or 'never'}"
+                ),
+                inline=False,
+            )
+        else:
+            embed.add_field(name="⚓ Pirate Rep", value="*Rep tracker not initialised*", inline=False)
 
-            return await ctx.send(f"❌ Unknown rarity `{rarity}`. Valid options: {', '.join(valid)}")
+        entries = self.db.audit_for_guild(ctx.guild.id)
+        member_entries = sorted(
+            [e for e in entries if e.actor_id == member.id or e.target_id == member.id],
+            key=lambda e: e.timestamp,
+            reverse=True,
+        )[:3]
+        if member_entries:
+            embed.add_field(
+                name="🧾 Recent Audit (last 3)",
+                value="\n".join(self._audit_line(e) for e in member_entries),
+                inline=False,
+            )
 
-        fruits = DEVIL_FRUITS[matched]
-        emoji = RARITY_EMOJIS[matched]
-        lines = [f"• {f['name']}" for f in fruits]
-
-        embed = discord.Embed(
-            title=f"{emoji} {matched} Fruits ({len(fruits)} total)",
-            description="\n".join(lines),
-            colour=RARITY_COLOURS[matched],
-        )
-        embed.set_footer(text=f"Drop chance: {RARITY_WEIGHTS[matched]}%")
+        embed.set_footer(text=f"ID: {member.id} • Requested by {ctx.author.display_name}")
         await ctx.send(embed=embed)
 
-    @devilfruit.command(name="search")
-    async def df_search(self, ctx: commands.Context, *, query: str) -> None:
-        """Search Devil Fruits by partial name."""
-        normalized = query.strip().lower()
-        if not normalized:
-            return await ctx.send("❌ Usage: `.df search <term>`")
-
-        results = []
-        for rarity, fruits in DEVIL_FRUITS.items():
-            for fruit in fruits:
-                if normalized in fruit["name"].lower():
-                    results.append(f"{RARITY_EMOJIS.get(rarity, '❓')} **{fruit['name']}** — {rarity}")
-
-        if not results:
-            return await ctx.send(f"❌ No Devil Fruits found matching `{query}`.")
-
-        if len(results) > 20:
-            results = results[:20] + ["...and more results not shown."]
-
-        embed = discord.Embed(
-            title=f"🔎 Devil Fruit Search — {query}",
-            description="\n".join(results),
-            colour=discord.Colour.dark_red(),
-        )
-        await ctx.send(embed=embed)
-
-    # ── Format help ──────────────────────────────────────────────────────────
+    # -----------------------------------------------------------------------
+    # Format help
+    # -----------------------------------------------------------------------
     def format_help_for_context(self, ctx: commands.Context) -> str:
         base = super().format_help_for_context(ctx)
         return f"{base}\nVersion: {self.__version__}\nAuthor: {self.__author__}"
@@ -1755,3 +1726,8 @@ class OnePieceFruit(commands.Cog):
 # ---------------------------------------------------------------------------
 async def setup(bot: Red) -> None:
     await bot.add_cog(OnePieceFruit(bot))
+
+
+def _utc_today():
+    from datetime import date
+    return datetime.now(timezone.utc).date()
