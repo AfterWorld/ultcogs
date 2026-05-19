@@ -361,6 +361,7 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
 
         vault["security"] = level
         await self._set_vault_info(ctx.author, vault)
+        name, icon = await self._currency_fmt(ctx.guild)
         await ctx.send(f"✅ Vault upgraded to {VAULT_SECURITY_LEVELS[level]['label']} for **{humanize_number(cost)}** {icon}.")
 
     @vault.command(name="info")
