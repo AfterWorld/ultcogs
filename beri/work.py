@@ -106,7 +106,7 @@ PLUNDER_FAIL = [
     "A failed plunder cost you {fine} {icon} while you made your escape.",
 ]
 
-DAILY_REWARDS = [250, 300, 350, 400, 450, 500]
+DAILY_REWARDS = [1000, 1250, 1500, 1750, 2000, 2250]
 
 
 class Work(commands.Cog):
