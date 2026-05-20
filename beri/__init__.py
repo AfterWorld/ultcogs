@@ -27,9 +27,9 @@ from .income import Income
 from .audit import AuditLog
 from .xkcd import XKCD
 from .treasure import Treasure
+from .fishing import Fishing
 
-
-class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
+class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog):
     """
     One Piece-themed Beri economy powered by BeriCore.
     Provides games, gambling, activity commands, passive income,
@@ -75,6 +75,15 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, commands.Cog):
         "vault": {
             "balance": 0,
             "security": "basic",
+        },
+        # Fishing data
+        "fishing": {
+            "rod": "driftwood",
+            "last_fish": None,
+            "total_casts": 0,
+            "total_earned": 0,
+            "catches": {},
+            "best_catch": None,
         },
     }
 
