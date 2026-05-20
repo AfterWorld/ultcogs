@@ -76,15 +76,8 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog
             "balance": 0,
             "security": "basic",
         },
-        # Fishing data
-        "fishing": {
-            "rod": "driftwood",
-            "last_fish": None,
-            "total_casts": 0,
-            "total_earned": 0,
-            "catches": {},
-            "best_catch": None,
-        },
+        # Fishing data — managed as raw JSON by fishing.py to avoid Red's nested_update issues
+        "fishing_json": "",
     }
 
     DEFAULT_GLOBAL = {

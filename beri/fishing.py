@@ -134,13 +134,37 @@ class Fishing(commands.Cog):
 
     # ── Config helpers ────────────────────────────────────────────────────────
 
+    _FISHING_DEFAULTS = {
+        "rod": "driftwood",
+        "last_fish": "",
+        "total_casts": 0,
+        "total_earned": 0,
+        "catches": {},
+        "best_catch": {},   # {} = no best catch yet; never None (breaks Red's nested_update)
+    }
+
     async def _fishing_data(self, member: discord.Member) -> dict:
-        """Return this member's fishing sub-config, with defaults."""
-        raw = await self.config.member(member).fishing()
-        return raw if raw else {}
+        """
+        Load fishing data from a flat JSON string stored under 'fishing_json'.
+        Bypasses Red's nested_update entirely, which chokes on None-valued nested keys.
+        """
+        import json
+        raw = await self.config.member(member).fishing_json()
+        if not raw:
+            return dict(self._FISHING_DEFAULTS)
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            data = {}
+        # Fill in any missing keys from defaults
+        for k, v in self._FISHING_DEFAULTS.items():
+            if k not in data:
+                data[k] = v
+        return data
 
     async def _save_fishing_data(self, member: discord.Member, data: dict):
-        await self.config.member(member).fishing.set(data)
+        import json
+        await self.config.member(member).fishing_json.set(json.dumps(data))
 
     def _rod_info(self, rod_key: str) -> dict:
         return RODS.get(rod_key, RODS["driftwood"])
@@ -207,8 +231,8 @@ class Fishing(commands.Cog):
         data["catches"][c_name] = data["catches"].get(c_name, 0) + 1
 
         # Track best catch
-        prev_best = data.get("best_catch")
-        if prev_best is None or beri > prev_best.get("beri", 0):
+        prev_best = data.get("best_catch") or {}
+        if not prev_best.get("name") or beri > prev_best.get("beri", 0):
             data["best_catch"] = {"name": c_name, "beri": beri, "rarity": rarity}
 
         await self._save_fishing_data(ctx.author, data)
@@ -402,7 +426,7 @@ class Fishing(commands.Cog):
         total_casts = data.get("total_casts", 0)
         total_earned = data.get("total_earned", 0)
         catches: dict = data.get("catches", {})
-        best = data.get("best_catch")
+        best = data.get("best_catch") or {}
 
         embed = discord.Embed(
             title=f"🎣 {target.display_name}'s Fishing Log",
@@ -412,7 +436,7 @@ class Fishing(commands.Cog):
         embed.add_field(name="Total Casts", value=humanize_number(total_casts), inline=True)
         embed.add_field(name="Total Earned", value=f"{humanize_number(total_earned)} {icon}", inline=True)
 
-        if best:
+        if best.get("name"):
             embed.add_field(
                 name="🏆 Best Catch",
                 value=f"**{best['name']}** ({best['rarity'].capitalize()}) — {humanize_number(best['beri'])} {icon}",
