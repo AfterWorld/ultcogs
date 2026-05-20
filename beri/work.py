@@ -9,6 +9,8 @@ from typing import Optional
 
 import discord
 from redbot.core import commands
+
+from .fruitbonuses import FRUIT_COMMAND_BONUSES
 from redbot.core.utils.chat_formatting import humanize_number
 
 VAULT_SECURITY_LEVELS = {
@@ -127,6 +129,28 @@ class Work(commands.Cog):
       - self._currency_fmt(guild)
     """
 
+    async def _fruit_effects(self, member: discord.Member) -> dict:
+        fruit_data = await self._get_fruit_data(member)
+        return FRUIT_COMMAND_BONUSES.get(fruit_data.get("fruit_name", ""), {})
+
+    def _apply_activity_amount_bonus(self, amount: int, effects: dict) -> int:
+        return int(amount * (1.0 + effects.get("all_activity_luck", 0.0)))
+
+    def _apply_activity_success_bonus(self, rate: float, effects: dict) -> float:
+        return min(0.95, rate + effects.get("all_activity_luck", 0.0))
+
+    def _reduce_command_cooldown(self, ctx: commands.Context, reduction_pct: float):
+        bucket = ctx.command._buckets.get_bucket(ctx.message)
+        if bucket is None:
+            return
+        current = ctx.message.created_at.timestamp()
+        remaining = bucket.get_retry_after(current)
+        if remaining <= 0:
+            return
+        new_remaining = max(0.0, remaining * (1.0 - reduction_pct))
+        bucket._window = current - (bucket.per - new_remaining)
+        bucket._tokens = 0
+
     @commands.command(name="work")
     @commands.guild_only()
     @commands.cooldown(1, 3600, commands.BucketType.user)
@@ -135,6 +159,8 @@ class Work(commands.Cog):
         name, icon = await self._currency_fmt(ctx.guild)
         job_name, lo, hi = random.choice(WORK_JOBS)
         amount = random.randint(lo, hi)
+        effects = await self._fruit_effects(ctx.author)
+        amount = self._apply_activity_amount_bonus(amount, effects)
 
         new_bal = await self._safe_modify(
             ctx, ctx.guild, ctx.author, amount,
@@ -157,11 +183,15 @@ class Work(commands.Cog):
     async def crime(self, ctx: commands.Context):
         """Attempt a shady One Piece caper for Beri. (2 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        effects = await self._fruit_effects(ctx.author)
         job_name, lo, hi, success_rate = random.choice(CRIME_SCENARIOS)
+        success_rate = self._apply_activity_success_bonus(success_rate, effects) + effects.get("crime_success_bonus", 0.0)
         won = random.random() < success_rate
 
         if won:
             amount = random.randint(lo, hi)
+            amount = int(amount * effects.get("crime_payout_mul", 1.0))
+            amount = self._apply_activity_amount_bonus(amount, effects)
             new_bal = await self._safe_modify(
                 ctx, ctx.guild, ctx.author, amount,
                 reason="activity:crime:success", actor="System",
@@ -196,6 +226,7 @@ class Work(commands.Cog):
     async def hack(self, ctx: commands.Context, target: Optional[discord.Member] = None, *, mode: str = "wallet"):
         """Hack World Government systems or siphon another pirate's wallet or vault. (90 min cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        effects = await self._fruit_effects(ctx.author)
         mode = mode.lower() if mode else "wallet"
 
         if target and target != ctx.author and not target.bot:
@@ -211,6 +242,8 @@ class Work(commands.Cog):
                 won = random.random() < success_rate
                 if won:
                     amount = random.randint(50, min(500, vault_balance // 4))
+                    amount = int(amount * effects.get("hack_amount_mul", 1.0))
+                    amount = self._apply_activity_amount_bonus(amount, effects)
                     amount = min(amount, vault_balance)
                     vault["balance"] = vault_balance - amount
                     await self.config.member(target).vault.set(vault)
@@ -223,6 +256,8 @@ class Work(commands.Cog):
                 else:
                     balance = await self._get_balance(ctx.guild, ctx.author)
                     fine = min(random.randint(75, 450), balance)
+                    if effects.get("hack_fail_no_fine"):
+                        fine = 0
                     new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:vault:fail", actor="System", bypass_cap=True)
                     if new_bal is None:
                         return
@@ -232,9 +267,12 @@ class Work(commands.Cog):
                 victim_bal = await self._get_balance(ctx.guild, target)
                 if victim_bal < 50:
                     return await ctx.send(f"❌ {target.mention} is too broke to hack.")
-                won = random.random() < 0.45
+                success_rate = self._apply_activity_success_bonus(0.45, effects)
+                won = random.random() < success_rate
                 if won:
                     amount = random.randint(50, min(500, victim_bal // 4))
+                    amount = int(amount * effects.get("hack_amount_mul", 1.0))
+                    amount = self._apply_activity_amount_bonus(amount, effects)
                     try:
                         await self._modify_balance(ctx.guild, target, -amount, reason=f"hack:victim:{ctx.author.id}", actor=ctx.author)
                         new_bal = await self._modify_balance(ctx.guild, ctx.author, amount, reason=f"hack:attacker:{target.id}", actor="System", metadata={"victim_id": target.id})
@@ -245,10 +283,15 @@ class Work(commands.Cog):
                 else:
                     balance = await self._get_balance(ctx.guild, ctx.author)
                     fine = min(random.randint(50, 300), balance)
+                    if effects.get("hack_fail_no_fine"):
+                        fine = 0
                     new_bal = await self._safe_modify(ctx, ctx.guild, ctx.author, -fine, reason="hack:fail", actor="System", bypass_cap=True)
                     if new_bal is None:
                         return
-                    embed = discord.Embed(title="💻 Hack — TRACED", description=f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}.", color=discord.Color.red())
+                    description = f"{target.mention}'s firewall fought back. You lost **{humanize_number(fine)}** {icon}."
+                    if fine == 0 and effects.get("hack_fail_no_fine"):
+                        description = f"Your Yami fruit warped the penalty away. No Beri was lost."
+                    embed = discord.Embed(title="💻 Hack — TRACED", description=description, color=discord.Color.red())
                     embed.add_field(name="Lost", value=f"**-{humanize_number(fine)}** {icon}", inline=True)
         else:
             sys_name, lo, hi, success_rate = random.choice(HACK_TARGETS)
@@ -273,6 +316,8 @@ class Work(commands.Cog):
 
         embed.add_field(name="Balance", value=f"{humanize_number(new_bal)} {icon}", inline=True)
         embed.set_footer(text=f"{ctx.author.display_name} • Next hack in 90 min")
+        if effects.get("hack_cooldown_reduction_pct"):
+            self._reduce_command_cooldown(ctx, effects["hack_cooldown_reduction_pct"])
         await ctx.send(embed=embed)
 
     @commands.command(name="slut", aliases=["sexy", "exotic"])
@@ -281,8 +326,10 @@ class Work(commands.Cog):
     async def slut(self, ctx: commands.Context):
         """Use your charm and earn Beri in a Grand Line venue. (1 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        effects = await self._fruit_effects(ctx.author)
         job_name, lo, hi = random.choice(SLUT_SCENARIOS)
         amount = random.randint(lo, hi)
+        amount = self._apply_activity_amount_bonus(amount, effects)
 
         new_bal = await self._safe_modify(
             ctx, ctx.guild, ctx.author, amount,
@@ -304,15 +351,16 @@ class Work(commands.Cog):
     async def beg(self, ctx: commands.Context):
         """Plead your case and scrounge up some Beri from the crew. (1 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
-
-        success = random.random() < 0.75
+        effects = await self._fruit_effects(ctx.author)
+        outcomes = [
+            ("A passing pirate dropped some coins in your hat.", random.randint(100, 400)),
+            ("A shipmate felt sorry for you and tossed you some Beri.", random.randint(150, 500)),
+            ("You sang a sorrowful shanty and earned a few generous tips.", random.randint(120, 450)),
+        ]
+        success = random.random() < self._apply_activity_success_bonus(0.75, effects)
         if success:
-            outcomes = [
-                ("A passing pirate dropped some coins in your hat.", random.randint(100, 400)),
-                ("A shipmate felt sorry for you and tossed you some Beri.", random.randint(150, 500)),
-                ("You sang a sorrowful shanty and earned a few generous tips.", random.randint(120, 450)),
-            ]
             message, amount = random.choice(outcomes)
+            amount = self._apply_activity_amount_bonus(amount, effects)
             new_bal = await self._safe_modify(
                 ctx, ctx.guild, ctx.author, amount,
                 reason="activity:beg", actor="System",
@@ -344,11 +392,15 @@ class Work(commands.Cog):
     async def plunder(self, ctx: commands.Context):
         """Raid a ship or convoy and claim loot for your crew. (3 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        effects = await self._fruit_effects(ctx.author)
         target_name, lo, hi, success_rate = random.choice(PLUNDER_SCENARIOS)
+        success_rate = self._apply_activity_success_bonus(success_rate, effects)
         won = random.random() < success_rate
 
         if won:
             amount = random.randint(lo, hi)
+            amount = int(amount * effects.get("plunder_payout_mul", 1.0))
+            amount = self._apply_activity_amount_bonus(amount, effects)
             new_bal = await self._safe_modify(
                 ctx, ctx.guild, ctx.author, amount,
                 reason="activity:plunder:success", actor="System",
@@ -390,7 +442,9 @@ class Work(commands.Cog):
     async def daily(self, ctx: commands.Context):
         """Claim your daily Beri ration. (24 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        effects = await self._fruit_effects(ctx.author)
         amount = random.choice(DAILY_REWARDS)
+        amount = self._apply_activity_amount_bonus(amount, effects)
         new_bal = await self._safe_modify(
             ctx, ctx.guild, ctx.author, amount,
             reason="activity:daily", actor="System",
@@ -413,6 +467,7 @@ class Work(commands.Cog):
     async def rob(self, ctx: commands.Context, target: discord.Member):
         """Attempt to rob another user. (1 hour cooldown)"""
         name, icon = await self._currency_fmt(ctx.guild)
+        attacker_effects = await self._fruit_effects(ctx.author)
 
         if target == ctx.author:
             return await ctx.send("❌ You can't rob yourself.")
@@ -421,16 +476,23 @@ class Work(commands.Cog):
 
         victim_bal = await self._get_balance(ctx.guild, target)
         robber_bal = await self._get_balance(ctx.guild, ctx.author)
+        target_fruit = await self._get_fruit_data(target)
+        if target_fruit.get("fruit_name") == "Bara Bara no Mi" and random.random() < 0.5:
+            return await ctx.send(f"❌ {target.mention}'s Bara Bara no Mi made them untouchable this time.")
 
         if victim_bal < 100:
             return await ctx.send(f"❌ {target.mention} doesn't have enough to be worth robbing.")
 
         ratio = min(robber_bal / max(victim_bal, 1), 2.0)
         success_rate = max(0.25, min(0.65, 0.40 + (ratio - 1) * 0.15))
+        success_rate += attacker_effects.get("rob_success_bonus", 0.0)
+        success_rate = self._apply_activity_success_bonus(success_rate, attacker_effects)
         won = random.random() < success_rate
 
         if won:
             stolen = max(50, random.randint(int(victim_bal * 0.05), int(victim_bal * 0.25)))
+            stolen = int(stolen * attacker_effects.get("rob_stolen_mul", 1.0))
+            stolen = self._apply_activity_amount_bonus(stolen, attacker_effects)
             try:
                 await self._modify_balance(ctx.guild, target, -stolen, reason=f"rob:victim:{ctx.author.id}", actor=ctx.author)
                 new_bal = await self._modify_balance(ctx.guild, ctx.author, stolen, reason=f"rob:success:{target.id}", actor="System", metadata={"victim_id": target.id, "amount": stolen})

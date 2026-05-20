@@ -23,6 +23,8 @@ import discord
 from redbot.core import commands
 from redbot.core.utils.chat_formatting import humanize_number
 
+from .fruitbonuses import FISHING_FRUIT_BONUSES_BY_TYPE, FRUIT_COMMAND_BONUSES, LEGENDARY_ONLY_CATCHES
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Rod data
 # ══════════════════════════════════════════════════════════════════════════════
@@ -171,20 +173,32 @@ class Fishing(commands.Cog):
 
     # ── Weighted catch roll ───────────────────────────────────────────────────
 
-    def _roll_catch(self, bonus_weight: int):
+    def _roll_catch(self, bonus_weight: int, fruit_type: str):
         """
         Roll a random catch. bonus_weight is added to every rare+ entry's
         weight, nudging better rods toward richer catches.
         """
+        fruit_bonus = FISHING_FRUIT_BONUSES_BY_TYPE.get(fruit_type, {})
         pool = []
         weights = []
-        for entry in CATCHES:
+        entries = list(CATCHES)
+        if fruit_bonus.get("legendary_only_pool"):
+            entries += LEGENDARY_ONLY_CATCHES
+
+        for entry in entries:
             name, emoji, rarity, base_w, lo, hi, flavour = entry
             w = base_w
+            if rarity in ("trash", "common"):
+                w += fruit_bonus.get("trash_common_weight_delta", 0)
             if rarity in ("rare", "epic", "legendary"):
                 w += bonus_weight
+                w += fruit_bonus.get("rare_plus_weight", 0)
+            if rarity in ("epic", "legendary"):
+                w += fruit_bonus.get("epic_legendary_weight", 0)
+            if rarity == "legendary":
+                w += fruit_bonus.get("legendary_weight", 0)
             pool.append(entry)
-            weights.append(w)
+            weights.append(max(1, w))
         return random.choices(pool, weights=weights, k=1)[0]
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -200,7 +214,13 @@ class Fishing(commands.Cog):
 
         rod_key = data.get("rod", "driftwood")
         rod = self._rod_info(rod_key)
-        cooldown_secs = rod["cooldown"]
+        fruit_info = await self._get_fruit_data(ctx.author)
+        fruit_type = fruit_info.get("fruit_type", "")
+        fruit_name = fruit_info.get("fruit_name", "")
+        cooldown_secs = int(
+            rod["cooldown"] *
+            (1.0 - FISHING_FRUIT_BONUSES_BY_TYPE.get(fruit_type, {}).get("cooldown_reduce_pct", 0.0))
+        )
 
         # Manual cooldown (per-rod)
         now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -217,9 +237,11 @@ class Fishing(commands.Cog):
                 )
 
         # Roll the catch
-        catch = self._roll_catch(rod["bonus_weight"])
+        catch = self._roll_catch(rod["bonus_weight"], fruit_type)
         c_name, c_emoji, rarity, _, lo, hi, flavour = catch
         beri = random.randint(lo, hi) if hi > 0 else 0
+        beri += FISHING_FRUIT_BONUSES_BY_TYPE.get(fruit_type, {}).get("flat_beri_bonus", 0)
+        beri += int(beri * FRUIT_COMMAND_BONUSES.get(fruit_name, {}).get("all_activity_luck", 0.0))
 
         # Update stats
         data["last_fish"] = now.isoformat()

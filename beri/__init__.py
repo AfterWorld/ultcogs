@@ -231,6 +231,25 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog
             await ctx.send('❌ Invalid amount. Use a positive integer or "all".')
             return None
 
+    async def _get_fruit_data(self, member: discord.Member) -> dict:
+        """Return fruit_name and fruit_type for a member from OnePieceFruit."""
+        fruit_data = {"fruit_name": "", "fruit_type": ""}
+        opf = self.bot.get_cog("OnePieceFruit")
+        if opf is None:
+            return fruit_data
+        try:
+            guild_data = opf.db.get_guild(member.guild.id)
+        except Exception:
+            return fruit_data
+        if guild_data is None:
+            return fruit_data
+        user_data = guild_data.get_user(member.id)
+        if user_data is None or not getattr(user_data, "fruit_name", None):
+            return fruit_data
+        fruit_data["fruit_name"] = user_data.fruit_name or ""
+        fruit_data["fruit_type"] = user_data.fruit_type or ""
+        return fruit_data
+
     # ══════════════════════════════════════════════════════════════════════
     # Core commands
     # ══════════════════════════════════════════════════════════════════════
