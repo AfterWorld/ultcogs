@@ -1,0 +1,9 @@
+{
+    "author": ["YourName"],
+    "description": "A social deduction word game where players try to find Mr. White",
+    "install_msg": "Thanks for installing Mr. White! Use `[p]mrwhite start` to begin a game.",
+    "short": "Mr. White social deduction game",
+    "tags": ["game", "fun", "social"],
+    "type": "COG",
+    "end_user_data_statement": "This cog does not store any end user data."
+}
