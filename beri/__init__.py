@@ -113,16 +113,20 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, Weather, com
 
     async def cog_load(self):
         Treasure.cog_load(self)
+        # Start weather loop if not already running
         try:
-            self._weather_loop.start()
+            if not self._weather_loop.is_running():
+                self._weather_loop.start()
         except RuntimeError:
             # already running or cannot start
             pass
 
     async def cog_unload(self):
         Treasure.cog_unload(self)
+        # Stop weather loop if running
         try:
-            self._weather_loop.cancel()
+            if self._weather_loop.is_running():
+                self._weather_loop.stop()
         except Exception:
             pass
 

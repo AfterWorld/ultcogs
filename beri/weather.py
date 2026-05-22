@@ -20,7 +20,7 @@ import logging
 import random
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any, Union
 
 import discord
 from discord.ext import tasks
@@ -366,6 +366,30 @@ def _fmt_duration(seconds: int) -> str:
     return f"{minutes}m"
 
 
+def _parse_iso_dt(value: Optional[str]) -> Optional[datetime]:
+    """Safely parse an ISO datetime string into a timezone-aware datetime or None.
+
+    Returns None if parsing fails. Ensures UTC tzinfo when missing.
+    """
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except Exception:
+        try:
+            # Accept trailing Z as UTC
+            if value.endswith("Z"):
+                dt = datetime.fromisoformat(value[:-1] + "+00:00")
+            else:
+                return None
+        except Exception:
+            return None
+    # Ensure timezone-aware
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _build_modifier_lines(modifiers: dict) -> list[str]:
     """Build human-readable modifier lines for embed display."""
     lines = []
@@ -421,7 +445,7 @@ class Weather(commands.Cog):
         guild: discord.Guild,
         modifier_key: str,
         default: float = 1.0,
-    ) -> float:
+    ) -> Any:
         """
         Primary interface for all economy commands.
         Returns the float modifier for a given key under current weather.
@@ -437,11 +461,10 @@ class Weather(commands.Cog):
 
         # Lazy expiry check — transition now if expired
         expires_at_str = weather_cfg.get("expires_at")
-        if expires_at_str:
-            expires_dt = datetime.fromisoformat(expires_at_str)
-            if datetime.now(timezone.utc) >= expires_dt:
-                await self._transition_weather(guild)
-                weather_cfg = await self.config.guild(guild).weather()
+        expires_dt = _parse_iso_dt(expires_at_str)
+        if expires_dt and datetime.now(timezone.utc) >= expires_dt:
+            await self._transition_weather(guild)
+            weather_cfg = await self.config.guild(guild).weather()
 
         current = weather_cfg.get("current_state", "calm_seas")
         state = WEATHER_STATES.get(current, {})
@@ -459,8 +482,9 @@ class Weather(commands.Cog):
         if modifier_key in ("crime_success_delta", "rob_success_delta"):
             crackdown = weather_cfg.get("crackdown_active", False)
             crackdown_expires_str = weather_cfg.get("crackdown_expires")
-            if crackdown and crackdown_expires_str:
-                if datetime.fromisoformat(crackdown_expires_str) > datetime.now(timezone.utc):
+            crackdown_expires = _parse_iso_dt(crackdown_expires_str)
+            if crackdown and crackdown_expires:
+                if crackdown_expires > datetime.now(timezone.utc):
                     base = base - 0.30
                 else:
                     # Crackdown expired — clean it up
@@ -478,10 +502,10 @@ class Weather(commands.Cog):
         weather_cfg = await self.config.guild(guild).weather()
         current = weather_cfg.get("current_state", "calm_seas")
         expires_at_str = weather_cfg.get("expires_at")
-
         remaining_seconds = 0
-        if expires_at_str:
-            delta = datetime.fromisoformat(expires_at_str) - datetime.now(timezone.utc)
+        expires_dt = _parse_iso_dt(expires_at_str)
+        if expires_dt:
+            delta = expires_dt - datetime.now(timezone.utc)
             remaining_seconds = max(0, int(delta.total_seconds()))
 
         state = WEATHER_STATES.get(current, WEATHER_STATES["calm_seas"])
@@ -729,7 +753,11 @@ class Weather(commands.Cog):
                     await self._transition_weather(guild, force_state="calm_seas")
                     continue
 
-                expires_at = datetime.fromisoformat(weather_cfg["expires_at"])
+                expires_at = _parse_iso_dt(weather_cfg.get("expires_at"))
+                if expires_at is None:
+                    # Initialize weather when stored value is missing/invalid
+                    await self._transition_weather(guild, force_state="calm_seas")
+                    continue
                 if now >= expires_at:
                     await self._transition_weather(guild)
 
