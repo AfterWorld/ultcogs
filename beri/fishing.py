@@ -236,12 +236,20 @@ class Fishing(commands.Cog):
                     f"🎣 Your line is still in the water! Try again in **{time_str}**."
                 )
 
+        # Include weather legendary weight bonus in roll
+        weather_legendary = int(
+            await self.get_weather_modifier(ctx.guild, "legendary_catch_weight", default=0)
+        )
         # Roll the catch
-        catch = self._roll_catch(rod["bonus_weight"], fruit_type)
+        catch = self._roll_catch(rod["bonus_weight"] + weather_legendary, fruit_type)
         c_name, c_emoji, rarity, _, lo, hi, flavour = catch
         beri = random.randint(lo, hi) if hi > 0 else 0
         beri += FISHING_FRUIT_BONUSES_BY_TYPE.get(fruit_type, {}).get("flat_beri_bonus", 0)
         beri += int(beri * FRUIT_COMMAND_BONUSES.get(fruit_name, {}).get("all_activity_luck", 0.0))
+
+        # Apply weather fishing multiplier
+        fish_mult = await self.get_weather_modifier(ctx.guild, "fishing_multiplier")
+        beri = int(beri * fish_mult)
 
         # Update stats
         data["last_fish"] = now.isoformat()

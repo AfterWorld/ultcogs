@@ -162,6 +162,13 @@ class Work(commands.Cog):
         effects = await self._fruit_effects(ctx.author)
         amount = self._apply_activity_amount_bonus(amount, effects)
 
+        # Apply weather multipliers and Yonko tribute
+        weather_mult = await self.get_weather_modifier(ctx.guild, "work_multiplier")
+        amount = int(amount * weather_mult)
+
+        tribute = await self.collect_yonko_tribute(ctx.guild, ctx.author, amount)
+        amount -= tribute
+
         new_bal = await self._safe_modify(
             ctx, ctx.guild, ctx.author, amount,
             reason="activity:work", actor="System",
@@ -186,6 +193,9 @@ class Work(commands.Cog):
         effects = await self._fruit_effects(ctx.author)
         job_name, lo, hi, success_rate = random.choice(CRIME_SCENARIOS)
         success_rate = self._apply_activity_success_bonus(success_rate, effects) + effects.get("crime_success_bonus", 0.0)
+        # Apply weather crime delta
+        weather_crime_delta = await self.get_weather_modifier(ctx.guild, "crime_success_delta", default=0.0)
+        success_rate += weather_crime_delta
         won = random.random() < success_rate
 
         if won:
@@ -401,6 +411,9 @@ class Work(commands.Cog):
             amount = random.randint(lo, hi)
             amount = int(amount * effects.get("plunder_payout_mul", 1.0))
             amount = self._apply_activity_amount_bonus(amount, effects)
+            # Apply weather plunder multiplier
+            weather_plunder = await self.get_weather_modifier(ctx.guild, "plunder_multiplier")
+            amount = int(amount * weather_plunder)
             new_bal = await self._safe_modify(
                 ctx, ctx.guild, ctx.author, amount,
                 reason="activity:plunder:success", actor="System",
@@ -487,6 +500,9 @@ class Work(commands.Cog):
         success_rate = max(0.25, min(0.65, 0.40 + (ratio - 1) * 0.15))
         success_rate += attacker_effects.get("rob_success_bonus", 0.0)
         success_rate = self._apply_activity_success_bonus(success_rate, attacker_effects)
+        # Apply weather rob delta
+        weather_rob_delta = await self.get_weather_modifier(ctx.guild, "rob_success_delta", default=0.0)
+        success_rate += weather_rob_delta
         won = random.random() < success_rate
 
         if won:

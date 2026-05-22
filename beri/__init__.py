@@ -28,8 +28,9 @@ from .audit import AuditLog
 from .xkcd import XKCD
 from .treasure import Treasure
 from .fishing import Fishing
+from .weather import Weather
 
-class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog):
+class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, Weather, commands.Cog):
     """
     One Piece-themed Beri economy powered by BeriCore.
     Provides games, gambling, activity commands, passive income,
@@ -59,6 +60,17 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog
             "tickets": {},
             "channel": None,
             "house_cut": 0.10,
+        },
+        "weather": {
+            "current_state":    "calm_seas",
+            "started_at":       None,       # ISO timestamp
+            "expires_at":       None,       # ISO timestamp
+            "channel_id":       None,       # world state announcement channel
+            "last_state":       None,       # for transition logic
+            "yonko_treasury":   0,          # tribute accumulation
+            "crackdown_active": False,
+            "crackdown_expires": None,
+            "crackdown_threshold": 500,
         },
     }
 
@@ -99,11 +111,20 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, commands.Cog
 
     # ── Lifecycle hooks (required for Treasure's background task) ──────────
 
-    def cog_load(self):
+    async def cog_load(self):
         Treasure.cog_load(self)
+        try:
+            self._weather_loop.start()
+        except RuntimeError:
+            # already running or cannot start
+            pass
 
-    def cog_unload(self):
+    async def cog_unload(self):
         Treasure.cog_unload(self)
+        try:
+            self._weather_loop.cancel()
+        except Exception:
+            pass
 
     # ══════════════════════════════════════════════════════════════════════
     # BeriCore bridge — ALL balance ops flow through here
