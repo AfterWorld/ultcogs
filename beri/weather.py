@@ -908,7 +908,7 @@ class Weather(commands.Cog):
     # Admin commands
     # -----------------------------------------------------------------------
 
-    @commands.group(name="weatherset", aliases=["wset"])
+    @commands.group(name="weatherset")
     @commands.admin_or_permissions(administrator=True)
     @commands.guild_only()
     async def weatherset(self, ctx: commands.Context) -> None:
