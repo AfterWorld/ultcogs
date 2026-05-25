@@ -1,0 +1,11 @@
+{
+    "name": "GeoGuessr",
+    "short": "GeoGuessr-style location guessing game using Google Street View.",
+    "description": "A multiplayer GeoGuessr-style game for Discord. Posts a Google Street View image and players race to guess the location. Features distance-based scoring (up to 5,000 pts), a 90-second timer, per-round multiplayer results, and an all-time server leaderboard.",
+    "version": "1.0.0",
+    "author": ["UltPanda"],
+    "install_msg": "Set your API keys first:\n`[p]geoset streetview_key <key>`\n`[p]geoset maps_key <key>`\n\nGet keys at https://console.cloud.google.com — enable **Street View Static API** and **Geocoding API**.",
+    "required_cogs": {},
+    "requirements": ["aiohttp"],
+    "tags": ["game", "geoguessr", "geography", "fun", "trivia"]
+}
