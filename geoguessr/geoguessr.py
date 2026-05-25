@@ -98,7 +98,7 @@ class GeoGuessr(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.config = Config.get_conf(self, identifier=0xGE0GUE55R, force_registration=True)
 
         default_guild = {
             "streetview_key": None,   # Google Street View Static API key
@@ -176,9 +176,18 @@ class GeoGuessr(commands.Cog):
 
         await ctx.send(f"🌍 Finding a Street View location ({region})…")
 
-        lat, lon, image_url = await self._find_street_view(sv_key, region)
+        lat, lon, image_url, sv_status = await self._find_street_view(sv_key, region)
         if not image_url:
-            await ctx.send("❌ Couldn't find a Street View image. Try again!")
+            if sv_status == "REQUEST_DENIED":
+                await ctx.send(
+                    "❌ **REQUEST_DENIED** — Google rejected the API key.\n"
+                    "Check that **Street View Static API** is enabled in your Google Cloud project "
+                    "and that billing is active."
+                )
+            elif sv_status == "OVER_DAILY_LIMIT":
+                await ctx.send("❌ **OVER_DAILY_LIMIT** — Quota exceeded for today.")
+            else:
+                await ctx.send(f"❌ Couldn't find a Street View image. (status: `{sv_status}`) Try again!")
             return
 
         game = {
@@ -355,6 +364,61 @@ class GeoGuessr(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @geo.command(name="debug")
+    @commands.admin_or_permissions(manage_guild=True)
+    @commands.guild_only()
+    async def geo_debug(self, ctx: commands.Context):
+        """Test your API keys and show exactly what Google returns. (Admin only)"""
+        sv_key = await self.config.guild(ctx.guild).streetview_key()
+        maps_key = await self.config.guild(ctx.guild).maps_key()
+
+        lines = []
+        lines.append(f"**Street View key set:** {'✅' if sv_key else '❌ not set'}")
+        lines.append(f"**Maps key set:** {'✅' if maps_key else '❌ not set'}")
+
+        if sv_key:
+            # Test Street View metadata on a known-good location (Times Square)
+            meta_url = (
+                f"https://maps.googleapis.com/maps/api/streetview/metadata"
+                f"?location=40.7580,-73.9855&key={sv_key}"
+            )
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(meta_url) as resp:
+                        data = await resp.json(content_type=None)
+                status = data.get("status", "NO_STATUS")
+                lines.append(f"**Street View metadata test:** `{status}`")
+                if status == "REQUEST_DENIED":
+                    lines.append("→ Key is invalid, API not enabled, or billing not active.")
+                elif status == "OK":
+                    lines.append("→ Street View key is working ✅")
+            except Exception as e:
+                lines.append(f"**Street View metadata test:** EXCEPTION — `{e}`")
+
+        if maps_key:
+            # Test Geocoding on "Paris, France"
+            from urllib.parse import quote as url_quote
+            geo_url = (
+                f"https://maps.googleapis.com/maps/api/geocode/json"
+                f"?address={url_quote('Paris, France')}&key={maps_key}"
+            )
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(geo_url) as resp:
+                        data = await resp.json(content_type=None)
+                status = data.get("status", "NO_STATUS")
+                lines.append(f"**Geocoding test (Paris, France):** `{status}`")
+                if status == "REQUEST_DENIED":
+                    lines.append("→ Key is invalid, Geocoding API not enabled, or billing not active.")
+                elif status == "OK":
+                    loc = data["results"][0]["geometry"]["location"]
+                    lines.append(f"→ Geocoding key is working ✅ (got {loc['lat']:.3f}, {loc['lng']:.3f})")
+            except Exception as e:
+                lines.append(f"**Geocoding test:** EXCEPTION — `{e}`")
+
+        embed = discord.Embed(title="🔧 GeoGuessr Debug", description="\n".join(lines), color=discord.Color.blurple())
+        await ctx.send(embed=embed)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -362,41 +426,47 @@ class GeoGuessr(commands.Cog):
     async def _find_street_view(self, api_key: str, region: str):
         """
         Try random coordinates until we find one with Street View coverage.
-        Returns (lat, lon, image_url) or (None, None, None).
+        Returns (lat, lon, image_url, last_status) — last_status is the final
+        Google API status string, useful for debugging failures.
         """
         bounds = REGIONS[region]
-        # Build a pool: 70% from known-good coords in region, 30% pure random
+        last_status = "NO_ATTEMPTS"
+
         for attempt in range(20):
             if attempt < 14:
-                # Pick a known-good coord and add jitter
                 base = random.choice(SV_FRIENDLY_COORDS)
                 lat = base[0] + random.uniform(-2, 2)
                 lon = base[1] + random.uniform(-2, 2)
-                # Clamp to region bounds
                 lat = max(bounds["lat"][0], min(bounds["lat"][1], lat))
                 lon = max(bounds["lon"][0], min(bounds["lon"][1], lon))
             else:
                 lat = random.uniform(*bounds["lat"])
                 lon = random.uniform(*bounds["lon"])
 
-            # Check Street View metadata first (free endpoint)
             meta_url = (
                 f"https://maps.googleapis.com/maps/api/streetview/metadata"
                 f"?location={lat},{lon}&radius=5000&key={api_key}"
             )
-            async with aiohttp.ClientSession() as session:
-                async with session.get(meta_url) as resp:
-                    data = await resp.json()
-
-            if data.get("status") != "OK":
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(meta_url) as resp:
+                        data = await resp.json(content_type=None)
+            except Exception as e:
+                last_status = f"EXCEPTION: {e}"
                 continue
 
-            # Use the snapped location from the metadata
+            last_status = data.get("status", "UNKNOWN")
+
+            if last_status != "OK":
+                # If it's a key/billing error there's no point retrying
+                if last_status in ("REQUEST_DENIED", "INVALID_REQUEST", "OVER_DAILY_LIMIT"):
+                    break
+                continue
+
             snapped = data.get("location", {})
             lat = snapped.get("lat", lat)
             lon = snapped.get("lng", lon)
 
-            # Build the static Street View image URL
             image_url = (
                 f"https://maps.googleapis.com/maps/api/streetview"
                 f"?size=640x400&location={lat},{lon}"
@@ -405,20 +475,21 @@ class GeoGuessr(commands.Cog):
                 f"&pitch={random.randint(-10, 10)}"
                 f"&key={api_key}"
             )
-            return lat, lon, image_url
+            return lat, lon, image_url, "OK"
 
-        return None, None, None
+        return None, None, None, last_status
 
     async def _geocode(self, api_key: str, location: str):
         """Convert a place name to lat/lon using the Geocoding API."""
+        from urllib.parse import quote as url_quote
         url = (
             f"https://maps.googleapis.com/maps/api/geocode/json"
-            f"?address={aiohttp.helpers.quote(location)}&key={api_key}"
+            f"?address={url_quote(location)}&key={api_key}"
         )
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
-                    data = await resp.json()
+                    data = await resp.json(content_type=None)
             if data.get("status") == "OK":
                 loc = data["results"][0]["geometry"]["location"]
                 return loc["lat"], loc["lng"]
