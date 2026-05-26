@@ -9,25 +9,29 @@ Usage in core.py:
     class OnePieceFruit(CharGenMixin, commands.Cog):
         ...
 
+    # Inside __init__, alongside your existing register_guild call:
+    self.config.register_member(character=None)
+
 Config schema (per guild, per user):
     guild_id → user_id → "character" → OnePieceCharacter.to_dict()
 
 Commands exposed:
-    [p]rollchar       — Roll your permanent character (one-time per user)
-    [p]mychar         — View your own character sheet
-    [p]charinfo @user — View another user's character sheet (admin: any user)
-    [p]chardelete @user — Admin: wipe a user's character (force re-roll)
+    [p]rollchar          — Roll your permanent character (one-time per user per guild)
+    [p]mychar            — View your own character sheet
+    [p]charinfo @user    — View another user's character sheet
+    [p]chardelete @user  — Admin: wipe a user's character (allows re-roll)
 ─────────────────────────────────────────────────────────────────────────────
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from contextlib import suppress
 from typing import Optional
 
 import discord
 from redbot.core import commands
-from redbot.core.utils.chat_formatting import box
 
 from .engine import WheelEngine
 from .animator import CharacterAnimator
@@ -35,20 +39,18 @@ from .models import OnePieceCharacter
 
 log = logging.getLogger("red.OnePieceFruit.chargen")
 
-# Config key under which character data is stored per-user, per-guild
-_CHAR_KEY = "character"
-
 
 class CharGenMixin:
     """
     Mixin providing character generation commands for OnePieceFruit.
 
-    Requires self.config to be a Red Config instance with:
-        self.config.member(member).character.set(...)
-        self.config.member(member).character()
+    Requires self.config to be a Red Config instance. Register the default
+    key in the parent cog's __init__:
 
-    The parent cog must register the default in its __init__:
         self.config.register_member(character=None)
+
+    If you already call register_member() with other keys, add character=None
+    as an additional keyword argument — do not call it a second time.
     """
 
     # ── Internal helpers ──────────────────────────────────────────────────────
@@ -62,10 +64,10 @@ class CharGenMixin:
             return None
         try:
             return OnePieceCharacter.from_dict(data)
-        except Exception as e:
+        except Exception as exc:
             log.warning(
-                "Failed to deserialize character for %s (%s): %s",
-                member.id, member.guild.id, e
+                "Failed to deserialize character for user=%s guild=%s: %s",
+                member.id, member.guild.id, exc,
             )
             return None
 
@@ -85,7 +87,7 @@ class CharGenMixin:
         character: OnePieceCharacter,
         target: discord.Member,
     ) -> None:
-        """Send a static (non-animated) character sheet embed for viewing."""
+        """Send a static (non-animated) character sheet embed for [p]mychar / [p]charinfo."""
         embed = CharacterAnimator._build_final_embed(character)
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.set_author(
@@ -102,9 +104,9 @@ class CharGenMixin:
     async def rollchar(self, ctx: commands.Context) -> None:
         """
         Roll your One Piece character sheet.
-        This is a permanent, one-time roll. Choose wisely.
+        This is a permanent, one-time roll per server. There are no re-rolls.
         """
-        # Guard: already has a character
+        # Guard: already has a character in this guild
         existing = await self._get_character(ctx.author)
         if existing is not None:
             await ctx.send(
@@ -135,39 +137,44 @@ class CharGenMixin:
             reaction, _ = await ctx.bot.wait_for(
                 "reaction_add", timeout=30.0, check=check
             )
-        except TimeoutError:
-            await confirm_msg.delete()
+        except asyncio.TimeoutError:
+            with suppress(discord.HTTPException):
+                await confirm_msg.delete()
             await ctx.send(
-                f"⌛ Roll timed out, {ctx.author.mention}. Run `{ctx.prefix}rollchar` again when you're ready.",
+                f"⌛ Roll timed out, {ctx.author.mention}. "
+                f"Run `{ctx.prefix}rollchar` again when you're ready.",
                 delete_after=10,
             )
             return
 
-        await confirm_msg.delete()
+        with suppress(discord.HTTPException):
+            await confirm_msg.delete()
 
         if str(reaction.emoji) == "❌":
             await ctx.send(
-                f"🌊 The sea waits for you, {ctx.author.mention}. Come back when you're ready.",
+                f"🌊 The sea waits for you, {ctx.author.mention}. "
+                f"Come back when you're ready.",
                 delete_after=10,
             )
             return
 
-        # Generate the character (sync — instant in memory)
+        # Generate instantly in memory — no I/O, no Discord calls yet
         character = WheelEngine.generate_character(
             user_id=ctx.author.id,
             guild_id=ctx.guild.id,
             display_name=ctx.author.display_name,
         )
 
-        # Animate the reveal
+        # Animate the reveal (~6.5s wall time, rate-limit safe)
         await CharacterAnimator.animate_roll(ctx, character)
 
-        # Persist after the animation completes
-        # (Saves only after reveal to avoid showing data that wasn't animated)
+        # Persist AFTER animation completes.
+        # If the animation crashes mid-way, the user sees nothing and can re-roll.
+        # If we saved first, a failed animation would lock them out permanently.
         await self._save_character(ctx.author, character)
 
         log.info(
-            "Character generated for %s (%s) in guild %s (%s)",
+            "Character generated — user=%s (%s) guild=%s (%s)",
             ctx.author.display_name, ctx.author.id,
             ctx.guild.name, ctx.guild.id,
         )
@@ -209,12 +216,12 @@ class CharGenMixin:
     ) -> None:
         """
         [Admin] Delete a member's character sheet, allowing them to re-roll.
-        Use this for corrections only — characters are otherwise permanent.
+        Use only for corrections — characters are permanent by design.
         """
         character = await self._get_character(member)
         if character is None:
             await ctx.send(
-                f"❌ **{member.display_name}** has no character on record.",
+                f"❌ **{member.display_name}** has no character on record in this server.",
                 delete_after=10,
             )
             return
@@ -223,10 +230,10 @@ class CharGenMixin:
         await ctx.send(
             f"🗑️ Character sheet for **{member.display_name}** (`{member.id}`) "
             f"has been wiped by {ctx.author.mention}.\n"
-            f"They may now use `{ctx.prefix}rollchar` again.",
+            f"They may now use `{ctx.prefix}rollchar` again."
         )
         log.warning(
-            "Character deleted for %s (%s) by admin %s (%s) in guild %s",
+            "Character deleted — user=%s (%s) by admin=%s (%s) guild=%s",
             member.display_name, member.id,
             ctx.author.display_name, ctx.author.id,
             ctx.guild.id,

@@ -42,6 +42,7 @@ from .fruits import (
 )
 from .models import AuditEntry, DB, GuildData, UserFruitData
 from .piraterep import RepTracker, RANK_LADDER
+from .chargen.mixin import CharGenMixin
 
 log = logging.getLogger("red.onepiecefruit")
 
@@ -176,7 +177,7 @@ def _build_fruit_embed(
 # ===========================================================================
 # Main Cog
 # ===========================================================================
-class OnePieceFruit(commands.Cog):
+class OnePieceFruit(CharGenMixin, commands.Cog):
     """
     One Piece Devil Fruit companion cog for LevelUp.
 
@@ -200,7 +201,8 @@ class OnePieceFruit(commands.Cog):
 
         self.config = Config.get_conf(self, identifier=0x99ac92bc1d2e3f44, force_registration=True)
         self.config.register_guild(rank_announcement_channel=None, active_event=None)
-
+        self.config.register_member(character=None)
+        
     # -----------------------------------------------------------------------
     # Lifecycle
     # -----------------------------------------------------------------------
