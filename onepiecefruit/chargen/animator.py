@@ -122,8 +122,6 @@ def _mastery_bar(mastery: Optional[str], pool_keys: list[str], width: int = 10) 
     return f"{'█' * filled}{'░' * empty} {val}%"
 
 
-_HAKI_MASTERY_KEYS = list(P.HAKI_MASTERY.keys())
-_DFRUIT_MASTERY_KEYS = list(P.DEVIL_FRUIT_MASTERY.keys())
 _WEAPON_MASTERY_KEYS = list(P.WEAPON_MASTERY.keys())
 
 
@@ -149,11 +147,10 @@ def _spin_weapon() -> str:
 
 def _spin_power() -> str:
     return (
-        f"> **Devil Fruit:**         {random.choice(_FRUIT_S)}\n"
-        f"> **Fruit Mastery:**       ???\n"
-        f"> **Haki Potential:**      {random.choice(_HAKI_S)}\n"
-        f"> **Haki Mastery:**        ???\n"
-        f"> **Combat Style:**        {random.choice(_STYLE_S)}"
+        f"> **Devil Fruit:**      {random.choice(_FRUIT_S)}\n"
+        f"> **Haki Potential:**   {random.choice(_HAKI_S)}\n"
+        f"> **Haki Mastery:**     ???\n"
+        f"> **Combat Style:**     {random.choice(_STYLE_S)}"
     )
 
 def _spin_threat() -> str:
@@ -192,13 +189,14 @@ def _locked_weapon(c: OnePieceCharacter) -> str:
     )
 
 def _locked_power(c: OnePieceCharacter) -> str:
-    return (
-        f"> 🔒 **Devil Fruit:**         {c.devil_fruit_display}\n"
-        f"> 🔒 **Fruit Mastery:**       {c.devil_fruit_mastery_display}\n"
-        f"> 🔒 **Haki Potential:**      {c.haki}\n"
-        f"> 🔒 **Haki Mastery:**        {c.haki_mastery_display}\n"
-        f"> 🔒 **Combat Style:**        {c.fighting_style}"
-    )
+    lines = [f"> 🔒 **Devil Fruit:**      {c.devil_fruit_display}"]
+    if c.has_devil_fruit:
+        lines.append(f"> 🔒 **Fruit Mastery:**    {c.devil_fruit_mastery_display}")
+    lines.append(f"> 🔒 **Haki Potential:**   {c.haki}")
+    if c.haki != "None":
+        lines.append(f"> 🔒 **Haki Mastery:**     {c.haki_mastery_display}")
+    lines.append(f"> 🔒 **Combat Style:**     {c.fighting_style}")
+    return "\n".join(lines)
 
 def _locked_threat(c: OnePieceCharacter) -> str:
     bounty_line = _bounty_line(c, locked=True)
@@ -236,17 +234,14 @@ def _reveal_weapon(c: OnePieceCharacter) -> str:
     )
 
 def _reveal_power(c: OnePieceCharacter) -> str:
-    df_bar  = _mastery_bar(c.devil_fruit_mastery, _DFRUIT_MASTERY_KEYS)
-    hak_bar = _mastery_bar(c.haki_mastery, _HAKI_MASTERY_KEYS)
-    return (
-        f"> **Devil Fruit:**         {c.devil_fruit_display}\n"
-        f"> **Fruit Mastery:**       {c.devil_fruit_mastery_display}\n"
-        f"> **Fruit Bar:**           `{df_bar}`\n"
-        f"> **Haki Potential:**      {c.haki}\n"
-        f"> **Haki Mastery:**        {c.haki_mastery_display}\n"
-        f"> **Haki Bar:**            `{hak_bar}`\n"
-        f"> **Combat Style:**        {c.fighting_style}"
-    )
+    lines = [f"> **Devil Fruit:**      {c.devil_fruit_display}"]
+    if c.has_devil_fruit:
+        lines.append(f"> **Fruit Mastery:**    {c.devil_fruit_mastery_display}")
+    lines.append(f"> **Haki Potential:**   {c.haki}")
+    if c.haki != "None":
+        lines.append(f"> **Haki Mastery:**     {c.haki_mastery_display}")
+    lines.append(f"> **Combat Style:**     {c.fighting_style}")
+    return "\n".join(lines)
 
 def _reveal_threat(c: OnePieceCharacter) -> str:
     bounty_line = _bounty_line(c, locked=False)
