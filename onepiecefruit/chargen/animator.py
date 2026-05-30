@@ -1,39 +1,29 @@
 """
 chargen/animator.py
 ─────────────────────────────────────────────────────────────────────────────
-Asynchronous phased embed animator — RPG stat screen edition with
-Components V2 during spin phase.
+Asynchronous phased embed animator — Manga Panel edition.
 
-Rate limit strategy:
-  Spin     → 8 edits over ~5.5s     (~1/0.69s — safe)
-  Phases   → 4 edits across ~8.5s   (1 per ~2.1s)
-  Total    → ~13 edits / ~14s.  Effective: ~0.93 edits/s. Well under 5/5s.
+Theme: High-contrast black/white with red highlights.
+Layout: 3-field infographic. Weapon merged into Combat Profile.
 
-RPG loading bar:
-  Stat string → STAT_TIER_VALUE lookup → int 0-100 → bar string.
-  Bar is 10 chars wide: filled = round(val/10), empty = 10 - filled.
-  Format: ████████░░ 80%
+Field structure:
+  🧬  Identity       — Race, Lineage, Affiliation, Origin, Epithet
+  ⚔️   Combat Profile — Weapon + mastery bar, Devil Fruit, Haki, Style
+  📊  Stats & Threat — 5 stat bars, Rival, Threat level, Bounty
 
-Components V2 layout (spin phase only):
-  ┌─ ActionRow ──────────────────────────────────────────────────────────┐
-  │  [📣 Share Sheet]  [⚔️ View Rival]  [🎲 Re-roll?]                   │
-  └──────────────────────────────────────────────────────────────────────┘
-  Stripped on final reveal via msg.edit(components=[]).
+Color progression (manga panel):
+  Spin    0x111111  near-black — slot machine
+  Lock    0xCC0000  blood red  — fate sealed flash
+  Phase 1 0xDDDDDD  off-white  — identity reveal
+  Phase 2 0xCC0000  red        — combat profile reveal
+  Final   0xFFFFFF  white      — full sheet, clean
 
-Separator logic:
-  discord.py exposes discord.ui.Separator (Components V2) if the library
-  version supports it. We wrap usage in a try/except so older builds degrade
-  gracefully to no separators rather than crashing.
+Rate limit:
+  8 spin edits + 3 phase edits = 11 total across ~12s. ~0.92/s. Safe.
 
-Animation flow:
-  Phase 0  → Initial send   (blank canvas + components)
-  Spin     → 8 ticks        (slot-machine deceleration across all 4 fields)
-  Lock     → Snap frame     (real values + 🔒 on every line)
-  Phase 1  → Core Identity  (🔒 removed, blue)
-  Phase 2  → Weapon System  (green)
-  Phase 3  → Power System   (orange, mastery bars)
-  Phase 4  → Threat/Stats   (gold, stat bars, rival, bounty, timestamp)
-             Components stripped on this edit.
+Components V2 (spin phase only):
+  [📣 Share Sheet]  [⚔️ View Rival]  [🎲 Re-roll?]
+  Stripped on final reveal via view=None.
 ─────────────────────────────────────────────────────────────────────────────
 """
 
@@ -43,7 +33,6 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timezone
-from typing import Optional
 
 import discord
 from discord import ui
@@ -54,75 +43,82 @@ from . import pools as P
 
 log = logging.getLogger("red.OnePieceFruit.chargen")
 
-# ── Colors ─────────────────────────────────────────────────────────────────────
-COLOR_DARK    = 0x1A1A2E
-COLOR_SPIN    = 0x6A0DAD
-COLOR_PHASE_1 = 0x1A6DB5
-COLOR_PHASE_2 = 0x2E8B57
-COLOR_PHASE_3 = 0xD4651A
-COLOR_FINAL   = 0xF5C518
+# ── Manga panel color palette ─────────────────────────────────────────────────
+COLOR_VOID    = 0x111111   # Near-black  — spin phase
+COLOR_BLOOD   = 0xCC0000   # Blood red   — lock flash
+COLOR_INK     = 0xDDDDDD   # Off-white   — identity reveal (ink on paper)
+COLOR_RED     = 0xCC0000   # Red         — combat profile reveal
+COLOR_CLEAN   = 0xFFFFFF   # Pure white  — final complete sheet
 
-# ── Timing ─────────────────────────────────────────────────────────────────────
+# ── Timing ────────────────────────────────────────────────────────────────────
 SPIN_INTERVALS = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
-DELAY_PHASE_1  = 2.0
-DELAY_PHASE_2  = 2.0
-DELAY_PHASE_3  = 2.0
-DELAY_PHASE_4  = 2.5
+DELAY_PHASE_1  = 2.0   # Identity reveal
+DELAY_PHASE_2  = 2.0   # Combat profile reveal
+DELAY_PHASE_3  = 2.5   # Stats reveal (climax)
 
-SPINNER = "🌀 *Calculating...*"
+# ── Placeholder ───────────────────────────────────────────────────────────────
+SPINNER  = "```\n[ CALCULATING... ]\n```"
+REDACTED = "```\n[ REDACTED       ]\n```"
 
-# ── Spin sample pools ──────────────────────────────────────────────────────────
-_RACE_S    = list(P.RACE.keys())
-_AFFIL_S   = list(P.AFFILIATION.keys())
-_ORIGIN_S  = list(P.ORIGIN.keys())
-_WEAPON_S  = list(P.WEAPON_TYPE.keys())
-_WMAST_S   = list(P.WEAPON_MASTERY.keys())
-_FRUIT_S   = ["Paramecia", "Zoan", "Logia", "Ancient Zoan", "Mythical Zoan", "None"]
-_HAKI_S    = list(P.HAKI_POTENTIAL.keys())
-_STYLE_S   = list(P.FIGHTING_STYLE_OTHER.keys())
-_STAT_S    = list(P.STAT_TIER.keys())
-_RIVAL_S   = list(P.RIVAL.keys())
-_THREAT_S  = [
+# ── Spin sample pools ─────────────────────────────────────────────────────────
+_RACE_S   = list(P.RACE.keys())
+_AFFIL_S  = list(P.AFFILIATION.keys())
+_ORIGIN_S = list(P.ORIGIN.keys())
+_WEAPON_S = list(P.WEAPON_TYPE.keys())
+_WMAST_S  = list(P.WEAPON_MASTERY.keys())
+_FRUIT_S  = ["Paramecia", "Zoan", "Logia", "Ancient Zoan", "Mythical Zoan", "None"]
+_HAKI_S   = list(P.HAKI_POTENTIAL.keys())
+_STYLE_S  = list(P.FIGHTING_STYLE_OTHER.keys())
+_STAT_S   = list(P.STAT_TIER.keys())
+_RIVAL_S  = list(P.RIVAL.keys())
+_THREAT_S = [
     "⚪ Below Radar", "🔵 Notable Threat", "🟢 Super Rookie",
     "🟡 Warlord-Class", "🟠 Emperor's Crew Level", "🔴 Yonko-Class",
 ]
-_BOUNTY_S  = [
+_BOUNTY_S = [
     "฿ 3,200,000", "฿ 44,000,000", "฿ 120,000,000",
     "฿ 340,000,000", "฿ 860,000,000", "฿ 2,400,000,000",
 ]
 
+# ── Weapon mastery key order (for bar position) ───────────────────────────────
+_WMAST_KEYS = list(P.WEAPON_MASTERY.keys())
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Loading bar helpers
+# Bar helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _bar(tier: str, width: int = 10) -> str:
-    """
-    Returns a block-fill loading bar for a stat tier.
-    Example: _bar("S-Tier") → "█████████░ 90%"
-    """
-    val     = P.STAT_TIER_VALUE.get(tier, 0)
-    filled  = round(val / 100 * width)
-    empty   = width - filled
-    return f"{'█' * filled}{'░' * empty} {val}%"
-
-
-def _mastery_bar(mastery: Optional[str], pool_keys: list[str], width: int = 10) -> str:
-    """
-    Derives a loading bar from a mastery string's position in its pool's key list.
-    Position 0 = lowest, len-1 = highest.
-    """
-    if mastery is None:
-        return "░" * width + "  0%"
-    keys = pool_keys
-    idx  = keys.index(mastery) if mastery in keys else 0
-    val  = round((idx / max(len(keys) - 1, 1)) * 100)
+def _stat_bar(tier: str, width: int = 10) -> str:
+    """Block-fill bar from STAT_TIER_VALUE. e.g. B-Tier → ██████░░░░ 58%"""
+    val    = P.STAT_TIER_VALUE.get(tier, 0)
     filled = round(val / 100 * width)
     empty  = width - filled
     return f"{'█' * filled}{'░' * empty} {val}%"
 
 
-_WEAPON_MASTERY_KEYS = list(P.WEAPON_MASTERY.keys())
+def _mastery_bar(mastery: str | None, width: int = 10) -> str:
+    """Position-derived bar from weapon mastery key order."""
+    if mastery is None or mastery not in _WMAST_KEYS:
+        return "░" * width + "  0%"
+    idx    = _WMAST_KEYS.index(mastery)
+    val    = round((idx / max(len(_WMAST_KEYS) - 1, 1)) * 100)
+    filled = round(val / 100 * width)
+    empty  = width - filled
+    return f"{'█' * filled}{'░' * empty} {val}%"
+
+
+def _random_bar(width: int = 10) -> str:
+    """Random spin bar for visual noise during slot machine phase."""
+    filled = random.randint(1, width - 1)
+    val    = round(filled / width * 100)
+    return f"{'█' * filled}{'░' * (width - filled)} {val}%"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Divider helper — manga panel section rule
+# ─────────────────────────────────────────────────────────────────────────────
+
+DIV = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,39 +127,38 @@ _WEAPON_MASTERY_KEYS = list(P.WEAPON_MASTERY.keys())
 
 def _spin_identity() -> str:
     return (
-        f"> **Race:**        {random.choice(_RACE_S)}\n"
-        f"> **Lineage:**     ???\n"
-        f"> **Affiliation:** {random.choice(_AFFIL_S)}\n"
-        f"> **Origin:**      {random.choice(_ORIGIN_S)}\n"
-        f"> **Epithet:**     *\"...\"*"
+        f"**RACE ——**  {random.choice(_RACE_S)}\n"
+        f"**LINEAGE —** `???`\n"
+        f"**CREW ———** {random.choice(_AFFIL_S)}\n"
+        f"**ORIGIN ——** {random.choice(_ORIGIN_S)}\n"
+        f"**EPITHET —** *\"...\"*"
     )
 
-def _spin_weapon() -> str:
+
+def _spin_combat() -> str:
     return (
-        f"> **Weapon:**         {random.choice(_WEAPON_S)}\n"
-        f"> **Mastery:**        {random.choice(_WMAST_S)}\n"
-        f"> **Mastery Bar:**    `{'█' * random.randint(1,9)}{'░' * random.randint(1,3)}`"
+        f"**WEAPON ——** {random.choice(_WEAPON_S)}\n"
+        f"**MASTERY —** {random.choice(_WMAST_S)}\n"
+        f"`{_random_bar()}`\n"
+        f"{DIV}\n"
+        f"**FRUIT ———** {random.choice(_FRUIT_S)}\n"
+        f"**HAKI ————** {random.choice(_HAKI_S)}\n"
+        f"**STYLE ———** {random.choice(_STYLE_S)}"
     )
 
-def _spin_power() -> str:
-    return (
-        f"> **Devil Fruit:**      {random.choice(_FRUIT_S)}\n"
-        f"> **Haki Potential:**   {random.choice(_HAKI_S)}\n"
-        f"> **Haki Mastery:**     ???\n"
-        f"> **Combat Style:**     {random.choice(_STYLE_S)}"
-    )
 
-def _spin_threat() -> str:
+def _spin_stats() -> str:
     r = lambda: random.choice(_STAT_S)
     return (
-        f"> **Strength:**     {r()}\n"
-        f"> **Speed:**        {r()}\n"
-        f"> **Battle IQ:**    {r()}\n"
-        f"> **Endurance:**    {r()}\n"
-        f"> **Willpower:**    {r()}\n"
-        f"> **Rival:**        {random.choice(_RIVAL_S)}\n"
-        f"> **World Threat:** {random.choice(_THREAT_S)}\n"
-        f"> **Bounty:**       {random.choice(_BOUNTY_S)}"
+        f"**STR** {r()}  `{_random_bar()}`\n"
+        f"**SPD** {r()}  `{_random_bar()}`\n"
+        f"**IQ ·** {r()}  `{_random_bar()}`\n"
+        f"**END** {r()}  `{_random_bar()}`\n"
+        f"**WIL** {r()}  `{_random_bar()}`\n"
+        f"{DIV}\n"
+        f"**RIVAL ———** {random.choice(_RIVAL_S)}\n"
+        f"**THREAT ——** {random.choice(_THREAT_S)}\n"
+        f"**BOUNTY ——** {random.choice(_BOUNTY_S)}"
     )
 
 
@@ -173,96 +168,101 @@ def _spin_threat() -> str:
 
 def _locked_identity(c: OnePieceCharacter) -> str:
     return (
-        f"> 🔒 **Race:**        {c.race}\n"
-        f"> 🔒 **Lineage:**     {c.d_clan_display}\n"
-        f"> 🔒 **Affiliation:** {c.affiliation}\n"
-        f"> 🔒 **Origin:**      {c.origin}\n"
-        f"> 🔒 **Epithet:**     *\"{c.epithet}\"*"
+        f"🔒 **RACE ——**  {c.race}\n"
+        f"🔒 **LINEAGE —** {c.d_clan_display}\n"
+        f"🔒 **CREW ———** {c.affiliation}\n"
+        f"🔒 **ORIGIN ——** {c.origin}\n"
+        f"🔒 **EPITHET —** *\"{c.epithet}\"*"
     )
 
-def _locked_weapon(c: OnePieceCharacter) -> str:
-    bar = _mastery_bar(c.weapon_mastery, _WEAPON_MASTERY_KEYS)
-    return (
-        f"> 🔒 **Weapon:**         {c.weapon_type}\n"
-        f"> 🔒 **Mastery:**        {c.weapon_mastery}\n"
-        f"> 🔒 **Mastery Bar:**    `{bar}`"
-    )
 
-def _locked_power(c: OnePieceCharacter) -> str:
-    lines = [f"> 🔒 **Devil Fruit:**      {c.devil_fruit_display}"]
+def _locked_combat(c: OnePieceCharacter) -> str:
+    bar = _mastery_bar(c.weapon_mastery)
+    lines = [
+        f"🔒 **WEAPON ——** {c.weapon_type}",
+        f"🔒 **MASTERY —** {c.weapon_mastery}",
+        f"`{bar}`",
+        DIV,
+        f"🔒 **FRUIT ———** {c.devil_fruit_display}",
+    ]
     if c.has_devil_fruit:
-        lines.append(f"> 🔒 **Fruit Mastery:**    {c.devil_fruit_mastery_display}")
-    lines.append(f"> 🔒 **Haki Potential:**   {c.haki}")
+        lines.append(f"🔒 **FRUIT LVL** {c.devil_fruit_mastery_display}")
+    lines.append(f"🔒 **HAKI ————** {c.haki}")
     if c.haki != "None":
-        lines.append(f"> 🔒 **Haki Mastery:**     {c.haki_mastery_display}")
-    lines.append(f"> 🔒 **Combat Style:**     {c.fighting_style}")
+        lines.append(f"🔒 **HAKI LVL ·** {c.haki_mastery_display}")
+    lines.append(f"🔒 **STYLE ———** {c.fighting_style}")
     return "\n".join(lines)
 
-def _locked_threat(c: OnePieceCharacter) -> str:
-    bounty_line = _bounty_line(c, locked=True)
+
+def _locked_stats(c: OnePieceCharacter) -> str:
+    bl = _bounty_line(c, locked=True)
     return (
-        f"> 🔒 **Strength:**     {c.strength}\n"
-        f"> 🔒 **Speed:**        {c.speed}\n"
-        f"> 🔒 **Battle IQ:**    {c.battle_iq}\n"
-        f"> 🔒 **Endurance:**    {c.endurance}\n"
-        f"> 🔒 **Willpower:**    {c.willpower}\n"
-        f"> 🔒 **Rival:**        {c.rival}\n"
-        f"> 🔒 **World Threat:** {c.threat_level_display}\n"
-        f"{bounty_line}"
+        f"🔒 **STR** {c.strength}  `{_stat_bar(c.strength)}`\n"
+        f"🔒 **SPD** {c.speed}  `{_stat_bar(c.speed)}`\n"
+        f"🔒 **IQ ·** {c.battle_iq}  `{_stat_bar(c.battle_iq)}`\n"
+        f"🔒 **END** {c.endurance}  `{_stat_bar(c.endurance)}`\n"
+        f"🔒 **WIL** {c.willpower}  `{_stat_bar(c.willpower)}`\n"
+        f"{DIV}\n"
+        f"🔒 **RIVAL ———** *{c.rival}*\n"
+        f"🔒 **THREAT ——** {c.threat_level_display}\n"
+        f"{bl}"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Reveal frame builders (clean, no 🔒, with loading bars)
+# Reveal frame builders (clean, no 🔒)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _reveal_identity(c: OnePieceCharacter) -> str:
     return (
-        f"> **Race:**        {c.race}\n"
-        f"> **Lineage:**     {c.d_clan_display}\n"
-        f"> **Affiliation:** {c.affiliation}\n"
-        f"> **Origin:**      {c.origin}\n"
-        f"> **Epithet:**     *\"{c.epithet}\"*"
+        f"**RACE ——**  {c.race}\n"
+        f"**LINEAGE —** {c.d_clan_display}\n"
+        f"**CREW ———** {c.affiliation}\n"
+        f"**ORIGIN ——** {c.origin}\n"
+        f"**EPITHET —** *\"{c.epithet}\"*"
     )
 
-def _reveal_weapon(c: OnePieceCharacter) -> str:
-    bar = _mastery_bar(c.weapon_mastery, _WEAPON_MASTERY_KEYS)
-    return (
-        f"> **Weapon:**         {c.weapon_type}\n"
-        f"> **Mastery:**        {c.weapon_mastery}\n"
-        f"> **Mastery Bar:**    `{bar}`"
-    )
 
-def _reveal_power(c: OnePieceCharacter) -> str:
-    lines = [f"> **Devil Fruit:**      {c.devil_fruit_display}"]
+def _reveal_combat(c: OnePieceCharacter) -> str:
+    bar = _mastery_bar(c.weapon_mastery)
+    lines = [
+        f"**WEAPON ——** {c.weapon_type}",
+        f"**MASTERY —** {c.weapon_mastery}",
+        f"`{bar}`",
+        DIV,
+        f"**FRUIT ———** {c.devil_fruit_display}",
+    ]
     if c.has_devil_fruit:
-        lines.append(f"> **Fruit Mastery:**    {c.devil_fruit_mastery_display}")
-    lines.append(f"> **Haki Potential:**   {c.haki}")
+        lines.append(f"**FRUIT LVL** {c.devil_fruit_mastery_display}")
+    lines.append(f"**HAKI ————** {c.haki}")
     if c.haki != "None":
-        lines.append(f"> **Haki Mastery:**     {c.haki_mastery_display}")
-    lines.append(f"> **Combat Style:**     {c.fighting_style}")
+        lines.append(f"**HAKI LVL ·** {c.haki_mastery_display}")
+    lines.append(f"**STYLE ———** {c.fighting_style}")
     return "\n".join(lines)
 
-def _reveal_threat(c: OnePieceCharacter) -> str:
-    bounty_line = _bounty_line(c, locked=False)
+
+def _reveal_stats(c: OnePieceCharacter) -> str:
+    bl = _bounty_line(c, locked=False)
     return (
-        f"> **Strength:**     {c.strength}  `{_bar(c.strength)}`\n"
-        f"> **Speed:**        {c.speed}  `{_bar(c.speed)}`\n"
-        f"> **Battle IQ:**    {c.battle_iq}  `{_bar(c.battle_iq)}`\n"
-        f"> **Endurance:**    {c.endurance}  `{_bar(c.endurance)}`\n"
-        f"> **Willpower:**    {c.willpower}  `{_bar(c.willpower)}`\n"
-        f"> **Rival:**        *{c.rival}*\n"
-        f"> **World Threat:** {c.threat_level_display}\n"
-        f"{bounty_line}"
+        f"**STR** {c.strength}  `{_stat_bar(c.strength)}`\n"
+        f"**SPD** {c.speed}  `{_stat_bar(c.speed)}`\n"
+        f"**IQ ·** {c.battle_iq}  `{_stat_bar(c.battle_iq)}`\n"
+        f"**END** {c.endurance}  `{_stat_bar(c.endurance)}`\n"
+        f"**WIL** {c.willpower}  `{_stat_bar(c.willpower)}`\n"
+        f"{DIV}\n"
+        f"**RIVAL ———** *{c.rival}*\n"
+        f"**THREAT ——** {c.threat_level_display}\n"
+        f"{bl}"
     )
+
 
 def _bounty_line(c: OnePieceCharacter, locked: bool = False) -> str:
     lock = "🔒 " if locked else ""
     if c.affiliation == "Marine":
-        return f"> {lock}**Marine Rank:**  {c.marine_rank}"
+        return f"{lock}**RANK ————** {c.marine_rank}"
     if c.affiliation == "World Noble":
-        return f"> {lock}**Bounty:**       *Immune (World Noble)*"
-    return f"> {lock}**Bounty:**       {c.bounty_display}"
+        return f"{lock}**BOUNTY ——** *Immune — World Noble*"
+    return f"{lock}**BOUNTY ——** {c.bounty_display}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -271,13 +271,9 @@ def _bounty_line(c: OnePieceCharacter, locked: bool = False) -> str:
 
 class CharGenView(ui.View):
     """
-    Components V2 view shown during the spin phase only.
-    Three buttons: Share Sheet, View Rival, Re-roll Warning.
-    Stored on the animator so button callbacks can access the character.
-
-    The view is removed from the message on final reveal by passing
-    view=None to msg.edit(). The view itself times out after 120s
-    as a safety net.
+    Three buttons shown during spin phase only.
+    Stripped on final reveal by passing view=None to msg.edit().
+    Times out after 120s as a safety net.
     """
 
     def __init__(self, character: OnePieceCharacter, roller: discord.Member):
@@ -289,62 +285,53 @@ class CharGenView(ui.View):
     async def share_sheet(
         self, interaction: discord.Interaction, button: ui.Button
     ) -> None:
-        """Posts a compact public summary mentioning the roller."""
         c = self.character
-
-        # Build compact summary embed
         embed = discord.Embed(
             title=f"📋 {c.full_name}",
             description=(
-                f"**{self.roller.mention}**'s One Piece character sheet:\n\n"
-                f"**Race:** {c.race}  •  **Affiliation:** {c.affiliation}\n"
-                f"**Devil Fruit:** {c.devil_fruit_display}\n"
+                f"**{self.roller.mention}**'s character sheet:\n\n"
+                f"**Race:** {c.race}  ·  **Crew:** {c.affiliation}\n"
+                f"**Fruit:** {c.devil_fruit_display}\n"
                 f"**Haki:** {c.haki}\n"
-                f"**Weapon:** {c.weapon_type} *(Mastery: {c.weapon_mastery})*\n"
-                f"**Rival:** *{c.rival}*  •  **Threat:** {c.threat_level_display}"
+                f"**Weapon:** {c.weapon_type} — *{c.weapon_mastery}*\n"
+                f"**Rival:** *{c.rival}*  ·  **Threat:** {c.threat_level_display}"
             ),
-            color=COLOR_FINAL,
+            color=COLOR_RED,
         )
         embed.set_thumbnail(url=self.roller.display_avatar.url)
         embed.set_footer(text="One Piece Community • Character Generation")
-
         await interaction.response.send_message(embed=embed)
 
     @ui.button(label="⚔️ View Rival", style=discord.ButtonStyle.primary)
     async def view_rival(
         self, interaction: discord.Interaction, button: ui.Button
     ) -> None:
-        """Sends an ephemeral with a lore blurb about the rolled rival."""
         rival_name = self.character.rival
         lore = P.RIVAL_LORE.get(
             rival_name,
-            f"*{rival_name} — a name that carries weight on the seas. "
-            f"Their full story has yet to be written.*"
+            f"*{rival_name}* — their name carries weight on the seas. "
+            f"Their full story has yet to be written into history.",
         )
         embed = discord.Embed(
-            title=f"⚔️ Rival Profile: {rival_name}",
+            title=f"⚔️ RIVAL DOSSIER — {rival_name}",
             description=lore,
-            color=COLOR_PHASE_1,
+            color=COLOR_BLOOD,
         )
-        embed.set_footer(text="One Piece Community • Rival Lore")
+        embed.set_footer(text="One Piece Community • Rival Intel")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @ui.button(label="🎲 Re-roll?", style=discord.ButtonStyle.danger)
     async def reroll_warning(
         self, interaction: discord.Interaction, button: ui.Button
     ) -> None:
-        """Ephemeral: explains the no-reroll policy."""
         await interaction.response.send_message(
-            "⚓ **The Grand Line grants no second chances.**\n\n"
-            "Your character sheet is **permanent**. Once the roll is sealed, "
-            "it cannot be undone by anyone except a server admin using "
-            "`chardelete`.\n\n"
-            "*The sea does not give refunds.*",
+            "**THE GRAND LINE GRANTS NO SECOND CHANCES.**\n\n"
+            "Your character sheet is permanent. The sea does not give refunds.\n"
+            "Only a server admin with `chardelete` can reset your record.",
             ephemeral=True,
         )
 
     async def on_timeout(self) -> None:
-        """Silently expire — message is already stripped of components by then."""
         pass
 
 
@@ -354,17 +341,16 @@ class CharGenView(ui.View):
 
 class CharacterAnimator:
     """
-    Full phased reveal with RPG stat bars and Components V2.
+    Manga panel phased reveal. 3 fields, infographic layout.
 
     Flow:
-        Phase 0 → Initial send   (blank canvas + components attached)
-        Spin    → 8 ticks        (slot-machine across all 4 fields)
-        Lock    → Snap frame     (real values + 🔒)
-        Phase 1 → Core Identity  (blue, 🔒 removed)
-        Phase 2 → Weapon System  (green, mastery bar)
-        Phase 3 → Power System   (orange, fruit + haki bars)
-        Phase 4 → Threat/Stats   (gold, stat bars, rival, bounty,
-                                  timestamp, COMPONENTS STRIPPED)
+        Phase 0 → Initial send   (3 REDACTED placeholders + components)
+        Spin    → 8 ticks        (slot-machine across all 3 fields, decelerating)
+        Lock    → Snap frame     (real values + 🔒, embed turns blood red)
+        Phase 1 → Identity       (🔒 removed, embed off-white)
+        Phase 2 → Combat Profile (embed red)
+        Phase 3 → Stats & Threat (embed white, title upgrade, timestamp,
+                                  components stripped)
     """
 
     @classmethod
@@ -381,20 +367,19 @@ class CharacterAnimator:
             msg = await cls._reveal_phase_1(msg, character)
             msg = await cls._reveal_phase_2(msg, character)
             msg = await cls._reveal_phase_3(msg, character)
-            msg = await cls._reveal_phase_4(msg, character)   # strips components
         except discord.HTTPException as exc:
             log.error(
-                "CharacterAnimator edit failed user=%s guild=%s: %s",
+                "CharacterAnimator failed user=%s guild=%s: %s",
                 character.user_id, character.guild_id, exc,
             )
             try:
                 await msg.edit(embed=cls._build_final_embed(character), view=None)
             except discord.HTTPException:
-                log.error("CharacterAnimator final fallback also failed — giving up.")
+                log.error("CharacterAnimator fallback also failed — giving up.")
 
         return msg
 
-    # ── Phase 0 ───────────────────────────────────────────────────────────────
+    # ── Phase 0 — Initial send ────────────────────────────────────────────────
 
     @classmethod
     async def _send_initial(
@@ -404,21 +389,23 @@ class CharacterAnimator:
         view: CharGenView,
     ) -> discord.Message:
         embed = discord.Embed(
-            title="🎰 The Wheel of Destiny Spins...",
-            description=f"*The fate of **{character.display_name}** hangs in the balance...*",
-            color=COLOR_DARK,
+            title="▓▓▓ ACCESSING BUSTER CALL ARCHIVES... ▓▓▓",
+            description=(
+                f"*Scanning for **{character.display_name}**...*\n"
+                f"*World Government clearance required.*"
+            ),
+            color=COLOR_VOID,
         )
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
-        embed.set_footer(text="One Piece Community • Character Generation")
+        embed.set_footer(text="One Piece Community  •  Character Generation")
 
-        embed.add_field(name="🧬 Core Identity",   value=SPINNER, inline=False)
-        embed.add_field(name="⚔️  Weapon System",   value=SPINNER, inline=False)
-        embed.add_field(name="🌀 Power System",    value=SPINNER, inline=False)
-        embed.add_field(name="📊 Threat Analysis", value=SPINNER, inline=False)
+        embed.add_field(name="🧬  IDENTITY",        value=REDACTED, inline=False)
+        embed.add_field(name="⚔️   COMBAT PROFILE",  value=REDACTED, inline=False)
+        embed.add_field(name="📊  STATS & THREAT",  value=REDACTED, inline=False)
 
         return await ctx.send(embed=embed, view=view)
 
-    # ── Spin ──────────────────────────────────────────────────────────────────
+    # ── Spin phase ────────────────────────────────────────────────────────────
 
     @classmethod
     async def _spin_phase(
@@ -427,35 +414,37 @@ class CharacterAnimator:
         character: OnePieceCharacter,
     ) -> discord.Message:
         embed = msg.embeds[0]
-        embed.color = COLOR_SPIN
         total = len(SPIN_INTERVALS)
 
         for i, interval in enumerate(SPIN_INTERVALS):
             is_last = i == total - 1
 
             if is_last:
-                embed.title = "🔒 Fate Sealed — Destiny Locked In..."
-                id_v  = _locked_identity(character)
-                wp_v  = _locked_weapon(character)
-                pw_v  = _locked_power(character)
-                th_v  = _locked_threat(character)
+                embed.color = COLOR_BLOOD
+                embed.title = "🔴  SUBJECT IDENTIFIED — FATE SEALED"
+                id_v = _locked_identity(character)
+                cb_v = _locked_combat(character)
+                st_v = _locked_stats(character)
             else:
-                id_v  = _spin_identity()
-                wp_v  = _spin_weapon()
-                pw_v  = _spin_power()
-                th_v  = _spin_threat()
+                # Ramp color from void toward blood over the spin
+                progress = i / (total - 1)
+                r = int(0x11 + (0xCC - 0x11) * progress)
+                embed.color = (r << 16)
+                embed.title = f"▓ CROSS-REFERENCING... {'█' * (i + 1)}{'░' * (total - 1 - i)}"
+                id_v = _spin_identity()
+                cb_v = _spin_combat()
+                st_v = _spin_stats()
 
-            embed.set_field_at(0, name="🧬 Core Identity",   value=id_v, inline=False)
-            embed.set_field_at(1, name="⚔️  Weapon System",   value=wp_v, inline=False)
-            embed.set_field_at(2, name="🌀 Power System",    value=pw_v, inline=False)
-            embed.set_field_at(3, name="📊 Threat Analysis", value=th_v, inline=False)
+            embed.set_field_at(0, name="🧬  IDENTITY",       value=id_v, inline=False)
+            embed.set_field_at(1, name="⚔️   COMBAT PROFILE", value=cb_v, inline=False)
+            embed.set_field_at(2, name="📊  STATS & THREAT", value=st_v, inline=False)
 
             await msg.edit(embed=embed)
             await asyncio.sleep(interval)
 
         return msg
 
-    # ── Phase 1 — Core Identity ───────────────────────────────────────────────
+    # ── Phase 1 — Identity ────────────────────────────────────────────────────
 
     @classmethod
     async def _reveal_phase_1(
@@ -466,22 +455,20 @@ class CharacterAnimator:
         await asyncio.sleep(DELAY_PHASE_1)
 
         embed = msg.embeds[0]
-        embed.color = COLOR_PHASE_1
-        embed.title = "🏴‍☠️ The Grand Line Stirs..."
+        embed.color = COLOR_INK
+        embed.title = f"[ IDENTITY CONFIRMED ]"
         embed.description = (
-            f"*The fate of **{character.display_name}** is being written "
-            f"into the tides of history...*"
+            f"*The ink dries on **{character.display_name}**'s record...*"
         )
 
-        embed.set_field_at(0, name="🧬 Core Identity",   value=_reveal_identity(character), inline=False)
-        embed.set_field_at(1, name="⚔️  Weapon System",   value=SPINNER,                     inline=False)
-        embed.set_field_at(2, name="🌀 Power System",    value=SPINNER,                     inline=False)
-        embed.set_field_at(3, name="📊 Threat Analysis", value=SPINNER,                     inline=False)
+        embed.set_field_at(0, name="🧬  IDENTITY",       value=_reveal_identity(character), inline=False)
+        embed.set_field_at(1, name="⚔️   COMBAT PROFILE", value=SPINNER,                     inline=False)
+        embed.set_field_at(2, name="📊  STATS & THREAT", value=SPINNER,                     inline=False)
 
         await msg.edit(embed=embed)
         return msg
 
-    # ── Phase 2 — Weapon System ───────────────────────────────────────────────
+    # ── Phase 2 — Combat Profile ──────────────────────────────────────────────
 
     @classmethod
     async def _reveal_phase_2(
@@ -492,16 +479,17 @@ class CharacterAnimator:
         await asyncio.sleep(DELAY_PHASE_2)
 
         embed = msg.embeds[0]
-        embed.color = COLOR_PHASE_2
+        embed.color = COLOR_RED
+        embed.title = "[ COMBAT PROFILE UNLOCKED ]"
+        embed.description = "*Threat assessment in progress...*"
 
-        embed.set_field_at(1, name="⚔️  Weapon System",   value=_reveal_weapon(character),  inline=False)
-        embed.set_field_at(2, name="🌀 Power System",    value=SPINNER,                    inline=False)
-        embed.set_field_at(3, name="📊 Threat Analysis", value=SPINNER,                    inline=False)
+        embed.set_field_at(1, name="⚔️   COMBAT PROFILE", value=_reveal_combat(character), inline=False)
+        embed.set_field_at(2, name="📊  STATS & THREAT", value=SPINNER,                   inline=False)
 
         await msg.edit(embed=embed)
         return msg
 
-    # ── Phase 3 — Power System ────────────────────────────────────────────────
+    # ── Phase 3 — Stats & Threat (final) ─────────────────────────────────────
 
     @classmethod
     async def _reveal_phase_3(
@@ -512,36 +500,16 @@ class CharacterAnimator:
         await asyncio.sleep(DELAY_PHASE_3)
 
         embed = msg.embeds[0]
-        embed.color = COLOR_PHASE_3
-
-        embed.set_field_at(2, name="🌀 Power System",    value=_reveal_power(character),   inline=False)
-        embed.set_field_at(3, name="📊 Threat Analysis", value=SPINNER,                    inline=False)
-
-        await msg.edit(embed=embed)
-        return msg
-
-    # ── Phase 4 — Threat Analysis (final, strips components) ─────────────────
-
-    @classmethod
-    async def _reveal_phase_4(
-        cls,
-        msg: discord.Message,
-        character: OnePieceCharacter,
-    ) -> discord.Message:
-        await asyncio.sleep(DELAY_PHASE_4)
-
-        embed = msg.embeds[0]
-        embed.color = COLOR_FINAL
-        embed.title = f"👑 {character.full_name}"
+        embed.color = COLOR_CLEAN
+        embed.title = f"👑  {character.full_name}"
         embed.description = (
-            "*This is your permanent character sheet. "
+            "*This is your permanent, living record.\n"
             "The Grand Line does not give second chances.*"
         )
         embed.timestamp = datetime.fromtimestamp(character.rolled_at, tz=timezone.utc)
 
-        embed.set_field_at(3, name="📊 Threat Analysis", value=_reveal_threat(character), inline=False)
+        embed.set_field_at(2, name="📊  STATS & THREAT", value=_reveal_stats(character), inline=False)
 
-        # Strip components — final state is static
         await msg.edit(embed=embed, view=None)
         return msg
 
@@ -550,14 +518,13 @@ class CharacterAnimator:
     @staticmethod
     def _build_final_embed(character: OnePieceCharacter) -> discord.Embed:
         embed = discord.Embed(
-            title=f"👑 {character.full_name}",
-            description="*This is your permanent character sheet.*",
-            color=COLOR_FINAL,
+            title=f"👑  {character.full_name}",
+            description="*This is your permanent, living record.*",
+            color=COLOR_CLEAN,
             timestamp=datetime.fromtimestamp(character.rolled_at, tz=timezone.utc),
         )
-        embed.set_footer(text="One Piece Community • Character Generation")
-        embed.add_field(name="🧬 Core Identity",   value=_reveal_identity(character), inline=False)
-        embed.add_field(name="⚔️  Weapon System",   value=_reveal_weapon(character),  inline=False)
-        embed.add_field(name="🌀 Power System",    value=_reveal_power(character),   inline=False)
-        embed.add_field(name="📊 Threat Analysis", value=_reveal_threat(character),  inline=False)
+        embed.set_footer(text="One Piece Community  •  Character Generation")
+        embed.add_field(name="🧬  IDENTITY",       value=_reveal_identity(character), inline=False)
+        embed.add_field(name="⚔️   COMBAT PROFILE", value=_reveal_combat(character),  inline=False)
+        embed.add_field(name="📊  STATS & THREAT", value=_reveal_stats(character),    inline=False)
         return embed
