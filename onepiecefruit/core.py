@@ -39,6 +39,8 @@ from .fruits import (
     REROLL_COST_TABLE,
     REROLL_COST_SCALE_FACTOR,
     SEASONAL_EVENTS,
+    find_fruit,
+    search_fruits,
 )
 from .models import AuditEntry, DB, GuildData, UserFruitData
 from .piraterep import RepTracker, RANK_LADDER
@@ -117,11 +119,7 @@ def _build_fruit_embed(
     emoji = RARITY_EMOJIS.get(rarity, "❓")
     stage_label = AWAKENING_LABELS.get(data.awakening_stage, "Base Form")
 
-    fruit_dict = None
-    for fruit in DEVIL_FRUITS.get(rarity, []):
-        if fruit["name"] == data.fruit_name:
-            fruit_dict = fruit
-            break
+    fruit_dict = find_fruit(rarity, data.fruit_name)
 
     if fruit_dict is None:
         ability_text = "*Unknown ability.*"
@@ -799,6 +797,42 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                     f"💸 {target.display_name} needs at least **{wager:,} {currency_name}** to accept the duel."
                 )
 
+            # A wager moves real currency out of the target's balance — they must opt in.
+            confirm_msg = await ctx.send(
+                f"⚔️ {target.mention}, **{ctx.author.display_name}** has challenged you to a Devil Fruit duel "
+                f"wagering **{wager:,} {currency_name}**!\n"
+                f"React with ✅ to accept, or ❌ to decline.\n"
+                f"*{ctx.author.display_name} can also cancel the challenge with ❌.*"
+            )
+            await confirm_msg.add_reaction("✅")
+            await confirm_msg.add_reaction("❌")
+
+            def check(reaction: discord.Reaction, user: discord.User) -> bool:
+                if reaction.message.id != confirm_msg.id or str(reaction.emoji) not in ("✅", "❌"):
+                    return False
+                if user.id == target.id:
+                    return True
+                return user.id == ctx.author.id and str(reaction.emoji) == "❌"
+
+            try:
+                reaction, responder = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+            except asyncio.TimeoutError:
+                return await ctx.send(f"⏰ {target.display_name} didn't respond in time. Duel cancelled.")
+
+            if str(reaction.emoji) == "❌":
+                who = "cancelled the challenge" if responder.id == ctx.author.id else "declined the duel"
+                return await ctx.send(f"❌ {responder.display_name} {who}.")
+
+            # Balances may have changed during the wait — re-verify before withdrawing.
+            challenger_balance = await adapter.get_balance(ctx.author)
+            target_balance = await adapter.get_balance(target)
+            if challenger_balance < wager:
+                return await ctx.send(f"💸 You no longer have enough {currency_name} to cover the wager.")
+            if target_balance < wager:
+                return await ctx.send(
+                    f"💸 {target.display_name} no longer has enough {currency_name} to cover the wager."
+                )
+
         strength_values = {
             "Paramecia": 70, "Zoan": 85, "Logia": 100,
             "Ancient Zoan": 110, "Mythical Zoan": 120, "Legendary": 140,
@@ -940,6 +974,11 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                 f"🌊 You haven't eaten a Devil Fruit yet. Reach **Level {FRUIT_ASSIGN_LEVEL}** first!"
             )
 
+        # Captured so we can detect whether an admin (or another concurrent
+        # reroll) changes this user's fruit data while we're waiting below.
+        pending_fruit_name = user_data.fruit_name
+        pending_reroll_count = user_data.reroll_count
+
         raw_cost = _next_reroll_cost(user_data.reroll_count)
         multiplier = self._reroll_cost_multiplier(user_data.fruit_type)
         cost = max(1, int(math.ceil(raw_cost * multiplier)))
@@ -974,6 +1013,19 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
 
         if str(reaction.emoji) == "❌":
             return await ctx.send("❌ Reroll cancelled.")
+
+        # Re-fetch: an admin (reset/awaken/resetrerolls) or another reroll
+        # could have changed this user's data while we waited for the reaction.
+        user_data = guild_data.get_user(ctx.author.id)
+        if (
+            user_data is None
+            or user_data.fruit_name != pending_fruit_name
+            or user_data.reroll_count != pending_reroll_count
+        ):
+            return await ctx.send(
+                "⚠️ Your Devil Fruit data changed while this reroll was pending "
+                "(likely an admin action). Reroll cancelled — please try again."
+            )
 
         adapter = self._currency(ctx.guild)
         try:
@@ -1175,11 +1227,11 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         if not normalized:
             return await ctx.send("❌ Usage: `.df search <term>`")
 
-        results = []
-        for rarity, fruits in DEVIL_FRUITS.items():
-            for fruit in fruits:
-                if normalized in fruit["name"].lower():
-                    results.append(f"{RARITY_EMOJIS.get(rarity, '❓')} **{fruit['name']}** — {rarity}")
+        matches = search_fruits(normalized)
+        results = [
+            f"{RARITY_EMOJIS.get(rarity, '❓')} **{fruit['name']}** — {rarity}"
+            for rarity, fruit in matches
+        ]
 
         if not results:
             return await ctx.send(f"❌ No Devil Fruits found matching `{query}`.")
@@ -1214,17 +1266,10 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         guild_data = self.db.get_guild(ctx.guild.id)
 
         if fruit_name:
-            found_type, found_fruit = None, None
-            for rarity, fruits in DEVIL_FRUITS.items():
-                for f in fruits:
-                    if fruit_name.lower() in f["name"].lower():
-                        found_type, found_fruit = rarity, f
-                        break
-                if found_fruit:
-                    break
-            if found_fruit is None:
+            matches = search_fruits(fruit_name)
+            if not matches:
                 return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
-            rarity, fruit = found_type, found_fruit
+            rarity, fruit = matches[0]
         else:
             rarity, fruit = _draw_fruit()
 

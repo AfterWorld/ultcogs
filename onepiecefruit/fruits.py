@@ -3,7 +3,7 @@ One Piece Devil Fruit data.
 Each fruit has: name, type, rarity, ability, awakening_1 (lvl 15), awakening_2 (lvl 30).
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Rarity weights — must sum to 100
@@ -545,3 +545,39 @@ SEASONAL_EVENTS: dict[str, dict] = {
         ],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Lookup helpers — search both the normal rarity pool and every seasonal
+# event pool. Any code that needs a fruit's ability text (embeds, admin
+# assign-by-name, etc.) should go through find_fruit()/search_fruits()
+# instead of scanning DEVIL_FRUITS directly, or seasonal-event fruits
+# silently fail to resolve.
+# ---------------------------------------------------------------------------
+def find_fruit(fruit_type: str, fruit_name: str) -> Optional[dict]:
+    """Look up a fruit's data dict by exact (type, name), checking the
+    normal rarity pool first, then every seasonal event pool."""
+    for fruit in DEVIL_FRUITS.get(fruit_type, []):
+        if fruit["name"] == fruit_name:
+            return fruit
+    for event in SEASONAL_EVENTS.values():
+        for fruit in event["fruits"]:
+            if fruit["fruit_type"] == fruit_type and fruit["name"] == fruit_name:
+                return fruit
+    return None
+
+
+def search_fruits(query: str) -> List[tuple[str, dict]]:
+    """Return [(rarity, fruit_dict), ...] for every fruit — normal pool plus
+    every seasonal event pool — whose name contains *query* (case-insensitive)."""
+    normalized = query.strip().lower()
+    results: List[tuple[str, dict]] = []
+    for rarity, fruits in DEVIL_FRUITS.items():
+        for fruit in fruits:
+            if normalized in fruit["name"].lower():
+                results.append((rarity, fruit))
+    for event in SEASONAL_EVENTS.values():
+        for fruit in event["fruits"]:
+            if normalized in fruit["name"].lower():
+                results.append((fruit["fruit_type"], fruit))
+    return results
