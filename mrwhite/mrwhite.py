@@ -22,80 +22,80 @@ class MrWhite(commands.Cog):
         self.config.register_guild(**default_guild)
         self.games: Dict[int, 'Game'] = {}
     
-    @commands.group()
+    @commands.group(aliases=["mw"])
     @commands.guild_only()
     async def mrwhite(self, ctx):
         """Mr. White game commands"""
         pass
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["new"])
     async def start(self, ctx):
         """Start a new Mr. White game"""
         if ctx.channel.id in self.games:
             await ctx.send("A game is already running in this channel!")
             return
-        
+
         game = Game(ctx, self.config)
         self.games[ctx.channel.id] = game
         await game.start()
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["j"])
     async def join(self, ctx):
         """Join the current game"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.add_player(ctx.author)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["b"])
     async def begin(self, ctx):
         """Begin the game (minimum 3 players)"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.begin_game()
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["s"])
     async def say(self, ctx, *, word: str):
         """Say your word association"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.player_say(ctx.author, word)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["v"])
     async def vote(self, ctx, member: discord.Member):
         """Vote for who you think is Mr. White"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.vote(ctx.author, member)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["g"])
     async def guess(self, ctx, *, word: str):
         """Mr. White's final guess (only if you're Mr. White)"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.mr_white_guess(ctx.author, word)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["stop"])
     async def end(self, ctx):
         """End the current game"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.end_game("Game ended by command")
         del self.games[ctx.channel.id]
@@ -216,7 +216,8 @@ class Game:
                     await player.send(
                         f"👥 **You are a Villager!**\n"
                         f"Your word is: **{self.word}**\n"
-                        f"Give clues to help other villagers, but don't be too obvious!"
+                        f"Give clues to help other villagers, but don't be too obvious!\n"
+                        f"*(This word stays the same for the whole game — every round, keep giving clues about it.)*"
                     )
             except discord.Forbidden:
                 await self.ctx.send(f"⚠️ Couldn't DM {player.mention}! Make sure your DMs are open.")
@@ -240,6 +241,8 @@ class Game:
             ),
             color=discord.Color.blue()
         )
+        if self.round > 1:
+            embed.set_footer(text="Reminder: the secret word is the same as round 1 — check your DMs if you forgot it.")
         await self.ctx.send(embed=embed)
     
     async def player_say(self, member: discord.Member, word: str):
