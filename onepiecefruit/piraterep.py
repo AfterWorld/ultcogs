@@ -91,6 +91,23 @@ WEEKLY_BADGES: list[tuple[int, str]] = [
     (10,  "📝 Showing Up"),
 ]
 
+# Rep bonus awarded once per week, based on that week's final message tally
+# (highest threshold met). Thresholds intentionally mirror WEEKLY_BADGES —
+# keep them in sync if you change one.
+#
+# MSG_MILESTONES + STREAK_MILESTONES alone cap out at 3,175 rep, which is
+# below the "Rear Admiral" rank (4,000 rep) — with no ongoing rep source,
+# nobody could ever rank up past "Ship Captain". This gives rep a source
+# that keeps growing for as long as a member stays active, instead of
+# flatlining once every one-time milestone has been claimed.
+WEEKLY_REP_BONUS: list[tuple[int, int]] = [
+    (500, 150),
+    (250, 80),
+    (100, 40),
+    (50,  20),
+    (10,  8),
+]
+
 # ─── internal helpers ──────────────────────────────────────────────────────
 
 
@@ -137,6 +154,13 @@ def _weekly_badge(weekly_msgs: int) -> Optional[str]:
         if weekly_msgs >= threshold:
             return label
     return None
+
+
+def _weekly_rep_bonus(weekly_msgs: int) -> int:
+    for threshold, bonus in WEEKLY_REP_BONUS:
+        if weekly_msgs >= threshold:
+            return bonus
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +326,13 @@ class RepTracker:
 
         # ── Weekly reset ─────────────────────────────────────────────────
         if u.current_week != week:
+            # Award a rep bonus for the week that just ended, based on its
+            # final message tally, before resetting the counter. Skipped on
+            # a user's very first-ever message (current_week == "").
+            if u.current_week and u.weekly_messages > 0:
+                bonus = _weekly_rep_bonus(u.weekly_messages)
+                if bonus:
+                    u.rep += bonus
             u.weekly_messages = 0
             u.current_week = week
 

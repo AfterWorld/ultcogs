@@ -582,7 +582,15 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         guild_data = self.db.get_guild(guild.id)
         user_data = guild_data.get_user(member.id)
 
-        if level == FRUIT_ASSIGN_LEVEL and user_data is None:
+        # Threshold checks use >= rather than == : LevelUp can dispatch a level-up
+        # that jumps a member past a milestone in one go (voice XP ticks, boost
+        # roles, catch-up after being AFK, etc). An exact-match check would skip
+        # that member's fruit/awakening forever since the event never fires again
+        # at that specific level. Each branch is still gated so it only fires once
+        # per member, and they cascade (no early return) so a member who jumps
+        # past multiple milestones in a single dispatch catches up immediately
+        # instead of needing one more level-up per missed milestone.
+        if level >= FRUIT_ASSIGN_LEVEL and user_data is None:
             active_event = await self._get_active_event(guild)
             rarity, fruit = _draw_fruit(active_event)
             user_data = UserFruitData(
@@ -610,9 +618,8 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             else:
                 with suppress(discord.HTTPException):
                     await member.send(embed=embed)
-            return
 
-        if level == AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
+        if level >= AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
             user_data.awakening_stage = 1
             guild_data.set_user(member.id, user_data)
             await self._save()
@@ -624,9 +631,8 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             )
             if channel:
                 await channel.send(embed=embed)
-            return
 
-        if level == AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
+        if level >= AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
             user_data.awakening_stage = 2
             guild_data.set_user(member.id, user_data)
             await self._save()
@@ -638,7 +644,6 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             )
             if channel:
                 await channel.send(embed=embed)
-            return
 
     # -----------------------------------------------------------------------
     # Commands — Devil Fruit
