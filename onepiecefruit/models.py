@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,7 @@ class UserFruitData(BaseModel):
     # Convenience
     # ------------------------------------------------------------------
 
-    REROLL_HISTORY_MAX: int = 3
+    REROLL_HISTORY_MAX: ClassVar[int] = 3
 
     def push_reroll_history(self, fruit_name: str) -> None:
         """
