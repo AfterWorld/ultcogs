@@ -1,0 +1,62 @@
+{
+  "safe": [
+    {
+      "key": "calm_trade_winds",
+      "weight": 55,
+      "title": "Calm Trade Winds",
+      "description": "The route stays clean, the cargo stays dry, and a grateful merchant pays the crew.",
+      "berry_min": 35,
+      "berry_max": 80
+    },
+    {
+      "key": "driftwood_cache",
+      "weight": 30,
+      "title": "Driftwood Cache",
+      "description": "A sealed crate bumps the hull. Inside: enough Beri to make the watch cheer.",
+      "berry_min": 20,
+      "berry_max": 55
+    },
+    {
+      "key": "quiet_horizon",
+      "weight": 15,
+      "title": "Quiet Horizon",
+      "description": "No treasure, no trouble. Sometimes the sea's mercy is the reward.",
+      "berry_min": 0,
+      "berry_max": 0
+    }
+  ],
+  "risky": [
+    {
+      "key": "black_market_tip",
+      "weight": 42,
+      "title": "Black Market Tip",
+      "description": "A shady broker buys your rumor before the Marines catch wind of it.",
+      "berry_min": 110,
+      "berry_max": 240
+    },
+    {
+      "key": "sunken_strongbox",
+      "weight": 25,
+      "title": "Sunken Strongbox",
+      "description": "You dive through wreckage and come up coughing seawater around a grin.",
+      "berry_min": 70,
+      "berry_max": 160
+    },
+    {
+      "key": "reef_tax",
+      "weight": 23,
+      "title": "Reef Tax",
+      "description": "A bad current eats supplies, patches, and pride before you break free.",
+      "berry_min": -140,
+      "berry_max": -55
+    },
+    {
+      "key": "marine_checkpoint",
+      "weight": 10,
+      "title": "Marine Checkpoint",
+      "description": "You escape the inspection, but the bribe pouch comes back light.",
+      "berry_min": -220,
+      "berry_max": -90
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "str": [
+    "You haul anchor chains until the deck groans under your grip.",
+    "A sparring mast splinters after one clean, stubborn swing.",
+    "You shoulder cargo crates like cannonballs and keep moving."
+  ],
+  "spd": [
+    "You sprint the rigging before the gulls can scatter.",
+    "A cannon drill turns into footwork practice across a rain-slick deck.",
+    "You slip between crashing waves and come back faster than you left."
+  ],
+  "def": [
+    "You brace through a storm drill and refuse to give the deck an inch.",
+    "Your guard holds firm under a dozen wooden practice blades.",
+    "You learn where to plant your feet when the sea tries to take them."
+  ],
+  "will": [
+    "You stare down the horizon until even the Log Pose settles.",
+    "A bad omen crosses the mast, and you keep your hand steady anyway.",
+    "You train through hunger, salt, and noise until your spirit hardens."
+  ]
+}

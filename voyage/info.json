@@ -1,0 +1,15 @@
+{
+  "author": ["Roger"],
+  "description": "One Piece-inspired Voyage character foundation for Red-DiscordBot.",
+  "disabled": false,
+  "end_user_data_statement": "Stores Discord user IDs, guild IDs, faction choice, rank, stats, renown counters, cooldowns, active voyages, contracts, contract contributions, and Voyage-side transaction audit rows in a local SQLite database for gameplay.",
+  "hidden": false,
+  "install_msg": "Loaded voyage. Use `[p]character create` or `/character create` to begin.",
+  "min_bot_version": "3.5.0",
+  "min_python_version": [3, 11, 0],
+  "permissions": [],
+  "required_cogs": {},
+  "requirements": ["aiosqlite"],
+  "short": "Voyage character foundation.",
+  "tags": ["onepiece", "game", "economy", "redbot"]
+}
