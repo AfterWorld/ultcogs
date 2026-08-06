@@ -447,10 +447,10 @@ class BeriCog(Casino, Games, Work, Income, XKCD, Treasure, Fishing, Weather, com
         """Show your vault status."""
         await self.vault(ctx)
 
-    @commands.command(name="give", aliases=["pay", "transfer"])
+    @commands.command(name="g", aliases=["pay", "transfer"])
     @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def give(self, ctx: commands.Context, target: discord.Member, amount: int):
+    async def g(self, ctx: commands.Context, target: discord.Member, amount: int):
         """Transfer Beri to another user (no tax)."""
         name, icon = await self._currency_fmt(ctx.guild)
 
