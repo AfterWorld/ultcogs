@@ -22,83 +22,91 @@ class MrWhite(commands.Cog):
         self.config.register_guild(**default_guild)
         self.games: Dict[int, 'Game'] = {}
     
-    @commands.group()
+    @commands.group(aliases=["mw"])
     @commands.guild_only()
     async def mrwhite(self, ctx):
         """Mr. White game commands"""
         pass
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["new"])
     async def start(self, ctx):
         """Start a new Mr. White game"""
         if ctx.channel.id in self.games:
             await ctx.send("A game is already running in this channel!")
             return
-        
+
         game = Game(ctx, self.config)
         self.games[ctx.channel.id] = game
         await game.start()
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["j"])
     async def join(self, ctx):
         """Join the current game"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.add_player(ctx.author)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["b"])
     async def begin(self, ctx):
         """Begin the game (minimum 3 players)"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.begin_game()
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["s"])
     async def say(self, ctx, *, word: str):
         """Say your word association"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.player_say(ctx.author, word)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["v"])
     async def vote(self, ctx, member: discord.Member):
         """Vote for who you think is Mr. White"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.vote(ctx.author, member)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["g"])
     async def guess(self, ctx, *, word: str):
         """Mr. White's final guess (only if you're Mr. White)"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
         await game.mr_white_guess(ctx.author, word)
-    
-    @mrwhite.command()
+
+    @mrwhite.command(aliases=["stop"])
     async def end(self, ctx):
         """End the current game"""
         if ctx.channel.id not in self.games:
             await ctx.send("No game is running in this channel!")
             return
-        
+
         game = self.games[ctx.channel.id]
-        await game.end_game("Game ended by command")
-        del self.games[ctx.channel.id]
+
+        is_participant = ctx.author == game.host or ctx.author in game.players
+        is_mod = ctx.author.guild_permissions.manage_guild or await self.bot.is_mod(ctx.author)
+        if not (is_participant or is_mod):
+            await ctx.send(
+                f"{ctx.author.mention} Only the game host, a player in the game, or a mod can end this game!"
+            )
+            return
+
+        await game.end_game(f"Game ended by {ctx.author.display_name}")
     
     @mrwhite.command()
     async def addword(self, ctx, *, word: str):
@@ -144,9 +152,14 @@ class MrWhite(commands.Cog):
 
 
 class Game:
+    SAY_TIMEOUT = 180  # seconds to give word associations before auto-advancing to voting
+    VOTE_TIMEOUT = 120  # seconds to vote before auto-processing whatever votes came in
+    GUESS_TIMEOUT = 90  # seconds for Mr. White's final guess before it's forfeited
+
     def __init__(self, ctx, config):
         self.ctx = ctx
         self.config = config
+        self.host: discord.Member = ctx.author
         self.players: List[discord.Member] = []
         self.mr_white: Optional[discord.Member] = None
         self.word: str = ""
@@ -155,7 +168,28 @@ class Game:
         self.eliminated: List[discord.Member] = []
         self.votes: Dict[discord.Member, discord.Member] = {}
         self.has_spoken: List[discord.Member] = []
-    
+        self.runoff_candidates: List[discord.Member] = []
+        self.phase_id = 0
+        self.timeout_task: Optional[asyncio.Task] = None
+
+    def _schedule_timeout(self, seconds, callback):
+        """(Re)schedule a timeout tied to the current phase_id; stale firings are ignored."""
+        if self.timeout_task is not None:
+            self.timeout_task.cancel()
+        phase_id = self.phase_id
+
+        async def runner():
+            await asyncio.sleep(seconds)
+            if self.phase_id == phase_id and self.state != "ended":
+                await callback()
+
+        self.timeout_task = asyncio.create_task(runner())
+
+    def _cancel_timeout(self):
+        if self.timeout_task is not None:
+            self.timeout_task.cancel()
+            self.timeout_task = None
+
     async def start(self):
         """Start the game lobby"""
         embed = discord.Embed(
@@ -216,7 +250,8 @@ class Game:
                     await player.send(
                         f"👥 **You are a Villager!**\n"
                         f"Your word is: **{self.word}**\n"
-                        f"Give clues to help other villagers, but don't be too obvious!"
+                        f"Give clues to help other villagers, but don't be too obvious!\n"
+                        f"*(This word stays the same for the whole game — every round, keep giving clues about it.)*"
                     )
             except discord.Forbidden:
                 await self.ctx.send(f"⚠️ Couldn't DM {player.mention}! Make sure your DMs are open.")
@@ -226,11 +261,14 @@ class Game:
     
     async def start_round(self):
         """Start a new round"""
+        self.state = "playing"
         self.round += 1
         self.has_spoken = []
-        
+        self.runoff_candidates = []
+        self.phase_id += 1
+
         alive_players = [p for p in self.players if p not in self.eliminated]
-        
+
         embed = discord.Embed(
             title=f"📢 Round {self.round}",
             description=(
@@ -240,7 +278,19 @@ class Game:
             ),
             color=discord.Color.blue()
         )
+        if self.round > 1:
+            embed.set_footer(text="Reminder: the secret word is the same as round 1 — check your DMs if you forgot it.")
         await self.ctx.send(embed=embed)
+        self._schedule_timeout(self.SAY_TIMEOUT, self._say_timeout)
+
+    async def _say_timeout(self):
+        """Auto-advance to voting if some players never spoke"""
+        alive_players = [p for p in self.players if p not in self.eliminated]
+        silent = [p for p in alive_players if p not in self.has_spoken]
+        if silent:
+            names = ", ".join(p.mention for p in silent)
+            await self.ctx.send(f"⏰ Time's up! {names} didn't say anything and will be skipped this round.")
+        await self.start_voting()
     
     async def player_say(self, member: discord.Member, word: str):
         """Player says their word"""
@@ -272,9 +322,11 @@ class Game:
         """Start the voting phase"""
         self.state = "voting"
         self.votes = {}
-        
+        self.runoff_candidates = []
+        self.phase_id += 1
+
         alive_players = [p for p in self.players if p not in self.eliminated]
-        
+
         embed = discord.Embed(
             title="🗳️ Voting Time!",
             description=(
@@ -285,6 +337,20 @@ class Game:
             color=discord.Color.orange()
         )
         await self.ctx.send(embed=embed)
+        self._schedule_timeout(self.VOTE_TIMEOUT, self._vote_timeout)
+
+    async def _vote_timeout(self):
+        """Auto-process votes if some players never voted"""
+        alive_players = [p for p in self.players if p not in self.eliminated]
+        missing = [p for p in alive_players if p not in self.votes]
+        if missing:
+            names = ", ".join(p.mention for p in missing)
+            await self.ctx.send(f"⏰ Time's up! {names} didn't vote in time.")
+        if not self.votes:
+            await self.ctx.send("No votes were cast — no one is eliminated this round.")
+            await self.start_round()
+            return
+        await self.process_votes()
     
     async def vote(self, voter: discord.Member, target: discord.Member):
         """Cast a vote"""
@@ -295,11 +361,20 @@ class Game:
         if voter not in self.players or voter in self.eliminated:
             await self.ctx.send(f"{voter.mention} You can't vote!")
             return
-        
+
         if target not in self.players or target in self.eliminated:
             await self.ctx.send(f"{voter.mention} That player isn't in the game!")
             return
-        
+
+        if voter == target:
+            await self.ctx.send(f"{voter.mention} You can't vote for yourself!")
+            return
+
+        if self.runoff_candidates and target not in self.runoff_candidates:
+            names = ", ".join(p.mention for p in self.runoff_candidates)
+            await self.ctx.send(f"{voter.mention} This is a runoff — you must vote for one of: {names}")
+            return
+
         self.votes[voter] = target
         await self.ctx.send(f"{voter.mention} voted! ({len(self.votes)}/{len([p for p in self.players if p not in self.eliminated])})")
         
@@ -313,22 +388,49 @@ class Game:
         vote_counts = {}
         for target in self.votes.values():
             vote_counts[target] = vote_counts.get(target, 0) + 1
-        
+
         max_votes = max(vote_counts.values())
-        eliminated_player = [p for p, v in vote_counts.items() if v == max_votes][0]
-        
-        vote_summary = "\n".join([f"**{target.display_name}**: {count} votes" 
-                                  for target, count in sorted(vote_counts.items(), 
-                                                             key=lambda x: x[1], 
+        tied = [p for p, v in vote_counts.items() if v == max_votes]
+
+        vote_summary = "\n".join([f"**{target.display_name}**: {count} votes"
+                                  for target, count in sorted(vote_counts.items(),
+                                                             key=lambda x: x[1],
                                                              reverse=True)])
-        
+
         embed = discord.Embed(
             title="📊 Vote Results",
             description=vote_summary,
             color=discord.Color.red()
         )
         await self.ctx.send(embed=embed)
-        
+
+        alive_players = [p for p in self.players if p not in self.eliminated]
+
+        if len(tied) > 1:
+            if self.runoff_candidates or len(alive_players) <= 2:
+                # Already had one runoff (or a runoff can't break the tie with only 2 voters) - break randomly
+                eliminated_player = random.choice(tied)
+                self.runoff_candidates = []
+                names = ", ".join(p.display_name for p in tied)
+                await self.ctx.send(
+                    f"⚖️ Still tied between **{names}** — randomly eliminating **{eliminated_player.display_name}**."
+                )
+            else:
+                self.runoff_candidates = tied
+                self.state = "voting"
+                self.votes = {}
+                self.phase_id += 1
+                names = ", ".join(p.mention for p in tied)
+                await self.ctx.send(
+                    f"🤝 **It's a tie!** {names} are tied. Everyone votes again — "
+                    f"this time only for one of the tied players, using `{self.ctx.prefix}mrwhite vote @player`."
+                )
+                self._schedule_timeout(self.VOTE_TIMEOUT, self._vote_timeout)
+                return
+        else:
+            eliminated_player = tied[0]
+            self.runoff_candidates = []
+
         self.eliminated.append(eliminated_player)
         
         await self.ctx.send(f"**{eliminated_player.display_name}** has been eliminated!")
@@ -354,12 +456,21 @@ class Game:
     async def mr_white_final_guess(self):
         """Mr. White gets to make a final guess"""
         self.state = "guessing"
-        
+        self.phase_id += 1
+
         await self.ctx.send(
             f"🎯 **{self.mr_white.mention}**, you have one chance to guess the word!\n"
             f"Use `{self.ctx.prefix}mrwhite guess <word>` to make your guess!"
         )
-    
+        self._schedule_timeout(self.GUESS_TIMEOUT, self._guess_timeout)
+
+    async def _guess_timeout(self):
+        """Forfeit Mr. White's guess if they take too long"""
+        await self.end_game(
+            f"⏰ **{self.mr_white.mention}** ran out of time to guess!\n"
+            f"👥 **Villagers win!** The word was: **{self.word}**"
+        )
+
     async def mr_white_guess(self, member: discord.Member, guess: str):
         """Mr. White makes their guess"""
         if self.state != "guessing":
@@ -385,7 +496,8 @@ class Game:
     async def end_game(self, message: str):
         """End the game"""
         self.state = "ended"
-        
+        self._cancel_timeout()
+
         embed = discord.Embed(
             title="🎮 Game Over!",
             description=message,

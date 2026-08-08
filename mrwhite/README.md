@@ -22,6 +22,10 @@ A social deduction word game for Red Discord Bot where players try to identify "
      - If wrong: Villagers win!
    - If Mr. White survives to the final 2 players: Mr. White wins!
 
+6. **Tie votes:** if the vote is tied between two or more players (and more than 2 players are alive), everyone re-votes among just the tied players. If it's still tied after that (or only 2 players are alive), the tie is broken randomly and announced.
+
+7. **Turn timers:** each phase auto-advances if players don't respond in time, so one AFK player can't stall the game forever — say phase (3 min), vote phase (2 min), and Mr. White's final guess (1.5 min) all have timeouts. Players who miss the window are skipped/counted as not voting.
+
 ## Installation
 
 1. Copy the entire cog folder to your Red bot's cogs directory
@@ -29,16 +33,24 @@ A social deduction word game for Red Discord Bot where players try to identify "
 
 ## Commands
 
-- `[p]mrwhite start` - Start a new game in the current channel
-- `[p]mrwhite join` - Join the current game
-- `[p]mrwhite begin` - Begin the game (minimum 3 players required)
-- `[p]mrwhite say <word>` - Say your word association during a round
-- `[p]mrwhite vote @player` - Vote for who you think is Mr. White
-- `[p]mrwhite guess <word>` - Mr. White's final guess (only for Mr. White)
-- `[p]mrwhite end` - End the current game
+The `mrwhite` group can be shortened to `mw`, and each command below has a short alias so you don't have to type the full word every round.
+
+- `[p]mrwhite start` (`new`) - Start a new game in the current channel
+- `[p]mrwhite join` (`j`) - Join the current game
+- `[p]mrwhite begin` (`b`) - Begin the game (minimum 3 players required)
+- `[p]mrwhite say <word>` (`s`) - Say your word association during a round
+- `[p]mrwhite vote @player` (`v`) - Vote for who you think is Mr. White
+- `[p]mrwhite guess <word>` (`g`) - Mr. White's final guess (only for Mr. White)
+- `[p]mrwhite end` (`stop`) - End the current game (game host, a player in the game, or a mod only)
 - `[p]mrwhite addword <word>` - Add a word to the word pool
 - `[p]mrwhite removeword <word>` - Remove a word from the word pool
 - `[p]mrwhite words` - View all available words
+
+For example, during a round you can just type `[p]mw s goal` instead of `[p]mrwhite say goal`.
+
+## The Secret Word
+
+The secret word is drawn once per game and stays the same for every round — villagers keep giving fresh clues about that one word until Mr. White is caught or survives. It's not supposed to change round to round; that's normal Mr. White gameplay, not a bug. Villagers get a DM reminder of the word when the game starts, and the round announcement notes it hasn't changed after round 1.
 
 ## Gameplay Flow
 
