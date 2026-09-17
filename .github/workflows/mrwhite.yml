@@ -1,0 +1,21 @@
+name: MrWhite regression tests
+on:
+  pull_request:
+    paths: ['mrwhite/**', '.github/workflows/mrwhite.yml']
+  push:
+    paths: ['mrwhite/**', '.github/workflows/mrwhite.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.15'
+      - run: python -m pip install -r mrwhite/requirements-dev.txt
+      - name: Test only this cog (avoid unrelated repository package hooks)
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: python -m pytest -p pytest_asyncio.plugin -c mrwhite/pytest.ini --confcutdir=mrwhite/tests mrwhite/tests -q

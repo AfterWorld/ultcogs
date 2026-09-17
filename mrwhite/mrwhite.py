@@ -1,405 +1,296 @@
-import discord
-from redbot.core import commands, Config
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-import random
+"""MrWhite's original commands, upgraded with three-role interactive gameplay."""
 import asyncio
-from typing import Optional, List, Dict
+import discord
+from redbot.core import Config, commands
+from redbot.core.utils.chat_formatting import pagify
+
+from .engine import RuleError, validate_word
+from .session import Session, safe
+from .words import DEFAULT_PAIRS, DEFAULT_WORDS
+
+TIMEOUTS = {"joining": 300, "playing": 120, "voting": 90, "guessing": 45}
+
 
 class MrWhite(commands.Cog):
-    """A social deduction word game - find Mr. White!"""
-    
+    """Secret Seas: Civilian, Undercover and Mr. White for 3–25 players."""
+
     def __init__(self, bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
-        default_guild = {
-            "words": [
-                "football", "basketball", "tennis", "pizza", "hamburger",
-                "computer", "phone", "car", "plane", "tree", "flower",
-                "ocean", "mountain", "river", "coffee", "tea", "music",
-                "movie", "book", "cat", "dog", "bird", "fish", "house"
-            ]
-        }
-        self.config.register_guild(**default_guild)
-        self.games: Dict[int, 'Game'] = {}
-    
-    @commands.group()
+        # Preserve the original identifier and legacy words key.
+        self.config = Config.get_conf(self, identifier=1234567890, force_registration=True)
+        self.config.register_guild(words=DEFAULT_WORDS, pairs=DEFAULT_PAIRS, timeouts=TIMEOUTS)
+        self.games: dict[int, Session] = {}
+        self.lobby_lock = asyncio.Lock()
+
+    async def cog_unload(self):
+        sessions = list(self.games.values())
+        for session in sessions:
+            async with session.lock:
+                session.close()
+        tasks = [s.timer for s in sessions if s.timer]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for session in sessions:
+            if session.message:
+                try:
+                    await session.io(session.message.edit(content="Voyage closed: cog unloaded.", view=None))
+                except (discord.HTTPException, asyncio.TimeoutError):
+                    pass
+
+    async def red_delete_data_for_user(self, *, requester, user_id):
+        for session in list(self.games.values()):
+            async with session.lock:
+                if user_id in session.game.players:
+                    session.game.finish("Voyage closed for a player data-deletion request.")
+                    session.close()
+                    session.game.players.clear()
+                    session.game.roles.clear()
+                    session.game.clues.clear()
+                    session.game.votes.clear()
+                    if session.message:
+                        try:
+                            await session.io(session.message.edit(content="Voyage closed.", embed=None,
+                                                                   attachments=[], view=None))
+                        except (discord.HTTPException, asyncio.TimeoutError):
+                            pass
+
+    @commands.group(aliases=["mw"])
     @commands.guild_only()
     async def mrwhite(self, ctx):
-        """Mr. White game commands"""
-        pass
-    
-    @mrwhite.command()
+        """Play Secret Seas. Start a lobby or read `mrwhite rules`."""
+
+    @mrwhite.command(aliases=["new"])
+    @commands.bot_has_permissions(send_messages=True, embed_links=True)
     async def start(self, ctx):
-        """Start a new Mr. White game"""
-        if ctx.channel.id in self.games:
-            await ctx.send("A game is already running in this channel!")
-            return
-        
-        game = Game(ctx, self.config)
-        self.games[ctx.channel.id] = game
-        await game.start()
-    
-    @mrwhite.command()
-    async def join(self, ctx):
-        """Join the current game"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.add_player(ctx.author)
-    
-    @mrwhite.command()
-    async def begin(self, ctx):
-        """Begin the game (minimum 3 players)"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.begin_game()
-    
-    @mrwhite.command()
-    async def say(self, ctx, *, word: str):
-        """Say your word association"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.player_say(ctx.author, word)
-    
-    @mrwhite.command()
-    async def vote(self, ctx, member: discord.Member):
-        """Vote for who you think is Mr. White"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.vote(ctx.author, member)
-    
-    @mrwhite.command()
-    async def guess(self, ctx, *, word: str):
-        """Mr. White's final guess (only if you're Mr. White)"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.mr_white_guess(ctx.author, word)
-    
-    @mrwhite.command()
-    async def end(self, ctx):
-        """End the current game"""
-        if ctx.channel.id not in self.games:
-            await ctx.send("No game is running in this channel!")
-            return
-        
-        game = self.games[ctx.channel.id]
-        await game.end_game("Game ended by command")
-        del self.games[ctx.channel.id]
-    
-    @mrwhite.command()
-    async def addword(self, ctx, *, word: str):
-        """Add a word to the word list"""
-        async with self.config.guild(ctx.guild).words() as words:
-            if word.lower() in [w.lower() for w in words]:
-                await ctx.send(f"'{word}' is already in the word list!")
+        """Create a lobby and join as its captain."""
+        async with self.lobby_lock:
+            if ctx.channel.id in self.games:
+                await ctx.send("A voyage is already running in this channel.")
                 return
-            words.append(word.lower())
-        await ctx.send(f"Added '{word}' to the word list!")
-    
+            settings = await self.config.guild(ctx.guild).all()
+            session = Session(self, ctx, settings)
+            self.games[ctx.channel.id] = session
+        try:
+            async with session.lock:
+                await session.publish()
+        except Exception:
+            session.close()
+            raise
+
+    async def dispatch(self, ctx, action, value=None):
+        session = self.games.get(ctx.channel.id)
+        if not session:
+            await ctx.send("No voyage here. Use `mrwhite start`.")
+            return
+        try:
+            await session.act(ctx.author, action, value)
+        except RuleError as exc:
+            await ctx.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
+        except (discord.HTTPException, asyncio.TimeoutError):
+            await ctx.send("Discord could not update the game. Start a new lobby.")
+
+    @mrwhite.command(aliases=["j"])
+    async def join(self, ctx):
+        """Join the current lobby."""
+        await self.dispatch(ctx, "join")
+
     @mrwhite.command()
-    async def removeword(self, ctx, *, word: str):
-        """Remove a word from the word list"""
+    async def leave(self, ctx):
+        """Leave the lobby (captains must transfer first)."""
+        await self.dispatch(ctx, "leave")
+
+    @mrwhite.command(aliases=["b"])
+    async def begin(self, ctx):
+        """Captain/moderator: begin with at least three players."""
+        await self.dispatch(ctx, "begin")
+
+    @mrwhite.command(aliases=["s"])
+    async def say(self, ctx, *, word: str):
+        """Submit one clue during the current round."""
+        await self.dispatch(ctx, "say", word)
+
+    @mrwhite.command(aliases=["v"])
+    async def vote(self, ctx, member: discord.Member):
+        """Vote for a suspect. Use the select menu for a private ballot."""
+        await self.dispatch(ctx, "vote", member.id)
+
+    @mrwhite.command(aliases=["g"])
+    async def guess(self, ctx, *, word: str):
+        """Eliminated Mr. White: make your one final guess."""
+        await self.dispatch(ctx, "guess", word)
+
+    @mrwhite.command(aliases=["stop"])
+    async def end(self, ctx):
+        """Captain/moderator: close this voyage."""
+        await self.dispatch(ctx, "end")
+
+    @mrwhite.command()
+    async def transfer(self, ctx, member: discord.Member):
+        """Captain/moderator: transfer captaincy to a surviving player."""
+        await self.dispatch(ctx, "transfer", member.id)
+
+    @mrwhite.command()
+    async def kick(self, ctx, member: discord.Member):
+        """Captain/moderator: remove a player from the lobby."""
+        await self.dispatch(ctx, "kick", member.id)
+
+    @mrwhite.command()
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def role(self, ctx):
+        """DM your dossier; the private button also works with closed DMs."""
+        session = self.games.get(ctx.channel.id)
+        if not session:
+            await ctx.send("No active voyage here.")
+            return
+        try:
+            secret = await session.act(ctx.author, "role")
+            await session.io(ctx.author.send(secret, allowed_mentions=discord.AllowedMentions.none()))
+        except RuleError as exc:
+            await ctx.send(str(exc))
+        except (discord.HTTPException, asyncio.TimeoutError):
+            await ctx.send("I could not DM you. Use **My secret dossier** on the game card for a private reply.")
+
+    @mrwhite.command()
+    @commands.cooldown(1, 10, commands.BucketType.channel)
+    async def status(self, ctx):
+        """Link to the current game card."""
+        session = self.games.get(ctx.channel.id)
+        if session and session.message:
+            await ctx.send(session.message.jump_url)
+        else:
+            await ctx.send("No active voyage here.")
+
+    @mrwhite.command()
+    async def rules(self, ctx):
+        """Show role, voting, deadline and victory rules."""
+        await ctx.send(
+            "**Secret Seas • Rules**\n"
+            "Civilians share a word. Undercover receives a related word. Mr. White receives none. "
+            "Open your private dossier after departure. Give one clue each, then vote.\n"
+            "**Civilians** win when all infiltrators are eliminated. **Undercover** wins at parity "
+            "with all other surviving players combined. **Mr. White** wins by guessing the Civilian "
+            "word on elimination, or surviving to the final two (takes priority over parity). "
+            "Multiple Mr. Whites share victory; each eliminated White gets one guess.\n"
+            "Ties trigger one revote among tied candidates. A second tie skips elimination. "
+            "Missing clues are skipped; missing votes abstain. Zero ballots ends in a draw. "
+            "A missed final guess counts as wrong; play continues if enemies remain. "
+            "Twenty rounds is the maximum.\n"
+            "3 players: 2 Civilians + 1 White. From 4 players: floor(players/4) Undercover "
+            "(at least 1), one White (two at 12+), remaining players Civilian. Maximum 25.\n"
+            "Only captain/moderator can begin, end, transfer or kick (lobby only). "
+            "Leaving mid-game is unavailable; deadlines handle absent players. "
+            "Restarting/reloading closes games. Commands remain available; use buttons for private roles "
+            "and the select for private ballots. Typed commands are visible in channel.")
+
+    @mrwhite.command()
+    @commands.admin_or_permissions(manage_guild=True)
+    async def addword(self, ctx, *, word: str):
+        """Preserve a legacy word, or add a playable `word | related word` pair."""
+        if "|" in word:
+            await self.edit_pair(ctx, word, remove=False)
+            return
+        try:
+            word = validate_word(word)
+        except RuleError as exc:
+            await ctx.send(str(exc))
+            return
         async with self.config.guild(ctx.guild).words() as words:
-            try:
-                words.remove(word.lower())
-                await ctx.send(f"Removed '{word}' from the word list!")
-            except ValueError:
-                await ctx.send(f"'{word}' is not in the word list!")
-    
+            if word in words:
+                await ctx.send("That word is already in the legacy list.")
+                return
+            if len(words) >= 500:
+                await ctx.send("Legacy list is full (500 words).")
+                return
+            words.append(word)
+        await ctx.send("Legacy word saved. To use it in games, add a related pair with `mrwhite addpair word | related word`.")
+
     @mrwhite.command()
-    async def words(self, ctx):
-        """Show all available words"""
-        words = await self.config.guild(ctx.guild).words()
-        pages = []
-        words_per_page = 20
-        
-        for i in range(0, len(words), words_per_page):
-            page_words = words[i:i+words_per_page]
-            embed = discord.Embed(
-                title="Available Words",
-                description=", ".join(page_words),
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f"Page {i//words_per_page + 1}/{(len(words)-1)//words_per_page + 1} | Total: {len(words)} words")
-            pages.append(embed)
-        
-        if pages:
-            await menu(ctx, pages, DEFAULT_CONTROLS)
-        else:
-            await ctx.send("No words in the list!")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def removeword(self, ctx, *, word: str):
+        """Remove a legacy single word. Playable pairs use `removepair`."""
+        async with self.config.guild(ctx.guild).words() as words:
+            matches = [w for w in words if w.casefold() == word.strip().casefold()]
+            if not matches:
+                await ctx.send("That word is not in the legacy list.")
+                return
+            words.remove(matches[0])
+        await ctx.send("Legacy word removed.")
 
-
-class Game:
-    def __init__(self, ctx, config):
-        self.ctx = ctx
-        self.config = config
-        self.players: List[discord.Member] = []
-        self.mr_white: Optional[discord.Member] = None
-        self.word: str = ""
-        self.state = "joining"  # joining, playing, voting, guessing, ended
-        self.round = 0
-        self.eliminated: List[discord.Member] = []
-        self.votes: Dict[discord.Member, discord.Member] = {}
-        self.has_spoken: List[discord.Member] = []
-    
-    async def start(self):
-        """Start the game lobby"""
-        embed = discord.Embed(
-            title="🎮 Mr. White Game Starting!",
-            description=(
-                "A social deduction word game!\n\n"
-                "**How to play:**\n"
-                "• Players receive a secret word (villagers) or no word (Mr. White)\n"
-                "• Each round, say a word associated with YOUR word\n"
-                "• After the round, vote for who you think is Mr. White\n"
-                "• If Mr. White is found, they get one guess at the word\n"
-                "• If they guess correctly, Mr. White wins!\n"
-                "• If not, villagers win!\n\n"
-                f"Use `{self.ctx.prefix}mrwhite join` to join!\n"
-                f"Use `{self.ctx.prefix}mrwhite begin` to start (min 3 players)"
-            ),
-            color=discord.Color.green()
-        )
-        await self.ctx.send(embed=embed)
-    
-    async def add_player(self, member: discord.Member):
-        """Add a player to the game"""
-        if self.state != "joining":
-            await self.ctx.send(f"{member.mention} The game has already started!")
+    async def edit_pair(self, ctx, text, remove):
+        try:
+            pair = [validate_word(w) for w in text.split("|")]
+            if len(pair) != 2 or pair[0] == pair[1]:
+                raise RuleError("Use two distinct related words separated by `|`.")
+        except RuleError as exc:
+            await ctx.send(str(exc))
             return
-        
-        if member in self.players:
-            await self.ctx.send(f"{member.mention} You're already in the game!")
-            return
-        
-        self.players.append(member)
-        await self.ctx.send(f"{member.mention} has joined! ({len(self.players)} players)")
-    
-    async def begin_game(self):
-        """Begin the actual game"""
-        if self.state != "joining":
-            await self.ctx.send("The game has already started!")
-            return
-        
-        if len(self.players) < 3:
-            await self.ctx.send("Need at least 3 players to start!")
-            return
-        
-        # Assign roles
-        self.mr_white = random.choice(self.players)
-        words = await self.config.guild(self.ctx.guild).words()
-        self.word = random.choice(words)
-        
-        # DM players their roles
-        for player in self.players:
-            try:
-                if player == self.mr_white:
-                    await player.send(
-                        f"🎭 **You are Mr. White!**\n"
-                        f"You don't know the word. Try to blend in and figure it out!"
-                    )
-                else:
-                    await player.send(
-                        f"👥 **You are a Villager!**\n"
-                        f"Your word is: **{self.word}**\n"
-                        f"Give clues to help other villagers, but don't be too obvious!"
-                    )
-            except discord.Forbidden:
-                await self.ctx.send(f"⚠️ Couldn't DM {player.mention}! Make sure your DMs are open.")
-        
-        self.state = "playing"
-        await self.start_round()
-    
-    async def start_round(self):
-        """Start a new round"""
-        self.round += 1
-        self.has_spoken = []
-        
-        alive_players = [p for p in self.players if p not in self.eliminated]
-        
-        embed = discord.Embed(
-            title=f"📢 Round {self.round}",
-            description=(
-                f"**Players alive:** {len(alive_players)}\n"
-                f"**Players:** {', '.join([p.mention for p in alive_players])}\n\n"
-                f"Say your word association using `{self.ctx.prefix}mrwhite say <word>`"
-            ),
-            color=discord.Color.blue()
-        )
-        await self.ctx.send(embed=embed)
-    
-    async def player_say(self, member: discord.Member, word: str):
-        """Player says their word"""
-        if self.state != "playing":
-            await self.ctx.send(f"{member.mention} Not the right time to speak!")
-            return
-        
-        if member not in self.players:
-            await self.ctx.send(f"{member.mention} You're not in this game!")
-            return
-        
-        if member in self.eliminated:
-            await self.ctx.send(f"{member.mention} You've been eliminated!")
-            return
-        
-        if member in self.has_spoken:
-            await self.ctx.send(f"{member.mention} You've already spoken this round!")
-            return
-        
-        self.has_spoken.append(member)
-        await self.ctx.send(f"**{member.display_name}** says: *{word}*")
-        
-        alive_players = [p for p in self.players if p not in self.eliminated]
-        
-        if len(self.has_spoken) == len(alive_players):
-            await self.start_voting()
-    
-    async def start_voting(self):
-        """Start the voting phase"""
-        self.state = "voting"
-        self.votes = {}
-        
-        alive_players = [p for p in self.players if p not in self.eliminated]
-        
-        embed = discord.Embed(
-            title="🗳️ Voting Time!",
-            description=(
-                f"Vote for who you think is Mr. White!\n"
-                f"Use `{self.ctx.prefix}mrwhite vote @player`\n\n"
-                f"**Alive players:** {', '.join([p.mention for p in alive_players])}"
-            ),
-            color=discord.Color.orange()
-        )
-        await self.ctx.send(embed=embed)
-    
-    async def vote(self, voter: discord.Member, target: discord.Member):
-        """Cast a vote"""
-        if self.state != "voting":
-            await self.ctx.send(f"{voter.mention} Not voting time!")
-            return
-        
-        if voter not in self.players or voter in self.eliminated:
-            await self.ctx.send(f"{voter.mention} You can't vote!")
-            return
-        
-        if target not in self.players or target in self.eliminated:
-            await self.ctx.send(f"{voter.mention} That player isn't in the game!")
-            return
-        
-        self.votes[voter] = target
-        await self.ctx.send(f"{voter.mention} voted! ({len(self.votes)}/{len([p for p in self.players if p not in self.eliminated])})")
-        
-        alive_players = [p for p in self.players if p not in self.eliminated]
-        
-        if len(self.votes) == len(alive_players):
-            await self.process_votes()
-    
-    async def process_votes(self):
-        """Process the votes"""
-        vote_counts = {}
-        for target in self.votes.values():
-            vote_counts[target] = vote_counts.get(target, 0) + 1
-        
-        max_votes = max(vote_counts.values())
-        eliminated_player = [p for p, v in vote_counts.items() if v == max_votes][0]
-        
-        vote_summary = "\n".join([f"**{target.display_name}**: {count} votes" 
-                                  for target, count in sorted(vote_counts.items(), 
-                                                             key=lambda x: x[1], 
-                                                             reverse=True)])
-        
-        embed = discord.Embed(
-            title="📊 Vote Results",
-            description=vote_summary,
-            color=discord.Color.red()
-        )
-        await self.ctx.send(embed=embed)
-        
-        self.eliminated.append(eliminated_player)
-        
-        await self.ctx.send(f"**{eliminated_player.display_name}** has been eliminated!")
-        
-        # Check if eliminated player was Mr. White
-        if eliminated_player == self.mr_white:
-            await self.ctx.send(f"🎭 **{eliminated_player.display_name}** was Mr. White!")
-            await self.mr_white_final_guess()
-        else:
-            await self.ctx.send(f"👥 **{eliminated_player.display_name}** was a Villager!")
-            
-            alive_players = [p for p in self.players if p not in self.eliminated]
-            
-            # Check if Mr. White is in last 2
-            if len(alive_players) == 2 and self.mr_white in alive_players:
-                await self.ctx.send("🏆 **Mr. White survived to the final 2!**")
-                await self.end_game(f"Mr. White ({self.mr_white.mention}) wins by survival!")
-            elif self.mr_white not in alive_players:
-                await self.end_game("Villagers win! Mr. White was eliminated earlier!")
+        async with self.config.guild(ctx.guild).pairs() as pairs:
+            existing = next((p for p in pairs if set(p) == set(pair)), None)
+            if remove:
+                if existing is None:
+                    await ctx.send("That pair is not configured.")
+                    return
+                pairs.remove(existing)
             else:
-                await self.start_round()
-    
-    async def mr_white_final_guess(self):
-        """Mr. White gets to make a final guess"""
-        self.state = "guessing"
-        
-        await self.ctx.send(
-            f"🎯 **{self.mr_white.mention}**, you have one chance to guess the word!\n"
-            f"Use `{self.ctx.prefix}mrwhite guess <word>` to make your guess!"
-        )
-    
-    async def mr_white_guess(self, member: discord.Member, guess: str):
-        """Mr. White makes their guess"""
-        if self.state != "guessing":
-            await self.ctx.send(f"{member.mention} Not guessing time!")
+                if existing is not None:
+                    await ctx.send("That pair is already configured.")
+                    return
+                if len(pairs) >= 500:
+                    await ctx.send("Pair list is full (500 pairs).")
+                    return
+                pairs.append(pair)
+        await ctx.send("Pair removed. Applies to new lobbies." if remove else "Pair saved. Applies to new lobbies.")
+
+    @mrwhite.command()
+    @commands.admin_or_permissions(manage_guild=True)
+    async def addpair(self, ctx, *, pair: str):
+        """Add a related pair: `mrwhite addpair anchor | compass`."""
+        await self.edit_pair(ctx, pair, remove=False)
+
+    @mrwhite.command()
+    @commands.admin_or_permissions(manage_guild=True)
+    async def removepair(self, ctx, *, pair: str):
+        """Remove a related pair: `mrwhite removepair anchor | compass`."""
+        await self.edit_pair(ctx, pair, remove=True)
+
+    @mrwhite.command()
+    @commands.cooldown(1, 15, commands.BucketType.channel)
+    async def words(self, ctx, page: int = 1):
+        """Show playable pairs and preserved legacy words, 15 entries per page."""
+        settings = await self.config.guild(ctx.guild).all()
+        entries = [f"Pair: {safe(a)} / {safe(b)}" for a,b in settings["pairs"]]
+        entries += [f"Legacy (pair before play): {safe(w)}" for w in settings["words"]]
+        pages = max(1, (len(entries)+14)//15)
+        if not 1 <= page <= pages:
+            await ctx.send(f"Choose a page from 1 to {pages}.")
             return
-        
-        if member != self.mr_white:
-            await self.ctx.send(f"{member.mention} You're not Mr. White!")
+        body = "\n".join(entries[(page-1)*15:page*15]) or "No words configured."
+        for chunk in pagify(body, page_length=1800):
+            await ctx.send(f"**Words • {page}/{pages}**\n{chunk}", allowed_mentions=discord.AllowedMentions.none())
+
+    @mrwhite.command(name="timeout")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def set_timeout(self, ctx, phase: str, seconds: int):
+        """Set future lobby deadlines (30–900s): joining, playing, voting, guessing."""
+        if phase not in TIMEOUTS or not 30 <= seconds <= 900:
+            await ctx.send("Choose joining/playing/voting/guessing and 30–900 seconds.")
             return
-        
-        if guess.lower() == self.word.lower():
-            await self.end_game(
-                f"🎉 **Mr. White wins!**\n"
-                f"{self.mr_white.mention} correctly guessed: **{self.word}**"
-            )
-        else:
-            await self.end_game(
-                f"❌ **Villagers win!**\n"
-                f"{self.mr_white.mention} guessed: *{guess}*\n"
-                f"The word was: **{self.word}**"
-            )
-    
-    async def end_game(self, message: str):
-        """End the game"""
-        self.state = "ended"
-        
-        embed = discord.Embed(
-            title="🎮 Game Over!",
-            description=message,
-            color=discord.Color.gold()
-        )
-        embed.add_field(
-            name="Players",
-            value="\n".join([f"{'🎭' if p == self.mr_white else '👥'} {p.display_name}" 
-                           for p in self.players]),
-            inline=False
-        )
-        
-        await self.ctx.send(embed=embed)
-        
-        # Remove game from active games
-        if self.ctx.channel.id in self.ctx.cog.games:
-            del self.ctx.cog.games[self.ctx.channel.id]
+        async with self.config.guild(ctx.guild).timeouts() as timeouts:
+            timeouts[phase] = seconds
+        await ctx.send("Deadline saved for new lobbies.")
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        if session := self.games.get(channel.id):
+            session.close()
+
+    @commands.Cog.listener()
+    async def on_thread_delete(self, thread):
+        if session := self.games.get(thread.id):
+            session.close()
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        for session in list(self.games.values()):
+            if session.ctx.guild.id == guild.id:
+                session.close()
