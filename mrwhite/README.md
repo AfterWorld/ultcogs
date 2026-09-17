@@ -1,99 +1,88 @@
-# Mr. White - Discord Game Cog
+# Mr. White — Secret Seas
 
-A social deduction word game for Red Discord Bot where players try to identify "Mr. White" who doesn't know the secret word.
+A full Civilian / Undercover / Mr. White party game for **3–25 players**, built on the original MrWhite cog and command group. Original procedural cartoon pirate/secret-agent art uses black, ivory and red. No external images, avatars, One Piece assets or characters are used.
 
-## Game Rules
+## Quick start
 
-1. Players receive roles:
-   - **Villagers**: Get a secret word
-   - **Mr. White**: Gets nothing
+Validated target: **Python 3.11.15, Red-DiscordBot 3.5.24, discord.py 2.7.1**. Pillow is the cog's only additional runtime requirement; Red Downloader installs it from `info.json`. For a manual installation, install Pillow in the bot's own environment before loading `mrwhite`.
 
-2. Each round, players say a word associated with their secret word
-   - Villagers try to give clues without being too obvious
-   - Mr. White tries to blend in and figure out the word
+1. Install this repository's feature branch using Red Downloader (or copy the complete `mrwhite` folder into your configured cog path), then `[p]load mrwhite`.
+2. `[p]mrwhite start` opens a lobby and joins its creator as captain.
+3. Friends click **Join crew**. The captain clicks **Set sail** with at least three players.
+4. Every player opens **My secret dossier**, an ephemeral reply only they can see. Closed DMs are supported. `[p]mrwhite role` is an optional DM fallback.
+5. Give one clue each through the modal or `[p]mrwhite say <clue>`. Clues appear on the card. Then select a suspect on the ballot.
+6. Follow eliminations, revotes and Mr. White's final-guess prompt until a faction wins.
 
-3. After the round, everyone votes for who they think is Mr. White
+Bot permissions: View Channel, Send Messages (Send Messages in Threads for threads), Embed Links. Attach Files enables generated cards; without it, text embeds still work. Prefix commands require the normal Red message-content setup. No reaction permissions or Manage Messages are required.
 
-4. If a villager is eliminated, they're out and the game continues
+## Rules
 
-5. **Winning conditions:**
-   - If Mr. White is voted out, they get ONE final guess at the word
-     - If correct: Mr. White wins!
-     - If wrong: Villagers win!
-   - If Mr. White survives to the final 2 players: Mr. White wins!
+Civilians receive the same word; Undercover receives a related word; Mr. White receives no word. Word-pair orientation is randomized once per game; your word stays unchanged across rounds. Players are told their own faction, never other players' factions until elimination/end. Each living player can give one 1–80 character clue per round, in any order. Submitting either exact secret word is rejected. Do not deliberately reveal your word in chat.
 
-## Installation
+| Players | Undercover | Mr. White | Civilians |
+| --- | --- | --- | --- |
+| 3 | 0 | 1 | 2 |
+| 4–11 | floor(players / 4), minimum 1 | 1 | remainder |
+| 12–25 | floor(players / 4) | 2 | remainder |
 
-1. Copy the entire cog folder to your Red bot's cogs directory
-2. Load the cog: `[p]load mrwhite`
+- **Civilian victory:** all Undercover and Mr. White players have been eliminated.
+- **Undercover victory:** surviving Undercover count is at least the combined count of all other survivors.
+- **Mr. White victory:** correctly guess the Civilian word after elimination, or survive to the final two. Final-two survival takes priority over Undercover parity. Multiple Whites share the faction win; each eliminated White gets their own single final guess.
+- An eliminated White gets their guess **before** checking any other victory. A wrong/expired guess continues the game if other infiltrators remain.
+- The unique highest ballot total eliminates a player. Votes may change until all living players vote or the deadline expires. No self-votes. Eliminated players and spectators cannot vote or give clues.
+- A tie triggers one revote among tied candidates, with all living players eligible to vote. A second tie eliminates nobody and starts another clue round. There is no arbitrary random elimination.
+- Missing clues are skipped. Missing votes abstain; zero votes ends the game in a draw. The game ends in a draw after 20 rounds.
 
-## Commands
+## Commands and controls
 
-- `[p]mrwhite start` - Start a new game in the current channel
-- `[p]mrwhite join` - Join the current game
-- `[p]mrwhite begin` - Begin the game (minimum 3 players required)
-- `[p]mrwhite say <word>` - Say your word association during a round
-- `[p]mrwhite vote @player` - Vote for who you think is Mr. White
-- `[p]mrwhite guess <word>` - Mr. White's final guess (only for Mr. White)
-- `[p]mrwhite end` - End the current game
-- `[p]mrwhite addword <word>` - Add a word to the word pool
-- `[p]mrwhite removeword <word>` - Remove a word from the word pool
-- `[p]mrwhite words` - View all available words
+The earlier open upgrade PR #13 was also inspected; its short aliases are retained: `mw`, `new`, `j`, `b`, `s`, `v`, `g`, `stop`. This feature branch is based on current main and includes the overlapping improvements.
 
-## Gameplay Flow
+All original commands remain: `start`, `join`, `begin`, `say`, `vote`, `guess`, `end`, `addword`, `removeword`, `words` under `[p]mrwhite`.
 
-1. Someone starts a game: `[p]mrwhite start`
-2. Players join: `[p]mrwhite join`
-3. Host begins: `[p]mrwhite begin` (needs 3+ players)
-4. Everyone gets DM'd their role and word (if villager)
-5. Round starts - players say associations: `[p]mrwhite say goal`
-6. When everyone has spoken, voting begins
-7. Players vote: `[p]mrwhite vote @player`
-8. Voted player is eliminated
-9. If Mr. White, they get to guess the word
-10. If not Mr. White, next round begins (or game ends if conditions met)
+| Command | Use |
+| --- | --- |
+| `start` / `join` / `leave` | Create, join, or leave a lobby |
+| `begin` / `end` | Captain or Manage Server moderator (or bot owner) starts/ends |
+| `transfer @member` | Captain/moderator transfers control to a surviving participant |
+| `kick @member` | Captain/moderator removes a lobby participant; transfer before removing captain |
+| `role` | DM your own dossier; use the private button if DMs are closed |
+| `say <clue>` / `vote @member` / `guess <word>` | Legacy gameplay inputs; typed commands are public |
+| `status` / `rules` | Current card link or complete game rules |
+| `words [page]` | Playable pairs and preserved legacy single words, 15 entries per page |
+| `addpair word \| related word` / `removepair word \| related word` | Manage Server/admin: edit playable pairs |
+| `addword <word>` / `removeword <word>` | Manage Server/admin: preserve/edit original single-word pool |
+| `addword word \| related word` | Also accepts the new pair format |
+| `timeout <phase> <seconds>` | Manage Server/admin: set 30–900 seconds for future lobbies |
 
-## Requirements
+The captain cannot leave without transferring or ending the lobby. Mid-game departure/kicking is intentionally unavailable: missing players are handled by deadlines and a moderator can end a stalled voyage. A captain who leaves the server can be replaced by a Manage Server moderator through `transfer`.
 
-- Red-DiscordBot v3.5+
-- discord.py 2.6.3+
-- Python 3.11+
+Default deadlines: lobby (`joining`) 300s, clues (`playing`) 120s, ballot/revote (`voting`) 90s, final guess (`guessing`) 45s. Deadlines are absolute and clicks never extend them. Config changes apply to **new lobbies**, not games already underway.
 
-## Example Game
+## Upgrade and data compatibility
 
-```
-Player1: [p]mrwhite start
-Bot: Game starting! Use [p]mrwhite join to join!
+The original Red Config identifier **1234567890** and guild `words` key are unchanged. Existing single words are preserved without guessing unrelated partners. Games use the new `pairs` key, seeded with 60 curated pairs; use `addpair` to pair a legacy custom word. Removing a legacy word does not remove any playable pair. The word/pair lists are bounded at 500 entries for new additions. No migration overwrites existing data.
 
-Player1: [p]mrwhite join
-Player2: [p]mrwhite join
-Player3: [p]mrwhite join
-Bot: 3 players joined!
+Guild word lists, pairs and deadlines persist in Red Config. Player IDs, display names, secrets, clues and ballots exist only in active session memory. There are no persistent user statistics. Discord messages remain in channel history. Red's deletion hook closes any session containing the requested user and clears its live player records/current card; it does not purge historical Discord messages or remove words manually added to guild configuration.
 
-Player1: [p]mrwhite begin
-Bot: Game starting! Check your DMs for your role!
+Restart/reload ends games. Views are not persistent across restarts; use `start` again. Unload stops views and cancels timers. Channel/thread/guild removal releases sessions. A failed Discord update closes the affected game and frees its channel. Graphics failure falls back to text.
 
-[DMs sent - word is "football"]
+## Implementation and validation
 
-Bot: Round 1! Say your associations!
-Player1: [p]mrwhite say goal
-Player2: [p]mrwhite say Messi
-Player3: [p]mrwhite say shoot
+`engine.py` owns pure game rules. `session.py` serializes buttons, commands and deadlines through one lock per channel game. Lobby creation has a separate lock. Phase generations reject old ballots/modals, and registry identity checks prevent an old game from controlling a replacement. `views.py` uses buttons, a select with at most 25 options, and short-lived entry modals. Private roles are never placed in public cards or graphic metadata. All game sends suppress mentions and escape player text. Components honor Red allow/block lists and disabled-cog settings.
 
-Bot: Voting time!
-Player1: [p]mrwhite vote @Player3
-Player2: [p]mrwhite vote @Player3
-Player3: [p]mrwhite vote @Player1
+`graphics.py` draws five public phase banners entirely in Pillow. Rendering runs off the event loop, with a bounded cache. Font lookup has a bundled Pillow fallback.
 
-Bot: Player3 eliminated! Player3 was Mr. White!
-Bot: Mr. White, make your final guess!
+From the repository root, in an isolated Python 3.11.15 environment:
 
-Player3: [p]mrwhite guess football
-Bot: 🎉 Mr. White wins! Correct guess: football
+```sh
+python -m pip install -r mrwhite/requirements-dev.txt
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -p pytest_asyncio.plugin -c mrwhite/pytest.ini --confcutdir=mrwhite/tests mrwhite/tests -q
 ```
 
-## Notes
+PowerShell: set `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD='1'` before the same `python -m pytest ...` command. Isolation avoids importing unrelated cogs from this repository's root `__init__.py` or Red's own pytest plugin. GitHub Actions runs this suite on changes to the cog.
 
-- Players must have DMs enabled to receive their roles
-- Only one game can run per channel at a time
-- The cog comes with a default word list that can be customized
+Tests cover role scaling, all victory paths, multiple Whites, final-guess priority, restricted revotes, empty/partial ballots, absolute and stale deadlines, simultaneous starts/votes, stale controls, host restrictions, failed Discord updates, closed DMs, Config preservation and atomic pair edits, UI limits, unload cleanup, 50 simulated games, and all five PNG renderers.
+
+### Live Discord acceptance check
+
+Automated tests use real installed Discord/Red libraries with mocked Discord transport. Before deploying broadly, run a real 3-player and 4+ player game: verify private dossiers with closed DMs; button/modal/select behavior; tied voting; final guesses; host transfer; timeout advancement; a second game in the same channel; reload cleanup; and the no-Attach-Files fallback. A live bot token or server session is not required for the automated suite.

@@ -1,9 +1,12 @@
 {
     "author": ["YourName"],
-    "description": "A social deduction word game where players try to find Mr. White",
+    "description": "Secret Seas: a 3–25 player Civilian / Undercover / Mr. White game with private dossiers, interactive voting, revotes, deadlines and original procedural pirate-agent art.",
     "install_msg": "Thanks for installing Mr. White! Use `[p]mrwhite start` to begin a game.",
-    "short": "Mr. White social deduction game",
+    "short": "Secret Seas social deduction party game",
+    "min_bot_version": "3.5.24",
+    "min_python_version": [3, 11, 15],
+    "requirements": ["Pillow>=10.1.0"],
     "tags": ["game", "fun", "social"],
     "type": "COG",
-    "end_user_data_statement": "This cog does not store any end user data."
+    "end_user_data_statement": "Guild settings and moderator-supplied words/pairs persist in Red Config. Active player IDs, display names, roles, clues and ballots are held in memory until the game ends or the cog unloads. Game messages remain in Discord; no per-user statistics are persisted."
 }
