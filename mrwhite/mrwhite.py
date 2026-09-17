@@ -6,6 +6,7 @@ from redbot.core.utils.chat_formatting import pagify
 
 from .engine import RuleError, validate_word
 from .session import Session, safe
+from .rules import RulesView, rules_page
 from .words import DEFAULT_PAIRS, DEFAULT_WORDS
 
 TIMEOUTS = {"joining": 300, "playing": 120, "voting": 90, "guessing": 45}
@@ -161,26 +162,19 @@ class MrWhite(commands.Cog):
             await ctx.send("No active voyage here.")
 
     @mrwhite.command()
+    @commands.bot_has_permissions(embed_links=True)
+    @commands.cooldown(1, 10, commands.BucketType.channel)
     async def rules(self, ctx):
-        """Show role, voting, deadline and victory rules."""
-        await ctx.send(
-            "**Secret Seas • Rules**\n"
-            "Civilians share a word. Undercover receives a related word. Mr. White receives none. "
-            "Open your private dossier after departure. Give one clue each, then vote.\n"
-            "**Civilians** win when all infiltrators are eliminated. **Undercover** wins at parity "
-            "with all other surviving players combined. **Mr. White** wins by guessing the Civilian "
-            "word on elimination, or surviving to the final two (takes priority over parity). "
-            "Multiple Mr. Whites share victory; each eliminated White gets one guess.\n"
-            "Ties trigger one revote among tied candidates. A second tie skips elimination. "
-            "Missing clues are skipped; missing votes abstain. Zero ballots ends in a draw. "
-            "A missed final guess counts as wrong; play continues if enemies remain. "
-            "Twenty rounds is the maximum.\n"
-            "3 players: 2 Civilians + 1 White. From 4 players: floor(players/4) Undercover "
-            "(at least 1), one White (two at 12+), remaining players Civilian. Maximum 25.\n"
-            "Only captain/moderator can begin, end, transfer or kick (lobby only). "
-            "Leaving mid-game is unavailable; deadlines handle absent players. "
-            "Restarting/reloading closes games. Commands remain available; use buttons for private roles "
-            "and the select for private ballots. Typed commands are visible in channel.")
+        """Open the field guide, with private buttons for detailed rules."""
+        prefix = ctx.clean_prefix
+        view = RulesView(prefix)
+        try:
+            view.message = await ctx.send(
+                embed=rules_page("overview", prefix), view=view,
+                allowed_mentions=discord.AllowedMentions.none())
+        except Exception:
+            view.stop()
+            raise
 
     @mrwhite.command()
     @commands.admin_or_permissions(manage_guild=True)
