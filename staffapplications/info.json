@@ -1,0 +1,13 @@
+{
+  "name": "StaffApplications",
+  "author": ["AfterWorld"],
+  "short": "Private staff applications with persistent controls and owner error alerts.",
+  "description": "Public recruitment panels, resumable DM forms, durable staff delivery, reviewer decisions, and independent owner DM/private channel error alerts.",
+  "install_msg": "Use [p]staffapp createchannels @Reviewers or [p]staffapp setup #applications #reviews #errors @Reviewers, then [p]staffapp open true. Read staffapplications/README.md before production use.",
+  "requirements": [],
+  "tags": ["staff", "applications", "moderation"],
+  "min_bot_version": "3.5.24",
+  "min_python_version": [3, 11, 0],
+  "type": "COG",
+  "end_user_data_statement": "Stores applicant/reviewer IDs, answers, positions, timestamps, decisions and message IDs locally. Submitted answers are posted in a configured private channel. Sanitized incidents go to bot-owner DMs and an error channel. Supports Red data deletion and configurable retention."
+}
