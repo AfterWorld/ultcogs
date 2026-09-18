@@ -85,7 +85,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -580,19 +580,24 @@ class StaffApplications(commands.Cog):
             error_channel=error_channel.id,
             reviewer_role=reviewer_role.id,
             open=False,
+            manage_panel_visibility=(
+                old["manage_panel_visibility"] and old["panel_channel"] == panel_channel.id
+            ),
         )
         if old["panel_channel"] != panel_channel.id:
             self.untrack(old["panel_message"])
             self.store.configure(ctx.guild.id, panel_message=None)
+        if self.store.settings(ctx.guild.id)["manage_panel_visibility"]:
+            await self.set_panel_visibility(ctx.guild.id, False)
         await self.publish_panel(ctx.guild.id)
         await ctx.send(
             "Configured. Applications start closed. Use `staffapp open true` when ready, and `staffapp testerror` to verify alerts."
         )
 
     @staffapp.command(name="createchannels")
-    @commands.bot_has_permissions(manage_channels=True)
+    @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
     async def create_channels(self, ctx, reviewer_role: discord.Role):
-        """Create the public application channel and private review/error channels."""
+        """Create all channels privately; opening applications publishes only the panel."""
         if reviewer_role.is_default() or reviewer_role.managed:
             raise UserError("Choose a normal staff role.")
         if self.store.settings(ctx.guild.id)["panel_channel"]:
@@ -604,11 +609,14 @@ class StaffApplications(commands.Cog):
             attach_files=True,
             read_message_history=True,
         )
-        public = {
+        panel_overwrites = {
             ctx.guild.default_role: discord.PermissionOverwrite(
-                view_channel=True, send_messages=False
+                view_channel=False, send_messages=False
             ),
             ctx.guild.me: bot_overwrite,
+            reviewer_role: discord.PermissionOverwrite(
+                view_channel=True, read_message_history=True
+            ),
         }
         private = {
             ctx.guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -620,7 +628,7 @@ class StaffApplications(commands.Cog):
         created = []
         try:
             for name, overwrites in [
-                ("staff-applications", public),
+                ("staff-applications", panel_overwrites),
                 ("application-reviews", private),
                 ("application-errors", private),
             ]:
@@ -643,9 +651,13 @@ class StaffApplications(commands.Cog):
             review_channel=created[1].id,
             error_channel=created[2].id,
             reviewer_role=reviewer_role.id,
+            open=False,
+            manage_panel_visibility=True,
         )
         await self.publish_panel(ctx.guild.id)
-        await ctx.send("Channels created. Use `staffapp open true` to open applications.")
+        await ctx.send(
+            "All channels created privately. Use `staffapp open true` to make the application channel public. Review and error channels stay private."
+        )
 
     async def publish_panel(self, guild_id):
         cfg = self.store.settings(guild_id)
@@ -672,17 +684,42 @@ class StaffApplications(commands.Cog):
         await self.publish_panel(ctx.guild.id)
         await ctx.tick()
 
+    async def set_panel_visibility(self, guild_id, enabled):
+        cfg = self.store.settings(guild_id)
+        channel = self.bot.get_channel(cfg["panel_channel"] or 0)
+        if channel is None or channel.guild.id != guild_id:
+            raise UserError("The application channel is missing. Configure it again first.")
+        if not channel.permissions_for(channel.guild.me).manage_roles:
+            raise UserError(
+                "I need Manage Roles in the application channel to change its visibility."
+            )
+        overwrite = channel.overwrites_for(channel.guild.default_role)
+        overwrite.view_channel = enabled
+        # Preserve other permissions, including the read-only panel setting.
+        await channel.set_permissions(
+            channel.guild.default_role,
+            overwrite=overwrite,
+            reason="Staff applications opened" if enabled else "Staff applications closed",
+        )
+
     @staffapp.command(name="open")
     async def open_command(self, ctx, enabled: bool):
-        """Open or close applications; existing drafts remain saved."""
-        cfg = self.store.settings(ctx.guild.id)
-        if enabled and not all(
-            cfg[k] for k in ("panel_channel", "review_channel", "error_channel", "reviewer_role")
-        ):
-            raise UserError("Configure all channels and a reviewer role first.")
-        self.store.configure(ctx.guild.id, open=enabled)
-        await self.publish_panel(ctx.guild.id)
-        await ctx.tick()
+        """Open/close applications and show/hide the bot-created application channel."""
+        async with self._locks.setdefault(("visibility", ctx.guild.id), asyncio.Lock()):
+            cfg = self.store.settings(ctx.guild.id)
+            if enabled and not all(
+                cfg[k]
+                for k in ("panel_channel", "review_channel", "error_channel", "reviewer_role")
+            ):
+                raise UserError("Configure all channels and a reviewer role first.")
+            if not enabled:
+                # Stop accepting applications even if Discord rejects the permission change.
+                self.store.configure(ctx.guild.id, open=False)
+            if cfg["manage_panel_visibility"]:
+                await self.set_panel_visibility(ctx.guild.id, enabled)
+            self.store.configure(ctx.guild.id, open=enabled)
+            await self.publish_panel(ctx.guild.id)
+            await ctx.tick()
 
     @staffapp.command(name="errorchannel")
     async def error_channel_command(self, ctx, channel: discord.TextChannel):

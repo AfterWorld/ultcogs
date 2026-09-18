@@ -13,6 +13,7 @@ DEFAULTS = {
     "reviewer_role": None,
     "panel_channel": None,
     "panel_message": None,
+    "manage_panel_visibility": False,
     "title": "Join Our Staff Team",
     "color": 0x5865F2,
     "description": "Help support our community. Apply privately through DMs.",

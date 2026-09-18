@@ -25,17 +25,29 @@ Replace `[p]` with your bot prefix and `ultcogs` with your configured repository
 [p]load staffapplications
 ```
 
-To have the bot create channels (requires Manage Channels):
+To have the bot create channels (requires Manage Channels and Manage Roles):
 
 ```text
 [p]staffapp createchannels @ApplicationReviewers
 ```
+
+All three generated channels start private, accessible to the bot, the configured
+reviewer role, and server administrators. `staffapp open true` makes only the
+application panel channel visible to everyone. `staffapp open false` hides that
+channel again. Review and error channels remain private throughout. Keep the bot's
+Manage Roles permission so it can change the panel's visibility. Existing drafts
+remain saved while closed and can still be continued through their DM controls.
 
 Or use three existing channels:
 
 ```text
 [p]staffapp setup #staff-applications #application-reviews #application-errors @ApplicationReviewers
 ```
+
+For manually supplied channels, `setup` preserves their visibility; configure their
+permissions yourself. Automatic visibility applies to channels created by this version
+of `createchannels`, and is retained if you rerun setup with the same panel channel.
+Channels created by version 1.0 retain their existing manual visibility behavior.
 
 Setup starts with applications closed. The review and error channels must deny
 View Channel to `@everyone`. Audit other role/member overwrites too: setup checks
@@ -103,7 +115,7 @@ All `staffapp` commands require Red admin access or Manage Server and run in a s
 | --- | --- |
 | `staffapp settings` | Show channels, reviewer role, limits and state counts |
 | `staffapp panel` | Recreate a missing public panel or refresh its appearance |
-| `staffapp open true/false` | Open or close new applications and submissions |
+| `staffapp open true/false` | Open/close applications; show/hide the bot-created panel channel |
 | `staffapp errorchannel #channel` | Set a separate private error destination |
 | `staffapp testerror` | Attempt owner DM and channel test alerts; 60-second cooldown |
 | `staffapp positions A \| B` | 1–25 positions; each at most 100 characters |
@@ -183,7 +195,12 @@ Before production use in your server:
 - Try reviewer buttons from an unauthorized account; then claim and decide as a reviewer.
 - Block applicant DMs, confirm the owner alert and panel status, then retry after unblocking.
 - Remove review-channel permissions, submit, restore permissions, and confirm one recovered submission.
+- Verify all generated channels start hidden; opening exposes only the panel and closing hides it again.
 - Verify channel overwrites and retention/deletion on test records.
+
+Visibility toggling changes the panel’s `@everyone` overwrite and preserves its other
+permissions. Additional role/member View Channel overrides added manually can grant
+access while closed; keep these limited to staff.
 
 Automated tests are not a substitute for live Discord permission and interaction checks.
 No live Discord account or bot token is required for the automated suite.

@@ -419,3 +419,91 @@ async def test_owner_alert_still_attempted_when_command_reply_fails(cog):
     with pytest.raises(RuntimeError):
         await cog.cog_command_error(ctx, RuntimeError("original bug"))
     cog.alerts.report.assert_awaited_once()
+
+
+async def test_generated_channels_start_private_with_staff_access(cog):
+    everyone, bot_member, reviewer = MagicMock(), MagicMock(), MagicMock()
+    reviewer.id, reviewer.managed = 4, False
+    reviewer.is_default.return_value = False
+    guild = NS(
+        id=1,
+        default_role=everyone,
+        me=bot_member,
+        create_text_channel=AsyncMock(side_effect=[NS(id=10), NS(id=11), NS(id=12)]),
+    )
+    ctx = NS(guild=guild, send=AsyncMock())
+    cog.publish_panel = AsyncMock()
+    await StaffApplications.create_channels.callback(cog, ctx, reviewer)
+    for call in guild.create_text_channel.call_args_list:
+        overwrites = call.kwargs["overwrites"]
+        assert overwrites[everyone].view_channel is False
+        assert overwrites[reviewer].view_channel is True
+        assert overwrites[bot_member].view_channel is True
+    cfg = cog.store.settings(1)
+    assert cfg["manage_panel_visibility"] and not cfg["open"]
+    assert cfg["review_channel"] == 11 and cfg["error_channel"] == 12
+
+
+def managed_panel(cog):
+    everyone = object()
+    overwrite = discord.PermissionOverwrite(
+        view_channel=False, send_messages=False, add_reactions=False
+    )
+    channel = NS(
+        guild=NS(id=1, default_role=everyone, me=object()),
+        permissions_for=lambda _: NS(manage_roles=True),
+        overwrites_for=lambda _: overwrite,
+        set_permissions=AsyncMock(),
+    )
+    cog.bot.get_channel.return_value = channel
+    cog.store.configure(1, panel_channel=10, manage_panel_visibility=True, open=False)
+    cog.publish_panel = AsyncMock()
+    return channel
+
+
+async def test_open_and_close_change_only_panel_visibility(cog):
+    channel = managed_panel(cog)
+    ctx = NS(guild=NS(id=1), tick=AsyncMock())
+    await StaffApplications.open_command.callback(cog, ctx, True)
+    assert cog.store.settings(1)["open"]
+    overwrite = channel.set_permissions.call_args.kwargs["overwrite"]
+    assert overwrite.view_channel is True
+    assert overwrite.send_messages is False and overwrite.add_reactions is False
+    await StaffApplications.open_command.callback(cog, ctx, False)
+    assert not cog.store.settings(1)["open"]
+    assert channel.set_permissions.call_args.kwargs["overwrite"].view_channel is False
+    assert all(call.args == (10,) for call in cog.bot.get_channel.call_args_list)
+
+
+async def test_failed_permission_change_does_not_open_applications(cog):
+    channel = managed_panel(cog)
+    channel.set_permissions.side_effect = discord.Forbidden(
+        NS(status=403, reason="Forbidden"), "denied"
+    )
+    ctx = NS(guild=NS(id=1), tick=AsyncMock())
+    with pytest.raises(discord.Forbidden):
+        await StaffApplications.open_command.callback(cog, ctx, True)
+    assert not cog.store.settings(1)["open"]
+    cog.publish_panel.assert_not_awaited()
+
+
+async def test_close_stops_submissions_even_if_hiding_fails(cog):
+    channel = managed_panel(cog)
+    cog.store.configure(1, open=True)
+    channel.set_permissions.side_effect = discord.Forbidden(
+        NS(status=403, reason="Forbidden"), "denied"
+    )
+    ctx = NS(guild=NS(id=1), tick=AsyncMock())
+    with pytest.raises(discord.Forbidden):
+        await StaffApplications.open_command.callback(cog, ctx, False)
+    assert not cog.store.settings(1)["open"]
+
+
+async def test_existing_manually_configured_channel_keeps_visibility(cog):
+    cog.store.configure(1, panel_channel=10, manage_panel_visibility=False)
+    cog.set_panel_visibility = AsyncMock()
+    cog.publish_panel = AsyncMock()
+    ctx = NS(guild=NS(id=1), tick=AsyncMock())
+    await StaffApplications.open_command.callback(cog, ctx, False)
+    cog.set_panel_visibility.assert_not_awaited()
+    assert not cog.store.settings(1)["open"]
