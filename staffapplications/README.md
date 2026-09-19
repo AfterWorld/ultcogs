@@ -171,6 +171,24 @@ Changing setup closes applications until explicitly reopened. Existing queued
 submissions keep their original destination so retries cannot accidentally post to
 both the old and new channel. Restore original permissions and retry when possible.
 
+## Panel-refresh recovery (1.2.1)
+
+A panel channel missing from the bot's local cache is now fetched directly from
+Discord before being considered unavailable. This also applies when opening or
+closing a managed panel channel after a reload.
+
+If Discord confirms that a configured channel was deleted or is inaccessible,
+automatic refresh pauses for that channel/message configuration and sends one
+sanitized alert with a fixed explanation and recovery command. Application data
+and channel IDs are retained. Fix permissions and run `[p]staffapp panel` to retry;
+if the channel was deleted, run `[p]staffapp setup` with the replacement channels.
+Successful manual repair resumes refresh. Changing the panel configuration also
+allows another attempt. The pause resets on cog reload, which allows one fresh check.
+Transient Discord/network errors instead retry after at least 60 seconds.
+
+A deleted panel message is recreated only when Discord reports Unknown Message;
+an Unknown Channel response no longer triggers an attempted post to a deleted channel.
+
 ## Errors and recovery
 
 Alerts cover this cog's commands, components/forms and background delivery/cleanup;

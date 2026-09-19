@@ -29,6 +29,22 @@ class UserError(Exception):
     """An expected, safe-to-display validation failure."""
 
 
+class PanelUnavailable(UserError):
+    """Safe, fixed diagnostics for a panel that requires administrator repair."""
+
+    REASONS = {
+        "unconfigured": "No application panel channel is configured. Run staffapp setup.",
+        "missing": "The configured application channel was deleted. Run staffapp setup with an existing channel.",
+        "forbidden": "The bot cannot access or edit the application panel. Restore View Channel, Send Messages and Embed Links, then run staffapp panel.",
+        "invalid": "The configured panel is not a text channel in this server. Run staffapp setup.",
+    }
+
+    def __init__(self, reason, channel_id=None):
+        self.reason = reason
+        self.channel_id = channel_id
+        super().__init__(self.REASONS[reason])
+
+
 class Store:
     def __init__(self, path):
         self.db = sqlite3.connect(path)

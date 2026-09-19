@@ -11,6 +11,8 @@ from pathlib import Path
 
 import discord
 
+from .store import PanelUnavailable
+
 log = logging.getLogger("red.staffapplications")
 
 
@@ -22,6 +24,11 @@ def diagnostic(error):
     lines.extend(f"{Path(f.filename).name}:{f.lineno} in {f.name}" for f in frames[-12:])
     if isinstance(error, discord.HTTPException):
         lines.append(f"Discord HTTP status={error.status}, code={error.code}")
+    if isinstance(error, PanelUnavailable):
+        lines.append(PanelUnavailable.REASONS[error.reason])
+        lines.append(
+            "Automatic panel refresh paused until repair; run staffapp panel after fixing the configuration."
+        )
     return "\n".join(lines)
 
 

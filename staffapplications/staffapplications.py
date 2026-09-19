@@ -13,7 +13,7 @@ from redbot.core.data_manager import cog_data_path
 
 from .alerts import Alerts
 from .presets import ONE_PIECE_TEMPLATE
-from .store import Store, UserError
+from .store import PanelUnavailable, Store, UserError
 from .views import (
     NONE,
     AnswerModal,
@@ -86,7 +86,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.2.0"
+    __version__ = "1.2.1"
 
     def __init__(self, bot):
         self.bot = bot
@@ -96,6 +96,8 @@ class StaffApplications(commands.Cog):
         self._views = {}  # one current persistent view per message
         self._locks = WeakValueDictionary()
         self._panel_counts = {}
+        self._panel_paused = {}
+        self._panel_retry = {}
 
     async def cog_load(self):
         for guild_id in self.store.guilds():
@@ -481,11 +483,21 @@ class StaffApplications(commands.Cog):
 
         for guild_id in self.store.guilds():
             cfg = self.store.settings(guild_id)
+            signature = (cfg["panel_channel"], cfg["panel_message"])
+            if (
+                self._panel_paused.get(guild_id) == signature
+                or self._panel_retry.get(guild_id, 0) > time.time()
+            ):
+                continue
             count = self.store.submitted_count(guild_id)
             if cfg["panel_message"] and self._panel_counts.get(guild_id) != count:
                 try:
                     await self.publish_panel(guild_id)
+                except PanelUnavailable as exc:
+                    self._panel_paused[guild_id] = signature
+                    await self.alerts.report(guild_id, "refresh application panel", exc)
                 except Exception as exc:
+                    self._panel_retry[guild_id] = time.time() + 60
                     await self.alerts.report(guild_id, "refresh application panel", exc)
 
     async def worker(self):
@@ -670,26 +682,49 @@ class StaffApplications(commands.Cog):
             "All channels created privately. Use `staffapp open true` to make the application channel public. Review and error channels stay private."
         )
 
+    async def resolve_panel_channel(self, guild_id):
+        channel_id = self.store.settings(guild_id)["panel_channel"]
+        if not channel_id:
+            raise PanelUnavailable("unconfigured")
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            # Cache misses during reload/startup do not mean the channel was deleted.
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except discord.NotFound:
+                raise PanelUnavailable("missing", channel_id) from None
+            except discord.Forbidden:
+                raise PanelUnavailable("forbidden", channel_id) from None
+        if not isinstance(channel, discord.TextChannel) or channel.guild.id != guild_id:
+            raise PanelUnavailable("invalid", channel_id)
+        return channel
+
     async def publish_panel(self, guild_id):
         cfg = self.store.settings(guild_id)
-        channel = self.bot.get_channel(cfg["panel_channel"] or 0)
-        if channel is None:
-            raise UserError("Configure channels first with staffapp setup.")
+        channel = await self.resolve_panel_channel(guild_id)
         rendered_count = self.store.submitted_count(guild_id)
         payload = panel(self, guild_id)
         message = None
-        if cfg["panel_message"]:
-            try:
-                message = await channel.get_partial_message(cfg["panel_message"]).edit(
-                    **payload, allowed_mentions=NONE
-                )
-            except discord.NotFound:
-                pass
-        if message is None:
-            message = await channel.send(**payload, allowed_mentions=NONE)
+        try:
+            if cfg["panel_message"]:
+                try:
+                    message = await channel.get_partial_message(cfg["panel_message"]).edit(
+                        **payload, allowed_mentions=NONE
+                    )
+                except discord.NotFound as exc:
+                    if exc.code != 10008:  # Only an unknown message permits recreation.
+                        raise
+            if message is None:
+                message = await channel.send(**payload, allowed_mentions=NONE)
+        except discord.NotFound:
+            raise PanelUnavailable("missing", channel.id) from None
+        except discord.Forbidden:
+            raise PanelUnavailable("forbidden", channel.id) from None
         self.store.configure(guild_id, panel_message=message.id)
         self.track(payload["view"], message.id)
         self._panel_counts[guild_id] = rendered_count
+        self._panel_paused.pop(guild_id, None)
+        self._panel_retry.pop(guild_id, None)
 
     @staffapp.command(name="panel")
     async def panel_command(self, ctx):
@@ -698,10 +733,7 @@ class StaffApplications(commands.Cog):
         await ctx.tick()
 
     async def set_panel_visibility(self, guild_id, enabled):
-        cfg = self.store.settings(guild_id)
-        channel = self.bot.get_channel(cfg["panel_channel"] or 0)
-        if channel is None or channel.guild.id != guild_id:
-            raise UserError("The application channel is missing. Configure it again first.")
+        channel = await self.resolve_panel_channel(guild_id)
         if not channel.permissions_for(channel.guild.me).manage_roles:
             raise UserError(
                 "I need Manage Roles in the application channel to change its visibility."

@@ -455,6 +455,7 @@ def managed_panel(cog):
         overwrites_for=lambda _: overwrite,
         set_permissions=AsyncMock(),
     )
+    cog.resolve_panel_channel = AsyncMock(return_value=channel)
     cog.bot.get_channel.return_value = channel
     cog.store.configure(1, panel_channel=10, manage_panel_visibility=True, open=False)
     cog.publish_panel = AsyncMock()
