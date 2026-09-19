@@ -65,6 +65,7 @@ def click(uid=1):
 
 async def menu(env):
     view = RepositoryMenu(env.owner.formatter, env.ctx, env.settings)
+    view.mode = "repositories"
     await view.refresh()
     return view
 
@@ -100,12 +101,12 @@ async def test_unknown_metadata_and_core(env):
 async def test_navigation_and_command_detail(env):
     view = await menu(env)
     i = click()
-    await view.navigate(i, "select", "Repository: ultcogs", (None, None, 0))
+    await view.navigate(i, "select", "Repository: ultcogs", ("repositories", None, None, 0))
     assert view.repo == "Repository: ultcogs"
-    await view.navigate(i, "select", "Example", (view.repo, None, 0))
+    await view.navigate(i, "select", "Example", (view.mode, view.repo, None, 0))
     assert view.cog == "Example"
     env.owner.formatter.send_help = AsyncMock()
-    await view.navigate(i, "select", "hello", (view.repo, view.cog, 0))
+    await view.navigate(i, "select", "hello", (view.mode, view.repo, view.cog, 0))
     env.owner.formatter.send_help.assert_awaited_once_with(env.ctx, env.example.hello)
     await view.navigate(i, "back")
     assert view.cog is None
@@ -115,9 +116,9 @@ async def test_navigation_and_command_detail(env):
 
 async def test_permissions_rechecked_before_selection(env):
     view = await menu(env)
-    await view.navigate(click(), "select", "Repository: ultcogs", (None, None, 0))
+    await view.navigate(click(), "select", "Repository: ultcogs", ("repositories", None, None, 0))
     env.example.hello.can_see.return_value = False
-    await view.navigate(click(), "select", "Example", (view.repo, None, 0))
+    await view.navigate(click(), "select", "Example", (view.mode, view.repo, None, 0))
     assert view.repo is None
     assert view.groups == {}
 
@@ -139,11 +140,11 @@ async def test_pagination_and_stale_selection(env):
     assert len(view.children[0].options) == 10
     await view.navigate(click(), "next")
     assert view.page == 1
-    await view.navigate(click(), "select", "Repo 00", (None, None, 0))
+    await view.navigate(click(), "select", "Repo 00", ("repositories", None, None, 0))
     assert view.repo is None
     await view.navigate(click(), "next")
     assert len(view.children[0].options) == 6
-    assert view.children[-1].disabled
+    assert view.children[4].disabled
     await view.navigate(click(), "home")
     assert view.page == 0
 
@@ -228,9 +229,56 @@ async def test_payload_limits_with_long_names(env):
 
 async def test_unloaded_cog_disappears(env):
     view = await menu(env)
-    await view.navigate(click(), "select", "Repository: ultcogs", (None, None, 0))
+    await view.navigate(click(), "select", "Repository: ultcogs", ("repositories", None, None, 0))
     env.ctx.bot.commands.clear()
     env.ctx.bot.cogs.clear()
-    await view.navigate(click(), "select", "Example", (view.repo, None, 0))
+    await view.navigate(click(), "select", "Example", (view.mode, view.repo, None, 0))
     assert not view.groups
     assert view.repo is None
+
+
+async def test_features_default_and_back_navigation(env):
+    view = RepositoryMenu(env.owner.formatter, env.ctx, env.settings)
+    await view.refresh()
+    assert view.mode == "features"
+    assert view.visible[0][0] == "Example"
+    payload = view.payload()["embed"]
+    assert "Browse Features" in payload.title
+    assert "Repository: ultcogs" in payload.description
+    await view.navigate(click(), "select", "Example", view.state())
+    assert view.cog == "Example"
+    assert view.visible[0][0] == "hello"
+    await view.navigate(click(), "back")
+    assert view.repo is None and view.cog is None
+    assert view.visible[0][0] == "Example"
+
+
+async def test_switch_modes_rejects_old_selection(env):
+    view = RepositoryMenu(env.owner.formatter, env.ctx, env.settings)
+    await view.refresh()
+    old_state = view.state()
+    await view.navigate(click(), "repositories")
+    assert view.visible[0][0] == "Repository: ultcogs"
+    await view.navigate(click(), "select", "Example", old_state)
+    assert view.repo is None
+    await view.navigate(click(), "select", "Repository: ultcogs", view.state())
+    assert view.visible[0][0] == "Example"
+    await view.navigate(click(), "home")
+    assert view.mode == "features" and view.repo is None
+
+
+async def test_features_descriptions_pagination_and_permissions(env):
+    env.example.description = "Apply to help the community."
+    view = RepositoryMenu(env.owner.formatter, env.ctx, env.settings)
+    await view.refresh()
+    assert "Apply to help the community." in view.payload()["embed"].description
+    env.owner.formatter.catalog = AsyncMock(
+        return_value={"Repository: ultcogs": {f"Cog {i:02}": {} for i in range(26)}}
+    )
+    await view.refresh()
+    assert view.pages == 3
+    await view.navigate(click(), "next")
+    assert view.visible[0][0] == "Cog 10"
+    env.owner.formatter.catalog.return_value = {}
+    await view.navigate(click(), "select", "Cog 10", view.state())
+    assert view.cog is None and not view.visible

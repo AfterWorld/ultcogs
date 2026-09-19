@@ -75,6 +75,7 @@ class RepositoryMenu(discord.ui.View):
         super().__init__(timeout=180)
         self.formatter, self.ctx, self.settings = formatter, ctx, settings
         self.repo = self.cog = None
+        self.mode = "features"
         self.page = 0
         self.groups = {}
         self.message = None
@@ -91,12 +92,32 @@ class RepositoryMenu(discord.ui.View):
             self.cog = None
         self.render_controls()
 
+    def feature_description(self, name):
+        cog = self.ctx.bot.get_cog(name) if name else None
+        description = getattr(cog, "description", "") if cog else "General bot commands"
+        return " ".join(description.split())[:100] or "Browse available commands"
+
+    def feature_repo(self, name):
+        return next(repo for repo, cogs in self.groups.items() if name in cogs)
+
+    def state(self):
+        return (self.mode, self.repo, self.cog, self.page)
+
     def entries(self):
+        if self.mode == "features" and self.cog is None:
+            return sorted(
+                [
+                    (name, self.feature_description(name))
+                    for cogs in self.groups.values()
+                    for name in cogs
+                ],
+                key=lambda item: item[0].casefold(),
+            )
         if self.repo is None:
             return [(name, f"{len(cogs)} cogs") for name, cogs in self.groups.items()]
         if self.cog is None:
             return [
-                (name, f"{len(cmds)} commands")
+                (name, self.feature_description(name))
                 for name, cmds in sorted(self.groups[self.repo].items())
             ]
         return [
@@ -113,7 +134,7 @@ class RepositoryMenu(discord.ui.View):
         if self.visible:
             select = discord.ui.Select(
                 placeholder="Choose a repository"
-                if self.repo is None
+                if self.repo is None and self.mode == "repositories"
                 else "Choose a cog"
                 if self.cog is None
                 else "View command details",
@@ -129,7 +150,7 @@ class RepositoryMenu(discord.ui.View):
             # Capture this page's keys so a queued interaction cannot select a
             # different item after a concurrent page change.
             choices = [name for name, _ in self.visible]
-            state = (self.repo, self.cog, self.page)
+            state = self.state()
 
             async def select_callback(interaction):
                 await self.navigate(interaction, "select", choices[int(select.values[0])], state)
@@ -137,7 +158,7 @@ class RepositoryMenu(discord.ui.View):
             select.callback = select_callback
             self.add_item(select)
         for label, action, disabled in [
-            ("Home", "home", self.repo is None and self.page == 0),
+            ("Home", "home", self.mode == "features" and self.repo is None and self.page == 0),
             ("Back", "back", self.repo is None),
             ("Previous", "previous", self.page == 0),
             ("Next", "next", self.page + 1 == self.pages),
@@ -150,15 +171,41 @@ class RepositoryMenu(discord.ui.View):
             button.callback = callback
             self.add_item(button)
 
+        for label, mode in [
+            ("Browse Features", "features"),
+            ("Browse Repositories", "repositories"),
+        ]:
+            button = discord.ui.Button(
+                label=label,
+                row=2,
+                style=discord.ButtonStyle.primary
+                if self.mode == mode
+                else discord.ButtonStyle.secondary,
+            )
+
+            async def switch(interaction, mode=mode):
+                await self.navigate(interaction, mode)
+
+            button.callback = switch
+            self.add_item(button)
+
     def payload(self):
         heading = (
-            (self.cog or "Uncategorized") if self.cog is not None else self.repo or "Repositories"
+            (self.cog or "Uncategorized")
+            if self.cog is not None
+            else self.repo
+            or ("Browse Features" if self.mode == "features" else "Browse Repositories")
         )
         lines = [
             f"**{discord.utils.escape_markdown(name or 'Uncategorized')[:100]}** — {discord.utils.escape_markdown(desc)[:100]}"
             for name, desc in self.visible
         ]
-        description = "\n".join(lines) or "No commands are available here."
+        if self.mode == "features" and self.cog is None:
+            lines = [
+                line + "\n" + discord.utils.escape_markdown(self.feature_repo(name))[:100]
+                for line, (name, _) in zip(lines, self.visible)
+            ]
+        description = "\n\n".join(lines) or "No commands are available here."
         footer = f"Page {self.page + 1}/{self.pages} • {self.ctx.clean_prefix}help <command> for detailed help"
         title = f"{self.ctx.me.display_name[:100]} Help Menu — {heading[:100]}"
         if self.embeds:
@@ -200,17 +247,20 @@ class RepositoryMenu(discord.ui.View):
                 self.formatter.owner, self.ctx.guild
             ):
                 return
-            old_state = (self.repo, self.cog, self.page)
+            old_state = self.state()
             await self.refresh()
             if action == "select":
-                if state != old_state or state != (self.repo, self.cog, self.page):
+                if state != old_state or state != self.state():
                     await interaction.edit_original_response(**self.payload())
                     return
                 available = dict(self.entries())
                 if key not in available:
                     await interaction.edit_original_response(**self.payload())
                     return
-                if self.repo is None:
+                if self.mode == "features" and self.cog is None:
+                    self.repo = self.feature_repo(key)
+                    self.cog = key
+                elif self.repo is None:
                     self.repo = key
                 elif self.cog is None:
                     self.cog = key
@@ -219,12 +269,15 @@ class RepositoryMenu(discord.ui.View):
                     await self.formatter.send_help(self.ctx, command)
                     return
                 self.page = 0
-            elif action == "home":
+            elif action in {"home", "features", "repositories"}:
+                self.mode = "features" if action == "home" else action
                 self.repo = self.cog = None
                 self.page = 0
             elif action == "back":
                 if self.cog is not None:
                     self.cog = None
+                    if self.mode == "features":
+                        self.repo = None
                 else:
                     self.repo = None
                 self.page = 0
@@ -255,7 +308,7 @@ class RepositoryMenu(discord.ui.View):
 class RepoHelp(commands.Cog):
     """Browse loaded cogs by repository using the existing help command."""
 
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
     def __init__(self, bot):
         self.bot = bot

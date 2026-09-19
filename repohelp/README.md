@@ -1,6 +1,6 @@
 # RepoHelp
 
-Repository navigation for the bot's existing `[p]help` command. Requires Red 3.5.24+.
+Feature-first navigation for the bot's existing `[p]help` command. Requires Red 3.5.24+.
 
 ```
 [p]repo update ultcogs
@@ -14,7 +14,10 @@ this formatter immediately. If another custom formatter is active, loading fails
 with an explanation; unload the other help cog first. `[p]unload repohelp` restores
 standard help unless another formatter has taken over in the meantime.
 
-Select a repository, then a cog, then a command. Command selection sends Red's
+The default **Browse Features** view lists loaded cogs alphabetically with short
+descriptions and their repositories beneath them. Select a cog to browse commands.
+Use **Browse Repositories** to select a repository, then a cog, then a command.
+**Home** returns to Browse Features; **Back** follows the current browsing mode. Command selection sends Red's
 native detailed help in the original help context. Direct help, including
 `[p]help staffapp setup`, continues to use Red's native formatter. Command groups
 include their subcommands there. This cog does not add a slash help command.

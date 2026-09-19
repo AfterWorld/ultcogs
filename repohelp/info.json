@@ -1,13 +1,22 @@
 {
   "name": "RepoHelp",
-  "author": ["AfterWorld"],
-  "short": "Browse help by repository, cog, and command.",
-  "description": "Replaces the existing help formatter with repository dropdowns, paginated cog and command navigation, and permission-aware listings. Detailed command help remains Red's native help.",
+  "author": [
+    "AfterWorld"
+  ],
+  "short": "Browse help by feature or repository.",
+  "description": "Feature-first help with cog descriptions, repository labels, an alternate repository browser, and permission-aware navigation. Detailed command help remains native Red help.",
   "install_msg": "Load with [p]load repohelp, then use [p]help. Unload any other custom help cog first. [p]unload repohelp restores standard help.",
   "requirements": [],
-  "tags": ["help", "utility"],
+  "tags": [
+    "help",
+    "utility"
+  ],
   "min_bot_version": "3.5.24",
-  "min_python_version": [3, 11, 0],
+  "min_python_version": [
+    3,
+    11,
+    0
+  ],
   "type": "COG",
   "end_user_data_statement": "This cog does not persistently store end-user data. Help sessions exist in memory until timeout or unload."
 }
