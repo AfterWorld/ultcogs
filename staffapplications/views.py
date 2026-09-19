@@ -278,3 +278,88 @@ class AnswerPages(SafeView):
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
     async def next_page(self, interaction, button):
         await self.turn(interaction, 1)
+
+
+class SamplePages(SafeView):
+    """An in-memory reader for fictional answers; never queries application records."""
+
+    def __init__(self, cog, app, user_id, reviewer):
+        super().__init__(cog, app["guild"], timeout=300)
+        self.app, self.user_id, self.reviewer = app, user_id, reviewer
+        self.index = 0
+
+    def embed(self):
+        return discord.Embed(
+            title=f"TEST — Answer {self.index + 1} of {len(self.app['questions'])}",
+            description=f"**{self.app['questions'][self.index]}**\n\n{self.app['answers'][self.index]}",
+            color=0xF1C40F,
+        ).set_footer(text="Fictional sample • Not a real application")
+
+    async def turn(self, interaction, offset):
+        if interaction.user.id != self.user_id:
+            return await reply(
+                interaction, "Open your own sample answer reader using View Answers."
+            )
+        await interaction.response.defer()
+        await self.cog.guard(interaction, self.guild_id, reviewer=self.reviewer)
+        self.index = (self.index + offset) % len(self.app["questions"])
+        await interaction.edit_original_response(
+            embed=self.embed(), view=self, allowed_mentions=NONE
+        )
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction, button):
+        await self.turn(interaction, -1)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction, button):
+        await self.turn(interaction, 1)
+
+
+class SampleView(SafeView):
+    """Display production-style controls, with only the sample answer reader enabled."""
+
+    def __init__(self, cog, app, reviewer=False):
+        super().__init__(cog, app["guild"], timeout=900)
+        self.app, self.reviewer = app, reviewer
+        labels = (
+            ["View Answers", "Claim", "Under Review", "Accept", "Decline"]
+            if reviewer
+            else ["Continue", "Edit an Answer", "Review Answers", "Submit", "Cancel"]
+        )
+        styles = (
+            [
+                discord.ButtonStyle.secondary,
+                discord.ButtonStyle.secondary,
+                discord.ButtonStyle.primary,
+                discord.ButtonStyle.success,
+                discord.ButtonStyle.danger,
+            ]
+            if reviewer
+            else [
+                discord.ButtonStyle.primary,
+                discord.ButtonStyle.secondary,
+                discord.ButtonStyle.secondary,
+                discord.ButtonStyle.success,
+                discord.ButtonStyle.danger,
+            ]
+        )
+        for label, style in zip(labels, styles):
+            reader = label in {"View Answers", "Review Answers"}
+            button = discord.ui.Button(label=label, style=style, disabled=not reader)
+            if reader:
+                button.callback = self.open_answers
+            self.add_item(button)
+
+    async def open_answers(self, interaction):
+        if not self.reviewer and interaction.user.id != self.app["user"]:
+            return await reply(interaction, "This sample belongs to another member.")
+        await interaction.response.defer(ephemeral=True)
+        await self.cog.guard(interaction, self.guild_id, reviewer=self.reviewer)
+        pages = SamplePages(self.cog, self.app, interaction.user.id, self.reviewer)
+        await reply(
+            interaction,
+            "Fictional sample answers — no application is being submitted.",
+            embed=pages.embed(),
+            view=pages,
+        )

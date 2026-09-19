@@ -5,6 +5,7 @@ import io
 import logging
 import time
 from datetime import datetime, timezone
+from uuid import uuid4
 from weakref import WeakValueDictionary
 
 import discord
@@ -12,7 +13,7 @@ from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
 from .alerts import Alerts
-from .presets import ONE_PIECE_TEMPLATE
+from .presets import ONE_PIECE_TEMPLATE, SAMPLE_ANSWERS
 from .store import PanelUnavailable, Store, UserError
 from .views import (
     NONE,
@@ -24,6 +25,7 @@ from .views import (
     EditView,
     PositionView,
     ReviewView,
+    SampleView,
     panel,
     reply,
 )
@@ -33,7 +35,7 @@ log = logging.getLogger("red.staffapplications")
 
 def transcript(app):
     lines = [
-        f"Staff application {app['id']}",
+        f"{'TEST — Fictional sample — ' if app.get('test') else ''}Staff application {app['id']}",
         f"Applicant ID: {app['user']}",
         f"Position: {app['position']}",
         "",
@@ -86,7 +88,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.3.0"
+    __version__ = "1.4.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -878,6 +880,75 @@ class StaffApplications(commands.Cog):
             raise UserError("Use a separate private error channel.")
         self.store.configure(ctx.guild.id, error_channel=channel.id)
         await ctx.tick()
+
+    @staffapp.command(name="testapplication")
+    @commands.cooldown(1, 60, commands.BucketType.guild)
+    async def test_application(self, ctx):
+        """Preview a fictional DM application and completed staff review without saving a record."""
+        cfg = self.store.settings(ctx.guild.id)
+        if not cfg["review_channel"]:
+            raise UserError(
+                "Configure channels first with staffapp setup or staffapp repairchannels."
+            )
+        app = {
+            "id": "test-" + uuid4().hex,
+            "test": True,
+            "guild": ctx.guild.id,
+            "user": ctx.author.id,
+            "position": cfg["positions"][0],
+            "status": "pending",
+            "reviewer": None,
+            "submitted": time.time(),
+            "delivery_channel": cfg["review_channel"],
+            "questions": list(cfg["questions"]),
+            "answers": [
+                SAMPLE_ANSWERS.get(
+                    question,
+                    "This is a fictional sample response to this custom question. A real applicant would enter their own answer.",
+                )
+                for question in cfg["questions"]
+            ],
+        }
+        # Check private review-channel access before sending either preview.
+        channel = await self.review_channel(app)
+        draft = {**app, "answers": [""] * len(app["questions"])}
+        embed = draft_embed(draft)
+        embed.title = "TEST — Your Staff Application"
+        embed.description = (
+            f"**Position:** {app['position']}\n**Progress:** 0/{len(app['questions'])}\n\n"
+            f"**First question:**\n{app['questions'][0]}\n\n"
+            "This is a visual preview with fictional answers. Use Review Answers to see the completed example. "
+            "Other controls are disabled; nothing is saved or submitted. The sample reader is available for 15 minutes."
+        )
+        try:
+            await ctx.author.send(embed=embed, view=SampleView(self, app), allowed_mentions=NONE)
+        except discord.Forbidden:
+            raise UserError(
+                "Enable DMs from this server and run staffapp testapplication again. No review preview was posted."
+            ) from None
+        review = review_embed(app)
+        review.title = "TEST — Staff Application Preview"
+        review.description = (
+            "Fictional example requested by a server administrator. No real application was submitted. "
+            "View Answers works for 15 minutes; decision buttons are disabled. Full sample answers are attached. "
+            "You can delete this test message when finished."
+        )
+        review.set_field_at(
+            0,
+            name="Example applicant",
+            value=f"Preview requested by <@{ctx.author.id}> — answers are fictional",
+        )
+        message = await channel.send(
+            embed=review,
+            file=transcript(app),
+            view=SampleView(self, app, reviewer=True),
+            allowed_mentions=NONE,
+        )
+        await ctx.send(
+            f"Test application sent to your DMs. Staff review preview: {message.jump_url}\n"
+            "No application record, submission count, or applicant cooldown was changed. Delete the preview messages when finished.",
+            allowed_mentions=NONE,
+        )
 
     @staffapp.command(name="testerror")
     @commands.cooldown(1, 60, commands.BucketType.guild)

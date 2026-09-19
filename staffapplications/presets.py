@@ -37,3 +37,22 @@ ONE_PIECE_TEMPLATE = {
         "How would you handle a situation where another staff member breaks the rules?",
     ],
 }
+
+# Fictional demonstration answers, matched by question rather than list position.
+SAMPLE_ANSWERS = dict(
+    zip(
+        ONE_PIECE_TEMPLATE["questions"],
+        [
+            "I enjoy the One Piece community and want to help keep discussions welcoming, fair, and fun for everyone.",
+            "I have helped moderate a small gaming community, welcomed new members, and handled reports with the rest of the team.",
+            "I would calmly separate the disagreement from personal attacks, hear both sides, and apply the server rules consistently. I would involve a senior moderator if needed.",
+            "I am usually available for about two hours on weekday evenings in Eastern Time, with more flexibility on weekends.",
+            "22 (fictional example applicant).",
+            "I would welcome newcomers, encourage spoiler-safe discussions, and help run community events and weekly One Piece discussions.",
+            "I have used Discord AutoMod and Dyno for spam filters, moderation logs, warnings, and basic moderation commands.",
+            "During a team event, two members disagreed about responsibilities. I listened to both, clarified the shared goal, and helped divide the tasks fairly.",
+            "Patience, fairness, clear communication, teamwork, good judgment, and the ability to stay calm under pressure.",
+            "I would document what happened and report it privately through the appropriate management process. Staff should be held to the same rules as everyone else.",
+        ],
+    )
+)

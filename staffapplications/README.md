@@ -132,6 +132,31 @@ The panel gives instructions; enable DMs, then click **My Application** to retry
 Forms already open during a bot restart must be reopened using the persistent DM
 buttons or public panel; previously submitted answers survive.
 
+## Preview a test application
+
+```text
+[p]staffapp testapplication
+```
+
+An administrator can run this even while applications are closed. It sends the
+command invoker a clearly labeled DM preview of the first question and posts a
+completed fictional application in the configured private review channel. The
+sample uses your configured questions and first configured position. The ten
+built-in moderator questions have matching sample answers; custom questions get
+an explicitly generic fictional response.
+
+Use **Review Answers** in the DM or **View Answers** on the staff preview to read
+sample answers inside Discord. Review-channel readers still need reviewer access.
+The other buttons are disabled: this is a visual preview, not a real submission
+or an end-to-end acceptance test. Sample controls expire after 15 minutes;
+an opened answer reader lasts five minutes. The review attachment remains available.
+
+No application record is saved, no applicant cooldown changes, and the submission
+count stays unchanged. A 60-second command cooldown limits repeated previews.
+Your DMs must be enabled, and the review channel must be configured and private.
+Delete the demo DM and review message manually when done; they are not managed by
+application retention because no application record is created.
+
 ## Staff experience
 
 A private review card contains applicant ID, position, submission time, status,
