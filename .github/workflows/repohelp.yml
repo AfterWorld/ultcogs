@@ -1,0 +1,25 @@
+name: Repository help regression tests
+on:
+  pull_request:
+    paths: ['repohelp/**', '.github/workflows/repohelp.yml']
+  push:
+    paths: ['repohelp/**', '.github/workflows/repohelp.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r repohelp/requirements-dev.txt
+      - name: Lint
+        run: python -m ruff check --config repohelp/ruff.toml repohelp
+      - name: Format
+        run: python -m ruff format --check --config repohelp/ruff.toml repohelp
+      - name: Test with real Red and discord.py dependencies
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: python -m pytest -p pytest_asyncio.plugin -c repohelp/pytest.ini --confcutdir=repohelp/tests repohelp/tests -q
