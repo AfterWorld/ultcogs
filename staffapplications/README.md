@@ -171,6 +171,38 @@ Changing setup closes applications until explicitly reopened. Existing queued
 submissions keep their original destination so retries cannot accidentally post to
 both the old and new channel. Restore original permissions and retry when possible.
 
+## Recreate deleted channels automatically (1.3)
+
+```text
+[p]staffapp repairchannels
+```
+
+This checks all three saved channel IDs directly with Discord and recreates only
+channels confirmed deleted (or never configured). Existing channels are preserved.
+The saved reviewer role is reused; if that role no longer exists, supply a current role:
+
+```text
+[p]staffapp repairchannels @YourStaffRole
+```
+
+The bot needs Manage Channels and Manage Roles. Replacement channels start private,
+applications close during repair, and a surviving bot-managed panel is hidden.
+Use `[p]staffapp open true` when ready. A new panel channel receives the existing
+recruitment template and buttons automatically. No manual channel creation is needed.
+
+Permission failures and Discord outages do **not** trigger replacement channels.
+Each successful creation is saved immediately, so rerunning after a partial failure
+keeps the channels already created. No channels or application records are deleted.
+Only configured channel IDs are reused: an unrelated channel with the same name is
+not silently adopted.
+
+This repairs configuration and the public panel, not the contents of a deleted
+review/error channel. Previously queued applications retain their original delivery
+channel for duplicate protection. For those, use
+`[p]staffapp reroute APPLICATION_ID #application-reviews` after repair. Existing
+review messages that Discord deleted cannot be restored by this command; their
+application records remain saved.
+
 ## Panel-refresh recovery (1.2.1)
 
 A panel channel missing from the bot's local cache is now fetched directly from
@@ -181,7 +213,7 @@ If Discord confirms that a configured channel was deleted or is inaccessible,
 automatic refresh pauses for that channel/message configuration and sends one
 sanitized alert with a fixed explanation and recovery command. Application data
 and channel IDs are retained. Fix permissions and run `[p]staffapp panel` to retry;
-if the channel was deleted, run `[p]staffapp setup` with the replacement channels.
+if the channel was deleted, run `[p]staffapp repairchannels` to recreate it privately.
 Successful manual repair resumes refresh. Changing the panel configuration also
 allows another attempt. The pause resets on cog reload, which allows one fresh check.
 Transient Discord/network errors instead retry after at least 60 seconds.

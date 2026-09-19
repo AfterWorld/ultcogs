@@ -34,7 +34,7 @@ class PanelUnavailable(UserError):
 
     REASONS = {
         "unconfigured": "No application panel channel is configured. Run staffapp setup.",
-        "missing": "The configured application channel was deleted. Run staffapp setup with an existing channel.",
+        "missing": "The configured application channel was deleted. Run staffapp repairchannels to recreate missing channels privately.",
         "forbidden": "The bot cannot access or edit the application panel. Restore View Channel, Send Messages and Embed Links, then run staffapp panel.",
         "invalid": "The configured panel is not a text channel in this server. Run staffapp setup.",
     }

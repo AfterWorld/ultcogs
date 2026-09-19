@@ -86,7 +86,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.2.1"
+    __version__ = "1.3.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -624,7 +624,9 @@ class StaffApplications(commands.Cog):
         if reviewer_role.is_default() or reviewer_role.managed:
             raise UserError("Choose a normal staff role.")
         if self.store.settings(ctx.guild.id)["panel_channel"]:
-            raise UserError("Channels are already configured. Use staffapp setup to change them.")
+            raise UserError(
+                "Channels are already configured. Use staffapp repairchannels to recreate missing channels, or staffapp setup to change them."
+            )
         bot_overwrite = discord.PermissionOverwrite(
             view_channel=True,
             send_messages=True,
@@ -681,6 +683,105 @@ class StaffApplications(commands.Cog):
         await ctx.send(
             "All channels created privately. Use `staffapp open true` to make the application channel public. Review and error channels stay private."
         )
+
+    @staffapp.command(name="repairchannels")
+    @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
+    async def repair_channels(self, ctx, reviewer_role: discord.Role = None):
+        """Recreate only missing configured channels. Uses the saved reviewer role by default."""
+        async with self._locks.setdefault(("visibility", ctx.guild.id), asyncio.Lock()):
+            cfg = self.store.settings(ctx.guild.id)
+            role = reviewer_role or ctx.guild.get_role(cfg["reviewer_role"] or 0)
+            if role is None or role.is_default() or role.managed or role.guild.id != ctx.guild.id:
+                raise UserError(
+                    "Select your staff reviewer role: staffapp repairchannels @YourStaffRole"
+                )
+            targets = [
+                ("panel_channel", "staff-applications"),
+                ("review_channel", "application-reviews"),
+                ("error_channel", "application-errors"),
+            ]
+            missing = []
+            # Check Discord directly, including cached channels. A permission error or
+            # outage is not evidence of deletion; finish preflight before creating anything.
+            for key, name in targets:
+                channel_id = cfg[key]
+                if not channel_id:
+                    missing.append((key, name))
+                    continue
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except discord.NotFound as exc:
+                    if exc.code != 10003:
+                        raise
+                    missing.append((key, name))
+                    continue
+                except discord.Forbidden:
+                    raise UserError(
+                        f"I cannot access the saved {name} channel. Restore my permissions; no replacement channels were created."
+                    ) from None
+                if not isinstance(channel, discord.TextChannel) or channel.guild.id != ctx.guild.id:
+                    raise UserError(
+                        f"The saved {name} ID is not a text channel in this server. Use staffapp setup."
+                    )
+                self.validate_channel(
+                    channel, private=key != "panel_channel", review=key == "review_channel"
+                )
+                if key == "review_channel" and not channel.permissions_for(role).view_channel:
+                    raise UserError(
+                        "The reviewer role needs View Channel in the existing review channel."
+                    )
+            if missing:
+                self.store.configure(ctx.guild.id, open=False, reviewer_role=role.id)
+                # Keep a surviving, bot-managed panel hidden during repairs too.
+                if cfg["manage_panel_visibility"] and not any(
+                    key == "panel_channel" for key, _ in missing
+                ):
+                    await self.set_panel_visibility(ctx.guild.id, False)
+            created = []
+            for key, name in missing:
+                overwrites = {
+                    ctx.guild.default_role: discord.PermissionOverwrite(
+                        view_channel=False, send_messages=False
+                    ),
+                    ctx.guild.me: discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=True,
+                        embed_links=True,
+                        attach_files=True,
+                        read_message_history=True,
+                    ),
+                    role: discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=key != "panel_channel",
+                        read_message_history=True,
+                    ),
+                }
+                channel = await ctx.guild.create_text_channel(
+                    name, overwrites=overwrites, reason="Repair missing staff application channel"
+                )
+                changes = {key: channel.id}
+                if key == "panel_channel":
+                    self.untrack(cfg["panel_message"])
+                    changes.update(panel_message=None, manage_panel_visibility=True)
+                # Persist each successful creation before attempting the next. Retrying
+                # after a partial failure keeps those channels instead of duplicating them.
+                self.store.configure(ctx.guild.id, **changes)
+                created.append(name)
+            if not missing and reviewer_role is not None:
+                self.store.configure(ctx.guild.id, reviewer_role=role.id)
+            self._panel_paused.pop(ctx.guild.id, None)
+            self._panel_retry.pop(ctx.guild.id, None)
+            await self.publish_panel(ctx.guild.id)
+            if created:
+                await ctx.send(
+                    "Recreated privately: "
+                    + ", ".join(created)
+                    + ". Existing channels and saved applications were kept. Use staffapp open true when ready."
+                )
+            else:
+                await ctx.send(
+                    "All three channels still exist. The application panel has been refreshed."
+                )
 
     async def resolve_panel_channel(self, guild_id):
         channel_id = self.store.settings(guild_id)["panel_channel"]
