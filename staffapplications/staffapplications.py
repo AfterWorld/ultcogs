@@ -12,6 +12,7 @@ from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
 from .alerts import Alerts
+from .presets import ONE_PIECE_TEMPLATE
 from .store import Store, UserError
 from .views import (
     NONE,
@@ -85,7 +86,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.1.0"
+    __version__ = "1.2.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -94,6 +95,7 @@ class StaffApplications(commands.Cog):
         self._worker = None
         self._views = {}  # one current persistent view per message
         self._locks = WeakValueDictionary()
+        self._panel_counts = {}
 
     async def cog_load(self):
         for guild_id in self.store.guilds():
@@ -477,6 +479,15 @@ class StaffApplications(commands.Cog):
             except Exception as exc:
                 await self.alerts.report(app["guild"], "retention cleanup", exc, app["id"])
 
+        for guild_id in self.store.guilds():
+            cfg = self.store.settings(guild_id)
+            count = self.store.submitted_count(guild_id)
+            if cfg["panel_message"] and self._panel_counts.get(guild_id) != count:
+                try:
+                    await self.publish_panel(guild_id)
+                except Exception as exc:
+                    await self.alerts.report(guild_id, "refresh application panel", exc)
+
     async def worker(self):
         await self.bot.wait_until_red_ready()
         while True:
@@ -664,6 +675,7 @@ class StaffApplications(commands.Cog):
         channel = self.bot.get_channel(cfg["panel_channel"] or 0)
         if channel is None:
             raise UserError("Configure channels first with staffapp setup.")
+        rendered_count = self.store.submitted_count(guild_id)
         payload = panel(self, guild_id)
         message = None
         if cfg["panel_message"]:
@@ -677,6 +689,7 @@ class StaffApplications(commands.Cog):
             message = await channel.send(**payload, allowed_mentions=NONE)
         self.store.configure(guild_id, panel_message=message.id)
         self.track(payload["view"], message.id)
+        self._panel_counts[guild_id] = rendered_count
 
     @staffapp.command(name="panel")
     async def panel_command(self, ctx):
@@ -761,10 +774,22 @@ class StaffApplications(commands.Cog):
     async def questions_command(self, ctx, *, questions: str):
         """Set 1–20 questions separated by |. Existing drafts keep their questions."""
         values = [v.strip() for v in questions.split("|")]
-        if not 1 <= len(values) <= 20 or any(not v or len(v) > 100 for v in values):
-            raise UserError("Use 1–20 questions, each 1–100 characters, separated by |.")
+        if not 1 <= len(values) <= 20 or any(not v or len(v) > 500 for v in values):
+            raise UserError("Use 1–20 questions, each 1–500 characters, separated by |.")
         self.store.configure(ctx.guild.id, questions=values)
         await ctx.tick()
+
+    @staffapp.command(name="preset")
+    async def preset_command(self, ctx, name: str = "onepiece"):
+        """Apply the One Piece panel and ten moderator questions to future drafts."""
+        if name.lower() != "onepiece":
+            raise UserError("Available preset: onepiece")
+        self.store.configure(ctx.guild.id, **ONE_PIECE_TEMPLATE, template_version=2)
+        if self.store.settings(ctx.guild.id)["panel_channel"]:
+            await self.publish_panel(ctx.guild.id)
+        await ctx.send(
+            "One Piece panel and all ten moderator questions loaded. Existing drafts and submitted answers are unchanged."
+        )
 
     @staffapp.command(name="requirements")
     async def requirements_command(self, ctx, *, text: str):
@@ -772,6 +797,8 @@ class StaffApplications(commands.Cog):
         if not 1 <= len(text) <= 1800:
             raise UserError("Use 1–1,800 characters.")
         self.store.configure(ctx.guild.id, requirements=text)
+        if self.store.settings(ctx.guild.id)["panel_channel"]:
+            await self.publish_panel(ctx.guild.id)
         await ctx.tick()
 
     @staffapp.command(name="appearance")

@@ -43,18 +43,26 @@ def panel(cog, guild_id):
     buttons = [
         ActionButton(cog, guild_id, action, label, style=style)
         for action, label, style in [
-            ("apply", "Apply Now", discord.ButtonStyle.primary),
+            ("apply", "Apply Now", discord.ButtonStyle.success),
             ("requirements", "Requirements", discord.ButtonStyle.secondary),
             ("status", "My Application", discord.ButtonStyle.secondary),
         ]
     ]
-    text = f"{cfg['description']}\n\n**Applications {'OPEN' if cfg['open'] else 'CLOSED'}**\nYour answers are shared only with authorized server reviewers and bot operators."
+    sections = [
+        cfg["description"],
+        f"### 📋 Requirements\n{cfg['requirements']}",
+        f"### 📝 What Happens Next?\n{cfg['next_steps']}",
+        f"### 📨 Applications Submitted\n{cog.store.submitted_count(guild_id)}",
+        f"**Applications {'OPEN' if cfg['open'] else 'CLOSED'}**\n{cfg['footer']}",
+        "-# Your answers are shared only with authorized server reviewers and bot operators.",
+    ]
+    text = "\n\n".join(sections)
     if hasattr(discord.ui, "LayoutView"):
         view = discord.ui.LayoutView(timeout=None)
         view.add_item(
             discord.ui.Container(
                 discord.ui.TextDisplay(f"## {cfg['title']}"),
-                discord.ui.TextDisplay(text),
+                *(discord.ui.TextDisplay(section) for section in sections),
                 discord.ui.Separator(),
                 discord.ui.ActionRow(*buttons),
                 accent_color=cfg["color"],
@@ -65,7 +73,7 @@ def panel(cog, guild_id):
     for button in buttons:
         view.add_item(button)
     return {
-        "embed": discord.Embed(title=cfg["title"], description=text, color=cfg["color"]),
+        "embed": discord.Embed(title=cfg["title"], description=text[:4096], color=cfg["color"]),
         "view": view,
     }
 
@@ -141,13 +149,8 @@ class AnswerModal(discord.ui.Modal):
             max_length=2000,
         )
         if hasattr(discord.ui, "Label"):
-            self.add_item(
-                discord.ui.Label(
-                    text=f"Question {index + 1}",
-                    description=app["questions"][index],
-                    component=self.answer,
-                )
-            )
+            self.add_item(discord.ui.TextDisplay(app["questions"][index]))
+            self.add_item(discord.ui.Label(text="Your answer", component=self.answer))
         else:
             self.add_item(self.answer)
 

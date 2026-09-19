@@ -6,29 +6,20 @@ import time
 import uuid
 from copy import deepcopy
 
+from .presets import LEGACY_TEMPLATE, ONE_PIECE_TEMPLATE
+
 DEFAULTS = {
     "open": False,
+    "template_version": 2,
     "review_channel": None,
     "error_channel": None,
     "reviewer_role": None,
     "panel_channel": None,
     "panel_message": None,
     "manage_panel_visibility": False,
-    "title": "Join Our Staff Team",
-    "color": 0x5865F2,
-    "description": "Help support our community. Apply privately through DMs.",
-    "requirements": "Be respectful, know the server rules, and answer honestly.",
-    "positions": ["Moderator", "Helper"],
     "cooldown_hours": 168,
     "retention_days": 90,
-    "questions": [
-        "What is your timezone?",
-        "When are you available, and how many hours per week can you help?",
-        "What relevant experience do you have?",
-        "Why would you like to join our staff team?",
-        "How would you handle an argument between two members?",
-        "What would you do if a friend broke a server rule?",
-    ],
+    **deepcopy(ONE_PIECE_TEMPLATE),
 }
 ACTIVE = {"draft", "queued", "pending", "under_review"}
 FINAL = {"accepted", "declined", "cancelled"}
@@ -52,6 +43,27 @@ class Store:
                 ON applications(guild, user)
                 WHERE status IN ('draft','queued','pending','under_review');
         """)
+
+        self.migrate_template()
+
+    def migrate_template(self):
+        """Upgrade untouched v1 defaults once; keep custom settings and all draft snapshots."""
+        for guild, raw in self.db.execute("SELECT guild, data FROM settings").fetchall():
+            data = json.loads(raw)
+            if data.get("template_version", 0) >= 2:
+                continue
+            for key, previous in LEGACY_TEMPLATE.items():
+                if data.get(key, previous) == previous:
+                    data[key] = deepcopy(ONE_PIECE_TEMPLATE[key])
+            data["template_version"] = 2
+            with self.db:
+                self.db.execute(
+                    "UPDATE settings SET data=? WHERE guild=?", (json.dumps(data), guild)
+                )
+
+    def submitted_count(self, guild):
+        rows = self.db.execute("SELECT data FROM applications WHERE guild=?", (guild,))
+        return sum("submitted" in json.loads(row[0]) for row in rows)
 
     def close(self):
         self.db.close()

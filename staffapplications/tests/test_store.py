@@ -63,7 +63,7 @@ def test_snapshots_and_servers_are_isolated(store):
     a = store.start(1, 10, "Moderator")
     store.configure(1, questions=["New question"])
     assert store.get(a["id"])["questions"] == ["Why?", "When?"]
-    store.configure(2, open=True, review_channel=13, reviewer_role=14)
+    store.configure(2, open=True, review_channel=13, reviewer_role=14, positions=["Helper"])
     b = store.start(2, 10, "Helper")
     assert a["id"] != b["id"]
     assert store.latest(1, 10)["id"] == a["id"]

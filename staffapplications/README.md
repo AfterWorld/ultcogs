@@ -75,6 +75,46 @@ with the Discord application's owner as fallback; this is not the server owner r
 Configure Red ownership correctly. A blocked owner DM does not prevent the channel
 alert and vice versa. Failure of both routes is still recorded in the bot log.
 
+## One Piece moderator preset
+
+Version 1.2 preloads the One Piece recruitment message and these ten questions:
+
+1. Why do you want to become a moderator for this server?
+2. What experience do you have moderating Discord servers or other communities?
+3. How would you handle a conflict between two members in the server?
+4. What is your availability for moderation duties? (e.g., hours per day or time zones)
+5. How old are you?
+6. How would you improve the community experience as a moderator?
+7. Are you familiar with moderation tools (e.g., Discord bots like MEE6, Dyno, or Automod)? If so, which ones?
+8. Can you share an example of how you’ve resolved a challenging situation in a team or community setting?
+9. What qualities or skills do you think make a great moderator?
+10. How would you handle a situation where another staff member breaks the rules?
+
+The panel includes Requirements, What Happens Next?, an Applications Submitted
+count, and a green Apply Now button. The count reflects submissions still stored
+for this server, including queued submissions; deleting or expiring records reduces
+it. It refreshes on the worker's next successful cycle (normally about ten seconds).
+No example submission count is fabricated or imported from the reference image.
+
+For an existing installation:
+
+```text
+[p]cog update staffapplications
+[p]reload staffapplications
+[p]staffapp preset onepiece
+```
+
+The preset applies the panel text, requirements, gold accent, Moderator position,
+and all ten questions, then refreshes the existing panel. Channels, open/closed
+state, privacy settings, error destinations, and existing draft/submitted question
+snapshots are preserved. New applications use the new questions; an applicant
+with an older draft can cancel that draft and start again to use the new set.
+
+On upgrade, untouched original default text/questions migrate automatically once;
+custom settings remain intact. Use the preset command above to explicitly replace
+custom copy/questions as well. Full questions are displayed in the modal body,
+including questions longer than 100 characters.
+
 ## Applicant experience
 
 1. **Apply Now** → choose a position → receive the application in DMs.
@@ -119,7 +159,7 @@ All `staffapp` commands require Red admin access or Manage Server and run in a s
 | `staffapp errorchannel #channel` | Set a separate private error destination |
 | `staffapp testerror` | Attempt owner DM and channel test alerts; 60-second cooldown |
 | `staffapp positions A \| B` | 1–25 positions; each at most 100 characters |
-| `staffapp questions Q1 \| Q2` | 1–20 questions; each at most 100 characters |
+| `staffapp questions Q1 \| Q2` | 1–20 questions; each at most 500 characters |
 | `staffapp requirements TEXT` | At most 1,800 characters |
 | `staffapp appearance COLOR Title \| Description` | Panel color, title and description |
 | `staffapp limits HOURS DAYS` | Reapply cooldown 0–8,760 hours; retention 1–365 days |
