@@ -63,6 +63,43 @@ async def test_host_guards_transfer_and_kick():
 
 
 @pytest.mark.asyncio
+async def test_afk_toggle_permissions_lobby_only_and_deadline():
+    s = session()
+    try:
+        await s.publish()
+        deadline = s.deadline
+        assert not s.game.remove_afk
+        with pytest.raises(RuleError):
+            await s.act(member(2), "afk", True)
+        await s.act(member(1), "afk", True)
+        assert s.game.remove_afk and s.deadline == deadline
+        assert any(i.label == "AFK removal: ON" for i in s.view.children)
+        await s.act(member(99, True), "afk")
+        assert not s.game.remove_afk
+        s.game.join(2, "Two")
+        s.game.join(3, "Three")
+        await s.act(member(1), "begin")
+        with pytest.raises(RuleError, match="before starting"):
+            await s.act(member(1), "afk", True)
+    finally:
+        s.close()
+
+
+@pytest.mark.asyncio
+async def test_afk_deadline_closes_game_and_rejects_late_clue():
+    s = await begun()
+    try:
+        s.game.remove_afk = True
+        s.deadline = 1
+        with pytest.raises(RuleError, match="deadline"):
+            await s.act(member(1), "say", "ocean")
+        assert not s.active and not s.cog.games
+        assert "all remaining players" in s.game.result
+    finally:
+        s.close()
+
+
+@pytest.mark.asyncio
 async def test_simultaneous_begin_and_old_modal():
     s = session()
     s.game.join(2,"Two")

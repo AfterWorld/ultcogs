@@ -177,6 +177,97 @@ def test_word_validation_and_defaults():
         pairs.add(frozenset((a,b)))
 
 
+@pytest.mark.parametrize("clue", ["two words", "two\nwords", "two\twords", "two\u00a0words",
+                                   "two\u200bwords", "123", "😀", "word/word", "---"])
+def test_single_word_clues_reject_phrases_without_using_turn(clue):
+    g = game()
+    with pytest.raises(RuleError):
+        g.say(1, clue)
+    assert 1 not in g.clues
+    g.say(1, "ocean")
+    with pytest.raises(RuleError):
+        g.say(1, "wave")
+    g.next_round()
+    g.say(1, "wave")
+
+
+@pytest.mark.parametrize("clue", ["  ocean  ", "café", "sea-worthy", "sailor’s", "船"])
+def test_single_word_clues_allow_letters_and_compounds(clue):
+    g = game()
+    g.say(1, clue)
+    assert g.clues[1] == clue.strip()
+
+
+def afk_game():
+    g = game(6)
+    g.roles = {1: Role.CIVILIAN, 2: Role.CIVILIAN, 3: Role.CIVILIAN,
+               4: Role.CIVILIAN, 5: Role.UNDERCOVER, 6: Role.WHITE}
+    g.remove_afk = True
+    return g
+
+
+def test_afk_clue_removal_and_host_transfer():
+    g = afk_game()
+    for p in range(2, 7):
+        g.say(p, "ocean")
+    g.expire()
+    assert g.eliminated == {1} and g.host == 2
+    assert g.phase == "voting" and g.candidates == set(range(2, 7))
+    with pytest.raises(RuleError):
+        g.vote(1, 2)
+
+
+def test_afk_white_forfeits_guess_and_batch_winner():
+    g = afk_game()
+    for p in range(1, 5):
+        g.say(p, "ocean")
+    g.expire()
+    assert g.eliminated == {5, 6}
+    assert g.guesser is None and "Civilians win" in g.result
+
+
+@pytest.mark.parametrize("phase", ["playing", "voting"])
+def test_everyone_afk_is_draw(phase):
+    g = afk_game()
+    if phase == "voting":
+        g.open_vote()
+    g.expire()
+    assert not g.alive and g.result.startswith("Draw")
+
+
+def test_afk_votes_discard_removed_targets_and_continue():
+    g = afk_game()
+    g.open_vote()
+    for p in range(2, 7):
+        g.vote(p, 1)
+    g.expire()
+    assert g.eliminated == {1} and g.host == 2
+    assert g.phase == "playing" and g.round == 2
+    assert not g.votes
+
+
+def test_afk_votes_resolve_remaining_ballots_and_white_gets_guess():
+    g = afk_game()
+    g.open_vote()
+    for p in range(2, 6):
+        g.vote(p, 6)
+    g.vote(6, 2)
+    g.expire()
+    assert g.eliminated == {1, 6}
+    assert g.phase == "guessing" and g.guesser == 6
+
+
+def test_afk_revote_missing_candidate_removed():
+    g = afk_game()
+    g.open_vote()
+    g.revote = True
+    g.candidates = {1, 2}
+    for p in range(2, 7):
+        g.vote(p, 1)
+    g.expire()
+    assert g.eliminated == {1} and g.phase == "playing"
+
+
 @pytest.mark.parametrize("seed", range(50))
 def test_random_complete_games_terminate(seed):
     rng = random.Random(seed)

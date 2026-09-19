@@ -6,7 +6,7 @@ class EntryModal(discord.ui.Modal):
     def __init__(self, session, action, epoch):
         super().__init__(title="Give a clue" if action == "say" else "Final guess", timeout=180)
         self.session, self.action, self.epoch = session, action, epoch
-        self.entry = discord.ui.TextInput(label="Your clue" if action == "say" else "Civilian word",
+        self.entry = discord.ui.TextInput(label="Your clue (one word)" if action == "say" else "Civilian word",
                                           max_length=80 if action == "say" else 100)
         self.add_item(self.entry)
 
@@ -35,6 +35,7 @@ class GameView(discord.ui.View):
             self.button("Join crew", "join", discord.ButtonStyle.success)
             self.button("Leave", "leave")
             self.button("Set sail", "begin", discord.ButtonStyle.primary)
+            self.button(f"AFK removal: {'ON' if session.game.remove_afk else 'OFF'}", "afk")
         else:
             self.button("My secret dossier", "role", discord.ButtonStyle.primary)
             if phase == "playing":

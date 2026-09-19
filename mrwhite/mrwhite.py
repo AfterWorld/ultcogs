@@ -107,8 +107,13 @@ class MrWhite(commands.Cog):
 
     @mrwhite.command(aliases=["s"])
     async def say(self, ctx, *, word: str):
-        """Submit one clue during the current round."""
+        """Submit exactly one single-word clue during the current round."""
         await self.dispatch(ctx, "say", word)
+
+    @mrwhite.command()
+    async def afk(self, ctx, enabled: bool):
+        """Captain/moderator: set lobby AFK removal with `afk on` or `afk off`."""
+        await self.dispatch(ctx, "afk", enabled)
 
     @mrwhite.command(aliases=["v"])
     async def vote(self, ctx, member: discord.Member):

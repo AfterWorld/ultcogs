@@ -14,7 +14,7 @@ def rules_page(page: str, prefix: str) -> discord.Embed:
         embed.add_field(name="🎭 Mr. White", value="No word. Just your wits. Bluff your way to survival.", inline=False)
         embed.add_field(name="THE ROUND", value=(
             "**01** Open **My secret dossier** — only you can see it.\n"
-            "**02** Give one short clue without revealing your word.\n"
+            "**02** Give one single-word clue per round without revealing your word.\n"
             "**03** Vote for a suspect. Someone loses their cover."), inline=False)
         embed.add_field(name="READY TO SET SAIL?", value=(
             f"`{prefix}mrwhite start` → **Join crew** → **Set sail**\n"
@@ -32,19 +32,19 @@ def rules_page(page: str, prefix: str) -> discord.Embed:
             "You receive no word. Listen carefully and blend in.\n"
             "**Win:** survive to the final two, **or** guess the Civilian word when eliminated."), inline=False)
         embed.add_field(name="THE LAST WORD", value=(
-            "An eliminated White gets **one guess before any other victory is checked**. "
+            "A White eliminated by voting gets **one guess before any other victory is checked**. "
             "A wrong or missed guess continues play if enemies remain.\n\n"
-            "Whites share their faction's victory; each eliminated White gets a guess. "
+            "Whites share their faction's victory; each White eliminated by voting gets a guess. "
             "Final-two survival takes priority over Undercover's numbers."), inline=False)
     elif page == "voting":
         embed.title = "A clue. A vote. A reveal."
         embed.add_field(name="01 / LEAVE A CLUE", value=(
-            "Each living player gives **one clue of 1–80 characters**, in any order. "
-            "Do not submit either secret word. Missed clues are skipped at the deadline."), inline=False)
+            "Each living player gives **one single-word clue of 1–80 characters**, in any order. "
+            "Letters, hyphens and apostrophes only. Do not submit either secret word. Missed clues skip unless AFK removal is on."), inline=False)
         embed.add_field(name="02 / PICK A SUSPECT", value=(
             "Use the select menu for a **private ballot**. No self-votes. "
             "You may change your vote until everyone votes or time expires. "
-            "Only living players can vote; missing votes abstain."), inline=False)
+            "Only living players can vote; missing votes abstain unless AFK removal is on."), inline=False)
         embed.add_field(name="03 / BREAK THE TIE", value=(
             "The highest vote total is eliminated and their role is revealed.\n"
             "**Tie?** Everyone revotes among the tied suspects.\n"
@@ -58,6 +58,12 @@ def rules_page(page: str, prefix: str) -> discord.Embed:
             "The captain, a Manage Server moderator, or the bot owner can **begin**, **end**, "
             "**transfer** control, or **kick** a player from the lobby.\n"
             "The captain must transfer control before leaving. Mid-game departures are handled by deadlines."), inline=False)
+        embed.add_field(name="OPTIONAL AFK REMOVAL", value=(
+            f"Before departure, use `{prefix}mrwhite afk on` / `off` or the lobby toggle. "
+            "Only the captain, moderator or bot owner can change it. Default: **off**. "
+            "When on, a missed clue or ballot/revote deadline removes that player from the game. "
+            "AFK Whites forfeit their final guess. An AFK captain is replaced by a survivor. "
+            "If everyone is removed, the game is a draw."), inline=False)
         embed.add_field(name="CREW DISTRIBUTION", value=(
             "**Players → Undercover / Mr. White**\n"
             "3 → **0 / 1**\n4–7 → **1 / 1**\n8–11 → **2 / 1**\n"
