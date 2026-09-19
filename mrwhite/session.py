@@ -89,7 +89,7 @@ class Session:
         else:
             desc = f"Captain: <@{g.host}> • **{len(g.alive)}** crew remain.\n"
             if g.phase == "playing":
-                desc += "Give one short clue. Do not reveal your word. Any order is allowed.\n\n"
+                desc += "Give exactly one single-word clue per round. Do not reveal your word. Any order is allowed.\n\n"
                 if g.round > 1:
                     desc += "Your secret word is unchanged; reopen your dossier if needed.\n"
             elif g.phase == "voting":
@@ -109,6 +109,9 @@ class Session:
             if chunk:
                 embed.add_field(name="Crew clues", value=chunk, inline=False)
         if g.phase != "ended":
+            embed.add_field(name="AFK removal", value=(
+                "ON • Miss a clue or vote deadline and you are removed (no final guess)."
+                if g.remove_afk else "OFF • Missing clues skip; missing votes abstain."), inline=False)
             embed.add_field(name="Deadline", value=f"<t:{int(self.deadline)}:R>")
         embed.set_footer(text="SECRET SEAS • Original art • Use mrwhite rules for win conditions")
         return embed
@@ -172,7 +175,7 @@ class Session:
                     self.close()
                     raise
                 raise RuleError("The deadline passed. Use the current game card.")
-            if action in ("begin", "end", "transfer", "kick") and not await self.authorized_host(member):
+            if action in ("begin", "end", "transfer", "kick", "afk") and not await self.authorized_host(member):
                 raise RuleError("Only the captain or a server moderator can do that.")
             g = self.game
             if action == "role":
@@ -202,6 +205,9 @@ class Session:
             elif action == "kick":
                 g.require(g.phase == "joining", "Crew removal is only available in the lobby.")
                 g.leave(value)
+            elif action == "afk":
+                g.require(g.phase == "joining", "Set AFK removal before starting the game.")
+                g.remove_afk = not g.remove_afk if value is None else bool(value)
             else:
                 raise RuleError("Unknown game action.")
             try:

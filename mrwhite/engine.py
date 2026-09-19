@@ -54,6 +54,7 @@ class Game:
     pair: tuple[str, str] = ("", "")
     result: str = ""
     events: list[str] = field(default_factory=list)
+    remove_afk: bool = False
 
     @property
     def alive(self) -> list[int]:
@@ -117,6 +118,10 @@ class Game:
         self.require(user not in self.clues, "You have already given a clue this round.")
         text = " ".join(text.split())
         self.require(1 <= len(text) <= 80, "Use a clue of 1–80 characters.")
+        normalized = unicodedata.normalize("NFKC", text)
+        self.require(len(normalized.split()) == 1 and any(c.isalpha() for c in normalized)
+                     and all(c.isalpha() or c in "-'’" for c in normalized),
+                     "Give exactly one word per round (letters, hyphens and apostrophes only).")
         self.require(normalize(text) not in self.pair, "Do not submit either secret word as your clue.")
         self.clues[user] = text
         if len(self.clues) == len(self.alive):
@@ -190,14 +195,45 @@ class Game:
         if self.phase == "joining":
             self.finish("Lobby expired before departure.")
         elif self.phase == "playing":
-            self.events.append("Clue deadline reached; missing clues are skipped.")
+            if self.remove_afk:
+                if self.remove_inactive(self.clues):
+                    return
+            else:
+                self.events.append("Clue deadline reached; missing clues are skipped.")
             self.open_vote()
         elif self.phase == "voting":
+            if self.remove_afk:
+                if self.remove_inactive(self.votes):
+                    return
+                # Ballots targeting removed crew cannot eliminate them again.
+                self.candidates.intersection_update(self.alive)
+                self.votes = {p: t for p, t in self.votes.items() if t in self.candidates}
+                if not self.votes:
+                    self.events.append("No valid ballots remain after AFK removal; a new round begins.")
+                    self.next_round()
+                    return
             self.resolve_vote()
         elif self.phase == "guessing":
             self.events.append("Mr. White's final-guess deadline expired.")
             if not self.check_winner():
                 self.next_round()
+
+    def remove_inactive(self, submissions: dict[int, object]) -> bool:
+        """Remove all missed submissions together, then check victory once."""
+        missing = [p for p in self.alive if p not in submissions]
+        if not missing:
+            return False
+        self.eliminated.update(missing)
+        for p in missing:
+            self.events.append(f"<@{p}> was removed for AFK: **{self.roles[p].value}**.")
+        # AFK removals are forfeits; Mr. White receives no final guess.
+        if not self.alive:
+            self.finish("Draw — all remaining players were removed for AFK.")
+            return True
+        if self.host in missing:
+            self.host = self.alive[0]
+            self.events.append(f"Captaincy transferred to <@{self.host}>.")
+        return self.check_winner()
 
     def finish(self, reason: str):
         self.result = reason

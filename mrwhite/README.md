@@ -10,14 +10,14 @@ Validated target: **Python 3.11.15, Red-DiscordBot 3.5.24, discord.py 2.7.1**. P
 2. `[p]mrwhite start` opens a lobby and joins its creator as captain.
 3. Friends click **Join crew**. The captain clicks **Set sail** with at least three players.
 4. Every player opens **My secret dossier**, an ephemeral reply only they can see. Closed DMs are supported. `[p]mrwhite role` is an optional DM fallback.
-5. Give one clue each through the modal or `[p]mrwhite say <clue>`. Clues appear on the card. Then select a suspect on the ballot.
+5. Give one single-word clue each per round through the modal or `[p]mrwhite say <clue>`. Clues appear on the card. Then select a suspect on the ballot.
 6. Follow eliminations, revotes and Mr. White's final-guess prompt until a faction wins.
 
 Bot permissions: View Channel, Send Messages (Send Messages in Threads for threads), Embed Links. Attach Files enables generated cards; without it, text embeds still work. Prefix commands require the normal Red message-content setup. No reaction permissions or Manage Messages are required.
 
 ## Rules
 
-Civilians receive the same word; Undercover receives a related word; Mr. White receives no word. Word-pair orientation is randomized once per game; your word stays unchanged across rounds. Players are told their own faction, never other players' factions until elimination/end. Each living player can give one 1–80 character clue per round, in any order. Submitting either exact secret word is rejected. Do not deliberately reveal your word in chat.
+Civilians receive the same word; Undercover receives a related word; Mr. White receives no word. Word-pair orientation is randomized once per game; your word stays unchanged across rounds. Players are told their own faction, never other players' factions until elimination/end. Each living player can give one single-word, 1–80 character clue per round (letters, hyphens and apostrophes only), in any order. Submitting either exact secret word is rejected. Do not deliberately reveal your word in chat.
 
 | Players | Undercover | Mr. White | Civilians |
 | --- | --- | --- | --- |
@@ -27,11 +27,11 @@ Civilians receive the same word; Undercover receives a related word; Mr. White r
 
 - **Civilian victory:** all Undercover and Mr. White players have been eliminated.
 - **Undercover victory:** surviving Undercover count is at least the combined count of all other survivors.
-- **Mr. White victory:** correctly guess the Civilian word after elimination, or survive to the final two. Final-two survival takes priority over Undercover parity. Multiple Whites share the faction win; each eliminated White gets their own single final guess.
-- An eliminated White gets their guess **before** checking any other victory. A wrong/expired guess continues the game if other infiltrators remain.
+- **Mr. White victory:** correctly guess the Civilian word after elimination, or survive to the final two. Final-two survival takes priority over Undercover parity. Multiple Whites share the faction win; each White eliminated by voting gets their own single final guess.
+- A White eliminated by voting gets their guess **before** checking any other victory. A wrong/expired guess continues the game if other infiltrators remain.
 - The unique highest ballot total eliminates a player. Votes may change until all living players vote or the deadline expires. No self-votes. Eliminated players and spectators cannot vote or give clues.
 - A tie triggers one revote among tied candidates, with all living players eligible to vote. A second tie eliminates nobody and starts another clue round. There is no arbitrary random elimination.
-- Missing clues are skipped. Missing votes abstain; zero votes ends the game in a draw. The game ends in a draw after 20 rounds.
+- With AFK removal off, missing clues are skipped. Missing votes abstain; zero votes ends the game in a draw. The game ends in a draw after 20 rounds.
 
 ## Commands and controls
 
@@ -45,6 +45,7 @@ All original commands remain: `start`, `join`, `begin`, `say`, `vote`, `guess`, 
 | `begin` / `end` | Captain or Manage Server moderator (or bot owner) starts/ends |
 | `transfer @member` | Captain/moderator transfers control to a surviving participant |
 | `kick @member` | Captain/moderator removes a lobby participant; transfer before removing captain |
+| `afk on` / `afk off` | Captain/moderator sets AFK removal for the current lobby before departure; also available as a lobby button |
 | `role` | DM your own dossier; use the private button if DMs are closed |
 | `say <clue>` / `vote @member` / `guess <word>` | Legacy gameplay inputs; typed commands are public |
 | `status` / `rules` | Current card link or complete game rules |
@@ -54,7 +55,7 @@ All original commands remain: `start`, `join`, `begin`, `say`, `vote`, `guess`, 
 | `addword word \| related word` | Also accepts the new pair format |
 | `timeout <phase> <seconds>` | Manage Server/admin: set 30–900 seconds for future lobbies |
 
-The captain cannot leave without transferring or ending the lobby. Mid-game departure/kicking is intentionally unavailable: missing players are handled by deadlines and a moderator can end a stalled voyage. A captain who leaves the server can be replaced by a Manage Server moderator through `transfer`.
+The captain cannot leave without transferring or ending the lobby. Manual mid-game kicking is unavailable. Enable AFK removal before departure to remove players who miss a clue or ballot/revote deadline. This option is off by default for each new lobby and is shown on the game card. Removal only affects the game, never server membership. AFK Whites forfeit their final guess; an AFK captain is replaced by the first surviving player. All missing players are removed together before checking victory; if nobody survives, the game is a draw. Ballots targeting removed players are discarded; if no valid ballots remain and nobody has won, another clue round starts. A captain who leaves the server can be replaced by a Manage Server moderator through `transfer`.
 
 Default deadlines: lobby (`joining`) 300s, clues (`playing`) 120s, ballot/revote (`voting`) 90s, final guess (`guessing`) 45s. Deadlines are absolute and clicks never extend them. Config changes apply to **new lobbies**, not games already underway.
 
