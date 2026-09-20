@@ -223,3 +223,53 @@ def test_encounter_balance_bounds():
             results = [simulate(cls, key, "common", seed) for seed in range(10)]
             assert sum(won for won, _ in results) >= 8
             assert all(2 <= turns < 30 for _, turns in results)
+
+
+def test_batch_equip_final_loadout_and_rejection():
+    p = graduate()
+    weapon = g.make_item("main", twohand=True)
+    p["inventory"][weapon["id"]] = weapon
+    g.equip(p, weapon["id"])
+    onehand = next(i for i in p["inventory"].values() if i["slot"] == "main" and not i["twohand"])
+    off = next(i for i in p["inventory"].values() if i["slot"] == "off")
+    g.equip_many(p, [off["id"], onehand["id"]])
+    assert p["equipped"]["off"] == off["id"]
+    assert p["equipped"]["main"] == onehand["id"]
+    high = g.make_item("head", level=20)
+    p["inventory"][high["id"]] = high
+    for ids in (
+        [weapon["id"], off["id"]],
+        [onehand["id"], weapon["id"]],
+        [off["id"], off["id"]],
+        [weapon["id"], "missing"],
+        [weapon["id"], high["id"]],
+        [],
+    ):
+        before = copy.deepcopy(p)
+        with pytest.raises(g.RuleError):
+            g.equip_many(p, ids)
+        assert p == before
+
+
+def test_batch_starter_gear_progress_and_no_double_rewards():
+    p = g.new_player("Hero", "strider")
+    g.equip_many(p, list(p["inventory"]))
+    assert p["tutorial"] == 1
+    before = copy.deepcopy(p)
+    g.equip_many(p, list(p["inventory"]))
+    assert p == before
+    g.begin(p, "slime", practice=True)
+    before = copy.deepcopy(p)
+    with pytest.raises(g.RuleError):
+        g.equip_many(p, list(p["inventory"]))
+    assert p == before
+
+
+def test_tutorial_commands_contain_real_ids_and_prefix():
+    p = g.new_player("Hero", "arcanist")
+    text = g.tutorial(p, "!")
+    assert "!aether equip " + " ".join(p["inventory"]) in text
+    assert "Step 1/6" in text
+    g.equip_many(p, list(p["inventory"]))
+    g.begin(p, "slime", practice=True)
+    assert "`!aether resume`" in g.tutorial(p, "!")

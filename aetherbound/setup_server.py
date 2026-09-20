@@ -3,7 +3,8 @@
 import discord
 
 from .engine import RuleError, category_index
-from .views import RoleView
+from .presentation import channel_embed, guild_prefix
+from .views import GuideView
 
 CHANNELS = {
     "guide": (
@@ -136,34 +137,35 @@ async def provision(cog, guild):
             )
             s["channels"][key] = channel.id
             await cog.store.settings(guild.id, s)
-    guide = guild.get_channel(s["channels"]["guide"])
-    prefix = (await cog.bot.get_valid_prefixes(guild))[0]
-    text = (
-        f"**Welcome to Aetherbound — Hoshifall awaits**\n"
-        f"In <#{s['channels']['adventures']}>, use `{prefix}aether create vanguard Your Name` "
-        "(or strider/arcanist). Then use `aether tutorial`.\n"
-        "The tutorial awards a weapon, armor, materials, and a relic as you learn. "
-        "Attack, guard, and use skills; read enemy intent. Progress is earned by playing.\n"
-        "**Trading:** write `trading iron sword for crystal staff` in the trading post. "
-        "A thread opens for negotiation. Ordinary chat belongs in the tavern. "
-        "Phase 1 threads are discussions; item exchange is a later feature.\n"
-        "**Notifications:** toggle the buttons below. All roles are optional."
-    )
-    panel = None
-    if s["panels"].get("guide"):
-        try:
-            panel = await guide.fetch_message(s["panels"]["guide"])
-        except discord.NotFound:
-            pass
-    if panel:
-        await panel.edit(
-            content=text, view=RoleView(cog), allowed_mentions=discord.AllowedMentions.none()
-        )
-    else:
-        panel = await guide.send(
-            text, view=RoleView(cog), allowed_mentions=discord.AllowedMentions.none()
-        )
-        s["panels"]["guide"] = panel.id
+    await refresh_panels(cog, guild, s)
     s["enabled"] = True
     await cog.store.settings(guild.id, s)
     return s
+
+
+async def refresh_panels(cog, guild, settings):
+    """Update recorded panels in place, checkpointing each new message for retries."""
+    prefix = await guild_prefix(cog.bot, guild)
+    settings.setdefault("panels", {})
+    for key in CHANNELS:
+        channel = guild.get_channel(settings["channels"].get(key, 0))
+        if not channel:
+            continue
+        panel = None
+        if settings["panels"].get(key):
+            try:
+                panel = await channel.fetch_message(settings["panels"][key])
+            except discord.NotFound:
+                pass
+        kwargs = dict(
+            content=None,
+            embed=channel_embed(key, settings, prefix),
+            view=GuideView(cog, include_roles=key == "guide"),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        if panel:
+            await panel.edit(**kwargs)
+        else:
+            panel = await channel.send(**kwargs)
+            settings["panels"][key] = panel.id
+            await cog.store.settings(guild.id, settings)

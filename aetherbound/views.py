@@ -6,6 +6,7 @@ import discord
 
 from .content import CLASSES, MONSTERS
 from .engine import RuleError, intent
+from .presentation import channel_embed, guild_prefix, profile_embed, tutorial_embed
 
 log = logging.getLogger("red.aetherbound")
 
@@ -27,6 +28,16 @@ def battle_embed(p):
         ),
         inline=False,
     )
+    if b["practice"]:
+        e.add_field(
+            name="Training checklist",
+            value=" · ".join(
+                f"{'✓' if key in b['used'] else '○'} {label}"
+                for key, label in (("guard", "Guard"), ("attack", "Attack"), ("skill", "Any skill"))
+            )
+            + "\nUse each once, then win. Start with Guard → Attack → your first skill.",
+            inline=False,
+        )
     e.set_footer(
         text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +10 • Progress saves after each action"
     )
@@ -90,6 +101,7 @@ class BattleView(SafeView):
                     return
                 await i.response.defer()
                 try:
+                    before = await self.cog.store.player(i.guild.id, i.user.id)
                     result = await self.cog.action(i.guild.id, i.user.id, bid, turn, action)
                     player = await self.cog.store.player(i.guild.id, i.user.id)
                     if player["battle"]:
@@ -104,6 +116,9 @@ class BattleView(SafeView):
                             view=None,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
+                    if not player["battle"] and before["tutorial"] < 6:
+                        prefix = await guild_prefix(self.cog.bot, i.guild)
+                        await i.followup.send(embed=tutorial_embed(player, prefix), ephemeral=True)
                     self.stop()
                     self.cog.views.discard(self)
                 except RuleError as e:
@@ -173,3 +188,39 @@ class RoleView(SafeView):
 
             btn.callback = callback
             self.add_item(btn)
+
+
+class GuideView(RoleView):
+    """Persistent, read-only personal help; never creates example rewards or battles."""
+
+    def __init__(self, cog, include_roles=True):
+        super().__init__(cog)
+        if not include_roles:
+            self.clear_items()
+        for key, label in (("tutorial", "My next step"), ("profile", "My profile")):
+            button = discord.ui.Button(
+                label=label,
+                custom_id=f"ab:guide:{key}",
+                style=discord.ButtonStyle.primary,
+                row=1 if include_roles else 0,
+            )
+
+            async def callback(i, kind=key):
+                await i.response.defer(ephemeral=True)
+                prefix = await guild_prefix(self.cog.bot, i.guild)
+                p = await self.cog.store.player(i.guild.id, i.user.id)
+                if p:
+                    embed = (
+                        tutorial_embed(p, prefix)
+                        if kind == "tutorial"
+                        else profile_embed(p, prefix)
+                    )
+                else:
+                    settings = await self.cog.store.settings(i.guild.id)
+                    embed = channel_embed("guide", settings, prefix)
+                await i.followup.send(
+                    embed=embed, ephemeral=True, allowed_mentions=discord.AllowedMentions.none()
+                )
+
+            button.callback = callback
+            self.add_item(button)

@@ -1,4 +1,4 @@
-# Aetherbound — Phase 1 playtest
+# Aetherbound — Phase 1
 
 An active, original anime-themed adventure for Red. Characters explore Hoshifall's
 Glimmerwood and Embervein regions, fight with buttons, acquire equipment and forge
@@ -10,8 +10,7 @@ Requires Red 3.5.24+, Python 3.11, and the discord.py version supported by Red.
 No additional production Python packages are required. Do not install the dev
 requirements over a running Red instance.
 
-Once this branch has been installed through Red's Downloader (or merged into the
-configured repository branch):
+Install through Red's Downloader:
 
 ```text
 [p]cog install <your-ultcogs-repo-name> aetherbound
@@ -65,6 +64,25 @@ Position is a 1-based **category** index. Existing servers cannot select the ver
 top position. Setup leaves an existing category's placement unchanged. Automatic
 spawns start after setup; default interval 30 minutes, configurable 5–1440.
 
+## Updating an existing game
+
+```text
+[p]cog update aetherbound
+[p]reload aetherbound
+[p]aetherset guides
+```
+
+The last command updates the existing welcome message in place and creates or
+refreshes one example embed in each recorded game channel. Use `[p]aetherset setup`
+instead if channels or roles need repairing. Saved heroes and tutorial rewards
+are preserved. Neither command deletes player progress. Guides use your current
+server prefix; refresh them after changing it.
+
+All five guides have persistent **My next step** and **My profile** buttons that
+privately show the clicking player's saved data. Players without a character see
+creation instructions. The welcome guide also keeps the three opt-in alert buttons.
+Example encounters are clearly labeled; only real spawn posts have Engage buttons.
+
 ## Rewarded tutorial
 
 ```text
@@ -87,7 +105,11 @@ The tutorial requires actual actions, with one-time rewards:
 5. Equip that forged ring.
 6. Win a real exploration encounter. Receive the Wayfarer Star relic, 100 gold
    and two more potions.
-7. Review the completion instructions and continue quests or the dungeon.
+
+After all six steps, review the completion instructions and continue quests or the dungeon.
+Lessons provide copyable, prefix-aware commands with your actual equipment IDs.
+Practice battles show an action checklist and tutorial battle endings show the
+next lesson automatically. Reopen your current step with `[p]aether tutorial`.
 
 Starter materials cannot be spent on upgrades or alternate recipes before the
 forging lesson. Tutorial gear cannot be salvaged before graduation. Reopening
@@ -103,7 +125,7 @@ the tutorial or replaying a click never grants the same reward twice.
 | `skills` | Class abilities, costs, attributes and mechanics |
 | `inventory [page]` | Items with IDs, equipped markers, materials and gold |
 | `item <id>` | Equipment details and current slot occupant |
-| `equip <id>` / `unequip <slot>` | Change your equipment outside combat |
+| `equip <id> [id ...]` / `unequip <slot>` | Equip up to 11 items automatically by slot, or remove a slot |
 | `allocate <attribute> [amount]` / `respec` | Allocate level-up points or refund them |
 | `practice` | Tutorial training encounter |
 | `explore [glimmerwood\|embervein]` | Personal, immediately available encounter |
@@ -153,6 +175,15 @@ playtesting has been completed**.
 Eleven slots: main hand, off hand, head, chest, hands, legs, feet, neck, two
 independent rings and a relic. Two-handed main weapons remove the off hand;
 re-equipping an off-hand item requires removing the two-handed weapon first.
+
+Equip multiple items using `[p]aether equip ID1 ID2 ID3` or the shorthand
+`[p]aether ID1 ID2 ID3`. Replace the example IDs with IDs from inventory. Input
+order does not matter. A batch must contain one item per equipment slot, with
+separate ring1/ring2 items. Duplicate IDs, conflicting slots, missing items,
+level restrictions and incompatible two-handed/off-hand combinations reject the
+entire batch. Nothing changes on failure. A two-handed weapon by itself returns
+an equipped off-hand to the bag; replacing it with a one-handed weapon and an
+off-hand in one batch works in either order.
 
 Each item instance has a unique ID, level, rarity, a bounded affix budget,
 rolled attribute bonuses and upgrade level. Rare boss recipes grant spiritward
@@ -218,8 +249,9 @@ trade message/thread references. Existing Discord posts, notification roles and
 thread content remain Discord-managed; deleting a character record does not
 purge server history or remove notification subscriptions.
 
-The cog needs a live Red test-server smoke test before production. No Discord
-server was modified as part of preparing this source change.
+Automated checks use mocked Discord network calls. The operational checklist below
+covers server permissions and live Discord behavior; source updates do not reload
+your running bot or change its channels automatically.
 
 ## Validation
 
