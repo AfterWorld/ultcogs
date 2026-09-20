@@ -56,15 +56,6 @@ INTENTS = {
     "roots": "Gathering roots: interrupt to expose its spirit core.",
     "overheat": "Heating the furnace: guard; overheating exposes its armor.",
 }
-TUTORIAL = (
-    "Welcome to Hoshifall! Your soul resonates with the shattered sky. Open inventory and equip your starter main-hand weapon: aether equip <item-id>. Gear stays with you between sessions.",
-    "Practice combat: aether practice. Use Attack, Guard, and at least one Skill, then win. Read the enemy intent; guarding a charged strike reduces damage. Skills cost energy and have turn cooldowns.",
-    "Your training earned an armor kit and forging materials. Equip the chest piece. Profile shows your total stats; item shows individual bonuses. Equip the other pieces too!",
-    "Visit the forge: aether forge ring1. Forging consumes materials and gold; recipes show the cost. Salvaging unwanted gear returns materials. Early upgrades cannot destroy gear.",
-    "Equip your newly forged ring with aether equip <item-id>. Rings have separate slots. Gear is locked during combat so changing equipment cannot reset your health.",
-    "Explore Glimmerwood and win a real hunt: aether explore glimmerwood. Encounters award EXP, gold, materials and loot. Trivial enemies give reduced rewards. Use aether resume after a restart.",
-    "Tutorial complete! You earned a Wayfarer relic, 100 gold and two potions. Equip the relic, inspect quests, and tackle the Hollow Trail dungeon at level 6. Notification roles are optional; trade offers belong in the market, discussion in their threads.",
-)
 QUESTS = {
     "first_hunts": dict(name="Clear the Path", goal=3, field="wins", gold=60, xp=70),
     "guardian": dict(name="Quiet the Hollow Antler", goal=1, field="boss_wins", gold=120, xp=140),

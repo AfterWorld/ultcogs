@@ -4,7 +4,7 @@ import random
 import re
 import uuid
 
-from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SLOTS, TUTORIAL
+from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SLOTS
 
 
 class RuleError(ValueError):
@@ -127,19 +127,41 @@ def item(p, item_id):
 
 
 def equip(p, item_id):
+    return equip_many(p, [item_id])
+
+
+def equip_many(p, item_ids):
+    """Validate the final loadout before changing gear or granting tutorial rewards."""
     idle(p)
-    i = item(p, item_id)
-    if i["level"] > p["level"]:
-        raise RuleError(f"Requires level {i['level']}.")
-    if i["twohand"]:
-        p["equipped"].pop("off", None)
-    if i["slot"] == "off":
-        main = p["inventory"].get(p["equipped"].get("main"), {})
-        if main.get("twohand"):
-            raise RuleError("Unequip the two-handed weapon first.")
-    p["equipped"][i["slot"]] = item_id
+    if not 1 <= len(item_ids) <= len(SLOTS):
+        raise RuleError("Choose 1–11 item IDs from your inventory.")
+    if len(set(item_ids)) != len(item_ids):
+        raise RuleError("Each item ID should appear only once. No equipment changed.")
+    items = [item(p, key) for key in item_ids]
+    slots = [i["slot"] for i in items]
+    if len(set(slots)) != len(slots):
+        raise RuleError(
+            "Choose only one item per slot. Rings use ring1 and ring2. No equipment changed."
+        )
+    for i in items:
+        if i["level"] > p["level"]:
+            raise RuleError(f"{i['name']} requires level {i['level']}. No equipment changed.")
+    loadout = dict(p["equipped"])
+    loadout.update({i["slot"]: i["id"] for i in items})
+    main = p["inventory"].get(loadout.get("main"), {})
+    removed = None
+    if main.get("twohand"):
+        if "off" in slots:
+            raise RuleError(
+                "A two-handed weapon cannot be used with an off-hand item. No equipment changed."
+            )
+        removed = loadout.pop("off", None)
+    p["equipped"] = loadout
     advance_tutorial(p)
-    return f"Equipped {i['name']}."
+    result = "\n".join(f"Equipped {i['name']} → {i['slot']}." for i in items)
+    if removed:
+        result += "\nOff-hand returned to your inventory (two-handed weapon)."
+    return result
 
 
 def advance_tutorial(p):
@@ -509,8 +531,75 @@ def quest_progress(p, key):
     return p[QUESTS[key]["field"]]
 
 
-def tutorial(p):
-    return f"Tutorial {min(p['tutorial'] + 1, 7)}/7\n{TUTORIAL[p['tutorial']]}"
+def tutorial(p, prefix="."):
+    """One actionable lesson using this character's real item IDs."""
+    cmd = f"{prefix}aether"
+    stage = p["tutorial"]
+
+    def equip_command(slots=None, ids=None):
+        keys = (
+            ids
+            if ids is not None
+            else [
+                next((i["id"] for i in p["inventory"].values() if i["slot"] == slot), None)
+                for slot in slots
+            ]
+        )
+        keys = [k for k in keys if k in p["inventory"] and k not in p["equipped"].values()]
+        return f"`{cmd} equip {' '.join(keys)}`" if keys else f"`{cmd} inventory`"
+
+    lessons = [
+        (
+            "Equip your starter gear",
+            "Your weapon and off-hand are already in your bag. Copy this command to wear both:",
+            equip_command(["main", "off"]),
+            "Items automatically go into their matching equipment slots.",
+        ),
+        (
+            "Learn the battle buttons",
+            "Start a safe practice battle:",
+            f"`{cmd} practice`",
+            "Click **Guard**, then **Attack**, then your first **Skill**. Keep attacking until you win. Use all three at least once. Reward: armor, 60 gold and forging materials.",
+        ),
+        (
+            "Put on your armor",
+            "Training earned you six armor pieces. Equip the full kit at once:",
+            equip_command(["head", "chest", "hands", "legs", "feet", "neck"]),
+            "Equipping the chest completes this step. Your other armor improves your defense too.",
+        ),
+        (
+            "Forge your first ring",
+            "Spend the materials you just earned to make a ring:",
+            f"`{cmd} forge ring1`",
+            "Cost: **4 iron + 2 essence + 30 gold**. You already have everything you need.",
+        ),
+        (
+            "Wear your ring",
+            "Forging puts the ring in your bag. Equip it to gain its bonuses:",
+            equip_command(ids=p["forged"][:1]),
+            "Gear can only be changed outside battle.",
+        ),
+        (
+            "Win your first hunt",
+            "You are ready for Glimmerwood:",
+            f"`{cmd} explore glimmerwood`",
+            "Use the combat buttons and read enemy intent. Guard charged attacks. Win to earn a **Wayfarer Star relic, 100 gold and 2 potions**, plus your battle loot.",
+        ),
+        (
+            "Tutorial complete",
+            "Your adventure begins! Equip your Wayfarer Star if it is still in your bag:",
+            equip_command(
+                ids=[i["id"] for i in p["inventory"].values() if i["unique"] == "wayfarer"][:1]
+            ),
+            f"**Hunt:** `{cmd} explore`\n**Quest rewards:** `{cmd} quests`\n**Your hero:** `{cmd} profile`\nThe Hollow Trail dungeon unlocks at level 6. Tutorial rewards are awarded once.",
+        ),
+    ]
+    title, instruction, command, help_text = lessons[stage]
+    heading = f"Step {stage + 1}/6 • {title}" if stage < 6 else title
+    if p["battle"]:
+        instruction = "Your battle is still active. Use its buttons, or restore them here:"
+        command = f"`{cmd} resume`"
+    return f"**{heading}**\n{instruction}\n\n{command}\n\n{help_text}"
 
 
 def trade_offer(text):

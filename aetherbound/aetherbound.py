@@ -15,9 +15,10 @@ from redbot.core.data_manager import cog_data_path
 
 from . import engine as game
 from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SLOTS
-from .setup_server import provision
+from .presentation import profile_embed, tutorial_embed
+from .setup_server import provision, refresh_panels
 from .store import Store
-from .views import BattleView, RoleView, SpawnView, battle_embed
+from .views import BattleView, GuideView, RoleView, SpawnView, battle_embed
 
 log = logging.getLogger("red.aetherbound")
 
@@ -35,7 +36,7 @@ class Aetherbound(commands.Cog):
 
     async def cog_load(self):
         await self.store.initialize()
-        self.bot.add_view(RoleView(self))
+        self.bot.add_view(GuideView(self))
         for row in await self.store.rows("players"):
             p = json.loads(row["data"])
             b = p.get("battle")
@@ -111,9 +112,12 @@ class Aetherbound(commands.Cog):
 
     @commands.group(name="aether", invoke_without_command=True)
     @commands.guild_only()
-    async def adventure(self, ctx):
+    async def adventure(self, ctx, *item_ids: str):
         """Aetherbound: create, tutorial, profile, explore, inventory, forge, dungeon."""
-        await ctx.send_help()
+        if item_ids:
+            await self.equip_items(ctx, item_ids)
+        else:
+            await ctx.send_help()
 
     @adventure.command()
     async def create(self, ctx, character_class: str, *, name: str):
@@ -124,12 +128,18 @@ class Aetherbound(commands.Cog):
             lambda p, c: game.new_player(name, character_class.lower()),
             create=True,
         )
-        await ctx.send(game.tutorial(p), allowed_mentions=discord.AllowedMentions.none())
+        await ctx.send(
+            embed=tutorial_embed(p, ctx.clean_prefix),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     @adventure.command()
     async def tutorial(self, ctx):
         """Resume the rewarded, action-based tutorial."""
-        await ctx.send(game.tutorial(await self.require(ctx)))
+        await ctx.send(
+            embed=tutorial_embed(await self.require(ctx), ctx.clean_prefix),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     @adventure.command()
     async def skills(self, ctx):
@@ -151,29 +161,10 @@ class Aetherbound(commands.Cog):
     async def profile(self, ctx):
         """Your character, total stats, gear, and progression."""
         p = await self.require(ctx)
-        s = game.stats(p)
-        e = discord.Embed(
-            title=f"{p['name']} • {p['cls'].title()} • Level {p['level']}",
-            description=p["appearance"],
-            color=0x836FFF,
+        await ctx.send(
+            embed=profile_embed(p, ctx.clean_prefix),
+            allowed_mentions=discord.AllowedMentions.none(),
         )
-        e.add_field(
-            name="Progress",
-            value=f"EXP {p['xp']}/{game.xp_needed(p['level']) if p['level'] < 20 else 'MAX'}\nGold {p['gold']} • Attribute points {p['points']}\nWins {p['wins']} • Bosses {p['boss_wins']}",
-        )
-        e.add_field(
-            name="Combat",
-            value=f"HP {s['hp']} • Attack {s['attack']:.1f}\nArmor {s['armor']:.1f} • Crit {s['crit']:.0%}",
-        )
-        e.add_field(
-            name="Equipment",
-            value="\n".join(
-                f"{slot}: {p['inventory'][p['equipped'][slot]]['name'] if slot in p['equipped'] else 'Empty'}"
-                for slot in SLOTS
-            ),
-            inline=False,
-        )
-        await ctx.send(embed=e, allowed_mentions=discord.AllowedMentions.none())
 
     @adventure.command()
     async def appearance(self, ctx, *, description: str):
@@ -199,7 +190,8 @@ class Aetherbound(commands.Cog):
             f"**Inventory {page}/{pages}** • {p['gold']} gold • {p['potions']} potions\n"
             + "\n".join(lines)
             + "\nMaterials: "
-            + str(p["materials"]),
+            + str(p["materials"])
+            + f"\nEquip several: `{ctx.clean_prefix}aether equip ID1 ID2 ID3` (replace IDs above; one per slot).",
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -213,11 +205,20 @@ class Aetherbound(commands.Cog):
             f"**{i['name']}** • {i['rarity']} • {i['slot']} • level {i['level']}\nPower {i['power']} + upgrade {i['upgrade'] * 2}; modifiers {i['bonuses']}\nUnique: {i['unique'] or 'none'} • Two-handed: {i['twohand']}\nCurrently equipped: {current['name'] if current else 'nothing'}\nUnique effects: wayfarer heals 3 on guard; spiritward reduces guarded damage by 15%; emberblade adds 3 damage once per attack."
         )
 
+    async def equip_items(self, ctx, item_ids):
+        result = await self.mutate(ctx, lambda p: game.equip_many(p, list(item_ids)))
+        p = await self.require(ctx)
+        await ctx.send(result, allowed_mentions=discord.AllowedMentions.none())
+        if p["tutorial"] < 6:
+            await ctx.send(
+                embed=tutorial_embed(p, ctx.clean_prefix),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
     @adventure.command()
-    async def equip(self, ctx, item_id: str):
-        """Equip an item by ID; advances relevant tutorial goals."""
-        await ctx.send(await self.mutate(ctx, lambda p: game.equip(p, item_id)))
-        await ctx.send(game.tutorial(await self.require(ctx)))
+    async def equip(self, ctx, *item_ids: str):
+        """Equip 1–11 items: aether equip ID1 ID2 ID3. Slots are automatic."""
+        await self.equip_items(ctx, item_ids)
 
     @adventure.command()
     async def unequip(self, ctx, slot: str):
@@ -278,9 +279,11 @@ class Aetherbound(commands.Cog):
         i = await self.mutate(
             ctx, lambda p: game.forge(p, slot, None if recipe == "normal" else recipe, twohand)
         )
+        p = await self.require(ctx)
         await ctx.send(
-            f"Forged **{i['name']}**. Equip with `aether equip {i['id']}`.\n"
-            + game.tutorial(await self.require(ctx))
+            f"Forged **{i['name']}**. Equip with `{ctx.clean_prefix}aether equip {i['id']}`.",
+            embed=tutorial_embed(p, ctx.clean_prefix) if p["tutorial"] < 6 else None,
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @adventure.command()
@@ -413,6 +416,18 @@ class Aetherbound(commands.Cog):
                 s = await provision(self, ctx.guild)
         await ctx.send(
             f"Aetherbound is ready: <#{s['channels']['guide']}>. Spawns every {s['spawn_minutes']} minutes. Roles are opt-in."
+        )
+
+    @aetherset.command()
+    async def guides(self, ctx):
+        """Refresh channel examples and the welcome embed without changing permissions."""
+        async with self.guild_locks[ctx.guild.id]:
+            settings = await self.store.settings(ctx.guild.id)
+            if not settings.get("channels"):
+                raise game.RuleError(f"Run `{ctx.clean_prefix}aetherset setup` first.")
+            await refresh_panels(self, ctx.guild, settings)
+        await ctx.send(
+            "Updated the game channel guides. Missing channels can be restored with setup."
         )
 
     @aetherset.command()

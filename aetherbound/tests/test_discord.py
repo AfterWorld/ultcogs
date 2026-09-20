@@ -316,3 +316,121 @@ async def test_spawn_delivery_failure_keeps_battle_recoverable(cog):
     await cog.claim_spawn(i, "spawn")
     assert (await cog.store.player(1, 5))["battle"] is not None
     assert "resume" in i.followup.send.call_args.args[0]
+
+
+async def test_channel_panels_upgrade_in_place_and_private_live_help(cog):
+    from aetherbound.setup_server import refresh_panels
+    from aetherbound.views import GuideView
+
+    guild = FakeGuild()
+    cog.bot.get_valid_prefixes.return_value = ["<@123> ", "!"]
+    s = await provision(cog, guild)
+    assert set(s["panels"]) == set(s["channels"])
+    for key, cid in s["channels"].items():
+        channel = guild.get_channel(cid)
+        kwargs = channel.send.call_args.kwargs
+        assert isinstance(kwargs["embed"], discord.Embed)
+        assert len(kwargs["embed"]) < 6000
+        assert all(len(f.value) <= 1024 for f in kwargs["embed"].fields)
+        assert len(kwargs["view"].children) == (5 if key == "guide" else 2)
+    await refresh_panels(cog, guild, s)
+    for cid in s["channels"].values():
+        channel = guild.get_channel(cid)
+        channel.send.assert_awaited_once()
+        assert channel.fetch_message.return_value.edit.call_args.kwargs["content"] is None
+    await cog.store.change(1, 5, lambda p, c: g.new_player("Hero", "vanguard"), create=True)
+    view = GuideView(cog, include_roles=False)
+    i = interaction()
+    await view.children[0].callback(i)
+    kwargs = i.followup.send.call_args.kwargs
+    assert kwargs["ephemeral"] is True
+    p = await cog.store.player(1, 5)
+    assert "!aether equip " + " ".join(p["inventory"]) in kwargs["embed"].description
+    assert p["tutorial"] == 0
+    i = interaction(uid=99)
+    await view.children[1].callback(i)
+    assert "Welcome" in i.followup.send.call_args.kwargs["embed"].title
+    assert await cog.store.player(1, 99) is None
+
+
+async def test_batch_equipment_store_rolls_back(cog):
+    p = g.new_player("Hero", "vanguard")
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    with pytest.raises(g.RuleError):
+        await cog.store.change(
+            1, 5, lambda p, c: g.equip_many(p, [next(iter(p["inventory"])), "missing"])
+        )
+    assert await cog.store.player(1, 5) == p
+
+
+async def test_profile_live_stats_and_level_cap():
+    from aetherbound.presentation import profile_embed
+
+    p = graduate(level=20)
+    g.begin(p, "raizen")
+    p["battle"]["hp"] = 25
+    embed = profile_embed(p, "!")
+    assert "MAX LEVEL" in embed.fields[0].value
+    assert "HP **25/" in embed.fields[1].value
+    assert "!aether resume" in embed.fields[-1].value
+    assert sum("Empty" in f.value for f in embed.fields) > 0
+    assert len(embed) < 6000
+
+
+@pytest.mark.parametrize("subcommand", ["", "equip "])
+async def test_root_shorthand_dispatches_all_ids(cog, subcommand):
+    # Exercise discord.py Group.invoke, including its rewind of unknown subcommands.
+    from discord.ext.commands.view import StringView
+
+    p = g.new_player("Hero", "vanguard")
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    root = cog.adventure.copy()
+    root.cog = cog
+    root.can_run = AsyncMock(return_value=True)
+    root.call_before_hooks = AsyncMock()
+    root.call_after_hooks = AsyncMock()
+    for child in root.commands:
+        child.cog = cog
+        child.can_run = AsyncMock(return_value=True)
+        child.call_before_hooks = AsyncMock()
+        child.call_after_hooks = AsyncMock()
+    cog.cog_before_invoke = AsyncMock()
+    cog.bot.can_run = AsyncMock(return_value=True)
+    cog.bot.dispatch = MagicMock()
+    ctx = NS(
+        view=StringView(subcommand + " ".join(p["inventory"])),
+        guild=NS(id=1),
+        author=NS(id=5),
+        channel=NS(id=10),
+        clean_prefix=".",
+        send=AsyncMock(),
+        send_help=AsyncMock(),
+        bot=cog.bot,
+        message=NS(attachments=[]),
+        command=None,
+        interaction=None,
+        invoked_with="aether",
+        invoked_parents=[],
+        command_failed=False,
+    )
+    await root.invoke(ctx)
+    saved = await cog.store.player(1, 5)
+    assert set(saved["equipped"]) == {"main", "off"}
+    assert saved["tutorial"] == 1
+
+
+async def test_deleted_guide_recreated_without_duplicate_other_panels(cog):
+    from aetherbound.setup_server import refresh_panels
+
+    guild = FakeGuild()
+    s = await provision(cog, guild)
+    channel = guild.get_channel(s["channels"]["spawns"])
+    channel.fetch_message.side_effect = discord.NotFound(NS(status=404, reason="Not Found"), "gone")
+    channel.send.return_value = NS(id=999, edit=AsyncMock())
+    await refresh_panels(cog, guild, s)
+    saved = await cog.store.settings(guild.id)
+    assert saved["panels"]["spawns"] == 999
+    assert channel.send.await_count == 2
+    for key, cid in s["channels"].items():
+        if key != "spawns":
+            guild.get_channel(cid).send.assert_awaited_once()
