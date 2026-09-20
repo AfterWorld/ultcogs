@@ -18,15 +18,17 @@ Install through Red's Downloader:
 [p]aetherset setup
 ```
 
-`[p]` means your actual prefix, for example `.`. Root commands are **aether** and
-**aetherset**, deliberately avoiding the existing Adventure cog's commands.
+`[p]` means your actual prefix, for example `.`. Root commands are **aether** and **aetherset**. **ae** and **a** are added as
+shortcuts when free. GobCog/Adventure already uses **a**; Aetherbound preserves
+that command rather than preventing either cog from loading. Setup reports which
+shortcuts were registered. All examples also work under an available shortcut.
 This build uses prefix commands and persistent buttons; it does not register
 slash commands or replace `.help`.
 
 Setup is admin-only (`manage_guild` or Red's admin check). The bot needs:
 
 - Manage Channels, Manage Roles, Manage Messages, Manage Threads.
-- View Channels, Send Messages, Embed Links, Read Message History.
+- View Channels, Send Messages, Embed Links, Attach Files, Read Message History.
 - Create Public Threads and Send Messages in Threads.
 - Mention Everyone, used exclusively to ping explicitly selected notification
   roles through restrictive `AllowedMentions`; no `@everyone`/`@here` is sent.
@@ -135,8 +137,13 @@ the tutorial or replaying a click never grants the same reward twice.
 | `upgrade <id>` | Guaranteed upgrade, capped at +5 |
 | `salvage <id>` | Permanently destroy unequipped gear for materials |
 | `potion` | Buy a combat healing potion for 15 gold |
-| `bestiary` | All 13 regular monsters and two bosses |
-| `quests [quest-key]` | View objectives or claim a completed quest |
+| `bestiary [monster-key]` | List enemies or inspect a portrait and special loot |
+| `quests [accept\|claim] [quest-key]` | View the board, accept a quest or claim a completed quest |
+| `payday` | Claim daily gold, once per UTC day after tutorial graduation |
+| `shop` / `tavern` | Browse personal daily gear and supplies |
+| `buy <dated-offer-code>` | Buy the displayed item at its displayed price |
+| `rarities` | Explain all seven rarity labels and drop unlocks |
+| `loot` | Collect overflow equipment after freeing bag space |
 | `dungeon` | Enter/continue Hollow Trail, level 6+ |
 | `abandon` | Leave a dungeon between rooms |
 | `notifications` | Toggle trading, boss and adventure role subscriptions |
@@ -182,7 +189,7 @@ level costs `80 + 35L + 8L²` EXP. Normal equal-level wins award `24 + 8L` EXP;
 boss rewards are larger. Old, trivial enemies give sharply reduced EXP/gold.
 There is no energy timer outside combat, idle EXP, daily streak or paid system.
 
-See [BALANCE.md](BALANCE.md) for 6,750 seeded encounter simulations, assumptions,
+See [BALANCE.md](BALANCE.md) for 15,750 seeded encounter simulations, assumptions,
 class outcomes and leveling pace. This is a baseline, **not a claim that human
 playtesting has been completed**.
 
@@ -204,8 +211,10 @@ off-hand in one batch works in either order.
 Each item instance has a unique ID, level, rarity, a bounded affix budget,
 rolled attribute bonuses and upgrade level. Rare boss recipes grant spiritward
 or emberblade; the tutorial relic grants wayfarer. Identical unique effects do
-not stack. Inventory capacity is 200; excess combat drops convert to materials.
-Uncommon/rare affix points are distributed from a fixed budget. Critical chance
+not stack. Inventory capacity is 200; excess combat drops wait in loot overflow. Collect them
+with `[p]aether loot` after freeing space. New encounters stop when 20 or more
+overflow items are waiting (a final two-drop victory can bring the total to 21).
+All rarity affix points are distributed from a fixed budget. Critical chance
 is capped at 35%, armor at 100, upgrades at +5 and energy capacity at 80.
 
 Forge any slot from iron, essence and gold. Boss recipes also require two boss
@@ -213,6 +222,107 @@ cores. Further monster-specific uses for fangs, wood, crystal and ember, plus
 sockets, enchanting, specializations and expanded weapon types, are later phases.
 The schema includes an unused socket field for those extensions. There is no
 socket/enchant command in Phase 1.
+
+## Quests: accept, complete, claim
+
+```text
+[p]aether quests
+[p]aether quests accept first_hunts
+[p]aether explore
+[p]aether quests claim first_hunts
+```
+
+For a new character, accepting **Clear the Path** starts its three-win counter;
+complete three non-practice victories after acceptance, then claim. The other
+keys are `guardian` (defeat Tsukara) and `trail` (complete Hollow Trail). Each pays
+once. The board shows objectives, progress, rewards and the exact next command.
+The old `[p]aether quests <key>` claim shorthand still works. Existing characters
+have unclaimed quests accepted with a zero baseline during the additive migration,
+so progress earned before this update is preserved. Existing claimed quests stay
+claimed. Practice does not count; accepted quests do not expire.
+
+## Rarities, named gear and boss rewards
+
+| Tier | Minimum drop/shop level | Power rank | Normal loot chance at level 20 |
+|---|---:|---:|---:|
+| Common | 1 | 1 | 60% |
+| Uncommon | 1 | 2 | 26% |
+| Rare | 3 | 3 | 10% |
+| Epic | 6 | 4 | 3.2% |
+| Legendary | 10 | 5 | 0.7% |
+| Mythic | 16 | 6 | 0.1% |
+| Unique | Encounter-specific | 4 | Additional roll; see below |
+
+Locked-tier probability is folded into Common. Higher tiers add modest power and
+a capped attribute budget: at most four affix rolls, each `1 + level // 5` points.
+Unique is a named special-effect category with an Epic-sized stat budget, not a
+stronger tier than Mythic. Effects are the existing bounded Wayfarer, Spiritward
+and Emberblade effects and do not stack with duplicate copies. Forging retains its
+existing Uncommon normal / Rare boss recipe tiers.
+
+Generic gear now has names such as **Moonlit Signet**, **Dawnsteel Blade** and
+**Starwoven Hood of First Light**. Rarity and IDs display separately. Old generic
+names are migrated deterministically; IDs, equipped slots, upgrades, affixes and
+power do not change. Named starter/relic gear keeps its name.
+
+Boss wins guarantee one signature item, at least Rare:
+
+- **Tsukara:** Hollow Antler Pendant, Rootsong Aegis or Moonbark Mantle.
+- **Raizen:** Furnace Warden's Edge, Cinderlord Grasp or Crucible Striders.
+
+Boss tier weights before level gates are 5% Common, 20% Uncommon, 40% Rare,
+25% Epic, 8.5% Legendary and 1.5% Mythic; Common/Uncommon rolls are promoted to
+Rare for signature drops. Each boss additionally has a **3%** unique chance:
+**Tsukara's Living Antler** or **Raizen's Final Ember**. Lantern Slime, Mossfang
+Wolf, Hollow Mask and Riftbound Ronin each have a **0.5%** additional unique roll
+for their own item. Other monsters use the standard loot pool. Inspect an enemy
+with `[p]aether bestiary <key>` to see its signature/unique names and chances.
+Full bags preserve both standard and unique rewards in overflow.
+
+## Daily payday and Lantern Tavern shop
+
+```text
+[p]aether payday
+[p]aether shop
+[p]aether buy <copy-the-dated-code-from-the-shop>
+```
+
+After graduation, payday grants **40 + 3 × character level** gold, once per UTC
+calendar day (43–100 gold). It grants no EXP, requires an explicit claim, and has
+no streak or missed-day penalty. Both payday and shop rotation use **00:00 UTC**.
+No Red-bank/Adventure currency is touched.
+
+Each player has personal daily stock within their server. There is one equipment
+offer per unlocked ordinary rarity, with a minimum of three equipment offers.
+Each equipment offer has one purchase available. Two potion pouches (three potions
+for 40 gold each) and two forging bundles (4 iron + 2 essence for 70 gold each)
+are also available. Equipment costs `(25 + 10 × level) × rank²` gold.
+Unique items and boss signatures are encounter-only.
+
+Offers are generated reproducibly per server/player/date and saved on first view;
+restarts and leveling up do not reroll today's items or refill stock. Tomorrow's
+offers use the new level. Dated codes reject stale purchases across midnight.
+Purchase validation, gold deduction, stock use and item delivery share one SQLite
+transaction. Full bags, insufficient gold, tutorial restrictions and active combat
+reject purchases without charging the player. The shop preview shows slot, level,
+rarity, power, bonuses, price and remaining stock before purchase.
+
+The persistent **Tavern shop** button in channel guides opens a private preview.
+Run `[p]aetherset setup` after updating to repair Attach Files permissions and
+refresh the guides; `[p]aetherset guides` is sufficient if permissions are ready.
+
+## Monster artwork and design reference
+
+All 13 monsters and two bosses have original AI-generated portraits bundled in
+`assets/monsters/`. They appear in spawn posts, battles and individual bestiary
+entries. No external scraping or image download happens at runtime. Existing
+pre-update battles gain their image when resumed; combat turns retain the uploaded
+attachment. The asset README records the generation method and prompts.
+
+[GobCog](https://github.com/aikaterna/gobcog) was reviewed for named equipment,
+rarity progression, readable stats and merchant ideas. This implementation uses
+original content and rules, per-server characters and individual active battles;
+it does not import its shared adventures, rebirth economy, item code or artwork.
 
 ## Trading and notifications
 

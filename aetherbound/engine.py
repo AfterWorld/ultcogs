@@ -5,6 +5,7 @@ import re
 import uuid
 
 from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SLOTS
+from .loot import BOSS_DROPS, RARITIES, UNIQUES, item_name, rarity_label, roll_rarity
 
 
 class RuleError(ValueError):
@@ -35,16 +36,17 @@ def grant_xp(p, amount):
 def make_item(slot, level=1, rarity="common", rng=None, name=None, unique=None, twohand=False):
     rng = rng or random.Random()
     level = max(1, min(20, level))
-    rank = {"common": 1, "uncommon": 2, "rare": 3}[rarity]
+    rank = RARITIES[rarity]["rank"]
     bonuses = {}
     # A fixed affix budget, distributed rather than multiplied per attribute.
-    for _ in range(rank - 1):
+    for _ in range(min(4, rank - 1)):
         stat = rng.choice(ATTRS)
         bonuses[stat] = bonuses.get(stat, 0) + 1 + level // 5
     power = 2 + level + rank
+    item_id = uid()
     return dict(
-        id=uid(),
-        name=name or f"{rarity.title()} {slot.title()} of Hoshifall",
+        id=item_id,
+        name=name or item_name(slot, rarity, item_id),
         slot=slot,
         level=level,
         rarity=rarity,
@@ -83,6 +85,7 @@ def new_player(name, cls):
         boss_wins=0,
         dungeons=0,
         quests=[],
+        accepted_quests={},
         battle=None,
         run=None,
         appearance="A new adventurer of Hoshifall",
@@ -222,7 +225,7 @@ def forge(p, slot, boss=None, twohand=False):
         p["materials"][k] -= v
     i = make_item(slot, p["level"], "rare" if boss else "uncommon", unique=unique, twohand=twohand)
     if boss:
-        i["name"] = f"{boss.title()} {slot.title()}"
+        i["name"] = f"{boss.title()}’s {item_name(slot, 'common', i['id'])}"
     p["inventory"][i["id"]] = i
     p["forged"].append(i["id"])
     advance_tutorial(p)
@@ -262,6 +265,8 @@ def begin(p, monster_key, practice=False, carry=None):
     idle(p)
     if not practice and p["tutorial"] < 5:
         raise RuleError("Finish the training and forging tutorial first: aether tutorial.")
+    if len(p.get("unclaimed_loot", [])) >= 20:
+        raise RuleError("Claim your loot overflow before starting another battle: aether loot.")
     m = MONSTERS[monster_key]
     if not practice and p["level"] < m["level"] - 4:
         raise RuleError(
@@ -338,14 +343,35 @@ def reward(p, b, rng):
     kills[b["monster"]] = kills.get(b["monster"], 0) + 1
     for mat in ("iron", "essence", m["material"]):
         p["materials"][mat] = p["materials"].get(mat, 0) + 1
-    rarity = rng.choices(["common", "uncommon", "rare"], weights=[65, 30, 5])[0]
-    drop = make_item(rng.choice(SLOTS), min(p["level"], m["level"]), rarity, rng)
-    if len(p["inventory"]) < 200:
-        p["inventory"][drop["id"]] = drop
-        loot = f"Loot: {drop['name']} ({drop['id']})."
+    level = min(p["level"], m["level"])
+    rarity = roll_rarity(level, m["boss"], rng)
+    if m["boss"]:
+        slot, name = rng.choice(BOSS_DROPS[b["monster"]])
+        # Boss signatures are at least Rare; top tiers still obey level gates.
+        if RARITIES[rarity]["rank"] < 3:
+            rarity = "rare"
+        drop = make_item(slot, level, rarity, rng, name=name)
     else:
-        p["materials"]["iron"] += 2
-        loot = "Inventory full: loot converted to 2 iron."
+        drop = make_item(rng.choice(SLOTS), level, rarity, rng)
+    drops = [drop]
+    if b["monster"] in UNIQUES and rng.random() < (0.03 if m["boss"] else 0.005):
+        spec = UNIQUES[b["monster"]]
+        drops.append(
+            make_item(spec["slot"], level, "unique", rng, name=spec["name"], unique=spec["effect"])
+        )
+    messages = []
+    for drop in drops:
+        if len(p["inventory"]) < 200:
+            p["inventory"][drop["id"]] = drop
+            messages.append(
+                f"{rarity_label(drop['rarity'])} **{drop['name']}** — ID `{drop['id']}`"
+            )
+        else:
+            p.setdefault("unclaimed_loot", []).append(drop)
+            messages.append(
+                f"{drop['name']} is waiting in your loot overflow. Use aether loot after freeing bag space."
+            )
+    loot = "Loot: " + "\n".join(messages)
     advance_tutorial(p)
     return f"Victory! +{xp} EXP, +{gold} gold, materials. {loot}"
 
@@ -512,10 +538,29 @@ def act(p, battle_id, turn, action, rng):
     return "\n".join(log)
 
 
+def objective_total(p, key):
+    if key == "guardian":
+        return p.get("kills", {}).get("tsukara", 0)
+    return p[QUESTS[key]["field"]]
+
+
+def accept_quest(p, key):
+    idle(p)
+    if key not in QUESTS:
+        raise RuleError("Unknown quest. Use aether quests to see the board.")
+    accepted = p.setdefault("accepted_quests", {})
+    if key in p["quests"] or key in accepted:
+        raise RuleError("That quest is already accepted or claimed.")
+    accepted[key] = objective_total(p, key)
+    return f"Accepted **{QUESTS[key]['name']}**. New victories now count toward this quest."
+
+
 def claim_quest(p, key):
     idle(p)
     if key not in QUESTS:
         raise RuleError("Unknown quest.")
+    if key not in p.get("accepted_quests", {}):
+        raise RuleError(f"Accept this quest first: aether quests accept {key}")
     q = QUESTS[key]
     if key in p["quests"] or quest_progress(p, key) < q["goal"]:
         raise RuleError("Quest already claimed or objective incomplete.")
@@ -526,9 +571,24 @@ def claim_quest(p, key):
 
 
 def quest_progress(p, key):
-    if key == "guardian":
-        return p.get("kills", {}).get("tsukara", 0)
-    return p[QUESTS[key]["field"]]
+    if key in p["quests"]:
+        return QUESTS[key]["goal"]
+    baseline = p.get("accepted_quests", {}).get(key)
+    return max(0, objective_total(p, key) - baseline) if baseline is not None else 0
+
+
+def claim_loot(p):
+    idle(p)
+    waiting = p.get("unclaimed_loot", [])
+    count = min(200 - len(p["inventory"]), len(waiting))
+    if count <= 0:
+        raise RuleError(
+            "No overflow loot to collect, or your bag is full. Salvage unwanted gear first."
+        )
+    for i in waiting[:count]:
+        p["inventory"][i["id"]] = i
+    p["unclaimed_loot"] = waiting[count:]
+    return f"Collected {count} items. {len(p['unclaimed_loot'])} still waiting."
 
 
 def tutorial(p, prefix="."):

@@ -166,6 +166,7 @@ class FakeRole:
     def __init__(self, rid, name="role"):
         self.id = rid
         self.name = name
+        self.mention = f"<@&{rid}>"
         self.permissions = discord.Permissions.none()
         self.managed = False
 
@@ -332,7 +333,7 @@ async def test_channel_panels_upgrade_in_place_and_private_live_help(cog):
         assert isinstance(kwargs["embed"], discord.Embed)
         assert len(kwargs["embed"]) < 6000
         assert all(len(f.value) <= 1024 for f in kwargs["embed"].fields)
-        assert len(kwargs["view"].children) == (5 if key == "guide" else 2)
+        assert len(kwargs["view"].children) == (6 if key == "guide" else 3)
     await refresh_panels(cog, guild, s)
     for cid in s["channels"].values():
         channel = guild.get_channel(cid)
@@ -518,3 +519,65 @@ async def test_private_profile_deleted_character_and_disabled_cog(cog):
     assert i.followup.send.call_args.kwargs["ephemeral"] is True
     i.edit_original_response.assert_not_awaited()
     assert view not in cog.views
+
+
+async def test_battle_art_attached_saved_retained_and_removed(cog):
+    from aetherbound.views import battle_embed
+
+    p = graduate()
+    g.begin(p, "slime")
+    assert not battle_embed(p).thumbnail.url  # pre-update battles have no attachment
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    channel = NS(id=11, send=AsyncMock(return_value=NS(id=333)))
+    await cog.publish_battle(channel, 1, 5)
+    kwargs = channel.send.call_args.kwargs
+    assert kwargs["file"].filename == "slime.jpg"
+    assert kwargs["embed"].thumbnail.url == "attachment://slime.jpg"
+    kwargs["file"].close()
+    saved = await cog.store.player(1, 5)
+    assert saved["battle"]["art"] is True
+    assert battle_embed(saved).thumbnail.url == "attachment://slime.jpg"
+    await cog.store.change(1, 5, lambda p, c: p["battle"].update(enemy_hp=1))
+    view = BattleView(cog, 5, saved)
+    i = interaction()
+    await view.children[0].callback(i)
+    assert i.edit_original_response.call_args.kwargs["attachments"] == []
+    assert (await cog.store.player(1, 5))["battle"] is None
+
+
+async def test_tavern_button_private_and_repeatable(cog):
+    from aetherbound.views import GuideView
+
+    await cog.store.change(1, 5, lambda _, c: graduate(), create=True)
+    view = GuideView(cog, include_roles=False)
+    i = interaction()
+    await view.children[2].callback(i)
+    saved = await cog.store.player(1, 5)
+    await view.children[2].callback(interaction())
+    assert await cog.store.player(1, 5) == saved
+    assert i.followup.send.call_args.kwargs["ephemeral"] is True
+    assert "Daily wares" in i.followup.send.call_args.kwargs["embed"].title
+
+
+async def test_spawn_art_uploaded(cog):
+    guild = FakeGuild()
+    s = await provision(cog, guild)
+    await cog.spawn_one(guild, "tsukara")
+    kwargs = guild.get_channel(s["channels"]["spawns"]).send.call_args.kwargs
+    assert kwargs["embed"].thumbnail.url == "attachment://tsukara.jpg"
+    assert kwargs["file"].filename == "tsukara.jpg"
+    kwargs["file"].close()
+
+
+async def test_aliases_register_with_real_command_dispatch(cog):
+    from discord.ext import commands as dc
+
+    from aetherbound import configure_aliases
+
+    bot = dc.Bot(command_prefix=".", intents=discord.Intents.none())
+    configure_aliases(bot, cog)
+    bot.add_command(cog.adventure)
+    assert bot.get_command("ae equip") is bot.get_command("aether equip")
+    assert bot.get_command("a shop") is bot.get_command("aether shop")
+    bot.remove_command("aether")
+    await bot.close()
