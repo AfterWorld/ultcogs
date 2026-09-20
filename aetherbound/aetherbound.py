@@ -15,10 +15,10 @@ from redbot.core.data_manager import cog_data_path
 
 from . import engine as game
 from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SLOTS
-from .presentation import profile_embed, tutorial_embed
+from .presentation import tutorial_embed
 from .setup_server import provision, refresh_panels
 from .store import Store
-from .views import BattleView, GuideView, RoleView, SpawnView, battle_embed
+from .views import BattleView, GuideView, ProfileLauncher, RoleView, SpawnView, battle_embed
 
 log = logging.getLogger("red.aetherbound")
 
@@ -159,12 +159,19 @@ class Aetherbound(commands.Cog):
 
     @adventure.command()
     async def profile(self, ctx):
-        """Your character, total stats, gear, and progression."""
-        p = await self.require(ctx)
+        """Open your private character sheet; the temporary button disappears in 30s."""
+        await self.require(ctx)
         await ctx.send(
-            embed=profile_embed(p, ctx.clean_prefix),
+            "Your profile is private. Click below within 30 seconds. You can also use **My profile** on any game channel guide.",
+            view=ProfileLauncher(self, ctx.author.id),
+            delete_after=30,
             allowed_mentions=discord.AllowedMentions.none(),
         )
+        # Remove only the invoking command when Discord allows it.
+        try:
+            await ctx.message.delete()
+        except discord.HTTPException:
+            pass
 
     @adventure.command()
     async def appearance(self, ctx, *, description: str):

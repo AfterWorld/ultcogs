@@ -434,3 +434,87 @@ async def test_deleted_guide_recreated_without_duplicate_other_panels(cog):
     for key, cid in s["channels"].items():
         if key != "spawns":
             guild.get_channel(cid).send.assert_awaited_once()
+
+
+async def test_private_profile_v2_tabs_refresh_and_owner(cog):
+    from aetherbound.views import ProfileView
+
+    p = graduate()
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    view = ProfileView(cog, 5, p, ".")
+    assert isinstance(view, discord.ui.LayoutView)
+    assert not await view.interaction_check(interaction(uid=6))
+    assert await view.interaction_check(interaction())
+    await cog.store.change(1, 5, lambda p, c: p.update(gold=9876))
+    nav = next(x for x in view.walk_children() if isinstance(x, discord.ui.ActionRow))
+    i = interaction()
+    await nav.children[3].callback(i)
+    text = "\n".join(
+        x.content for x in view.walk_children() if isinstance(x, discord.ui.TextDisplay)
+    )
+    assert "9,876" in text
+    assert i.edit_original_response.call_args.kwargs["view"] is view
+    assert "embed" not in i.edit_original_response.call_args.kwargs
+    nav = next(x for x in view.walk_children() if isinstance(x, discord.ui.ActionRow))
+    await nav.children[2].callback(interaction())
+    text = "\n".join(
+        x.content for x in view.walk_children() if isinstance(x, discord.ui.TextDisplay)
+    )
+    assert "Main hand" in text and "Ring II" in text and "Relic" in text
+    assert "Journey" not in text
+    assert len(text) < 4000
+    assert len(list(view.walk_children())) < 40
+    assert view.to_components()[0]["type"] == 17
+    await view.on_timeout()
+    assert view not in cog.views
+
+
+async def test_guide_profile_is_ephemeral_components(cog):
+    from aetherbound.views import GuideView, ProfileView
+
+    await cog.store.change(1, 5, lambda _, c: graduate(), create=True)
+    view = GuideView(cog, include_roles=False)
+    i = interaction()
+    await view.children[1].callback(i)
+    kwargs = i.followup.send.call_args.kwargs
+    assert kwargs["ephemeral"] is True
+    assert isinstance(kwargs["view"], ProfileView)
+    assert "embed" not in kwargs and "content" not in kwargs
+
+
+@pytest.mark.parametrize("can_delete", [True, False])
+async def test_prefix_profile_never_posts_character_and_launcher_private(cog, can_delete):
+    from aetherbound.views import ProfileLauncher, ProfileView
+
+    await cog.store.change(1, 5, lambda _, c: graduate(), create=True)
+    delete = AsyncMock()
+    if not can_delete:
+        delete.side_effect = discord.Forbidden(NS(status=403, reason="Forbidden"), "denied")
+    ctx = NS(guild=NS(id=1), author=NS(id=5), send=AsyncMock(), message=NS(delete=delete))
+    await Aetherbound.profile.callback(cog, ctx)
+    kwargs = ctx.send.call_args.kwargs
+    assert kwargs["delete_after"] == 30 and "embed" not in kwargs
+    launcher = kwargs["view"]
+    assert isinstance(launcher, ProfileLauncher)
+    assert launcher.timeout == 30
+    assert not await launcher.interaction_check(interaction(uid=6))
+    i = interaction()
+    assert await launcher.interaction_check(i)
+    await launcher.children[0].callback(i)
+    kwargs = i.followup.send.call_args.kwargs
+    assert kwargs["ephemeral"] is True and isinstance(kwargs["view"], ProfileView)
+    delete.assert_awaited_once()
+
+
+async def test_private_profile_deleted_character_and_disabled_cog(cog):
+    from aetherbound.views import ProfileView
+
+    view = ProfileView(cog, 5, graduate(), ".")
+    cog.bot.cog_disabled_in_guild.return_value = True
+    assert not await view.interaction_check(interaction())
+    nav = next(x for x in view.walk_children() if isinstance(x, discord.ui.ActionRow))
+    i = interaction()
+    await nav.children[1].callback(i)
+    assert i.followup.send.call_args.kwargs["ephemeral"] is True
+    i.edit_original_response.assert_not_awaited()
+    assert view not in cog.views

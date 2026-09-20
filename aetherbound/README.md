@@ -120,7 +120,7 @@ the tutorial or replaying a click never grants the same reward twice.
 | Command (after `[p]aether`) | What it does |
 |---|---|
 | `tutorial` | Resume your current lesson |
-| `profile` | Character, combined combat stats and every gear slot |
+| `profile` | Temporary button opens your private character sheet |
 | `appearance <description>` | Cosmetic description, up to 200 characters |
 | `skills` | Class abilities, costs, attributes and mechanics |
 | `inventory [page]` | Items with IDs, equipped markers, materials and gold |
@@ -140,6 +140,22 @@ the tutorial or replaying a click never grants the same reward twice.
 | `dungeon` | Enter/continue Hollow Trail, level 6+ |
 | `abandon` | Leave a dungeon between rooms |
 | `notifications` | Toggle trading, boss and adventure role subscriptions |
+
+### Private character sheets
+
+Use **My profile** on any game channel guide to open a private Components V2
+character sheet. **Overview**, **Combat** and **Equipment** tabs separate your
+progress, stats and loadout. Each tab and **Refresh** reloads your saved stats
+and edits the same private message. Controls expire after three minutes of
+inactivity; open the profile again to continue. No image-generation dependency
+or profile image upload is required.
+
+Prefix messages cannot be ephemeral. `[p]aether profile` therefore posts only a
+small owner-only **Open my private profile** button, automatically deleted after
+30 seconds. Clicking it opens the private sheet. The invoking command is also
+deleted when the bot has permission; if it cannot be deleted, no character stats
+are exposed. Other players cannot use that launch button to view your character.
+Existing persistent guide buttons pick up this behavior after reloading the cog.
 
 ### Combat and progression
 
