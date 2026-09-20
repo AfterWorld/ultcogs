@@ -15,7 +15,7 @@ from redbot.core.data_manager import cog_data_path
 
 from . import economy
 from . import engine as game
-from .art import artwork
+from .art import ART_VERSION, artwork
 from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
 from .presentation import quest_embed, shop_embed, tutorial_embed
@@ -114,7 +114,7 @@ class Aetherbound(commands.Cog):
             if p["battle"] and p["battle"]["id"] == b["id"]:
                 p["battle"]["message"] = message.id
                 p["battle"]["channel"] = channel.id
-                p["battle"]["art"] = bool(art)
+                p["battle"]["art"] = ART_VERSION if art else False
 
         await self.store.change(guild, user, save)
         return message

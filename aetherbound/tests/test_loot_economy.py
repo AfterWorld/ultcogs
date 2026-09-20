@@ -9,7 +9,7 @@ import pytest
 from aetherbound import configure_aliases
 from aetherbound import economy as e
 from aetherbound import engine as g
-from aetherbound.art import ART_DIR, artwork
+from aetherbound.art import ART_DIR, ART_KEYS, artwork, thumbnail
 from aetherbound.content import MONSTERS, SLOTS
 from aetherbound.loot import BOSS_DROPS, RARITIES, UNIQUES, migrate_names, roll_rarity
 from aetherbound.presentation import quest_embed, shop_embed
@@ -234,15 +234,34 @@ def test_alias_registration_respects_other_cogs():
 
 
 def test_all_art_bundled_and_quest_shop_embed_limits():
-    assert {p.stem for p in ART_DIR.glob("*.jpg")} == set(MONSTERS)
-    for key in MONSTERS:
+    assert {p.stem for p in ART_DIR.glob("*.jpg")} == ART_KEYS
+    assert ART_KEYS <= set(MONSTERS)
+    for key in ART_KEYS:
         embed = discord.Embed()
         kwargs = artwork(embed, key)
         assert embed.thumbnail.url == f"attachment://{key}.jpg"
         assert kwargs["file"].filename == f"{key}.jpg"
         kwargs["file"].close()
+        thumbnail(embed, key)
+        assert embed.footer.text.count("Redshrike") == 1
+    for key in set(MONSTERS) - ART_KEYS:
+        embed = discord.Embed()
+        assert artwork(embed, key) == {}
+        thumbnail(embed, key)
+        assert embed.thumbnail.url is None
     p = graduate(level=20)
     for embed in (quest_embed(p, "!"), shop_embed(e.shop(p, 1, 5, DAY), p["gold"], "!")):
         assert len(embed) < 6000
         assert all(len(f.value) <= 1024 for f in embed.fields)
     assert "!aether quests accept" in quest_embed(p, "!").fields[0].value
+
+
+def test_retired_art_is_ignored_even_if_left_on_disk(tmp_path, monkeypatch):
+    import aetherbound.art as art
+
+    monkeypatch.setattr(art, "ART_DIR", tmp_path)
+    (tmp_path / "tsukara.jpg").write_bytes(b"retired portrait")
+    embed = discord.Embed()
+    assert art.artwork(embed, "tsukara") == {}
+    art.thumbnail(embed, "tsukara")
+    assert embed.thumbnail.url is None

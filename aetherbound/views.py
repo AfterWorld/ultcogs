@@ -5,7 +5,7 @@ import logging
 import discord
 
 from . import economy
-from .art import thumbnail
+from .art import ART_VERSION, thumbnail
 from .content import CLASSES, MONSTERS
 from .engine import RuleError, intent
 from .presentation import channel_embed, guild_prefix, profile_embed, shop_embed, tutorial_embed
@@ -43,7 +43,7 @@ def battle_embed(p):
     e.set_footer(
         text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +10 • Progress saves after each action"
     )
-    if b.get("art"):
+    if b.get("art") == ART_VERSION:
         thumbnail(e, b["monster"])
     return e
 

@@ -313,11 +313,15 @@ refresh the guides; `[p]aetherset guides` is sufficient if permissions are ready
 
 ## Monster artwork and design reference
 
-All 13 monsters and two bosses have original AI-generated portraits bundled in
-`assets/monsters/`. They appear in spawn posts, battles and individual bestiary
-entries. No external scraping or image download happens at runtime. Existing
-pre-update battles gain their image when resumed; combat turns retain the uploaded
-attachment. The asset README records the generation method and prompts.
+Human-created pixel art by Stephen "Redshrike" Challener is bundled for Lantern
+Slime, Cinder Imp, Hollow Mask, Wisp-Eater and Forge Revenant under CC BY 3.0.
+These are representative sprites, not commissioned depictions of the lore.
+All AI portraits have been removed. The remaining ten creatures (including both
+bosses) use text embeds until suitable artwork is available; all 15 remain playable.
+Art appears in new spawn posts, battles and bestiary entries with visible credits.
+No external image download happens at runtime. Existing Discord posts retain their
+old uploads; resume a battle to publish the current artwork. The asset README lists
+source URLs, crop coordinates, licenses and adaptations.
 
 [GobCog](https://github.com/aikaterna/gobcog) was reviewed for named equipment,
 rarity progression, readable stats and merchant ideas. This implementation uses

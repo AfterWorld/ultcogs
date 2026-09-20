@@ -1,22 +1,58 @@
-# Monster portraits
+# Monster artwork
 
-These 15 original portraits were generated with the built-in image-generation tool for Aetherbound. JPEG derivatives are bundled locally for Discord thumbnails; the cog makes no external image requests. No GobCog artwork or Google Images assets were copied.
+Copyright Stephen "Redshrike" Challener, hosted by [OpenGameArt.org](https://opengameart.org/).
+The five bundled JPEG adaptations are licensed under
+[Creative Commons Attribution 3.0 Unported (CC BY 3.0)](https://creativecommons.org/licenses/by/3.0/)
+([legal code](https://creativecommons.org/licenses/by/3.0/legalcode)).
+This artwork license applies separately from the cog's code license. Retain this
+credit, source links and license notice when redistributing these images.
+No endorsement by the artist is implied.
 
-Common prompt: square monster portrait for original anime fantasy Discord RPG Aetherbound; polished cel-shaded anime game bestiary illustration, one centered creature, expressive silhouette, dark atmospheric background, readable at thumbnail size; no text, letters, logos, watermark or UI.
+These are human-created sprites from releases dated 2010–2013. The source pages
+include the artist's descriptions and contemporary discussion. No AI generation,
+inpainting or upscaling was used in these adaptations.
 
-- `slime.jpg`: Lantern Slime: a small translucent amber slime with a glowing paper lantern core, floating in a mossy twilight grove.
-- `thornkit.jpg`: Thornkit: a tiny mischievous emerald fox-kitten with thorny leaf fur, standing in a moonlit enchanted woodland.
-- `wolf.jpg`: Mossfang Wolf: a lean jade-grey wolf with moss-covered shoulders, luminous green eyes and crystalline fangs in an ancient forest.
-- `moth.jpg`: Glasswing Moth: an enormous jewel-winged moth with translucent stained-glass wings and drifting silver dust in a dark enchanted grove.
-- `sentinel.jpg`: Rootbound Sentinel: a towering living tree guardian with woven root armor and an amber spirit core, standing in an overgrown shrine.
-- `wisp.jpg`: Wisp-Eater: an eerie indigo floating manta-shaped woodland spirit swallowing tiny cyan wisps in a purple haunted grove.
-- `mask.jpg`: Hollow Mask: a floating cracked porcelain spirit mask surrounded by black silk ribbons and violet spectral fire in a ruined shrine.
-- `imp.jpg`: Cinder Imp: a mischievous tiny charcoal-red horned creature with ember cracks and flickering flame ears in a volcanic cavern.
-- `beetle.jpg`: Ironback Beetle: a giant beetle with dark iron plated shell and orange glowing seams on the floor of an abandoned forge.
-- `raptor.jpg`: Ashclaw Raptor: a fierce feathered crimson-black raptor with molten claws and drifting embers on a volcanic plain.
-- `leech.jpg`: Crystal Leech: a fantastical hovering serpentine leech made of faceted violet crystals, glowing blue heart, inside a jewel cavern.
-- `revenant.jpg`: Forge Revenant: an empty animated suit of blacksmith armor with a flaming spirit inside and a heavy forge hammer, abandoned foundry.
-- `ronin.jpg`: Riftbound Ronin: an original mysterious armored wandering swordsman with a torn indigo cloak and fractured violet energy katana at a dimensional rift; no resemblance to any existing anime character.
-- `tsukara.jpg`: Tsukara, the Hollow Antler: a majestic terrifying spectral white stag boss with enormous branching hollow antlers, luminous turquoise spirit core and mossy bone armor in a moonlit ruined forest shrine.
-- `raizen.jpg`: Raizen, the Furnace Warden: a colossal original obsidian armored forge guardian boss, glowing molten furnace in its chest, massive hammer and crown of ember vents inside a volcanic citadel.
+## Sources and adaptations
 
+| Bundled file | Representative sprite | Source | Crop (left, top, right, bottom) |
+| --- | --- | --- | --- |
+| slime.jpg | Green slime | [10 basic RPG enemies](https://opengameart.org/content/10-basic-rpg-enemies) (2010) | 60, 198, 94, 225 |
+| revenant.jpg | Undead swordsman | Same 2010 sheet | 50, 147, 94, 192 |
+| imp.jpg | Red devil | [6 More RPG Enemies](https://opengameart.org/content/6-more-rpg-enemies) (2013) | 141, 171, 248, 293 |
+| mask.jpg | Floating tentacled face | Same 2013 sheet | 66, 187, 138, 295 |
+| wisp.jpg | Floating blue spirit | [More RPG enemies!](https://opengameart.org/content/more-rpg-enemies) (2011) | 5, 4, 99, 60 |
+
+Only Redshrike's original sprites from these sheets are included. The edited
+Blarumyrran and LordNeo sprites elsewhere in the 2013 sheet are not included.
+The 2011 source also lists other licenses; the artist explicitly confirms in its
+March 17, 2018 comment that CC BY may be selected independently.
+
+Original files and SHA-256 checksums:
+
+- [rpgcritters2.png](https://opengameart.org/sites/default/files/rpgcritters2.png):
+  `a67a1e17711bef7db3fc38647384621908ad0f0511e768c0586e6ec06cd91888`
+- [more rpg enemies.PNG](https://opengameart.org/sites/default/files/more%20rpg%20enemies.PNG):
+  `81f06b2590374dbfef3945ed46e7b16e791f7b7d5237af0a951e8891db541ab2`
+- [9RPGenemies.PNG](https://opengameart.org/sites/default/files/9RPGenemies.PNG):
+  `7efa167eb362ab360c0958ef7b104a620971028d629ec7aefda42ce7c1d665eb`
+
+Adaptations: crop the listed rectangle; remove sheet background RGB (128,128,128)
+for the 2010 sheet or (0,128,0) for the 2011 sheet; preserve existing transparency
+for the 2013 sheet; trim transparent margins; enlarge by an integer scale of
+`max(1, 224 // max(width, height))` using nearest-neighbor; center on a 256×256
+RGB (31,34,44) background; save JPEG quality 95 with chroma subsampling disabled.
+Sprites are representative illustrations, not exact depictions of Aetherbound's
+original creature descriptions.
+
+## Coverage
+
+All previous AI portraits have been removed. Thornkit, Mossfang Wolf, Glasswing
+Moth, Rootbound Sentinel, Ironback Beetle, Ashclaw Raptor, Crystal Leech,
+Riftbound Ronin, Tsukara and Raizen currently have no matching illustration.
+They remain fully playable, with text embeds and their normal combat controls.
+The runtime allowlist prevents leftover retired files in an existing installation
+from being selected. No runtime downloads or third-party image hosting are needed.
+
+Already-sent Discord messages can still contain their old attachments. Updating
+the cog does not rewrite historical posts; resuming a battle publishes a fresh
+message using the current artwork selection.
