@@ -210,11 +210,14 @@ class GuideView(RoleView):
                 prefix = await guild_prefix(self.cog.bot, i.guild)
                 p = await self.cog.store.player(i.guild.id, i.user.id)
                 if p:
-                    embed = (
-                        tutorial_embed(p, prefix)
-                        if kind == "tutorial"
-                        else profile_embed(p, prefix)
-                    )
+                    if kind == "profile":
+                        await i.followup.send(
+                            view=ProfileView(self.cog, i.user.id, p, prefix),
+                            ephemeral=True,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                        return
+                    embed = tutorial_embed(p, prefix)
                 else:
                     settings = await self.cog.store.settings(i.guild.id)
                     embed = channel_embed("guide", settings, prefix)
@@ -224,3 +227,133 @@ class GuideView(RoleView):
 
             button.callback = callback
             self.add_item(button)
+
+
+class ProfileView(discord.ui.LayoutView):
+    """Private Components V2 character sheet; all tabs reload the saved character."""
+
+    def __init__(self, cog, owner, player, prefix):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.owner = owner
+        self.page = "Overview"
+        cog.views.add(self)
+        self.render(player, prefix)
+
+    async def interaction_check(self, i):
+        if i.user.id != self.owner:
+            await i.response.send_message("Open your own profile using My profile.", ephemeral=True)
+            return False
+        return await SafeView.interaction_check(self, i)
+
+    async def on_timeout(self):
+        self.cog.views.discard(self)
+
+    async def on_error(self, i, error, item):
+        log.exception("Private profile interaction failed", exc_info=error)
+        send = i.followup.send if i.response.is_done() else i.response.send_message
+        await send(
+            "Could not refresh your profile. Open it again using My profile.", ephemeral=True
+        )
+
+    def render(self, player, prefix):
+        sheet = profile_embed(player, prefix)
+        self.clear_items()
+        panel = discord.ui.Container(accent_colour=0x836FFF)
+        panel.add_item(discord.ui.TextDisplay(f"## {sheet.title}\n{sheet.description}"))
+        panel.add_item(discord.ui.Separator())
+        nav = discord.ui.ActionRow()
+        for name in ("Overview", "Combat", "Equipment", "Refresh"):
+            button = discord.ui.Button(
+                label=name,
+                style=discord.ButtonStyle.primary
+                if name == self.page
+                else discord.ButtonStyle.secondary,
+            )
+
+            async def callback(i, page=name):
+                await i.response.defer()
+                p = await self.cog.store.player(i.guild.id, self.owner)
+                if not p:
+                    await i.followup.send(
+                        "Your character no longer exists. Create a new hero to open a profile.",
+                        ephemeral=True,
+                    )
+                    self.stop()
+                    self.cog.views.discard(self)
+                    return
+                if page != "Refresh":
+                    self.page = page
+                prefix = await guild_prefix(self.cog.bot, i.guild)
+                self.render(p, prefix)
+                await i.edit_original_response(
+                    view=self, allowed_mentions=discord.AllowedMentions.none()
+                )
+
+            button.callback = callback
+            nav.add_item(button)
+        panel.add_item(nav)
+        fields = {
+            "Overview": {"✧ Journey", "◈ Supplies & feats", "Next move"},
+            "Combat": {"⚔ Combat", "✦ Attributes", "✺ Active gear effects"},
+            "Equipment": {"⚔ Weapons", "⛨ Armor", "✧ Accessories", "✺ Active gear effects"},
+        }[self.page]
+        for field in sheet.fields:
+            if field.name in fields:
+                panel.add_item(discord.ui.Separator())
+                panel.add_item(discord.ui.TextDisplay(f"### {field.name}\n{field.value}"))
+        if self.page == "Equipment":
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    f"-# Manage gear in adventures: `{prefix}aether inventory` then `{prefix}aether equip ID1 ID2`."
+                )
+            )
+        if self.page == "Combat":
+            panel.add_item(discord.ui.TextDisplay(f"-# {sheet.footer.text}"))
+        panel.add_item(
+            discord.ui.TextDisplay(
+                "-# Only you can see this • Tabs refresh saved stats • Controls expire after 3 minutes of inactivity; reopen with My profile"
+            )
+        )
+        self.add_item(panel)
+
+
+class ProfileLauncher(SafeView):
+    """Prefix commands cannot reply ephemerally; this temporary button can."""
+
+    def __init__(self, cog, owner):
+        super().__init__(cog)
+        self.owner = owner
+        self.timeout = 30
+        button = discord.ui.Button(
+            label="Open my private profile", style=discord.ButtonStyle.primary
+        )
+
+        async def callback(i):
+            await i.response.defer(ephemeral=True)
+            player = await self.cog.store.player(i.guild.id, self.owner)
+            if not player:
+                await i.followup.send(
+                    "Create a character first, then open your profile.", ephemeral=True
+                )
+                return
+            prefix = await guild_prefix(self.cog.bot, i.guild)
+            await i.followup.send(
+                view=ProfileView(cog, self.owner, player, prefix),
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
+        button.callback = callback
+        self.add_item(button)
+
+    async def interaction_check(self, i):
+        if i.user.id != self.owner:
+            await i.response.send_message(
+                "Use My profile on a channel guide to open your own character.", ephemeral=True
+            )
+            return False
+        return await super().interaction_check(i)
+
+    async def on_timeout(self):
+        self.cog.views.discard(self)
