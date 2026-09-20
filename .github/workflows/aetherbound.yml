@@ -1,0 +1,27 @@
+name: Aetherbound Phase 1 checks
+on:
+  pull_request:
+    paths: ['aetherbound/**', '.github/workflows/aetherbound.yml']
+  push:
+    paths: ['aetherbound/**', '.github/workflows/aetherbound.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r aetherbound/requirements-dev.txt
+      - run: python -m ruff check --config aetherbound/ruff.toml aetherbound
+      - run: python -m ruff format --check --config aetherbound/ruff.toml aetherbound
+      - name: Real Red and discord.py regression tests
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: python -m pytest -p pytest_asyncio.plugin -c aetherbound/pytest.ini --confcutdir=aetherbound/tests aetherbound/tests -q
+      - name: Verify reproducible balance baseline
+        run: |
+          python -m aetherbound.balance > /tmp/aetherbound-balance.md
+          diff -u aetherbound/BALANCE.md /tmp/aetherbound-balance.md
