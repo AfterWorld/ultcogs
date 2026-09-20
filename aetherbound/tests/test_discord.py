@@ -527,6 +527,9 @@ async def test_battle_art_attached_saved_retained_and_removed(cog):
     p = graduate()
     g.begin(p, "slime")
     assert not battle_embed(p).thumbnail.url  # pre-update battles have no attachment
+    p["battle"]["art"] = True  # Legacy AI attachment must not receive artist credit.
+    assert not battle_embed(p).thumbnail.url
+    assert "Redshrike" not in battle_embed(p).footer.text
     await cog.store.change(1, 5, lambda _, c: p, create=True)
     channel = NS(id=11, send=AsyncMock(return_value=NS(id=333)))
     await cog.publish_battle(channel, 1, 5)
@@ -535,7 +538,7 @@ async def test_battle_art_attached_saved_retained_and_removed(cog):
     assert kwargs["embed"].thumbnail.url == "attachment://slime.jpg"
     kwargs["file"].close()
     saved = await cog.store.player(1, 5)
-    assert saved["battle"]["art"] is True
+    assert saved["battle"]["art"] == "redshrike-v1"
     assert battle_embed(saved).thumbnail.url == "attachment://slime.jpg"
     await cog.store.change(1, 5, lambda p, c: p["battle"].update(enemy_hp=1))
     view = BattleView(cog, 5, saved)
@@ -562,10 +565,10 @@ async def test_tavern_button_private_and_repeatable(cog):
 async def test_spawn_art_uploaded(cog):
     guild = FakeGuild()
     s = await provision(cog, guild)
-    await cog.spawn_one(guild, "tsukara")
+    await cog.spawn_one(guild, "slime")
     kwargs = guild.get_channel(s["channels"]["spawns"]).send.call_args.kwargs
-    assert kwargs["embed"].thumbnail.url == "attachment://tsukara.jpg"
-    assert kwargs["file"].filename == "tsukara.jpg"
+    assert kwargs["embed"].thumbnail.url == "attachment://slime.jpg"
+    assert kwargs["file"].filename == "slime.jpg"
     kwargs["file"].close()
 
 
@@ -581,3 +584,13 @@ async def test_aliases_register_with_real_command_dispatch(cog):
     assert bot.get_command("a shop") is bot.get_command("aether shop")
     bot.remove_command("aether")
     await bot.close()
+
+
+async def test_spawn_without_matching_art(cog):
+    guild = FakeGuild()
+    s = await provision(cog, guild)
+    await cog.spawn_one(guild, "tsukara")
+    kwargs = guild.get_channel(s["channels"]["spawns"]).send.call_args.kwargs
+    assert "file" not in kwargs
+    assert kwargs["embed"].thumbnail.url is None
+    assert kwargs["view"] is not None
