@@ -332,6 +332,7 @@ def inventory_embed(p, page, prefix):
         upgrade = f" +{i['upgrade']}" if i["upgrade"] else ""
         details = (
             f"`{i['id']}` · {SLOT_NAMES[i['slot']]} · Lv{i['level']}{equipped}\n"
+            f"{'🔒 Locked · ' if i.get('locked') else ''}{'Bound' if i.get('bound') else 'Unbound'}\n"
             f"**Power {power}**" + (f" · {bonus}" if bonus else "")
         )
         if i["twohand"]:

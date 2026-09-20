@@ -6,19 +6,85 @@ CLASSES = {
     "vanguard": {
         "stat": "strength",
         "weapon": "Iron Sword",
-        "skills": ("Cleave", "Guard Break", "Iron Guard"),
     },
     "strider": {
         "stat": "dexterity",
         "weapon": "Twin Fang",
-        "skills": ("Twin Strike", "Mark Prey", "Evasive Step"),
     },
     "arcanist": {
         "stat": "intelligence",
         "weapon": "Aether Staff",
-        "skills": ("Spark Bolt", "Frost Bind", "Aether Ward"),
     },
 }
+# Cooldown is set before the end-of-turn decrement: 3 means two intervening turns.
+# Effects are applied before damage, preserving the original Phase 1 timing.
+SKILLS = {
+    "vanguard": {
+        "skill1": dict(name="Cleave", cost=12, cooldown=3, multiplier=1.65, effects={}),
+        "skill2": dict(
+            name="Guard Break",
+            cost=12,
+            cooldown=3,
+            multiplier=1.05,
+            interrupt=True,
+            effects={"exposed": 2},
+        ),
+        "skill3": dict(
+            name="Iron Guard",
+            cost=12,
+            cooldown=3,
+            multiplier=0.45,
+            guard=True,
+            shield_hp=0.35,
+            effects={},
+        ),
+    },
+    "strider": {
+        "skill1": dict(
+            name="Twin Strike", cost=12, cooldown=3, multiplier=1.35, effects={"enemy_bleed": 2}
+        ),
+        "skill2": dict(
+            name="Mark Prey",
+            cost=12,
+            cooldown=3,
+            multiplier=1.05,
+            interrupt=True,
+            effects={"exposed": 3},
+        ),
+        "skill3": dict(
+            name="Evasive Step",
+            cost=12,
+            cooldown=3,
+            multiplier=0.45,
+            guard=True,
+            shield_hp=0.20,
+            effects={"riposte": True},
+        ),
+    },
+    "arcanist": {
+        "skill1": dict(name="Spark Bolt", cost=12, cooldown=3, multiplier=1.85, effects={}),
+        "skill2": dict(
+            name="Frost Bind",
+            cost=12,
+            cooldown=3,
+            multiplier=0.8,
+            interrupt=True,
+            effects={"exposed": 2, "chill": 2},
+        ),
+        "skill3": dict(
+            name="Aether Ward",
+            cost=12,
+            cooldown=3,
+            multiplier=0.45,
+            guard=True,
+            shield_hp=0.30,
+            effects={},
+        ),
+    },
+}
+for _cls, _skills in SKILLS.items():
+    CLASSES[_cls]["skills"] = tuple(skill["name"] for skill in _skills.values())
+
 # key, name, fixed level, region, behavior, material
 _ROWS = [
     ("slime", "Lantern Slime", 1, "glimmerwood", "burst", "essence"),

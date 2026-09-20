@@ -5,8 +5,9 @@ import logging
 import discord
 
 from . import economy
+from . import engine as game
 from .art import ART_VERSION, thumbnail
-from .content import CLASSES, MONSTERS
+from .content import CLASSES, MONSTERS, SKILLS
 from .engine import RuleError, intent
 from .presentation import (
     channel_embed,
@@ -32,8 +33,8 @@ def battle_embed(p):
     e.add_field(
         name="Skills",
         value="\n".join(
-            f"{n + 1}. {name} — 12 energy; cooldown {b['cooldowns'].get(f'skill{n + 1}', 0)}"
-            for n, name in enumerate(CLASSES[p["cls"]]["skills"])
+            f"{skill['name']} — {skill['cost']} energy; cooldown {b['cooldowns'].get(key, 0)}"
+            for key, skill in SKILLS[p["cls"]].items()
         ),
         inline=False,
     )
@@ -132,6 +133,85 @@ class InventoryView(SafeView):
                 pass
 
 
+class GearActionView(SafeView):
+    """Short-lived, owner-only actions; mutations validate current saved gear."""
+
+    def __init__(self, cog, owner, ids, salvage=False, player=None):
+        super().__init__(cog)
+        self.timeout = 180
+        self.owner = owner
+        self.ids = tuple(ids)
+        self.finished = False
+        self.message = None
+        actions = (
+            [("Confirm salvage", "salvage"), ("Cancel", "cancel")]
+            if salvage
+            else [(f"Equip {player['inventory'][key]['name']}"[:80], key) for key in ids]
+            + [("Auto-equip improvements", "auto")]
+        )
+        for label, action in actions:
+            button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary)
+
+            async def callback(i, kind=action):
+                if i.user.id != self.owner:
+                    await i.response.send_message(
+                        "These controls belong to another player.", ephemeral=True
+                    )
+                    return
+                if not await self.interaction_check(i):
+                    return
+                if self.finished:
+                    await i.response.send_message(
+                        "This gear action has already closed.", ephemeral=True
+                    )
+                    return
+                if kind in ("salvage", "cancel"):
+                    self.finished = True
+                await i.response.defer()
+                try:
+                    if kind == "cancel":
+                        result = "Salvage cancelled."
+                    else:
+
+                        def change(p, c):
+                            if kind == "salvage":
+                                return game.salvage_many(p, self.ids)
+                            if kind == "auto":
+                                return game.auto_equip(p, self.ids)
+                            return game.equip(p, kind)
+
+                        result = await self.cog.store.change(
+                            i.guild.id,
+                            self.owner,
+                            change,
+                            reason="gear:" + kind,
+                            feature="bulk_salvage" if kind == "salvage" else "loot_equip",
+                        )
+                    if kind in ("salvage", "cancel"):
+                        await i.edit_original_response(content=result, embed=None, view=None)
+                        self.stop()
+                        self.cog.views.discard(self)
+                    else:
+                        await i.followup.send(
+                            result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none()
+                        )
+                except RuleError as error:
+                    self.finished = False
+                    await i.followup.send(str(error), ephemeral=True)
+
+            button.callback = callback
+            self.add_item(button)
+
+    async def on_timeout(self):
+        self.finished = True
+        self.cog.views.discard(self)
+        if self.message:
+            try:
+                await self.message.edit(view=None)
+            except discord.HTTPException:
+                pass
+
+
 class BattleView(SafeView):
     def __init__(self, cog, user, p):
         super().__init__(cog)
@@ -174,13 +254,24 @@ class BattleView(SafeView):
                             view=BattleView(self.cog, self.owner, player),
                         )
                     else:
-                        await i.edit_original_response(
+                        loot_ids = (
+                            player.get("last_loot", []) if player["wins"] > before["wins"] else []
+                        )
+                        loot_ids = [key for key in loot_ids if key in player["inventory"]]
+                        loot_view = (
+                            GearActionView(self.cog, self.owner, loot_ids, player=player)
+                            if loot_ids
+                            else None
+                        )
+                        message = await i.edit_original_response(
                             content=result,
                             embed=None,
                             attachments=[],
-                            view=None,
+                            view=loot_view,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
+                        if loot_view:
+                            loot_view.message = message
                     if not player["battle"] and before["tutorial"] < 6:
                         prefix = await guild_prefix(self.cog.bot, i.guild)
                         await i.followup.send(embed=tutorial_embed(player, prefix), ephemeral=True)

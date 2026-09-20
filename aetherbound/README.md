@@ -135,7 +135,9 @@ the tutorial or replaying a click never grants the same reward twice.
 | `recipes` | Crafting and upgrade costs |
 | `forge <slot> [normal\|tsukara\|raizen] [twohand]` | Forge equipment; `twohand` is a boolean |
 | `upgrade <id>` | Guaranteed upgrade, capped at +5 |
-| `salvage <id>` | Permanently destroy unequipped gear for materials |
+| `salvage <id>` | Permanently destroy unlocked, unequipped gear for rarity-based materials |
+| `salvagebulk <rarity>` | Preview an exact rarity, then confirm bulk salvage |
+| `lock <id> [id…]` / `unlock <id> [id…]` | Protect or unprotect items from salvage and auto-equip |
 | `potion` | Buy a combat healing potion for 15 gold |
 | `bestiary [monster-key]` | List enemies or inspect a portrait and special loot |
 | `quests [accept\|claim] [quest-key]` | View the board, accept a quest or claim a completed quest |
@@ -432,3 +434,71 @@ player who opened it can use its controls. Each click reloads saved inventory;
 if the bag shrinks, the page adjusts automatically. Controls disable after three
 minutes of inactivity. Reopen the command to continue. `[p]ae inventory 2` still
 works for jumping directly to a page.
+
+
+## Combat and gear foundations
+
+Skill names, energy costs, cooldowns, damage multipliers, guard/interrupt flags,
+shields and applied effects now live in `content.SKILLS`. This is a behavior-preserving
+refactor: the 15,750 seeded baseline report is unchanged. A separate comparison
+against the pre-refactor implementation matched 900 mixed-action fights / 5,041
+turns, including defensive skills, potion usage, state, logs and RNG state.
+
+Victory messages have **Equip [item]** buttons and **Auto-equip improvements** for
+loot that entered the bag. Only the winner may use them; controls expire after
+three minutes. Overflow must be claimed separately. Auto-equip rechecks the full
+loadout through `stats()`, including losing an off-hand when using a two-handed
+weapon. It skips locked loot and replacements of locked gear. Its rating is a
+heuristic: expected critical-adjusted attack + armor-adjusted HP / 10 + energy / 5
++ 3 per distinct unique effect. It is not an optimal-build guarantee; manually
+equip situational gear. No equipment changes are allowed during combat.
+
+Use `[p]ae lock ID1 ID2` to protect favorites. `[p]ae unlock ID1 ID2` removes the
+lock. Inventory entries show locks and binding. Locking does not prevent explicit
+manual equip, and unlocking never removes binding.
+
+`[p]ae salvagebulk common` previews eligible items of **that exact rarity**, not
+all rarities below it. **Confirm salvage** irreversibly destroys those selected
+items; **Cancel** does nothing. New drops are never swept into an existing preview.
+If a selected item becomes locked/equipped/missing, the entire operation is
+rejected and nothing is destroyed. Tutorial protections and combat restrictions
+apply. Open a new preview after changing your gear.
+
+| Rarity | Iron | Essence |
+|---|---:|---:|
+| Common | 2 | 1 |
+| Uncommon | 3 | 1 |
+| Rare | 4 | 2 |
+| Epic / Unique | 5 | 2 |
+| Legendary | 6 | 3 |
+| Mythic | 7 | 3 |
+
+Ordinary gear is **unbound until equipped**, then permanently bound. Tutorial
+gear and gear with unique effects are bound on acquisition. Legacy equipped gear,
+starter/traveler gear, the first forged tutorial item and unique-effect gear are
+conservatively marked bound during migration; old locks/bindings are preserved.
+This is groundwork for trading; **item transfers are not implemented yet**.
+
+Admin controls:
+
+- `[p]aetherset feature loot_equip false` disables all victory gear buttons.
+- `[p]aetherset feature bulk_salvage false` disables confirmation of bulk salvage,
+  including buttons already posted. Single-item salvage remains available.
+- Replace `false` with `true` to re-enable. Both default to enabled.
+- `[p]aetherset audit` shows the latest ten economy events for this server.
+
+Economy events record gold/potion/material deltas and created/destroyed item IDs
+in the same SQLite transaction as the action. Failed actions leave no audit event.
+Moving overflow into the bag does not count as newly created gear. Logging starts
+with this update and does not reconstruct old activity. Generic state changes may
+have the label `state_change`; combat, gear buttons and regular command mutations
+have more specific labels. User export/deletion includes these records. Schema 2
+is additive; back up the database before updating, as older cog versions reject it.
+
+See [ARMOR_AUDIT.md](ARMOR_AUDIT.md) (`python -m aetherbound.balance --armor`) for
+cap saturation. Full same-level Rare sets already cap armor at level 5 in the
+sample. Combat already uses diminishing damage reduction; the extra ceiling is
+unchanged here so the refactor can preserve balance exactly. Evaluate a softer
+ceiling before adding sets.
+
+The remaining staged work is tracked in [ROADMAP.md](ROADMAP.md).

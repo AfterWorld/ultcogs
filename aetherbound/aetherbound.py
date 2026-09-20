@@ -16,13 +16,14 @@ from redbot.core.data_manager import cog_data_path
 from . import economy
 from . import engine as game
 from .art import ART_VERSION, artwork
-from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SLOTS
+from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
 from .presentation import quest_embed, shop_embed, tutorial_embed
 from .setup_server import provision, refresh_panels
 from .store import Store
 from .views import (
     BattleView,
+    GearActionView,
     GuideView,
     InventoryView,
     ProfileLauncher,
@@ -96,11 +97,16 @@ class Aetherbound(commands.Cog):
             )
 
     async def mutate(self, ctx, fn):
-        return await self.store.change(ctx.guild.id, ctx.author.id, lambda p, c: fn(p))
+        return await self.store.change(
+            ctx.guild.id, ctx.author.id, lambda p, c: fn(p), reason=ctx.command.qualified_name
+        )
 
     async def action(self, guild, user, bid, turn, action):
         return await self.store.change(
-            guild, user, lambda p, c: game.act(p, bid, turn, action, self.rng)
+            guild,
+            user,
+            lambda p, c: game.act(p, bid, turn, action, self.rng),
+            reason="combat:" + action,
         )
 
     async def publish_battle(self, channel, guild, user):
@@ -169,7 +175,12 @@ class Aetherbound(commands.Cog):
         }
         await ctx.send(
             descriptions[p["cls"]]
-            + "\nAll skills cost 12 energy and require two intervening turns before reuse. Attack restores 7 energy; Guard restores 10 and reduces incoming attack damage by 65%. Potions heal 40% of battle max HP and consume a turn.\nYour class damage attribute is "
+            + "\n"
+            + "\n".join(
+                f"{s['name']}: {s['cost']} energy; {s['cooldown'] - 1} intervening turns before reuse."
+                for s in SKILLS[p["cls"]].values()
+            )
+            + "\nAttack restores 7 energy; Guard restores 10 and reduces incoming attack damage by 65%. Potions heal 40% of battle max HP and consume a turn.\nYour class damage attribute is "
             + CLASSES[p["cls"]]["stat"]
             + ". Vitality adds HP and armor; Dexterity adds critical chance; Willpower adds energy capacity. Other damage attributes support future specializations."
         )
@@ -308,8 +319,44 @@ class Aetherbound(commands.Cog):
 
     @adventure.command()
     async def salvage(self, ctx, item_id: str):
-        """Destroy an unequipped item for 2 iron and 1 essence."""
+        """Salvage an unlocked, unequipped item; materials scale with rarity."""
         await ctx.send(await self.mutate(ctx, lambda p: game.salvage(p, item_id)))
+
+    @adventure.command(name="lock")
+    async def lock_gear(self, ctx, *item_ids: str):
+        """Protect item IDs from salvage and automatic equipment changes."""
+        await ctx.send(await self.mutate(ctx, lambda p: game.lock_items(p, item_ids, True)))
+
+    @adventure.command(name="unlock")
+    async def unlock_gear(self, ctx, *item_ids: str):
+        """Remove protection from item IDs (does not undo binding)."""
+        await ctx.send(await self.mutate(ctx, lambda p: game.lock_items(p, item_ids, False)))
+
+    @adventure.command()
+    async def salvagebulk(self, ctx, rarity: str):
+        """Preview salvage of an exact rarity, then confirm with a button."""
+        p = await self.require(ctx)
+        game.idle(p)
+        rarity = rarity.lower()
+        if rarity not in RARITIES:
+            raise game.RuleError("Choose an exact rarity: " + ", ".join(RARITIES))
+        ids = [
+            i["id"]
+            for i in p["inventory"].values()
+            if i["rarity"] == rarity and game.salvageable(p, i)
+        ]
+        if not ids:
+            raise game.RuleError(
+                "No eligible items of that rarity. Locked, equipped and tutorial gear are excluded."
+            )
+        iron, essence = game.salvage_totals(p, ids)
+        view = GearActionView(self, ctx.author.id, ids, salvage=True)
+        view.message = await ctx.send(
+            f"Salvage **{len(ids)} {rarity} items** for **{iron} iron + {essence} essence**?\n"
+            "Locked, equipped and protected tutorial gear are excluded. This destroys the selected items permanently. "
+            "Items acquired after this preview are not included. Confirm within 3 minutes.",
+            view=view,
+        )
 
     @adventure.command()
     async def potion(self, ctx):
@@ -490,6 +537,39 @@ class Aetherbound(commands.Cog):
     async def aetherset(self, ctx):
         """Admin setup, repair, spawn timing, and category placement."""
         await ctx.send_help()
+
+    @aetherset.command(name="feature")
+    async def feature_switch(self, ctx, feature: str, enabled: bool):
+        """Toggle loot_equip or bulk_salvage without stopping combat."""
+        if feature not in ("loot_equip", "bulk_salvage"):
+            raise game.RuleError("Features: loot_equip, bulk_salvage. Use true or false.")
+        async with self.guild_locks[ctx.guild.id]:
+            settings = await self.store.settings(ctx.guild.id)
+            settings.setdefault("features", {})[feature] = enabled
+            await self.store.settings(ctx.guild.id, settings)
+        await ctx.send(f"{feature}: {'enabled' if enabled else 'disabled'}.")
+
+    @aetherset.command()
+    async def audit(self, ctx):
+        """Show the latest ten economy events for this server."""
+        rows = await self.store.transaction(
+            lambda c: c.execute(
+                "SELECT * FROM economy_events WHERE guild=? ORDER BY id DESC LIMIT 10",
+                (ctx.guild.id,),
+            ).fetchall()
+        )
+        embed = discord.Embed(title="Aetherbound economy audit", color=0x836FFF)
+        for r in rows:
+            d = json.loads(r["data"])
+            mats = ", ".join(f"{k} {v:+d}" for k, v in d["materials"].items()) or "none"
+            embed.add_field(
+                name=f"#{r['id']} · {r['reason']}",
+                value=f"User `{r['user']}` · <t:{int(r['created'])}:R>\nGold {d['gold']:+d} · Potions {d['potions']:+d}\nItems created {len(d['created'])} · destroyed {len(d['destroyed'])}\nMaterials: {mats}",
+                inline=False,
+            )
+        if not rows:
+            embed.description = "No economy changes logged since this update."
+        await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     @aetherset.command()
     async def setup(self, ctx):
@@ -808,8 +888,16 @@ class Aetherbound(commands.Cog):
     async def red_get_data_for_user(self, *, user_id):
         records = [r for r in await self.store.rows("players") if r["user"] == user_id]
         trades = [r for r in await self.store.rows("trades") if r["user"] == user_id]
+        economy_log = await self.store.transaction(
+            lambda c: [
+                dict(r) for r in c.execute("SELECT * FROM economy_events WHERE user=?", (user_id,))
+            ]
+        )
         return {
             "aetherbound.json": io.BytesIO(
-                json.dumps({"characters": records, "trade_threads": trades}, indent=2).encode()
+                json.dumps(
+                    {"characters": records, "trade_threads": trades, "economy_events": economy_log},
+                    indent=2,
+                ).encode()
             )
         }
