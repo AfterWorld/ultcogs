@@ -125,7 +125,7 @@ the tutorial or replaying a click never grants the same reward twice.
 | `profile` | Temporary button opens your private character sheet |
 | `appearance <description>` | Cosmetic description, up to 200 characters |
 | `skills` | Class abilities, costs, attributes and mechanics |
-| `inventory [page]` | Items with IDs, equipped markers, materials and gold |
+| `inventory [page]` | Item stats, rarity emojis, equipment slots and page buttons |
 | `item <id>` | Equipment details and current slot occupant |
 | `equip <id> [id ...]` / `unequip <slot>` | Equip up to 11 items automatically by slot, or remove a slot |
 | `allocate <attribute> [amount]` / `respec` | Allocate level-up points or refund them |
@@ -419,3 +419,16 @@ checks, setup/repair/placement, trading moderation and pending-thread recovery.
 2. Specializations, expanded skills, sockets/enchanting, more gear and regions.
 3. Parties, cooperative dungeons, guilds and confirmed item exchanges.
 4. Raids, endgame crafting, world events and optional PvP.
+
+### Browsing your inventory
+
+Use `[p]ae inventory` (or `[p]aether inventory`) to open the gear browser. Each
+item shows its ID, slot, level, power including upgrades, attribute bonuses and
+equipped status. Two-handed gear and special effects are marked. Rarity is shown
+as an emoji; `[p]ae rarities` still explains the tier names.
+
+Use **Previous**, **Next** and **Refresh** to browse in the same message. Only the
+player who opened it can use its controls. Each click reloads saved inventory;
+if the bag shrinks, the page adjusts automatically. Controls disable after three
+minutes of inactivity. Reopen the command to continue. `[p]ae inventory 2` still
+works for jumping directly to a page.

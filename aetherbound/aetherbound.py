@@ -21,7 +21,15 @@ from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
 from .presentation import quest_embed, shop_embed, tutorial_embed
 from .setup_server import provision, refresh_panels
 from .store import Store
-from .views import BattleView, GuideView, ProfileLauncher, RoleView, SpawnView, battle_embed
+from .views import (
+    BattleView,
+    GuideView,
+    InventoryView,
+    ProfileLauncher,
+    RoleView,
+    SpawnView,
+    battle_embed,
+)
 
 log = logging.getLogger("red.aetherbound")
 
@@ -192,24 +200,14 @@ class Aetherbound(commands.Cog):
 
     @adventure.command()
     async def inventory(self, ctx, page: int = 1):
-        """List item IDs, gold, materials, and equipped markers."""
+        """Browse item stats with page buttons; an optional page number still works."""
         p = await self.require(ctx)
-        items = list(p["inventory"].values())
-        pages = max(1, (len(items) + 9) // 10)
+        pages = max(1, (len(p["inventory"]) + 9) // 10)
         if not 1 <= page <= pages:
             raise game.RuleError(f"Choose page 1–{pages}.")
-        lines = [
-            f"`{i['id']}` {rarity_label(i['rarity'])} **{i['name']}** +{i['upgrade']} • {i['slot']} • Lv{i['level']} {'[equipped]' if i['id'] in p['equipped'].values() else ''}"
-            for i in items[(page - 1) * 10 : page * 10]
-        ]
-        await ctx.send(
-            f"**Inventory {page}/{pages}** • {p['gold']} gold • {p['potions']} potions\n"
-            + "\n".join(lines)
-            + "\nMaterials: "
-            + str(p["materials"])
-            + f"\nOverflow: {len(p.get('unclaimed_loot', []))} items — `{ctx.clean_prefix}aether loot`"
-            + f"\nEquip several: `{ctx.clean_prefix}aether equip ID1 ID2 ID3` (replace IDs above; one per slot).",
-            allowed_mentions=discord.AllowedMentions.none(),
+        view = InventoryView(self, ctx.author.id, p, ctx.clean_prefix, page)
+        view.message = await ctx.send(
+            embed=view.embed, view=view, allowed_mentions=discord.AllowedMentions.none()
         )
 
     @adventure.command(name="item")
@@ -219,7 +217,7 @@ class Aetherbound(commands.Cog):
         i = game.item(p, item_id)
         current = p["inventory"].get(p["equipped"].get(i["slot"]))
         await ctx.send(
-            f"**{i['name']}** • {i['rarity']} • {i['slot']} • level {i['level']}\nPower {i['power']} + upgrade {i['upgrade'] * 2}; modifiers {i['bonuses']}\nUnique: {i['unique'] or 'none'} • Two-handed: {i['twohand']}\nCurrently equipped: {current['name'] if current else 'nothing'}\nUnique effects: wayfarer heals 3 on guard; spiritward reduces guarded damage by 15%; emberblade adds 3 damage once per attack."
+            f"{rarity_label(i['rarity'])} **{i['name']}** • {i['slot']} • level {i['level']}\nPower {i['power']} + upgrade {i['upgrade'] * 2}; modifiers {i['bonuses']}\nUnique: {i['unique'] or 'none'} • Two-handed: {i['twohand']}\nCurrently equipped: {current['name'] if current else 'nothing'}\nUnique effects: wayfarer heals 3 on guard; spiritward reduces guarded damage by 15%; emberblade adds 3 damage once per attack."
         )
 
     async def equip_items(self, ctx, item_ids):
@@ -439,7 +437,7 @@ class Aetherbound(commands.Cog):
         await ctx.send(
             "**Hoshifall's item tiers**\n"
             + "\n".join(
-                f"{rarity_label(k)} — rank {v['rank']}; drops/shop unlock at level {v['level']}"
+                f"{rarity_label(k)} {k.title()} — rank {v['rank']}; drops/shop unlock at level {v['level']}"
                 for k, v in RARITIES.items()
                 if k != "unique"
             )

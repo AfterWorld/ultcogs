@@ -8,7 +8,14 @@ from . import economy
 from .art import ART_VERSION, thumbnail
 from .content import CLASSES, MONSTERS
 from .engine import RuleError, intent
-from .presentation import channel_embed, guild_prefix, profile_embed, shop_embed, tutorial_embed
+from .presentation import (
+    channel_embed,
+    guild_prefix,
+    inventory_embed,
+    profile_embed,
+    shop_embed,
+    tutorial_embed,
+)
 
 log = logging.getLogger("red.aetherbound")
 
@@ -70,6 +77,59 @@ class SafeView(discord.ui.View):
             "That action could not finish. Your saved state is safe; use aether resume.",
             ephemeral=True,
         )
+
+
+class InventoryView(SafeView):
+    """Owner-only inventory navigation; each click reads current saved gear."""
+
+    def __init__(self, cog, owner, player, prefix, page=1):
+        super().__init__(cog)
+        self.timeout = 180
+        self.owner = owner
+        self.prefix = prefix
+        self.page = page
+        self.message = None
+        for label, delta in (("Previous", -1), ("Refresh", 0), ("Next", 1)):
+            button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary)
+
+            async def callback(i, step=delta):
+                if not await self.interaction_check(i):
+                    return
+                await i.response.defer()
+                p = await self.cog.store.player(i.guild.id, self.owner)
+                if not p:
+                    await i.followup.send("Your character no longer exists.", ephemeral=True)
+                    return
+                self.page += step
+                self.render(p)
+                await i.edit_original_response(embed=self.embed, view=self)
+
+            button.callback = callback
+            self.add_item(button)
+        self.render(player)
+
+    async def interaction_check(self, i):
+        if i.user.id != self.owner:
+            await i.response.send_message(
+                "Open your own inventory to browse your gear.", ephemeral=True
+            )
+            return False
+        return await super().interaction_check(i)
+
+    def render(self, p):
+        self.embed, self.page, pages = inventory_embed(p, self.page, self.prefix)
+        self.children[0].disabled = self.page == 1
+        self.children[2].disabled = self.page == pages
+
+    async def on_timeout(self):
+        self.cog.views.discard(self)
+        for button in self.children:
+            button.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
 
 class BattleView(SafeView):
