@@ -1,10 +1,11 @@
 """Discord-free game rules. All mutations run inside a Store transaction."""
 
+import copy
 import random
 import re
 import uuid
 
-from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SLOTS
+from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, item_name, rarity_label, roll_rarity
 
 
@@ -56,6 +57,8 @@ def make_item(slot, level=1, rarity="common", rng=None, name=None, unique=None, 
         unique=unique,
         twohand=twohand,
         sockets=[],
+        locked=False,
+        bound=bool(unique),
     )
 
 
@@ -66,6 +69,7 @@ def new_player(name, cls):
         raise RuleError("Use a name of 2–32 characters without mentions or line breaks.")
     weapon = make_item("main", name=CLASSES[cls]["weapon"])
     off = make_item("off", name="Apprentice Focus" if cls == "arcanist" else "Traveler Buckler")
+    weapon["bound"] = off["bound"] = True
     return dict(
         name=name.strip(),
         cls=cls,
@@ -159,6 +163,8 @@ def equip_many(p, item_ids):
                 "A two-handed weapon cannot be used with an off-hand item. No equipment changed."
             )
         removed = loadout.pop("off", None)
+    for i in items:
+        i["bound"] = True
     p["equipped"] = loadout
     advance_tutorial(p)
     result = "\n".join(f"Equipped {i['name']} → {i['slot']}." for i in items)
@@ -175,6 +181,7 @@ def advance_tutorial(p):
         p["tutorial"] = 2
         for slot in ("head", "chest", "hands", "legs", "feet", "neck"):
             i = make_item(slot, name=f"Traveler {slot.title()}")
+            i["bound"] = True
             p["inventory"][i["id"]] = i
         p["gold"] += 60
         p["materials"]["iron"] = p["materials"].get("iron", 0) + 4
@@ -227,6 +234,8 @@ def forge(p, slot, boss=None, twohand=False):
     if boss:
         i["name"] = f"{boss.title()}’s {item_name(slot, 'common', i['id'])}"
     p["inventory"][i["id"]] = i
+    if p["tutorial"] < 6:
+        i["bound"] = True
     p["forged"].append(i["id"])
     advance_tutorial(p)
     return i
@@ -248,17 +257,94 @@ def upgrade(p, item_id):
     return f"Upgraded {i['name']} to +{i['upgrade']}."
 
 
-def salvage(p, item_id):
+SALVAGE_YIELDS = {
+    "common": (2, 1),
+    "uncommon": (3, 1),
+    "rare": (4, 2),
+    "epic": (5, 2),
+    "legendary": (6, 3),
+    "mythic": (7, 3),
+    "unique": (5, 2),
+}
+
+
+def salvageable(p, i):
+    return not (
+        i.get("locked", False)
+        or i["id"] in p["equipped"].values()
+        or (p["tutorial"] < 6 and (i["slot"] in ("main", "chest") or i["id"] in p["forged"]))
+    )
+
+
+def salvage_totals(p, ids):
+    if not ids or len(ids) > 200 or len(set(ids)) != len(ids):
+        raise RuleError("Choose 1–200 different item IDs.")
+    items = [item(p, key) for key in ids]
+    if any(not salvageable(p, i) for i in items):
+        raise RuleError(
+            "Locked, equipped or protected tutorial items cannot be salvaged. Nothing changed."
+        )
+    return tuple(sum(SALVAGE_YIELDS[i["rarity"]][n] for i in items) for n in (0, 1))
+
+
+def salvage_many(p, ids):
     idle(p)
-    if item_id in p["equipped"].values():
-        raise RuleError("Unequip that item first.")
-    i = item(p, item_id)
-    if p["tutorial"] < 6 and (i["slot"] in ("main", "chest") or item_id in p["forged"]):
-        raise RuleError("Keep tutorial equipment until graduation.")
-    del p["inventory"][item_id]
-    p["materials"]["iron"] = p["materials"].get("iron", 0) + 2
-    p["materials"]["essence"] = p["materials"].get("essence", 0) + 1
-    return "Salvaged for 2 iron and 1 essence."
+    iron, essence = salvage_totals(p, ids)
+    for key in ids:
+        del p["inventory"][key]
+    for mat, amount in (("iron", iron), ("essence", essence)):
+        p["materials"][mat] = p["materials"].get(mat, 0) + amount
+    return f"Salvaged {len(ids)} item(s) for {iron} iron and {essence} essence."
+
+
+def salvage(p, item_id):
+    return salvage_many(p, [item_id])
+
+
+def lock_items(p, ids, locked):
+    if not ids or len(set(ids)) != len(ids):
+        raise RuleError("Supply different item IDs to lock or unlock.")
+    items = [item(p, key) for key in ids]
+    for i in items:
+        i["locked"] = locked
+    return f"{'Locked' if locked else 'Unlocked'} {len(items)} item(s)."
+
+
+def loadout_rating(p):
+    """General-purpose estimate, not a promise of an optimal build for every enemy."""
+    s = stats(p)
+    return (
+        s["attack"] * (1 + s["crit"] * 0.5)
+        + s["hp"] * (1 + s["armor"] / 100) / 10
+        + s["energy"] / 5
+        + len(s["uniques"]) * 3
+    )
+
+
+def auto_equip(p, ids):
+    idle(p)
+    changed = []
+    for key in ids:
+        i = p["inventory"].get(key)
+        if not i or i.get("locked") or key in p["equipped"].values():
+            continue
+        current = p["inventory"].get(p["equipped"].get(i["slot"]))
+        off = p["inventory"].get(p["equipped"].get("off"))
+        if (current and current.get("locked")) or (i["twohand"] and off and off.get("locked")):
+            continue
+        candidate = copy.deepcopy(p)
+        try:
+            equip(candidate, key)
+        except RuleError:
+            continue
+        if loadout_rating(candidate) > loadout_rating(p):
+            equip(p, key)
+            changed.append(i["name"])
+    return (
+        "Equipped: " + ", ".join(changed)
+        if changed
+        else "No eligible loot improves your estimated loadout rating."
+    )
 
 
 def begin(p, monster_key, practice=False, carry=None):
@@ -360,9 +446,11 @@ def reward(p, b, rng):
             make_item(spec["slot"], level, "unique", rng, name=spec["name"], unique=spec["effect"])
         )
     messages = []
+    p["last_loot"] = []
     for drop in drops:
         if len(p["inventory"]) < 200:
             p["inventory"][drop["id"]] = drop
+            p["last_loot"].append(drop["id"])
             messages.append(
                 f"{rarity_label(drop['rarity'])} **{drop['name']}** — ID `{drop['id']}`"
             )
@@ -393,41 +481,22 @@ def act(p, battle_id, turn, action, rng):
     heavy = b["turn"] % 3 == 2
     log = []
     guarding = action == "guard"
-    interrupt = action == "skill2"
+    skill = SKILLS[p["cls"]].get(action)
+    interrupt = bool(skill and skill.get("interrupt"))
     mult = 1.0
-    if action.startswith("skill"):
+    if skill:
         if b["cooldowns"].get(action, 0):
             raise RuleError("That skill is cooling down.")
-        if b["energy"] < 12:
+        if b["energy"] < skill["cost"]:
             raise RuleError("Not enough energy. Attack or guard to recover.")
-        b["energy"] -= 12
-        b["cooldowns"][action] = 3
+        b["energy"] -= skill["cost"]
+        b["cooldowns"][action] = skill["cooldown"]
         b["used"].append("skill")
-        mult = 1.65 if action == "skill1" else 1.05
-        if action == "skill3":
-            b["effects"]["shield"] = int(s["hp"] * 0.20)
-            mult = 0.45
-            guarding = True
-        if action == "skill2":
-            b["effects"]["exposed"] = 2
-        if p["cls"] == "strider":
-            if action == "skill1":
-                mult = 1.35
-                b["effects"]["enemy_bleed"] = 2
-            elif action == "skill2":
-                b["effects"]["exposed"] = 3
-            else:
-                b["effects"]["riposte"] = True
-        elif p["cls"] == "arcanist":
-            if action == "skill1":
-                mult = 1.85
-            elif action == "skill2":
-                mult = 0.8
-                b["effects"]["chill"] = 2
-            else:
-                b["effects"]["shield"] = int(s["hp"] * 0.30)
-        elif action == "skill3":
-            b["effects"]["shield"] = int(s["hp"] * 0.35)
+        mult = skill["multiplier"]
+        guarding = skill.get("guard", False)
+        b["effects"].update(skill["effects"])
+        if skill.get("shield_hp"):
+            b["effects"]["shield"] = int(s["hp"] * skill["shield_hp"])
     elif action == "potion":
         if p["potions"] <= 0:
             raise RuleError("No potions. Buy one in town: aether potion.")
@@ -442,7 +511,7 @@ def act(p, battle_id, turn, action, rng):
         b["used"].append("attack")
         b["energy"] = min(s["energy"], b["energy"] + 7)
     dmg = int(s["attack"] * mult * rng.uniform(0.9, 1.1))
-    if mult and action != "skill3" and b["effects"].pop("riposte", False):
+    if mult and not guarding and b["effects"].pop("riposte", False):
         dmg = int(dmg * 1.25)
     if b["effects"].get("exposed", 0):
         dmg = int(dmg * 1.20)

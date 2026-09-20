@@ -651,3 +651,47 @@ def test_inventory_stats_and_full_bag_embed_limits():
         assert "Two-handed" in first.value and "Emberblade" in first.value
         if page == 1:
             assert "Equipped" in first.value
+
+
+async def test_loot_buttons_equip_and_salvage_preview_revalidates(cog):
+    from aetherbound.views import GearActionView
+
+    p = graduate()
+    gear = g.make_item("ring2", rarity="rare")
+    p["inventory"][gear["id"]] = gear
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    view = GearActionView(cog, 5, [gear["id"]], player=p)
+    other = interaction(uid=6)
+    await view.children[0].callback(other)
+    other.response.defer.assert_not_awaited()
+    await cog.store.settings(1, {"features": {"loot_equip": False}})
+    await view.children[0].callback(interaction())
+    assert (await cog.store.player(1, 5))["equipped"].get("ring2") != gear["id"]
+    await cog.store.settings(1, {})
+    await view.children[0].callback(interaction())
+    assert (await cog.store.player(1, 5))["equipped"]["ring2"] == gear["id"]
+    fresh = g.make_item("head")
+    await cog.store.change(1, 5, lambda p, c: p["inventory"].update({fresh["id"]: fresh}))
+    preview = GearActionView(cog, 5, [fresh["id"]], salvage=True)
+    await cog.store.change(1, 5, lambda p, c: g.lock_items(p, [fresh["id"]], True))
+    await preview.children[0].callback(interaction())
+    assert fresh["id"] in (await cog.store.player(1, 5))["inventory"]
+    await cog.store.change(1, 5, lambda p, c: g.lock_items(p, [fresh["id"]], False))
+    await preview.children[0].callback(interaction())
+    assert fresh["id"] not in (await cog.store.player(1, 5))["inventory"]
+    before = await cog.store.player(1, 5)
+    await preview.children[0].callback(interaction())
+    assert await cog.store.player(1, 5) == before
+
+
+async def test_cancelled_salvage_cannot_be_confirmed(cog):
+    from aetherbound.views import GearActionView
+
+    p = graduate()
+    gear = g.make_item("head")
+    p["inventory"][gear["id"]] = gear
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    view = GearActionView(cog, 5, [gear["id"]], salvage=True)
+    await view.children[1].callback(interaction())
+    await view.children[0].callback(interaction())
+    assert await cog.store.player(1, 5) == p

@@ -76,3 +76,23 @@ def roll_rarity(level, boss, rng):
             weights[0] += weights[n]
             weights[n] = 0
     return rng.choices(tiers, weights=weights)[0]
+
+
+def migrate_item_flags(p):
+    """Conservative binding for legacy equipment; never undo a binding or a lock."""
+    starters = {"Iron Sword", "Twin Fang", "Aether Staff", "Traveler Buckler", "Apprentice Focus"}
+    items = list(p["inventory"].values()) + list(p.get("unclaimed_loot", []))
+    items += [o["item"] for o in p.get("shop", {}).get("offers", []) if "item" in o]
+    for i in items:
+        i.setdefault("locked", False)
+        i.setdefault("sockets", [])
+        i.setdefault(
+            "bound",
+            bool(
+                i.get("unique")
+                or i["id"] in p["equipped"].values()
+                or i["id"] in p.get("forged", [])[:1]
+                or i["name"] in starters
+                or i["name"].startswith("Traveler ")
+            ),
+        )

@@ -7,7 +7,7 @@ import random
 from statistics import mean
 
 from . import engine as g
-from .content import CLASSES, MONSTERS, SLOTS
+from .content import CLASSES, MONSTERS, SKILLS, SLOTS
 
 
 def actor(cls, level, gear, seed):
@@ -36,9 +36,12 @@ def simulate(cls, key, gear, seed, smart=True):
         if smart:
             if b["turn"] % 3 == 2:
                 action = (
-                    "skill2" if not b["cooldowns"].get("skill2") and b["energy"] >= 12 else "guard"
+                    "skill2"
+                    if not b["cooldowns"].get("skill2")
+                    and b["energy"] >= SKILLS[cls]["skill2"]["cost"]
+                    else "guard"
                 )
-            elif not b["cooldowns"].get("skill1") and b["energy"] >= 12:
+            elif not b["cooldowns"].get("skill1") and b["energy"] >= SKILLS[cls]["skill1"]["cost"]:
                 action = "skill1"
         g.act(p, b["id"], b["turn"], action, rng)
         turns += 1
@@ -97,5 +100,46 @@ def report(samples=50):
     return "\n".join(lines) + "\n"
 
 
+def armor_report(samples=50):
+    lines = [
+        "# Armor cap audit",
+        "",
+        "Fully equipped Vanguard; same-level gear in all 11 slots, one vitality point per level, no upgrades. "
+        "50 seeds per row. Higher tiers below their unlock level are stress tests. "
+        "The final column counts builds where adding +1 upgrade to the chest produces no armor gain.",
+        "",
+        "| Level | Rarity | Mean armor | At 100 cap | Wasted chest upgrade |",
+        "|---|---|---:|---:|---:|",
+    ]
+    for level in (1, 3, 5, 6, 8, 10, 15, 20):
+        for rarity in ("common", "uncommon", "rare", "epic", "legendary", "mythic"):
+            armor, capped, wasted = [], 0, 0
+            for seed in range(samples):
+                p = actor("vanguard", level, rarity, seed)
+                before = g.stats(p)["armor"]
+                armor.append(before)
+                capped += before == 100
+                p["inventory"][p["equipped"]["chest"]]["upgrade"] = 1
+                wasted += g.stats(p)["armor"] == before
+            lines.append(
+                f"| {level} | {rarity} | {mean(armor):.1f} | {capped / samples:.0%} | {wasted / samples:.0%} |"
+            )
+    lines += [
+        "",
+        "Combat already applies diminishing damage reduction via 100 / (100 + armor), "
+        "then the separate 100-armor ceiling prevents further armor benefits. "
+        "The baseline remains unchanged in this refactor. A later balance patch should evaluate "
+        "removing or softening the ceiling before sets add armor; test boss difficulty again.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 if __name__ == "__main__":
-    print(report(), end="")
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--armor", action="store_true", help="Report cap saturation without changing combat"
+    )
+    args = parser.parse_args()
+    print(armor_report() if args.armor else report(), end="")

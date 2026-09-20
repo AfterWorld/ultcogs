@@ -25,3 +25,5 @@ jobs:
         run: |
           python -m aetherbound.balance > /tmp/aetherbound-balance.md
           diff -u aetherbound/BALANCE.md /tmp/aetherbound-balance.md
+          python -m aetherbound.balance --armor > /tmp/aetherbound-armor.md
+          diff -u aetherbound/ARMOR_AUDIT.md /tmp/aetherbound-armor.md

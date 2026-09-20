@@ -3,12 +3,13 @@
 import asyncio
 import json
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
 from .content import QUESTS
 from .engine import RuleError
-from .loot import migrate_names
+from .loot import migrate_item_flags, migrate_names
 
 
 class Store:
@@ -31,7 +32,7 @@ class Store:
 
         def work():
             with self._open() as c:
-                if c.execute("PRAGMA user_version").fetchone()[0] > 1:
+                if c.execute("PRAGMA user_version").fetchone()[0] > 2:
                     raise RuntimeError(
                         "This database belongs to a newer Aetherbound version; update the cog."
                     )
@@ -41,7 +42,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS settings(guild INTEGER PRIMARY KEY,data TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS spawns(id TEXT PRIMARY KEY,guild INTEGER,channel INTEGER,message INTEGER,monster TEXT,expires REAL,claimed INTEGER DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS trades(message INTEGER PRIMARY KEY,guild INTEGER,user INTEGER,thread INTEGER,created REAL);
-                PRAGMA user_version=1;
+                CREATE TABLE IF NOT EXISTS economy_events(id INTEGER PRIMARY KEY,guild INTEGER,user INTEGER,created REAL,reason TEXT,data TEXT);
+                CREATE INDEX IF NOT EXISTS economy_events_guild ON economy_events(guild,id);
+                PRAGMA user_version=2;
                 """)
                 # Additive, idempotent migration: retain previously tracked quest progress.
                 for row in c.execute("SELECT guild,user,data FROM players").fetchall():
@@ -50,6 +53,7 @@ class Store:
                         "accepted_quests", {key: 0 for key in QUESTS if key not in p["quests"]}
                     )
                     migrate_names(p)
+                    migrate_item_flags(p)
                     c.execute(
                         "UPDATE players SET data=? WHERE guild=? AND user=?",
                         (json.dumps(p), row["guild"], row["user"]),
@@ -82,7 +86,7 @@ class Store:
 
         return await self.transaction(work)
 
-    async def change(self, guild, user, fn, create=False):
+    async def change(self, guild, user, fn, create=False, reason="state_change", feature=None):
         def work(c):
             row = c.execute(
                 "SELECT data FROM players WHERE guild=? AND user=?", (guild, user)
@@ -92,9 +96,29 @@ class Store:
                 raise RuleError("You already have a character. Use aether tutorial or profile.")
             if not create and not p:
                 raise RuleError("Create a character first: aether create vanguard Your Name")
+            if feature:
+                settings = c.execute("SELECT data FROM settings WHERE guild=?", (guild,)).fetchone()
+                flags = json.loads(settings[0]).get("features", {}) if settings else {}
+                if not flags.get(feature, True):
+                    raise RuleError(f"{feature} is temporarily disabled by an administrator.")
+            before = economy_snapshot(p)
             result = fn(p, c)
             if create:
                 p = result
+            after = economy_snapshot(p)
+            delta = {key: after[key] - before[key] for key in ("gold", "potions")}
+            delta["materials"] = {
+                key: after["materials"].get(key, 0) - before["materials"].get(key, 0)
+                for key in set(after["materials"]) | set(before["materials"])
+                if after["materials"].get(key, 0) != before["materials"].get(key, 0)
+            }
+            delta["created"] = sorted(after["items"] - before["items"])
+            delta["destroyed"] = sorted(before["items"] - after["items"])
+            if any(delta.values()):
+                c.execute(
+                    "INSERT INTO economy_events(guild,user,created,reason,data) VALUES(?,?,?,?,?)",
+                    (guild, user, time.time(), reason, json.dumps(delta)),
+                )
             c.execute("INSERT OR REPLACE INTO players VALUES(?,?,?)", (guild, user, json.dumps(p)))
             return result
 
@@ -111,7 +135,7 @@ class Store:
         return await self.transaction(work)
 
     async def rows(self, table):
-        if table not in ("players", "settings", "spawns", "trades"):
+        if table not in ("players", "settings", "spawns", "trades", "economy_events"):
             raise ValueError(table)
         return await self.transaction(
             lambda c: [dict(r) for r in c.execute(f"SELECT * FROM {table}")]
@@ -121,5 +145,16 @@ class Store:
         def work(c):
             c.execute("DELETE FROM players WHERE user=?", (user,))
             c.execute("DELETE FROM trades WHERE user=?", (user,))
+            c.execute("DELETE FROM economy_events WHERE user=?", (user,))
 
         await self.transaction(work)
+
+
+def economy_snapshot(p):
+    p = p or {}
+    return dict(
+        gold=p.get("gold", 0),
+        potions=p.get("potions", 0),
+        materials=dict(p.get("materials", {})),
+        items=set(p.get("inventory", {})) | {i["id"] for i in p.get("unclaimed_loot", [])},
+    )
