@@ -6,7 +6,9 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from .content import QUESTS
 from .engine import RuleError
+from .loot import migrate_names
 
 
 class Store:
@@ -41,6 +43,17 @@ class Store:
                 CREATE TABLE IF NOT EXISTS trades(message INTEGER PRIMARY KEY,guild INTEGER,user INTEGER,thread INTEGER,created REAL);
                 PRAGMA user_version=1;
                 """)
+                # Additive, idempotent migration: retain previously tracked quest progress.
+                for row in c.execute("SELECT guild,user,data FROM players").fetchall():
+                    p = json.loads(row["data"])
+                    p.setdefault(
+                        "accepted_quests", {key: 0 for key in QUESTS if key not in p["quests"]}
+                    )
+                    migrate_names(p)
+                    c.execute(
+                        "UPDATE players SET data=? WHERE guild=? AND user=?",
+                        (json.dumps(p), row["guild"], row["user"]),
+                    )
 
         await asyncio.to_thread(work)
 

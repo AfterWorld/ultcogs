@@ -13,9 +13,12 @@ from discord.ext import tasks
 from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
+from . import economy
 from . import engine as game
+from .art import artwork
 from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SLOTS
-from .presentation import tutorial_embed
+from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
+from .presentation import quest_embed, shop_embed, tutorial_embed
 from .setup_server import provision, refresh_panels
 from .store import Store
 from .views import BattleView, GuideView, ProfileLauncher, RoleView, SpawnView, battle_embed
@@ -98,14 +101,20 @@ class Aetherbound(commands.Cog):
             raise game.RuleError("No active battle.")
         b = p["battle"]
         view = BattleView(self, user, p)
+        embed = battle_embed(p)
+        art = artwork(embed, b["monster"])
         message = await channel.send(
-            embed=battle_embed(p), view=view, allowed_mentions=discord.AllowedMentions.none()
+            embed=embed,
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none(),
+            **art,
         )
 
         def save(p, c):
             if p["battle"] and p["battle"]["id"] == b["id"]:
                 p["battle"]["message"] = message.id
                 p["battle"]["channel"] = channel.id
+                p["battle"]["art"] = bool(art)
 
         await self.store.change(guild, user, save)
         return message
@@ -190,7 +199,7 @@ class Aetherbound(commands.Cog):
         if not 1 <= page <= pages:
             raise game.RuleError(f"Choose page 1–{pages}.")
         lines = [
-            f"`{i['id']}` {i['name']} +{i['upgrade']} • {i['slot']} • Lv{i['level']} {'[equipped]' if i['id'] in p['equipped'].values() else ''}"
+            f"`{i['id']}` {rarity_label(i['rarity'])} **{i['name']}** +{i['upgrade']} • {i['slot']} • Lv{i['level']} {'[equipped]' if i['id'] in p['equipped'].values() else ''}"
             for i in items[(page - 1) * 10 : page * 10]
         ]
         await ctx.send(
@@ -198,6 +207,7 @@ class Aetherbound(commands.Cog):
             + "\n".join(lines)
             + "\nMaterials: "
             + str(p["materials"])
+            + f"\nOverflow: {len(p.get('unclaimed_loot', []))} items — `{ctx.clean_prefix}aether loot`"
             + f"\nEquip several: `{ctx.clean_prefix}aether equip ID1 ID2 ID3` (replace IDs above; one per slot).",
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -380,27 +390,95 @@ class Aetherbound(commands.Cog):
         await ctx.tick()
 
     @adventure.command()
-    async def quests(self, ctx, claim: str = ""):
-        """View the quest chain or claim an objective by its key."""
-        if claim:
-            await ctx.send(await self.mutate(ctx, lambda p: game.claim_quest(p, claim)))
-            return
-        p = await self.require(ctx)
-        await ctx.send(
-            "\n".join(
-                f"`{k}` — {q['name']}: {min(game.quest_progress(p, k), q['goal'])}/{q['goal']} {'[claimed]' if k in p['quests'] else ''}; {q['gold']} gold, {q['xp']} EXP"
-                for k, q in QUESTS.items()
+    async def quests(self, ctx, action: str = "", key: str = ""):
+        """Quest board: quests accept <key>, then quests claim <key> after the objective."""
+        if action:
+            if action in QUESTS and not key:
+                key, action = action, "claim"  # Preserve the original claim shorthand.
+            if action not in ("accept", "claim") or key not in QUESTS:
+                raise game.RuleError(
+                    f"Use `{ctx.clean_prefix}aether quests` to see accept/claim commands."
+                )
+            fn = game.accept_quest if action == "accept" else game.claim_quest
+            await ctx.send(
+                await self.mutate(ctx, lambda p: fn(p, key)),
+                allowed_mentions=discord.AllowedMentions.none(),
             )
+        await ctx.send(embed=quest_embed(await self.require(ctx), ctx.clean_prefix))
+
+    @adventure.command()
+    async def payday(self, ctx):
+        """Claim daily gold once per UTC day after finishing the tutorial."""
+        await ctx.send(await self.mutate(ctx, economy.payday))
+
+    @adventure.command(aliases=["tavern"])
+    async def shop(self, ctx):
+        """Browse your rotating tavern offers; restocks at 00:00 UTC."""
+        offers = await self.mutate(ctx, lambda p: economy.shop(p, ctx.guild.id, ctx.author.id))
+        p = await self.require(ctx)
+        await ctx.send(embed=shop_embed(offers, p["gold"], ctx.clean_prefix))
+
+    @adventure.command()
+    async def buy(self, ctx, offer_code: str):
+        """Buy a daily shop offer using its complete dated code from aether shop."""
+        await ctx.send(
+            await self.mutate(
+                ctx, lambda p: economy.buy(p, ctx.guild.id, ctx.author.id, offer_code)
+            ),
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @adventure.command()
-    async def bestiary(self, ctx):
-        """All 13 monsters and two bosses, with fixed levels and regions."""
+    async def loot(self, ctx):
+        """Collect equipment saved in overflow when your bag was full."""
+        await ctx.send(await self.mutate(ctx, game.claim_loot))
+
+    @adventure.command()
+    async def rarities(self, ctx):
+        """Explain every item tier, acquisition level and unique effects."""
+        await ctx.send(
+            "**Hoshifall's item tiers**\n"
+            + "\n".join(
+                f"{rarity_label(k)} — rank {v['rank']}; drops/shop unlock at level {v['level']}"
+                for k, v in RARITIES.items()
+                if k != "unique"
+            )
+            + "\n🌟 **Unique** — named encounter-only items with a special effect; Epic-sized stat budget. Repeated copies of an effect never stack. Boss signatures and Unique items are not sold in the shop.\nHigher rarity adds bounded stats; level, slot and your class still matter."
+        )
+
+    @adventure.command()
+    async def bestiary(self, ctx, monster: str = ""):
+        """List all enemies, or inspect one by key for its portrait and special loot."""
+        if monster:
+            if monster not in MONSTERS:
+                raise game.RuleError("Unknown monster key. Use aether bestiary.")
+            m = MONSTERS[monster]
+            e = discord.Embed(
+                title=m["name"],
+                description=f"Level {m['level']} · {m['region']} · {'Boss' if m['boss'] else 'Monster'}\nMaterial: {m['material']}\n{game.INTENTS[m['behavior']]}",
+                color=0x836FFF,
+            )
+            if monster in BOSS_DROPS:
+                e.add_field(
+                    name="Guaranteed signature drop (one per victory)",
+                    value="\n".join(name for _, name in BOSS_DROPS[monster]),
+                    inline=False,
+                )
+            if monster in UNIQUES:
+                e.add_field(
+                    name="Rare unique drop",
+                    value=f"{UNIQUES[monster]['name']} — {'3%' if m['boss'] else '0.5%'} additional chance per victory. Effect: {UNIQUES[monster]['effect']}.",
+                    inline=False,
+                )
+            kwargs = artwork(e, monster)
+            await ctx.send(embed=e, **kwargs)
+            return
         await ctx.send(
             "\n".join(
-                f"{'BOSS ' if m['boss'] else ''}**{m['name']}** — Lv{m['level']} • {m['region']} • drops {m['material']}"
-                for m in MONSTERS.values()
+                f"`{k}` {'BOSS ' if m['boss'] else ''}**{m['name']}** — Lv{m['level']} • {m['region']}"
+                for k, m in MONSTERS.items()
             )
+            + f"\nInspect art and drops: `{ctx.clean_prefix}aether bestiary tsukara`"
         )
 
     @adventure.command()
@@ -422,7 +500,7 @@ class Aetherbound(commands.Cog):
             async with ctx.typing():
                 s = await provision(self, ctx.guild)
         await ctx.send(
-            f"Aetherbound is ready: <#{s['channels']['guide']}>. Spawns every {s['spawn_minutes']} minutes. Roles are opt-in."
+            f"Aetherbound is ready: <#{s['channels']['guide']}>. Spawns every {s['spawn_minutes']} minutes. Roles are opt-in. Active shortcuts: {', '.join(ctx.clean_prefix + a for a in self.adventure.aliases) or 'none (already used by other cogs)'}."
         )
 
     @aetherset.command()
@@ -508,9 +586,16 @@ class Aetherbound(commands.Cog):
             (f"{role.mention} " if role else "")
             + f"**{'BOSS: ' if m['boss'] else ''}{m['name']}** • Level {m['level']} • {m['region']}\nPress Engage to claim a solo encounter. Expires <t:{int(expires)}:R>. Minimum level {max(1, m['level'] - 4)}."
         )
+        embed = discord.Embed(
+            title=m["name"],
+            description="Press Engage below to begin your solo encounter.",
+            color=0xE8C66A if m["boss"] else 0x836FFF,
+        )
         try:
             message = await channel.send(
                 content,
+                embed=embed,
+                **artwork(embed, key),
                 view=SpawnView(self, spawn_id),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False, users=False, roles=[role] if role else []

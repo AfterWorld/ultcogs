@@ -18,7 +18,7 @@ def actor(cls, level, gear, seed):
     rng = random.Random(seed)
     for slot in SLOTS:
         item_level = 1 if gear == "starter" else level
-        i = g.make_item(slot, item_level, "common" if gear != "rare" else "rare", rng)
+        i = g.make_item(slot, item_level, "common" if gear == "starter" else gear, rng)
         p["inventory"][i["id"]] = i
         p["equipped"][slot] = i["id"]
     return p
@@ -49,7 +49,7 @@ def report(samples=50):
     rows = []
     for cls in CLASSES:
         for key in MONSTERS:
-            for gear in ("starter", "common", "rare"):
+            for gear in ("starter", "common", "uncommon", "rare", "epic", "legendary", "mythic"):
                 outcomes = [simulate(cls, key, gear, seed) for seed in range(samples)]
                 rows.append(
                     (cls, key, gear, mean(w for w, t in outcomes), mean(t for w, t in outcomes))
@@ -57,7 +57,7 @@ def report(samples=50):
     lines = [
         "# Phase 1 balance baseline",
         "",
-        f"{len(rows) * samples:,} seeded solo simulations; fixed monster level, equally leveled player, no potions. Each player allocates one point/level to their class stat and one to vitality. The scripted strategy interrupts charged attacks and uses its damage skill when available. Starter gear is level 1 in every slot; common/rare gear matches the player level.",
+        f"{len(rows) * samples:,} seeded solo simulations; fixed monster level, equally leveled player, no potions. Each player allocates one point/level to their class stat and one to vitality. The scripted strategy interrupts charged attacks and uses its damage skill when available. Starter gear is level 1 in every slot; all other gear matches the player level. Higher-tier cases are stress tests even at levels where those tiers cannot drop; Unique effects have separate regression tests.",
         "",
         "These checks establish bounds, not final balance. They do not simulate human mistakes, party combat, or the full acquisition economy. Live Discord playtesting is still required.",
         "",
@@ -65,7 +65,7 @@ def report(samples=50):
         "|---|---|---:|---:|---:|---:|",
     ]
     for cls in CLASSES:
-        for gear in ("starter", "common", "rare"):
+        for gear in ("starter", "common", "uncommon", "rare", "epic", "legendary", "mythic"):
             normal = [
                 r for r in rows if r[0] == cls and r[2] == gear and not MONSTERS[r[1]]["boss"]
             ]

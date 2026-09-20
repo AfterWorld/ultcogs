@@ -35,6 +35,7 @@ REQUIRED = (
     "view_channel",
     "send_messages",
     "embed_links",
+    "attach_files",
     "read_message_history",
     "mention_everyone",
 )
@@ -108,6 +109,7 @@ async def provision(cog, guild):
                 view_channel=True,
                 send_messages=True,
                 embed_links=True,
+                attach_files=True,
                 read_message_history=True,
                 manage_messages=True,
                 create_public_threads=True,

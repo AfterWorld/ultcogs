@@ -74,7 +74,8 @@ async def test_delete_all_guild_data(store):
 
 async def test_two_store_instances_cannot_double_claim_rewards(store):
     p = graduate()
-    p["wins"] = 3
+    g.accept_quest(p, "first_hunts")
+    p["wins"] = 4
     await store.change(1, 5, lambda _, c: p, create=True)
     second = Store(store.path)
     results = await asyncio.gather(

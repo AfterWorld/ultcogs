@@ -4,6 +4,7 @@ import discord
 
 from . import engine as game
 from .content import ATTRS, CLASSES, SLOTS
+from .loot import rarity_label
 
 COLOR = 0x836FFF
 SLOT_NAMES = dict(
@@ -95,7 +96,9 @@ def profile_embed(p, prefix):
         lines = []
         for slot in slots:
             i = p["inventory"].get(p["equipped"].get(slot))
-            detail = f"{i['name']} **+{i['upgrade']}** · {i['rarity'].title()}" if i else "— Empty"
+            detail = (
+                f"{i['name']} **+{i['upgrade']}** · {rarity_label(i['rarity'])}" if i else "— Empty"
+            )
             lines.append(f"**{SLOT_NAMES[slot]}** · {detail}")
         e.add_field(name=title, value="\n".join(lines), inline=False)
     if s["uniques"]:
@@ -229,7 +232,82 @@ def channel_embed(key, settings, prefix):
             value=f"Use `{c} profile` to inspect your hero or `{c} skills` to learn your class. Continue battles in {adventure}.",
             inline=False,
         )
+    if key in ("guide", "adventures", "tavern"):
+        e.add_field(
+            name="Quest board & daily supplies",
+            value=f"`{c} quests` — accept quests and claim rewards\n`{c} payday` — daily gold after graduation\n`{c} shop` — today's tavern wares\nUse the **Tavern shop** button for private browsing.\nShortcuts: `{prefix}ae` / `{prefix}a` when those aliases are available.",
+            inline=False,
+        )
     e.set_footer(
         text="Live help • Buttons read your saved character • Examples use this server’s prefix"
+    )
+    return e
+
+
+def quest_embed(p, prefix):
+    from .content import QUESTS
+
+    e = discord.Embed(
+        title="✦ Hoshifall quest board",
+        description="**1. Accept → 2. Complete the objective → 3. Claim your reward**\nNew quests track victories earned after acceptance. Older characters keep their already tracked progress.",
+        color=COLOR,
+    )
+    objectives = {
+        "first_hunts": "Win 3 non-practice fights",
+        "guardian": "Defeat Tsukara once",
+        "trail": "Complete the Hollow Trail once (level 6+)",
+    }
+    for key, q in QUESTS.items():
+        claimed = key in p["quests"]
+        accepted = key in p.get("accepted_quests", {})
+        progress = min(q["goal"], game.quest_progress(p, key))
+        status = (
+            "Claimed ✓"
+            if claimed
+            else "Ready to claim"
+            if accepted and progress >= q["goal"]
+            else "Active"
+            if accepted
+            else "Available"
+        )
+        action = "claim" if accepted else "accept"
+        instruction = (
+            "Reward already collected." if claimed else f"`{prefix}aether quests {action} {key}`"
+        )
+        e.add_field(
+            name=f"{q['name']} · {status}",
+            value=f"{objectives[key]} · **{progress}/{q['goal']}**\nReward: **{q['gold']} gold + {q['xp']} EXP**\n{instruction}",
+            inline=False,
+        )
+    e.set_footer(
+        text="Each quest pays once • Practice battles do not count • Accepting never costs gold"
+    )
+    return e
+
+
+def shop_embed(shop, gold, prefix):
+    from .loot import rarity_label
+
+    e = discord.Embed(
+        title="☕ The Lantern Tavern · Daily wares",
+        description=f"**{gold:,} gold** · Offers for {shop['day']} (UTC)\nYour personal stock rotates at **00:00 UTC**. Today's equipment stays at level {shop['level']} even if you level up. Finish the tutorial to buy.",
+        color=0xD8A35D,
+    )
+    for offer in shop["offers"]:
+        i = offer.get("item")
+        detail = ""
+        if i:
+            bonuses = (
+                ", ".join(f"{k} +{v}" for k, v in i["bonuses"].items()) or "no attribute bonuses"
+            )
+            detail = f"{rarity_label(i['rarity'])} · {SLOT_NAMES[i['slot']]} · Lv{i['level']}\nPower {i['power']} · {bonuses}\n"
+        e.add_field(
+            name=f"{offer['name']} · {offer['price']:,} gold",
+            value=detail
+            + f"Remaining: **{offer['stock'] - offer['bought']}**\n`{prefix}aether buy {offer['code']}`",
+            inline=False,
+        )
+    e.set_footer(
+        text="Codes include the date to prevent buying a different item after rotation • Unique loot comes from combat"
     )
     return e

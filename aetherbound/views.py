@@ -4,9 +4,11 @@ import logging
 
 import discord
 
+from . import economy
+from .art import thumbnail
 from .content import CLASSES, MONSTERS
 from .engine import RuleError, intent
-from .presentation import channel_embed, guild_prefix, profile_embed, tutorial_embed
+from .presentation import channel_embed, guild_prefix, profile_embed, shop_embed, tutorial_embed
 
 log = logging.getLogger("red.aetherbound")
 
@@ -41,6 +43,8 @@ def battle_embed(p):
     e.set_footer(
         text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +10 • Progress saves after each action"
     )
+    if b.get("art"):
+        thumbnail(e, b["monster"])
     return e
 
 
@@ -113,6 +117,7 @@ class BattleView(SafeView):
                         await i.edit_original_response(
                             content=result,
                             embed=None,
+                            attachments=[],
                             view=None,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
@@ -197,7 +202,11 @@ class GuideView(RoleView):
         super().__init__(cog)
         if not include_roles:
             self.clear_items()
-        for key, label in (("tutorial", "My next step"), ("profile", "My profile")):
+        for key, label in (
+            ("tutorial", "My next step"),
+            ("profile", "My profile"),
+            ("shop", "Tavern shop"),
+        ):
             button = discord.ui.Button(
                 label=label,
                 custom_id=f"ab:guide:{key}",
@@ -217,7 +226,16 @@ class GuideView(RoleView):
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                         return
-                    embed = tutorial_embed(p, prefix)
+                    if kind == "shop":
+                        offers = await self.cog.store.change(
+                            i.guild.id,
+                            i.user.id,
+                            lambda p, c: economy.shop(p, i.guild.id, i.user.id),
+                        )
+                        p = await self.cog.store.player(i.guild.id, i.user.id)
+                        embed = shop_embed(offers, p["gold"], prefix)
+                    else:
+                        embed = tutorial_embed(p, prefix)
                 else:
                     settings = await self.cog.store.settings(i.guild.id)
                     embed = channel_embed("guide", settings, prefix)

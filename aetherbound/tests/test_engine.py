@@ -101,7 +101,8 @@ def test_cannot_double_resolve_turn():
 
 def test_quest_one_time():
     p = graduate()
-    p["wins"] = 3
+    g.accept_quest(p, "first_hunts")
+    p["wins"] = 4
     g.claim_quest(p, "first_hunts")
     before = copy.deepcopy(p)
     with pytest.raises(g.RuleError):
@@ -179,6 +180,7 @@ def test_tutorial_resources_cannot_be_spent_early():
 
 def test_guardian_quest_requires_correct_boss():
     p = graduate()
+    g.accept_quest(p, "guardian")
     p["boss_wins"] = 1
     p["kills"] = {"raizen": 1}
     with pytest.raises(g.RuleError):
