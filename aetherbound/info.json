@@ -1,0 +1,13 @@
+{
+  "name": "Aetherbound",
+  "author": ["AfterWorld"],
+  "short": "An active original anime adventure RPG.",
+  "description": "Phase 1: rewarded tutorial, 13 monsters, two bosses, turn combat, equipment, forging, quests, a dungeon, server provisioning, opt-in notifications and trade discussion threads.",
+  "install_msg": "Load with [p]load aetherbound. An admin runs [p]aetherset setup to create channels/roles and enable spawns. See the README for required permissions. Begin with [p]aether create vanguard Your Name. This is a Phase 1 playtest build.",
+  "requirements": [],
+  "tags": ["rpg", "game", "adventure", "anime"],
+  "min_bot_version": "3.5.24",
+  "min_python_version": [3, 11, 0],
+  "type": "COG",
+  "end_user_data_statement": "Stores per-server Discord user IDs, chosen character names/descriptions, progression, inventory, active combat, and trade message/thread IDs. Supports Red user data export/deletion. Discord messages and roles are managed separately by Discord."
+}
