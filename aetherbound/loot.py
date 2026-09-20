@@ -65,7 +65,7 @@ def migrate_names(p):
 
 
 def rarity_label(rarity):
-    return f"{RARITIES[rarity]['icon']} {rarity.title()}"
+    return RARITIES[rarity]["icon"]
 
 
 def roll_rarity(level, boss, rng):

@@ -311,3 +311,50 @@ def shop_embed(shop, gold, prefix):
         text="Codes include the date to prevent buying a different item after rotation • Unique loot comes from combat"
     )
     return e
+
+
+def inventory_embed(p, page, prefix):
+    items = list(p["inventory"].values())
+    pages = max(1, (len(items) + 9) // 10)
+    page = max(1, min(page, pages))
+    e = discord.Embed(
+        title=f"{p['name']}'s inventory",
+        description=(
+            f"**{p['gold']:,} gold** · {p['potions']} potions · {len(items)}/200 items\n"
+            f"Equip: `{prefix}ae equip ID1 ID2` · Inspect: `{prefix}ae item ID`"
+        ),
+        color=COLOR,
+    )
+    for i in items[(page - 1) * 10 : page * 10]:
+        power = i["power"] + i["upgrade"] * 2
+        bonus = " · ".join(f"{k.title()} {v:+d}" for k, v in i["bonuses"].items())
+        equipped = " · Equipped" if i["id"] in p["equipped"].values() else ""
+        upgrade = f" +{i['upgrade']}" if i["upgrade"] else ""
+        details = (
+            f"`{i['id']}` · {SLOT_NAMES[i['slot']]} · Lv{i['level']}{equipped}\n"
+            f"**Power {power}**" + (f" · {bonus}" if bonus else "")
+        )
+        if i["twohand"]:
+            details += "\nTwo-handed · ×1.5 weapon power"
+        if i["unique"]:
+            effect = {
+                "wayfarer": "Wayfarer — heal 3 HP when guarding",
+                "spiritward": "Spiritward — 15% less damage when guarding",
+                "emberblade": "Emberblade — +3 damage per attack",
+            }.get(i["unique"], i["unique"])
+            details += f"\n{effect}"
+        e.add_field(
+            name=f"{rarity_label(i['rarity'])} {i['name']}{upgrade}", value=details, inline=False
+        )
+    if not items:
+        e.add_field(name="Your bag is empty", value="Continue the tutorial or fight to earn gear.")
+    materials = " · ".join(f"{k.title()} {v:,}" for k, v in p["materials"].items()) or "None"
+    e.add_field(name="Materials", value=materials, inline=False)
+    if p.get("unclaimed_loot"):
+        e.add_field(
+            name="Unclaimed loot", value=f"{len(p['unclaimed_loot'])} items · `{prefix}ae loot`"
+        )
+    e.set_footer(
+        text=f"Page {page}/{pages} · Power includes upgrades · Controls expire after 3 minutes"
+    )
+    return e, page, pages

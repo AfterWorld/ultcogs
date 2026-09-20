@@ -594,3 +594,60 @@ async def test_spawn_without_matching_art(cog):
     assert "file" not in kwargs
     assert kwargs["embed"].thumbnail.url is None
     assert kwargs["view"] is not None
+
+
+async def test_inventory_buttons_reload_clamp_restrict_and_expire(cog):
+    from aetherbound.views import InventoryView
+
+    p = graduate()
+    for _ in range(23):
+        item = g.make_item("main", rarity="rare")
+        p["inventory"][item["id"]] = item
+    await cog.store.change(1, 5, lambda _, c: p, create=True)
+    view = InventoryView(cog, 5, p, ".")
+    assert view.children[0].disabled
+    assert not view.children[2].disabled
+    stranger = interaction(uid=6)
+    await view.children[2].callback(stranger)
+    stranger.response.defer.assert_not_awaited()
+    assert view.page == 1
+    click = interaction()
+    await view.children[2].callback(click)
+    assert view.page == 2
+    assert "Page 2/" in click.edit_original_response.call_args.kwargs["embed"].footer.text
+    await cog.store.change(1, 5, lambda p, c: p.update(inventory={}, equipped={}))
+    await view.children[1].callback(interaction())
+    assert view.page == 1
+    assert view.children[0].disabled and view.children[2].disabled
+    assert view.embed.fields[0].name == "Your bag is empty"
+    view.message = NS(edit=AsyncMock())
+    await view.on_timeout()
+    assert all(button.disabled for button in view.children)
+    assert view not in cog.views
+    view.message.edit.assert_awaited_once()
+
+
+def test_inventory_stats_and_full_bag_embed_limits():
+    from aetherbound.loot import RARITIES
+    from aetherbound.presentation import inventory_embed
+
+    p = graduate()
+    p["inventory"] = {}
+    for n in range(200):
+        item = g.make_item("main", level=20, rarity="mythic", twohand=True, unique="emberblade")
+        item.update(upgrade=5, bonuses={"strength": 5, "vitality": 10})
+        p["inventory"][item["id"]] = item
+    p["equipped"] = {"main": next(iter(p["inventory"]))}
+    for page in range(1, 21):
+        embed, actual, pages = inventory_embed(p, page, ".")
+        assert actual == page and pages == 20
+        assert len(embed) < 6000
+        assert all(len(f.name) <= 256 and len(f.value) <= 1024 for f in embed.fields)
+        first = embed.fields[0]
+        assert RARITIES["mythic"]["icon"] in first.name
+        assert "Mythic" not in first.name
+        assert "Power 38" in first.value
+        assert "Strength +5" in first.value and "Vitality +10" in first.value
+        assert "Two-handed" in first.value and "Emberblade" in first.value
+        if page == 1:
+            assert "Equipped" in first.value
