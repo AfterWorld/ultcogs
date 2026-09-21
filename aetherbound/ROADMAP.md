@@ -12,16 +12,16 @@ claim that the entire expansion is available.
 - Kill switches for the two new interactive gear features.
 - Armor-cap audit. Attribute respec already exists and remains free.
 
-## Next: class identity and armor balance
+## Class identity and armor balance — implemented
 
-Build distinct per-class costs, resources/mechanics and passives on the skill data.
-Keep existing characters and free respec. Simulate each new mechanic, including
-resource starvation, defensive choices and starter/fully equipped builds. Compare
-armor ceiling alternatives using the current diminishing reduction formula; do not
-mix this balance change into the refactor baseline. Expand with more classes only
-after the original three have distinct playstyles and progression coverage.
+Resolve / defensive Vanguard, Momentum / alternating Strider and charge-driven
+Arcanist now have bounded resources, distinct costs/cooldowns and passives.
+Resources persist in active battles and initialize safely for legacy saves.
+Armor now gains logarithmically above 100. Extended boss-policy simulations and
+resource/upgrade tests accompany the new baseline. Free attribute respec remains.
+More classes remain a later expansion, after feedback on these three playstyles.
 
-## Sets, then sockets
+## Next: sets, then sockets
 
 Put set bonuses in stats() so complete-loadout comparisons see them. Preserve the
 binding policy already stored on items. Add intentional socket customization;

@@ -141,7 +141,7 @@ def test_all_tiers_bounded_and_equippable(rarity):
         p["inventory"][i["id"]] = i
         g.equip(p, i["id"])
     stats = g.stats(p)
-    assert stats["crit"] <= 0.35 and stats["armor"] <= 100 and stats["energy"] <= 80
+    assert stats["crit"] <= 0.35 and 100 < stats["armor"] < 250 and stats["energy"] <= 80
 
 
 def test_loot_level_gates_and_all_rarities_reachable():

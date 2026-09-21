@@ -16,7 +16,7 @@ from redbot.core.data_manager import cog_data_path
 from . import economy
 from . import engine as game
 from .art import ART_VERSION, artwork
-from .content import ATTRS, CLASSES, MONSTERS, QUESTS, SKILLS, SLOTS
+from .content import ATTRS, CLASSES, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
 from .presentation import quest_embed, shop_embed, tutorial_embed
 from .setup_server import provision, refresh_panels
@@ -176,11 +176,13 @@ class Aetherbound(commands.Cog):
         await ctx.send(
             descriptions[p["cls"]]
             + "\n"
+            + MECHANICS[p["cls"]]["description"]
+            + "\n"
             + "\n".join(
                 f"{s['name']}: {s['cost']} energy; {s['cooldown'] - 1} intervening turns before reuse."
                 for s in SKILLS[p["cls"]].values()
             )
-            + "\nAttack restores 7 energy; Guard restores 10 and reduces incoming attack damage by 65%. Potions heal 40% of battle max HP and consume a turn.\nYour class damage attribute is "
+            + "\nAttack restores 7 energy; Guard restores your class recovery amount and reduces incoming attack damage by 65%. Potions heal 40% of battle max HP and consume a turn.\nYour class damage attribute is "
             + CLASSES[p["cls"]]["stat"]
             + ". Vitality adds HP and armor; Dexterity adds critical chance; Willpower adds energy capacity. Other damage attributes support future specializations."
         )

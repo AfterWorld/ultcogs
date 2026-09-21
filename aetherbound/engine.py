@@ -1,11 +1,12 @@
 """Discord-free game rules. All mutations run inside a Store transaction."""
 
 import copy
+import math
 import random
 import re
 import uuid
 
-from .content import ATTRS, CLASSES, INTENTS, MONSTERS, QUESTS, SKILLS, SLOTS
+from .content import ATTRS, CLASSES, INTENTS, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, item_name, rarity_label, roll_rarity
 
 
@@ -97,6 +98,39 @@ def new_player(name, cls):
     )
 
 
+def armor_rating(raw):
+    """Preserve low-level armor; above 100 each point still helps, at a slower rate."""
+    return raw if raw <= 100 else 100 + 50 * math.log1p((raw - 100) / 50)
+
+
+def skill_cost(p, action):
+    skill = SKILLS[p["cls"]][action]
+    mechanic = MECHANICS[p["cls"]]
+    stacks = p["battle"].get("resource", 0) if p.get("battle") else 0
+    discount = stacks * mechanic["discount_per_stack"] if action == mechanic["spend_action"] else 0
+    return max(0, skill["cost"] - discount)
+
+
+def class_action(p, action, damaging):
+    """Apply resource changes only after action validation; no random draws."""
+    b = p["battle"]
+    m = MECHANICS[p["cls"]]
+    stacks = b.get("resource", 0)
+    bonus = 1.0
+    if m.get("alternating"):
+        last = b.get("last_damaging")
+        stacks = min(m["cap"], stacks + 1) if damaging and last and action != last else 0
+        b["last_damaging"] = action if damaging else None
+        bonus += stacks * m["damage_per_stack"]
+    elif action == m["spend_action"]:
+        bonus += stacks * m["damage_per_stack"]
+        stacks = 0
+    elif action in m["gain_actions"]:
+        stacks = min(m["cap"], stacks + 1)
+    b["resource"] = stacks
+    return bonus
+
+
 def stats(p):
     attrs = {a: 4 + p["level"] + p["attrs"][a] for a in ATTRS}
     weapon = armor = 0
@@ -115,8 +149,8 @@ def stats(p):
     return dict(
         hp=90 + p["level"] * 10 + attrs["vitality"] * 3,
         attack=12 + p["level"] * 2 + attrs[CLASSES[p["cls"]]["stat"]] * 1.5 + weapon,
-        armor=min(100, armor + attrs["vitality"] * 0.5),
-        crit=min(0.35, 0.05 + attrs["dexterity"] * 0.002),
+        armor=armor_rating(armor + attrs["vitality"] * 0.5),
+        crit=min(0.35, 0.05 + attrs["dexterity"] * 0.002 + MECHANICS[p["cls"]]["crit"]),
         energy=min(80, 40 + attrs["willpower"]),
         uniques=uniques,
     )
@@ -369,6 +403,8 @@ def begin(p, monster_key, practice=False, carry=None):
         enemy_hp=int(mhp),
         enemy_maxhp=int(mhp),
         energy=s["energy"],
+        resource=0,
+        last_damaging=None,
         turn=0,
         cooldowns={},
         effects={},
@@ -487,9 +523,10 @@ def act(p, battle_id, turn, action, rng):
     if skill:
         if b["cooldowns"].get(action, 0):
             raise RuleError("That skill is cooling down.")
-        if b["energy"] < skill["cost"]:
+        cost = skill_cost(p, action)
+        if b["energy"] < cost:
             raise RuleError("Not enough energy. Attack or guard to recover.")
-        b["energy"] -= skill["cost"]
+        b["energy"] -= cost
         b["cooldowns"][action] = skill["cooldown"]
         b["used"].append("skill")
         mult = skill["multiplier"]
@@ -506,10 +543,11 @@ def act(p, battle_id, turn, action, rng):
     elif action == "guard":
         mult = 0
         b["used"].append("guard")
-        b["energy"] = min(s["energy"], b["energy"] + 10)
+        b["energy"] = min(s["energy"], b["energy"] + MECHANICS[p["cls"]]["guard_energy"])
     else:
         b["used"].append("attack")
         b["energy"] = min(s["energy"], b["energy"] + 7)
+    mult *= class_action(p, action, mult > 0)
     dmg = int(s["attack"] * mult * rng.uniform(0.9, 1.1))
     if mult and not guarding and b["effects"].pop("riposte", False):
         dmg = int(dmg * 1.25)
@@ -579,6 +617,7 @@ def act(p, battle_id, turn, action, rng):
         armor *= 0.5
         log.append("The mask's magical strike pierces half your armor.")
     incoming *= 100 / (100 + armor)
+    incoming *= MECHANICS[p["cls"]]["incoming"]
     if guarding:
         incoming *= 0.35
     if "spiritward" in s["uniques"] and guarding:

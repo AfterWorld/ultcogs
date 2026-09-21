@@ -217,7 +217,7 @@ not stack. Inventory capacity is 200; excess combat drops wait in loot overflow.
 with `[p]aether loot` after freeing space. New encounters stop when 20 or more
 overflow items are waiting (a final two-drop victory can bring the total to 21).
 All rarity affix points are distributed from a fixed budget. Critical chance
-is capped at 35%, armor at 100, upgrades at +5 and energy capacity at 80.
+is capped at 35%, upgrades at +5 and energy capacity at 80. Armor has diminishing gains above 100, rather than a hard cap.
 
 Forge any slot from iron, essence and gold. Boss recipes also require two boss
 cores. Further monster-specific uses for fangs, wood, crystal and ember, plus
@@ -440,7 +440,7 @@ works for jumping directly to a page.
 
 Skill names, energy costs, cooldowns, damage multipliers, guard/interrupt flags,
 shields and applied effects now live in `content.SKILLS`. This is a behavior-preserving
-refactor: the 15,750 seeded baseline report is unchanged. A separate comparison
+refactor in PR #23: its 15,750 seeded baseline report was unchanged. The class-identity update below intentionally changes that balance. A separate comparison
 against the pre-refactor implementation matched 900 mixed-action fights / 5,041
 turns, including defensive skills, potion usage, state, logs and RNG state.
 
@@ -496,9 +496,40 @@ have more specific labels. User export/deletion includes these records. Schema 2
 is additive; back up the database before updating, as older cog versions reject it.
 
 See [ARMOR_AUDIT.md](ARMOR_AUDIT.md) (`python -m aetherbound.balance --armor`) for
-cap saturation. Full same-level Rare sets already cap armor at level 5 in the
-sample. Combat already uses diminishing damage reduction; the extra ceiling is
-unchanged here so the refactor can preserve balance exactly. Evaluate a softer
-ceiling before adding sets.
+current armor scaling. The former hard ceiling was reached by full level-5 Rare
+gear. It has now been replaced with logarithmic gains above 100.
 
 The remaining staged work is tracked in [ROADMAP.md](ROADMAP.md).
+
+
+## Class identity and armor update
+
+| Class | Resource | Passive | Skill energy / cooldown counters |
+|---|---|---|---|
+| Vanguard | Guard / Iron Guard builds Resolve, capped at 3. Cleave spends it for +12% damage per stack. | 5% less direct incoming damage (not damage-over-time ticks) | Cleave 14 / 3; Guard Break 10 / 3; Iron Guard 16 / 4 |
+| Strider | Alternating damaging actions builds Momentum, capped at 3, for +4% damage per stack. Repetition, Guard or Potion resets it. | +3 percentage points critical chance, within the existing 35% cap | Twin Strike 10 / 2; Mark Prey 12 / 3; Evasive Step 14 / 4 |
+| Arcanist | Attack / Aether Ward builds charges, capped at 3. Spark Bolt spends them for +8% damage and −2 energy per charge. | Guard restores 12 energy instead of 10 | Spark Bolt 16 / 3 (10 at full charge); Frost Bind 12 / 3; Aether Ward 16 / 4 |
+
+Cooldown counters decrement after the acting turn: a counter of 3 requires two
+intervening turns. Charges/Resolve are spent on the attempted skill, even if it
+misses. Momentum tracks action choices, including attempts that miss. Combat
+embeds show current resources and actual discounted costs. The private profile's
+Combat tab and `[p]ae skills` explain the mechanic. `[p]ae respec` remains free.
+
+Resources persist across restarts in the active battle and reset each encounter,
+including each dungeon room. Existing battles without resource fields start at
+zero; player progress and equipment are preserved. Existing battles use the new
+costs, passives and armor formula on their next action. No database schema change.
+
+Raw armor up to 100 keeps its old value. Above 100, effective armor is
+`100 + 50 * ln(1 + (raw − 100) / 50)`. Damage reduction still uses
+`100 / (100 + effective armor)`. Higher armor remains useful, with smaller gains;
+integer damage rounding can make a small upgrade invisible on a single hit.
+Auto-equip uses these same stats.
+
+[BALANCE.md](BALANCE.md) now contains 15,750 standard seeded fights plus 1,800
+boss strategy comparisons. The same-level, fully equipped scripted builds clear
+all normal enemies and both bosses; level-1 starter equipment is less reliable
+against late bosses, especially when ignoring class mechanics. These scenarios
+are regression checks, not proof that every real player's build is equally strong.
+The previous report remains available in Git history at PR #23.
