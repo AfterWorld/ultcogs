@@ -167,3 +167,20 @@ QUESTS = {
     "guardian": dict(name="Quiet the Hollow Antler", goal=1, field="boss_wins", gold=120, xp=140),
     "trail": dict(name="Walk the Hollow Trail", goal=1, field="dungeons", gold=150, xp=180),
 }
+
+
+# Fixed, craftable armor collections; any class may mix sets.
+GEAR_SETS = {
+    "dawnward": dict(name="Dawnward Oath", bonuses={2: {"vitality": 3}, 4: {"strength": 4}}),
+    "moonstep": dict(name="Moonstep Veil", bonuses={2: {"dexterity": 3}, 4: {"vitality": 4}}),
+    "starweave": dict(
+        name="Starweave Covenant", bonuses={2: {"intelligence": 3}, 4: {"willpower": 4}}
+    ),
+}
+RUNES = {
+    "ember": "strength",
+    "gale": "dexterity",
+    "aether": "intelligence",
+    "stone": "vitality",
+    "spirit": "willpower",
+}

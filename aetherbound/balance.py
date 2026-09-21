@@ -7,7 +7,7 @@ import random
 from statistics import mean
 
 from . import engine as g
-from .content import CLASSES, MONSTERS, SLOTS
+from .content import CLASSES, GEAR_SETS, MONSTERS, SLOTS
 
 
 def actor(cls, level, gear, seed):
@@ -24,9 +24,16 @@ def actor(cls, level, gear, seed):
     return p
 
 
-def simulate(cls, key, gear, seed, smart=True):
+def simulate(cls, key, gear, seed, smart=True, customization=None):
     level = MONSTERS[key]["level"]
     p = actor(cls, level, gear, seed)
+    if customization:
+        set_id, rune = customization
+        for slot in SLOTS[2:7]:
+            p["inventory"][p["equipped"][slot]]["set_id"] = set_id
+        if rune:
+            for i in p["inventory"].values():
+                i["sockets"] = [rune]
     g.begin(p, key)
     rng = random.Random(seed)
     turns = 0
@@ -136,6 +143,33 @@ def report(samples=50):
     return "\n".join(lines) + "\n"
 
 
+def customization_report(samples=50):
+    lines = [
+        "# Sets and sockets balance checks",
+        "",
+        "3 classes × 2 bosses × 4 loadouts × 3 rune configurations × 50 seeds = 3,600 fights. "
+        "Same-level rare gear, no potions, interrupt policy. All five armor slots carry the selected set; "
+        "rune cases fill all 11 slots with the class damage rune or stone (+22 vitality). "
+        "This tests maximum stacking, not acquisition speed or human mistakes. Existing plain-gear reports remain unchanged.",
+        "",
+        "| Class | Boss | Set | Runes | Win rate | Mean turns |",
+        "|---|---|---|---|---:|---:|",
+    ]
+    for cls in CLASSES:
+        damage_rune = {"vanguard": "ember", "strider": "gale", "arcanist": "aether"}[cls]
+        for boss in ("tsukara", "raizen"):
+            for set_id in (None, *GEAR_SETS):
+                for rune in (None, damage_rune, "stone"):
+                    outcomes = [
+                        simulate(cls, boss, "rare", seed, customization=(set_id, rune))
+                        for seed in range(samples)
+                    ]
+                    lines.append(
+                        f"| {cls} | {boss} | {set_id or 'none'} | {rune or 'none'} | {mean(w for w, t in outcomes):.1%} | {mean(t for w, t in outcomes):.1f} |"
+                    )
+    return "\n".join(lines) + "\n"
+
+
 def armor_report(samples=50):
     lines = [
         "# Armor cap audit",
@@ -176,5 +210,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--armor", action="store_true", help="Report cap saturation without changing combat"
     )
+    parser.add_argument(
+        "--customization", action="store_true", help="Compare sets and maximum rune stacking"
+    )
     args = parser.parse_args()
-    print(armor_report() if args.armor else report(), end="")
+    print(
+        customization_report()
+        if args.customization
+        else armor_report()
+        if args.armor
+        else report(),
+        end="",
+    )

@@ -18,7 +18,7 @@ from . import engine as game
 from .art import ART_VERSION, artwork
 from .content import ATTRS, CLASSES, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
-from .presentation import quest_embed, shop_embed, tutorial_embed
+from .presentation import customization_detail, quest_embed, sets_embed, shop_embed, tutorial_embed
 from .setup_server import provision, refresh_panels
 from .store import Store
 from .views import (
@@ -96,9 +96,13 @@ class Aetherbound(commands.Cog):
                 "Use game commands in the adventures channel. The trading post is for offers only."
             )
 
-    async def mutate(self, ctx, fn):
+    async def mutate(self, ctx, fn, feature=None):
         return await self.store.change(
-            ctx.guild.id, ctx.author.id, lambda p, c: fn(p), reason=ctx.command.qualified_name
+            ctx.guild.id,
+            ctx.author.id,
+            lambda p, c: fn(p),
+            reason=ctx.command.qualified_name,
+            feature=feature,
         )
 
     async def action(self, guild, user, bid, turn, action):
@@ -230,7 +234,7 @@ class Aetherbound(commands.Cog):
         i = game.item(p, item_id)
         current = p["inventory"].get(p["equipped"].get(i["slot"]))
         await ctx.send(
-            f"{rarity_label(i['rarity'])} **{i['name']}** • {i['slot']} • level {i['level']}\nPower {i['power']} + upgrade {i['upgrade'] * 2}; modifiers {i['bonuses']}\nUnique: {i['unique'] or 'none'} • Two-handed: {i['twohand']}\nCurrently equipped: {current['name'] if current else 'nothing'}\nUnique effects: wayfarer heals 3 on guard; spiritward reduces guarded damage by 15%; emberblade adds 3 damage once per attack."
+            f"{rarity_label(i['rarity'])} **{i['name']}** • {i['slot']} • level {i['level']}\nPower {i['power']} + upgrade {i['upgrade'] * 2}; modifiers {i['bonuses']}\n{customization_detail(i)}\nUnique: {i['unique'] or 'none'} • Two-handed: {i['twohand']}\nCurrently equipped: {current['name'] if current else 'nothing'}\nUnique effects: wayfarer heals 3 on guard; spiritward reduces guarded damage by 15%; emberblade adds 3 damage once per attack."
         )
 
     async def equip_items(self, ctx, item_ids):
@@ -298,7 +302,7 @@ class Aetherbound(commands.Cog):
             "Upgrade: 2 iron + 25 × (current upgrade + 1) gold. Guaranteed; cap +5.\n"
             "Slots: "
             + ", ".join(SLOTS)
-            + "\nUse aether forge main, or aether forge relic tsukara. Add true after the recipe for a two-handed main weapon: aether forge main normal true."
+            + f"\n```text\n{ctx.clean_prefix}aether forge main\n{ctx.clean_prefix}aether forge relic tsukara\n{ctx.clean_prefix}aether forge main normal true\n{ctx.clean_prefix}aether sets\n```\nThe third example crafts a two-handed weapon. Sets and runes unlock at level 6 after the tutorial."
         )
 
     @adventure.command()
@@ -309,9 +313,43 @@ class Aetherbound(commands.Cog):
         )
         p = await self.require(ctx)
         await ctx.send(
-            f"Forged **{i['name']}**. Equip with `{ctx.clean_prefix}aether equip {i['id']}`.",
+            f"Forged **{i['name']}**. Equip it:\n```text\n{ctx.clean_prefix}aether equip {i['id']}\n```",
             embed=tutorial_embed(p, ctx.clean_prefix) if p["tutorial"] < 6 else None,
             allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @adventure.command(name="sets")
+    async def gear_sets(self, ctx):
+        """Browse set bonuses, crafting costs and rune instructions."""
+        await ctx.send(embed=sets_embed(await self.require(ctx), ctx.clean_prefix))
+
+    @adventure.command()
+    async def setforge(self, ctx, slot: str, set_id: str):
+        """Craft set armor: setforge head dawnward (level 6+)."""
+        i = await self.mutate(ctx, lambda p: game.forge_set(p, slot, set_id), feature="sets")
+        await ctx.send(
+            f"Forged **{i['name']}**. Equip it:\n```text\n{ctx.clean_prefix}aether equip {i['id']}\n```",
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    @adventure.command()
+    async def socket(self, ctx, item_id: str, rune: str):
+        """Add one +2 rune: socket ITEM_ID ember. Costs 75 gold, 2 iron, 4 essence; binds gear."""
+        await ctx.send(
+            await self.mutate(ctx, lambda p: game.socket(p, item_id, rune), feature="sockets")
+        )
+
+    @adventure.command()
+    async def unsocket(self, ctx, item_id: str, confirmation: str = ""):
+        """Destroy a rune for 25 gold: unsocket ITEM_ID confirm. No refund."""
+        if confirmation != "confirm":
+            await ctx.send(
+                f"Removing the rune costs **25 gold**, destroys it and returns no materials. To confirm:\n```text\n{ctx.clean_prefix}aether unsocket {item_id} confirm\n```",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await ctx.send(
+            await self.mutate(ctx, lambda p: game.unsocket(p, item_id), feature="sockets")
         )
 
     @adventure.command()
@@ -542,9 +580,11 @@ class Aetherbound(commands.Cog):
 
     @aetherset.command(name="feature")
     async def feature_switch(self, ctx, feature: str, enabled: bool):
-        """Toggle loot_equip or bulk_salvage without stopping combat."""
-        if feature not in ("loot_equip", "bulk_salvage"):
-            raise game.RuleError("Features: loot_equip, bulk_salvage. Use true or false.")
+        """Toggle crafting (sets/sockets), loot_equip or bulk_salvage. Existing gear keeps its stats."""
+        if feature not in ("loot_equip", "bulk_salvage", "sets", "sockets"):
+            raise game.RuleError(
+                "Features: loot_equip, bulk_salvage, sets, sockets. Use true or false."
+            )
         async with self.guild_locks[ctx.guild.id]:
             settings = await self.store.settings(ctx.guild.id)
             settings.setdefault("features", {})[feature] = enabled

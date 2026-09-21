@@ -6,7 +6,18 @@ import random
 import re
 import uuid
 
-from .content import ATTRS, CLASSES, INTENTS, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
+from .content import (
+    ATTRS,
+    CLASSES,
+    GEAR_SETS,
+    INTENTS,
+    MECHANICS,
+    MONSTERS,
+    QUESTS,
+    RUNES,
+    SKILLS,
+    SLOTS,
+)
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, item_name, rarity_label, roll_rarity
 
 
@@ -58,6 +69,7 @@ def make_item(slot, level=1, rarity="common", rng=None, name=None, unique=None, 
         unique=unique,
         twohand=twohand,
         sockets=[],
+        set_id=None,
         locked=False,
         bound=bool(unique),
     )
@@ -131,14 +143,38 @@ def class_action(p, action, damaging):
     return bonus
 
 
-def stats(p):
+def set_counts(p):
+    counts = {}
+    for key in set(p["equipped"].values()):
+        set_id = p["inventory"][key].get("set_id")
+        if set_id in GEAR_SETS:
+            counts[set_id] = counts.get(set_id, 0) + 1
+    return counts
+
+
+def attributes(p):
     attrs = {a: 4 + p["level"] + p["attrs"][a] for a in ATTRS}
+    for key in set(p["equipped"].values()):
+        i = p["inventory"][key]
+        for a, value in i["bonuses"].items():
+            attrs[a] += value
+        for rune in i.get("sockets", [])[:1]:
+            if rune in RUNES:
+                attrs[RUNES[rune]] += 2
+    for key, count in set_counts(p).items():
+        for threshold, bonuses in GEAR_SETS[key]["bonuses"].items():
+            if count >= threshold:
+                for a, value in bonuses.items():
+                    attrs[a] += value
+    return attrs
+
+
+def stats(p):
+    attrs = attributes(p)
     weapon = armor = 0
     uniques = set()
     for item_id in set(p["equipped"].values()):
         i = p["inventory"][item_id]
-        for a, value in i["bonuses"].items():
-            attrs[a] += value
         power = i["power"] + i["upgrade"] * 2
         if i["slot"] == "main":
             weapon += power * (1.5 if i["twohand"] else 1)
@@ -273,6 +309,71 @@ def forge(p, slot, boss=None, twohand=False):
     p["forged"].append(i["id"])
     advance_tutorial(p)
     return i
+
+
+def customization_ready(p):
+    idle(p)
+    if p["tutorial"] < 6 or p["level"] < 6:
+        raise RuleError("Finish the tutorial and reach level 6 to customize gear.")
+
+
+def forge_set(p, slot, set_id):
+    customization_ready(p)
+    if set_id not in GEAR_SETS or slot not in SLOTS[2:7]:
+        raise RuleError("Choose dawnward, moonstep or starweave and head/chest/hands/legs/feet.")
+    gold = 100 + 10 * p["level"]
+    if len(p["inventory"]) >= 200:
+        raise RuleError("Inventory full (200). Salvage an item first.")
+    if (
+        p["gold"] < gold
+        or p["materials"].get("iron", 0) < 8
+        or p["materials"].get("essence", 0) < 4
+    ):
+        raise RuleError(f"Requires {gold} gold, 8 iron and 4 essence.")
+    i = make_item(slot, p["level"], "rare", name=f"{GEAR_SETS[set_id]['name']} {slot.title()}")
+    i["set_id"] = set_id
+    p["gold"] -= gold
+    p["materials"]["iron"] -= 8
+    p["materials"]["essence"] -= 4
+    p["inventory"][i["id"]] = i
+    return i
+
+
+def socket(p, item_id, rune):
+    customization_ready(p)
+    i = item(p, item_id)
+    if i.get("locked"):
+        raise RuleError("Unlock this item before changing its socket.")
+    if i["level"] < 6 or i["level"] > p["level"]:
+        raise RuleError("Socket gear must be level 6 or higher and within your level.")
+    if rune not in RUNES:
+        raise RuleError("Runes: " + ", ".join(RUNES))
+    if i.get("sockets"):
+        raise RuleError("One socket per item. Use unsocket first; it destroys the old rune.")
+    if p["gold"] < 75 or p["materials"].get("iron", 0) < 2 or p["materials"].get("essence", 0) < 4:
+        raise RuleError(
+            "Requires 75 gold, 2 iron and 4 essence. Guaranteed +2 to the rune attribute."
+        )
+    p["gold"] -= 75
+    p["materials"]["iron"] -= 2
+    p["materials"]["essence"] -= 4
+    i["sockets"] = [rune]
+    i["bound"] = True
+    return f"Socketed {rune} into {i['name']}: +2 {RUNES[rune]}. Item is now bound."
+
+
+def unsocket(p, item_id):
+    customization_ready(p)
+    i = item(p, item_id)
+    if i.get("locked") or not i.get("sockets"):
+        raise RuleError("Choose an unlocked item with a rune.")
+    if p["gold"] < 25:
+        raise RuleError(
+            "Removing a rune costs 25 gold and destroys the rune; no materials returned."
+        )
+    p["gold"] -= 25
+    i["sockets"] = []
+    return f"Removed and destroyed the rune from {i['name']}. Binding is unchanged."
 
 
 def upgrade(p, item_id):
