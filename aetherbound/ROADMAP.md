@@ -21,13 +21,16 @@ Armor now gains logarithmically above 100. Extended boss-policy simulations and
 resource/upgrade tests accompany the new baseline. Free attribute respec remains.
 More classes remain a later expansion, after feedback on these three playstyles.
 
-## Next: sets, then sockets
+## Sets and sockets — implemented
 
-Put set bonuses in stats() so complete-loadout comparisons see them. Preserve the
-binding policy already stored on items. Add intentional socket customization;
-no gear rerolls. Extend simulations for set combinations and effect stacking.
+Three craftable rare armor sets with cumulative 2/4-piece attribute bonuses.
+One +2 attribute rune per level 6+ item. Stats, profiles and whole-loadout ratings
+share the same calculation. Socketing binds gear; confirmed rune removal destroys
+it without a refund. No rerolls. Fixed material/gold sinks use existing audits.
+Admin switches block new set crafting or socket changes; existing bonuses remain.
+CUSTOMIZATION_BALANCE.md compares every set and maximum offensive/defensive sockets.
 
-## Shared-pool boss spawns
+## Next: shared-pool boss spawns
 
 Keep personal act() encounters, but persist shared boss HP separately. Apply
 validated damage, contribution and participation limits atomically; design rewards

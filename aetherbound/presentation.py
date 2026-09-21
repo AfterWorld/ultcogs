@@ -1,9 +1,11 @@
 """Player-facing embeds shared by commands and persistent channel guides."""
 
+import re
+
 import discord
 
 from . import engine as game
-from .content import ATTRS, CLASSES, MECHANICS, SLOTS
+from .content import CLASSES, GEAR_SETS, MECHANICS, RUNES, SLOTS
 from .loot import rarity_label
 
 COLOR = 0x836FFF
@@ -27,6 +29,73 @@ SLOT_NAMES = dict(
 )
 
 
+def command_boxes(text, prefix):
+    """Box only complete command examples, leaving IDs and prose inline."""
+    pattern = r"`(" + re.escape(prefix) + r"(?:aether|ae|a)(?: [^`\n]+)?)`"
+    text = re.sub(pattern, lambda m: "\n```text\n" + m[1] + "\n```\n", text)
+    return re.sub(r"\n```\n\s*(?:·\s*)?\n```text\n", "\n", text).strip()
+
+
+def tidy_commands(embed, prefix):
+    if embed.description:
+        embed.description = command_boxes(embed.description, prefix)
+    for n, field in enumerate(embed.fields):
+        embed.set_field_at(
+            n, name=field.name, value=command_boxes(field.value, prefix), inline=field.inline
+        )
+    return embed
+
+
+def customization_detail(i):
+    lines = []
+    if i.get("set_id") in GEAR_SETS:
+        lines.append("Set: " + GEAR_SETS[i["set_id"]]["name"])
+    runes = i.get("sockets", [])
+    if runes:
+        lines.append(
+            "Rune: " + ", ".join(f"{x.title()} (+2 {RUNES[x]})" for x in runes if x in RUNES)
+        )
+    elif i["level"] >= 6:
+        lines.append("Rune socket: empty")
+    return "\n".join(lines)
+
+
+def sets_embed(p, prefix):
+    e = discord.Embed(
+        title="✧ Sets & rune sockets",
+        color=COLOR,
+        description="Unlock at level 6 after the tutorial. Any class can wear any set. Bonuses stack at 2 and 4 different armor pieces; a fifth piece adds no extra set bonus.",
+    )
+    counts = game.set_counts(p)
+    for key, data in GEAR_SETS.items():
+        bonuses = "\n".join(
+            f"{n} pieces: " + ", ".join(f"+{v} {a}" for a, v in bonus.items())
+            for n, bonus in data["bonuses"].items()
+        )
+        e.add_field(
+            name=f"{data['name']} · {counts.get(key, 0)}/5 equipped",
+            value=bonuses + f"\n`{prefix}aether setforge head {key}`",
+            inline=False,
+        )
+    e.add_field(
+        name="Forge a set piece",
+        value="Slots: head, chest, hands, legs, feet. Each piece costs 8 iron + 4 essence + (100 + 10 × your level) gold. Rare gear at your current level; binds on equip.",
+        inline=False,
+    )
+    e.add_field(
+        name="Add a rune",
+        value="\n".join(f"**{key}**: +2 {attr}" for key, attr in RUNES.items())
+        + f"\n`{prefix}aether socket ITEM_ID ember`\n75 gold + 2 iron + 4 essence. One rune per level 6+ item. Socketing binds the item. Guaranteed; no rerolls.",
+        inline=False,
+    )
+    e.add_field(
+        name="Change a rune",
+        value=f"`{prefix}aether unsocket ITEM_ID confirm`\n25 gold. Destroys the rune, with no material refund. Then socket your new choice. Unlock locked items first; no changes during combat.",
+        inline=False,
+    )
+    return tidy_commands(e, prefix)
+
+
 async def guild_prefix(bot, guild):
     prefixes = await bot.get_valid_prefixes(guild)
     return next((p for p in prefixes if not p.startswith("<@")), prefixes[0])
@@ -37,7 +106,7 @@ def tutorial_embed(p, prefix):
         title="✦ Your path to Hoshifall", description=game.tutorial(p, prefix), color=COLOR
     )
     e.set_footer(text=f"Copy the whole command • {prefix}aether tutorial brings you back here")
-    return e
+    return tidy_commands(e, prefix)
 
 
 def profile_embed(p, prefix):
@@ -78,10 +147,7 @@ def profile_embed(p, prefix):
         value=f"**{mechanic['name']} {battle.get('resource', 0) if battle else 0}/{mechanic['cap']}**\n{mechanic['description']}",
         inline=False,
     )
-    attrs = {a: 4 + p["level"] + p["attrs"][a] for a in ATTRS}
-    for key in set(p["equipped"].values()):
-        for attr, bonus in p["inventory"][key]["bonuses"].items():
-            attrs[attr] += bonus
+    attrs = game.attributes(p)
     e.add_field(
         name="✦ Attributes",
         value="\n".join(
@@ -107,6 +173,25 @@ def profile_embed(p, prefix):
             )
             lines.append(f"**{SLOT_NAMES[slot]}** · {detail}")
         e.add_field(name=title, value="\n".join(lines), inline=False)
+    counts = game.set_counts(p)
+    if counts:
+        e.add_field(
+            name="✧ Set bonuses",
+            value="\n".join(
+                f"**{GEAR_SETS[key]['name']}** · {count}/5 · "
+                + (
+                    "; ".join(
+                        f"+{v} {a}"
+                        for n, bonus in GEAR_SETS[key]["bonuses"].items()
+                        if count >= n
+                        for a, v in bonus.items()
+                    )
+                    or "Collect 2 pieces for a bonus"
+                )
+                for key, count in counts.items()
+            ),
+            inline=False,
+        )
     if s["uniques"]:
         effects = {
             "wayfarer": "Wayfarer: heal 3 HP when guarding",
@@ -130,7 +215,7 @@ def profile_embed(p, prefix):
     e.set_footer(
         text="★ Class damage attribute • Outside combat, HP and energy show encounter starting values"
     )
-    return e
+    return tidy_commands(e, prefix)
 
 
 def channel_embed(key, settings, prefix):
@@ -212,7 +297,7 @@ def channel_embed(key, settings, prefix):
         e.description = "Post an offer here. Discuss it in the thread the bot opens."
         e.add_field(
             name="Copyable example",
-            value="`trading iron sword for crystal staff`\nNo command prefix needed. Replace the item names with your offer.",
+            value="```text\ntrading iron sword for crystal staff\n```\nNo command prefix needed. Replace the item names with your offer.",
             inline=False,
         )
         e.add_field(
@@ -238,6 +323,12 @@ def channel_embed(key, settings, prefix):
             value=f"Use `{c} profile` to inspect your hero or `{c} skills` to learn your class. Continue battles in {adventure}.",
             inline=False,
         )
+    if key in ("adventures", "tavern"):
+        e.add_field(
+            name="Sets & runes · level 6+",
+            value=f"`{c} sets`\nBrowse collections, crafting costs and rune instructions.",
+            inline=False,
+        )
     if key in ("guide", "adventures", "tavern"):
         e.add_field(
             name="Quest board & daily supplies",
@@ -247,7 +338,7 @@ def channel_embed(key, settings, prefix):
     e.set_footer(
         text="Live help • Buttons read your saved character • Examples use this server’s prefix"
     )
-    return e
+    return tidy_commands(e, prefix)
 
 
 def quest_embed(p, prefix):
@@ -288,7 +379,7 @@ def quest_embed(p, prefix):
     e.set_footer(
         text="Each quest pays once • Practice battles do not count • Accepting never costs gold"
     )
-    return e
+    return tidy_commands(e, prefix)
 
 
 def shop_embed(shop, gold, prefix):
@@ -316,7 +407,7 @@ def shop_embed(shop, gold, prefix):
     e.set_footer(
         text="Codes include the date to prevent buying a different item after rotation • Unique loot comes from combat"
     )
-    return e
+    return tidy_commands(e, prefix)
 
 
 def inventory_embed(p, page, prefix):
@@ -327,7 +418,7 @@ def inventory_embed(p, page, prefix):
         title=f"{p['name']}'s inventory",
         description=(
             f"**{p['gold']:,} gold** · {p['potions']} potions · {len(items)}/200 items\n"
-            f"Equip: `{prefix}ae equip ID1 ID2` · Inspect: `{prefix}ae item ID`"
+            f"Equip or inspect an item:\n`{prefix}aether equip ID1 ID2`\n`{prefix}aether item ID`"
         ),
         color=COLOR,
     )
@@ -341,6 +432,9 @@ def inventory_embed(p, page, prefix):
             f"{'🔒 Locked · ' if i.get('locked') else ''}{'Bound' if i.get('bound') else 'Unbound'}\n"
             f"**Power {power}**" + (f" · {bonus}" if bonus else "")
         )
+        extra = customization_detail(i)
+        if extra:
+            details += "\n" + extra
         if i["twohand"]:
             details += "\nTwo-handed · ×1.5 weapon power"
         if i["unique"]:
@@ -364,4 +458,4 @@ def inventory_embed(p, page, prefix):
     e.set_footer(
         text=f"Page {page}/{pages} · Power includes upgrades · Controls expire after 3 minutes"
     )
-    return e, page, pages
+    return tidy_commands(e, prefix), page, pages

@@ -470,8 +470,20 @@ class ProfileView(discord.ui.LayoutView):
         panel.add_item(nav)
         fields = {
             "Overview": {"✧ Journey", "◈ Supplies & feats", "Next move"},
-            "Combat": {"⚔ Combat", "✦ Attributes", "✺ Active gear effects", "Class mechanic"},
-            "Equipment": {"⚔ Weapons", "⛨ Armor", "✧ Accessories", "✺ Active gear effects"},
+            "Combat": {
+                "⚔ Combat",
+                "✦ Attributes",
+                "✺ Active gear effects",
+                "Class mechanic",
+                "✧ Set bonuses",
+            },
+            "Equipment": {
+                "⚔ Weapons",
+                "⛨ Armor",
+                "✧ Accessories",
+                "✺ Active gear effects",
+                "✧ Set bonuses",
+            },
         }[self.page]
         for field in sheet.fields:
             if field.name in fields:
@@ -480,7 +492,7 @@ class ProfileView(discord.ui.LayoutView):
         if self.page == "Equipment":
             panel.add_item(
                 discord.ui.TextDisplay(
-                    f"-# Manage gear in adventures: `{prefix}aether inventory` then `{prefix}aether equip ID1 ID2`."
+                    f"Manage gear in adventures:\n```text\n{prefix}aether inventory\n{prefix}aether equip ID1 ID2\n{prefix}aether sets\n```"
                 )
             )
         if self.page == "Combat":

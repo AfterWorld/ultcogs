@@ -533,3 +533,44 @@ all normal enemies and both bosses; level-1 starter equipment is less reliable
 against late bosses, especially when ignoring class mechanics. These scenarios
 are regression checks, not proof that every real player's build is equally strong.
 The previous report remains available in Git history at PR #23.
+
+
+## Sets, sockets and compact command guides
+
+Use `.ae sets` for the live collection board and exact costs. Available after
+completing the tutorial at level 6; existing characters and items are preserved.
+
+| Set | 2 pieces | 4 pieces (additional) |
+|---|---|---|
+| Dawnward Oath | +3 vitality | +4 strength |
+| Moonstep Veil | +3 dexterity | +4 vitality |
+| Starweave Covenant | +3 intelligence | +4 willpower |
+
+Any class can mix sets. Craft head/chest/hands/legs/feet with
+`.ae setforge head dawnward` (or moonstep/starweave). Each rare piece costs 8 iron,
+4 essence and 100 + 10 × player level gold. It binds on equip. Sets are crafted,
+not newly added random drops. Five pieces still grant only the 2/4 thresholds.
+
+`.ae socket ITEM_ID ember` crafts and installs a rune for 75 gold, 2 iron and
+4 essence, binding the item. One socket per item, item level 6+ and no higher
+than the player. Ember/gale/aether/stone/spirit give +2 strength/dexterity/
+intelligence/vitality/willpower respectively. Guaranteed results, no rerolls.
+`.ae unsocket ITEM_ID confirm` destroys the rune for 25 gold with no refund.
+Locked items must be unlocked; customization is unavailable during combat.
+Salvage returns the normal rarity yield only, not rune or crafting costs.
+
+Set and rune attributes flow through `stats()` and the existing auto-equip
+rating. Auto-equip evaluates one candidate at a time, not combinations of items
+in the bag; equip a desired collection manually when building toward a threshold.
+Inventory/item inspection shows customization; profile attributes include it.
+Existing energy/critical caps still apply. See CUSTOMIZATION_BALANCE.md for
+3,600 deterministic maximum-stacking comparisons, alongside the unchanged
+17,550-fight plain-gear baseline. These do not replace live balance feedback.
+
+`.aetherset feature sets false` blocks new set crafting; `sockets false` blocks
+socket insertion/removal. Neither removes existing stats. Currency/material
+spending and new set items use the transactional economy audit.
+
+Tutorials, channel guides, inventory, quest and shop examples now use compact
+copyable code boxes with the server prefix. After updating/reloading, run
+`.aetherset guides` to refresh existing channel posts. No server recreation needed.

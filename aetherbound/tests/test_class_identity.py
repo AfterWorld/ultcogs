@@ -50,7 +50,9 @@ def test_momentum_requires_alternation_and_resets():
     assert p["battle"]["resource"] == 1
     turn(p, "guard")
     assert p["battle"]["resource"] == 0
-    assert g.stats(p)["crit"] == pytest.approx(g.stats(fighter("vanguard"))["crit"] + 0.03)
+    same_gear = copy.deepcopy(p)
+    same_gear["cls"] = "vanguard"
+    assert g.stats(p)["crit"] == pytest.approx(g.stats(same_gear)["crit"] + 0.03)
 
 
 def test_charges_discount_real_cost_and_legacy_battles():
