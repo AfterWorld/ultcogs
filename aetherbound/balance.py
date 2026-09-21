@@ -7,7 +7,7 @@ import random
 from statistics import mean
 
 from . import engine as g
-from .content import CLASSES, MONSTERS, SKILLS, SLOTS
+from .content import CLASSES, MONSTERS, SLOTS
 
 
 def actor(cls, level, gear, seed):
@@ -37,12 +37,24 @@ def simulate(cls, key, gear, seed, smart=True):
             if b["turn"] % 3 == 2:
                 action = (
                     "skill2"
-                    if not b["cooldowns"].get("skill2")
-                    and b["energy"] >= SKILLS[cls]["skill2"]["cost"]
+                    if not b["cooldowns"].get("skill2") and b["energy"] >= g.skill_cost(p, "skill2")
                     else "guard"
                 )
-            elif not b["cooldowns"].get("skill1") and b["energy"] >= SKILLS[cls]["skill1"]["cost"]:
+            elif not b["cooldowns"].get("skill1") and b["energy"] >= g.skill_cost(p, "skill1"):
                 action = "skill1"
+        if smart == "identity":
+
+            def ready(key):
+                return not b["cooldowns"].get(key) and b["energy"] >= g.skill_cost(p, key)
+
+            if b["turn"] % 3 == 2 and ready("skill3"):
+                action = "skill3"
+            elif cls == "arcanist" and b.get("resource", 0) < 2 and b["turn"] % 3 != 2:
+                action = "attack"
+            elif cls == "strider" and action == b["last"]:
+                action = (
+                    "attack" if b["last"] != "attack" else "skill2" if ready("skill2") else "guard"
+                )
         g.act(p, b["id"], b["turn"], action, rng)
         turns += 1
     return bool(p["wins"]), turns
@@ -58,7 +70,7 @@ def report(samples=50):
                     (cls, key, gear, mean(w for w, t in outcomes), mean(t for w, t in outcomes))
                 )
     lines = [
-        "# Phase 1 balance baseline",
+        "# Class identity balance baseline",
         "",
         f"{len(rows) * samples:,} seeded solo simulations; fixed monster level, equally leveled player, no potions. Each player allocates one point/level to their class stat and one to vitality. The scripted strategy interrupts charged attacks and uses its damage skill when available. Starter gear is level 1 in every slot; all other gear matches the player level. Higher-tier cases are stress tests even at levels where those tiers cannot drop; Unique effects have separate regression tests.",
         "",
@@ -88,6 +100,30 @@ def report(samples=50):
             lines.append(f"| {cls} | {key} | {gear} | {win:.1%} | {turns:.1f} |")
     lines += [
         "",
+        "## Boss strategy comparison",
+        "",
+        "50 seeds per case, no potions; 1,800 additional fights. Starter gear stays at level 1. "
+        "Identity rotates defensive skills, banks Arcanist charges and avoids repeated Strider attacks. These policies are not optimal play.",
+        "",
+        "| Class | Boss | Gear | Strategy | Win rate | Mean turns |",
+        "|---|---|---|---|---:|---:|",
+    ]
+    for cls in CLASSES:
+        for boss in ("tsukara", "raizen"):
+            for gear in ("starter", "common"):
+                for label, policy in (
+                    ("Attack only", False),
+                    ("Interrupt", True),
+                    ("Identity", "identity"),
+                ):
+                    outcomes = [
+                        simulate(cls, boss, gear, seed, smart=policy) for seed in range(samples)
+                    ]
+                    lines.append(
+                        f"| {cls} | {boss} | {gear} | {label} | {mean(w for w, t in outcomes):.1%} | {mean(t for w, t in outcomes):.1f} |"
+                    )
+    lines += [
+        "",
         "## Experience pacing",
         "",
         "| Current level | EXP to next | Same-level normal wins (rounded up) |",
@@ -108,7 +144,7 @@ def armor_report(samples=50):
         "50 seeds per row. Higher tiers below their unlock level are stress tests. "
         "The final column counts builds where adding +1 upgrade to the chest produces no armor gain.",
         "",
-        "| Level | Rarity | Mean armor | At 100 cap | Wasted chest upgrade |",
+        "| Level | Rarity | Mean armor | Above soft threshold | Wasted chest upgrade |",
         "|---|---|---:|---:|---:|",
     ]
     for level in (1, 3, 5, 6, 8, 10, 15, 20):
@@ -118,7 +154,7 @@ def armor_report(samples=50):
                 p = actor("vanguard", level, rarity, seed)
                 before = g.stats(p)["armor"]
                 armor.append(before)
-                capped += before == 100
+                capped += before > 100
                 p["inventory"][p["equipped"]["chest"]]["upgrade"] = 1
                 wasted += g.stats(p)["armor"] == before
             lines.append(
@@ -126,10 +162,9 @@ def armor_report(samples=50):
             )
     lines += [
         "",
-        "Combat already applies diminishing damage reduction via 100 / (100 + armor), "
-        "then the separate 100-armor ceiling prevents further armor benefits. "
-        "The baseline remains unchanged in this refactor. A later balance patch should evaluate "
-        "removing or softening the ceiling before sets add armor; test boss difficulty again.",
+        "Effective armor equals raw armor up to 100, then 100 + 50 * ln(1 + (raw - 100) / 50). "
+        "Damage reduction still uses 100 / (100 + effective armor). Every extra point of raw armor "
+        "increases effective armor, though integer damage rounding can hide a small gain on an individual hit.",
     ]
     return "\n".join(lines) + "\n"
 

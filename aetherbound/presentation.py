@@ -3,7 +3,7 @@
 import discord
 
 from . import engine as game
-from .content import ATTRS, CLASSES, SLOTS
+from .content import ATTRS, CLASSES, MECHANICS, SLOTS
 from .loot import rarity_label
 
 COLOR = 0x836FFF
@@ -68,9 +68,15 @@ def profile_embed(p, prefix):
     e.add_field(name="✧ Journey", value=progress, inline=False)
     hp = f"{battle['hp']}/{battle['maxhp']}" if battle else str(s["hp"])
     energy = f"{battle['energy']}/{s['energy']}" if battle else str(s["energy"])
+    mechanic = MECHANICS[p["cls"]]
     e.add_field(
         name="⚔ Combat",
         value=f"HP **{hp}**\nEnergy **{energy}**\nAttack **{s['attack']:.1f}**\nArmor **{s['armor']:.1f}** · Crit **{s['crit']:.0%}**",
+    )
+    e.add_field(
+        name="Class mechanic",
+        value=f"**{mechanic['name']} {battle.get('resource', 0) if battle else 0}/{mechanic['cap']}**\n{mechanic['description']}",
+        inline=False,
     )
     attrs = {a: 4 + p["level"] + p["attrs"][a] for a in ATTRS}
     for key in set(p["equipped"].values()):

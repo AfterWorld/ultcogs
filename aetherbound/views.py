@@ -7,7 +7,7 @@ import discord
 from . import economy
 from . import engine as game
 from .art import ART_VERSION, thumbnail
-from .content import CLASSES, MONSTERS, SKILLS
+from .content import CLASSES, MECHANICS, MONSTERS, SKILLS
 from .engine import RuleError, intent
 from .presentation import (
     channel_embed,
@@ -33,9 +33,15 @@ def battle_embed(p):
     e.add_field(
         name="Skills",
         value="\n".join(
-            f"{skill['name']} — {skill['cost']} energy; cooldown {b['cooldowns'].get(key, 0)}"
+            f"{skill['name']} — {game.skill_cost(p, key)} energy; cooldown {b['cooldowns'].get(key, 0)}"
             for key, skill in SKILLS[p["cls"]].items()
         ),
+        inline=False,
+    )
+    mechanic = MECHANICS[p["cls"]]
+    e.add_field(
+        name=f"{mechanic['name']}: {b.get('resource', 0)}/{mechanic['cap']}",
+        value=mechanic["description"],
         inline=False,
     )
     if b["practice"]:
@@ -49,7 +55,7 @@ def battle_embed(p):
             inline=False,
         )
     e.set_footer(
-        text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +10 • Progress saves after each action"
+        text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +{MECHANICS[p['cls']]['guard_energy']} • Progress saves after each action"
     )
     if b.get("art") == ART_VERSION:
         thumbnail(e, b["monster"])
@@ -464,7 +470,7 @@ class ProfileView(discord.ui.LayoutView):
         panel.add_item(nav)
         fields = {
             "Overview": {"✧ Journey", "◈ Supplies & feats", "Next move"},
-            "Combat": {"⚔ Combat", "✦ Attributes", "✺ Active gear effects"},
+            "Combat": {"⚔ Combat", "✦ Attributes", "✺ Active gear effects", "Class mechanic"},
             "Equipment": {"⚔ Weapons", "⛨ Armor", "✧ Accessories", "✺ Active gear effects"},
         }[self.page]
         for field in sheet.fields:
