@@ -172,12 +172,13 @@ Personal encounters select fixed-level monsters near the player's level in the
 chosen region. Embervein unlocks at level 8. Shared spawns choose bosses with a
 15% probability; within normal/boss pools selection is uniform. All 15 enemies
 can spawn, even if some players are not ready for them. Encounters disclose their
-level and expire after 15 minutes; at most one unclaimed shared spawn is active
-per server. Claiming requires being no more than four levels below the enemy.
+level. Normal spawns expire after 15 minutes; shared bosses allow 30 minutes.
+At most one open spawn is active per server. Entry requires being no more than
+four levels below the enemy.
 
-**Engage claims a solo encounter**, then posts its battle in adventures. Public
-cooperative fights are Phase 3. Shared spawn claims and player battle creation
-are one SQLite transaction, so two users cannot claim the same encounter.
+**Engage** posts personal battle controls in adventures. Normal spawns can be
+claimed once; new boss spawns allow multiple players to contribute to shared HP.
+See Shared bosses below for participation, expiry and reward rules.
 
 Choose Attack, Guard, a class skill, Potion or Flee. Charged attacks are announced
 before they resolve. Only the battle owner may act. Every action checks the saved
@@ -220,10 +221,9 @@ All rarity affix points are distributed from a fixed budget. Critical chance
 is capped at 35%, upgrades at +5 and energy capacity at 80. Armor has diminishing gains above 100, rather than a hard cap.
 
 Forge any slot from iron, essence and gold. Boss recipes also require two boss
-cores. Further monster-specific uses for fangs, wood, crystal and ember, plus
-sockets, enchanting, specializations and expanded weapon types, are later phases.
-The schema includes an unused socket field for those extensions. There is no
-socket/enchant command in Phase 1.
+cores. Gear sets and sockets are available at level 6 after the tutorial; use
+`[p]aether sets` for instructions. Further material uses, enchanting,
+specializations and expanded weapon types remain later phases.
 
 ## Quests: accept, complete, claim
 
@@ -318,8 +318,10 @@ refresh the guides; `[p]aetherset guides` is sufficient if permissions are ready
 Human-created pixel art by Stephen "Redshrike" Challener is bundled for Lantern
 Slime, Cinder Imp, Hollow Mask, Wisp-Eater and Forge Revenant under CC BY 3.0.
 These are representative sprites, not commissioned depictions of the lore.
-All AI portraits have been removed. The remaining ten creatures (including both
-bosses) use text embeds until suitable artwork is available; all 15 remain playable.
+Ironback Beetle now also uses CC BY 3.0 artwork; Raizen uses a representative
+armored soldier under CC BY-SA 3.0, commissioned by Bertram. All AI portraits
+have been removed. The remaining eight creatures, including Tsukara, use text
+embeds until suitable artwork is available; all 15 remain playable.
 Art appears in new spawn posts, battles and bestiary entries with visible credits.
 No external image download happens at runtime. Existing Discord posts retain their
 old uploads; resume a battle to publish the current artwork. The asset README lists
@@ -574,3 +576,57 @@ spending and new set items use the transactional economy audit.
 Tutorials, channel guides, inventory, quest and shop examples now use compact
 copyable code boxes with the server prefix. After updating/reloading, run
 `.aetherset guides` to refresh existing channel posts. No server recreation needed.
+
+
+## Shared bosses and inventory Equip best
+
+New Tsukara/Raizen board spawns are shared encounters by default. Normal spawns
+remain solo; old posts and dungeon bosses keep their existing solo behavior.
+
+- Watch the encounter board and press **Engage**, or use `.ae boss` then
+  `.ae boss join ENCOUNTER_ID`. Finish the tutorial; leave any dungeon first.
+- Tsukara is level 10, entry level 6. Raizen is level 20, entry level 16.
+  Minimum entry does not guarantee an easy fight. Normal `.ae explore` excludes
+  bosses; `.ae dungeon` (6+) ends with solo Tsukara in room four.
+- Shared HP equals two normal boss bars (Tsukara 2,280; Raizen 4,080). Up to 20
+  participants, one personal attempt each. At least two full contributions are
+  needed. Each player uses the existing personal turn controls and boss mechanics.
+- Damage, including bleed, is clamped to remaining shared HP and committed with
+  the personal turn and contribution in one SQLite transaction. Personal victories
+  grant no rewards. Retreat/death preserves credit but never permits a new attempt.
+- The group must win within 30 minutes. Deal at least 5% of total shared HP to
+  qualify. Press **Claim reward** or `.ae boss claim ENCOUNTER_ID` afterwards.
+  Gold/EXP scale as min(100%, twice your share of total HP), with existing
+  overlevel penalties. Qualified players get normal boss materials and signature
+  loot, including the existing unique-drop roll. Quest/boss wins count on claim.
+- Claims are atomic, once per player, and available until seven days after the
+  original encounter deadline. Full loot overflow delays claiming without losing
+  eligibility. Claims are unavailable during an unrelated battle. Expired fights
+  without a group victory pay nothing; the next battle click safely ends them.
+- Pool HP, attempts and claim state survive restart. `.ae resume` restores
+  personal controls; `.ae boss` shows recent encounters and your contribution.
+  Boards refresh during play (throttled to five seconds) and every minute;
+  personal views display the pool snapshot from that player's last action.
+- Admins can use `.aetherset spawn tsukara` or `raizen`. One waiting encounter
+  occupies the board at a time. `.aetherset feature shared_bosses false` blocks
+  shared joins/attacks (Flee and earned claims still work); new boss spawns fall
+  back to solo. Expiry clocks continue while paused. Toggle true to resume.
+
+The database advances additively to schema 3; old characters, equipment and
+battles are preserved. Earlier cog versions cannot open schema 3. Contribution
+records are included in Red data export/deletion and cleaned after the claim window.
+Currency, material and item rewards use the existing economy audit. See
+BOSS_BALANCE.md for 600 deterministic 2/3/6-player groups. Real participation,
+Discord delivery and economy behavior still need live feedback.
+
+The inventory **Equip best** button scans all 200 bag slots, applies up to 11
+passes of strictly improving single-item swaps, and equips/binds only the final
+selection. It respects locks, level requirements, two-handed restrictions and
+active battles; it uses the existing `loot_equip` kill switch. This is an estimated
+whole-loadout rating, not exhaustive optimization of set combinations or weapon/
+off-hand pairs. Manual equip remains available for a preferred build.
+
+Artwork now covers seven creatures: Ironback Beetle and a representative armored
+Raizen join the existing five. Eight still need matching human-created art,
+including Tsukara. See assets/monsters/README.md for sources, per-image licenses
+and exact adaptations. Run `.aetherset guides` after update/reload for new help.

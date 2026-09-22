@@ -59,6 +59,12 @@ def battle_embed(p):
     )
     if b.get("art") == ART_VERSION:
         thumbnail(e, b["monster"])
+    if b.get("shared_pool"):
+        e.add_field(
+            name="Shared boss contribution",
+            value="Your attacks feed the shared HP pool. One attempt per encounter. Personal victory does not award loot; claim after the shared boss falls.",
+            inline=False,
+        )
     return e
 
 
@@ -113,6 +119,31 @@ class InventoryView(SafeView):
 
             button.callback = callback
             self.add_item(button)
+        best = discord.ui.Button(label="Equip best", style=discord.ButtonStyle.success)
+
+        async def equip_callback(i):
+            if not await self.interaction_check(i):
+                return
+            await i.response.defer()
+            try:
+                result = await self.cog.store.change(
+                    i.guild.id,
+                    self.owner,
+                    lambda p, c: game.equip_best(p),
+                    reason="inventory_equip_best",
+                    feature="loot_equip",
+                )
+                p = await self.cog.store.player(i.guild.id, self.owner)
+                self.render(p)
+                await i.edit_original_response(embed=self.embed, view=self)
+                await i.followup.send(
+                    result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none()
+                )
+            except RuleError as e:
+                await i.followup.send(str(e), ephemeral=True)
+
+        best.callback = equip_callback
+        self.add_item(best)
         self.render(player)
 
     async def interaction_check(self, i):
@@ -291,8 +322,9 @@ class BattleView(SafeView):
 
 
 class SpawnView(SafeView):
-    def __init__(self, cog, spawn_id):
+    def __init__(self, cog, spawn_id, shared=False):
         super().__init__(cog)
+        self.spawn_id = spawn_id
         btn = discord.ui.Button(
             label="Engage", style=discord.ButtonStyle.danger, custom_id=f"ab:spawn:{spawn_id}"
         )
@@ -300,7 +332,9 @@ class SpawnView(SafeView):
         async def callback(i):
             await i.response.defer(ephemeral=True)
             try:
-                await self.cog.claim_spawn(i, spawn_id)
+                is_shared = await self.cog.claim_spawn(i, spawn_id)
+                if is_shared:
+                    return
                 btn.disabled = True
                 await i.message.edit(view=self)
                 self.stop()
@@ -310,6 +344,26 @@ class SpawnView(SafeView):
 
         btn.callback = callback
         self.add_item(btn)
+
+        if shared:
+            claim = discord.ui.Button(
+                label="Claim reward",
+                custom_id=f"ab:bossclaim:{spawn_id}",
+                style=discord.ButtonStyle.success,
+            )
+
+            async def claim_callback(i):
+                await i.response.defer(ephemeral=True)
+                try:
+                    result = await self.cog.claim_boss(i.guild.id, i.user.id, spawn_id)
+                    await i.followup.send(
+                        result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none()
+                    )
+                except RuleError as e:
+                    await i.followup.send(str(e), ephemeral=True)
+
+            claim.callback = claim_callback
+            self.add_item(claim)
 
 
 class RoleView(SafeView):

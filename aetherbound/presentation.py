@@ -284,7 +284,7 @@ def channel_embed(key, settings, prefix):
         )
         e.add_field(
             name="Before you engage",
-            value="Finish the tutorial. Be within four levels below the enemy. One player claims each spawn; unclaimed encounters expire after 15 minutes.",
+            value="Finish the tutorial. Be within four levels below the enemy. Normal spawns are solo and expire after 15 minutes. Shared bosses allow up to 20 participants for 30 minutes, one attempt each.",
             inline=False,
         )
         e.add_field(
@@ -321,6 +321,12 @@ def channel_embed(key, settings, prefix):
         e.add_field(
             name="Your next adventure",
             value=f"Use `{c} profile` to inspect your hero or `{c} skills` to learn your class. Continue battles in {adventure}.",
+            inline=False,
+        )
+    if key in ("guide", "adventures", "spawns"):
+        e.add_field(
+            name="Boss hunts",
+            value=f"Tsukara: level 10 (entry 6+). Raizen: level 20 (entry 16+). Press Engage on a boss post to contribute, then Claim reward after victory (5% damage minimum).\n`{c} boss`\nTsukara also ends the four-room Hollow Trail: `{c} dungeon`. Normal explore hunts do not roll bosses.",
             inline=False,
         )
     if key in ("adventures", "tavern"):
@@ -418,6 +424,7 @@ def inventory_embed(p, page, prefix):
         title=f"{p['name']}'s inventory",
         description=(
             f"**{p['gold']:,} gold** · {p['potions']} potions · {len(items)}/200 items\n"
+            "**Equip best** compares your whole bag; equipped items bind. Lock gear to protect it.\n"
             f"Equip or inspect an item:\n`{prefix}aether equip ID1 ID2`\n`{prefix}aether item ID`"
         ),
         color=COLOR,
@@ -459,3 +466,31 @@ def inventory_embed(p, page, prefix):
         text=f"Page {page}/{pages} · Power includes upgrades · Controls expire after 3 minutes"
     )
     return tidy_commands(e, prefix), page, pages
+
+
+def boss_embed(pool, participants=0):
+    import time
+
+    from .content import MONSTERS
+
+    m = MONSTERS[pool["monster"]]
+    status = (
+        "Defeated" if pool["hp"] <= 0 else "Expired" if pool["expires"] <= time.time() else "Open"
+    )
+    e = discord.Embed(
+        title=f"✺ Shared boss · {m['name']}",
+        color=COLOR,
+        description=f"**{status} · {pool['hp']:,}/{pool['maxhp']:,} shared HP**\n{participants}/20 participants · Minimum level {max(1, m['level'] - 4)}\nEnds <t:{int(pool['expires'])}:R>. Finish the tutorial first.",
+    )
+    e.add_field(
+        name="Fight together",
+        value="Press Engage for your personal battle controls. Each player gets one attempt; your damage reduces the shared pool. At least two full attempts are needed. Defeat or retreat keeps damage credited, but does not allow rejoining.",
+        inline=False,
+    )
+    e.add_field(
+        name="Claim after victory",
+        value="Deal at least 5% of total HP to qualify. Press Claim reward once the boss falls. Gold/EXP scale with contribution (full at 50%); qualified players receive boss loot/materials. Claim within 7 days after the encounter deadline.",
+        inline=False,
+    )
+    e.set_footer(text=f"Encounter {pool['id']} · Shared HP refreshes during play and every minute")
+    return e

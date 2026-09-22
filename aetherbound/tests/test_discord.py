@@ -538,7 +538,7 @@ async def test_battle_art_attached_saved_retained_and_removed(cog):
     assert kwargs["embed"].thumbnail.url == "attachment://slime.jpg"
     kwargs["file"].close()
     saved = await cog.store.player(1, 5)
-    assert saved["battle"]["art"] == "redshrike-v1"
+    assert saved["battle"]["art"] == "redshrike-v2"
     assert battle_embed(saved).thumbnail.url == "attachment://slime.jpg"
     await cog.store.change(1, 5, lambda p, c: p["battle"].update(enemy_hp=1))
     view = BattleView(cog, 5, saved)
@@ -695,3 +695,57 @@ async def test_cancelled_salvage_cannot_be_confirmed(cog):
     await view.children[1].callback(interaction())
     await view.children[0].callback(interaction())
     assert await cog.store.player(1, 5) == p
+
+
+async def test_inventory_equip_best_button_owner_and_switch(cog):
+    from aetherbound.views import InventoryView
+
+    p = graduate(level=10)
+    gear = g.make_item("main", 10, "mythic")
+    p["inventory"][gear["id"]] = gear
+    await cog.store.change(1, 5, lambda old, c: p, create=True)
+    view = InventoryView(cog, 5, p, ".")
+    button = next(x for x in view.children if x.label == "Equip best")
+    await button.callback(interaction(uid=6))
+    assert (await cog.store.player(1, 5))["equipped"] == p["equipped"]
+    await cog.store.settings(1, {"features": {"loot_equip": False}})
+    await button.callback(interaction())
+    assert (await cog.store.player(1, 5))["equipped"] == p["equipped"]
+    await cog.store.settings(1, {"features": {"loot_equip": True}})
+    i = interaction()
+    await button.callback(i)
+    saved = await cog.store.player(1, 5)
+    assert saved["equipped"]["main"] == gear["id"]
+    assert saved["inventory"][gear["id"]]["bound"]
+    i.edit_original_response.assert_awaited_once()
+
+
+async def test_shared_spawn_multiple_players_and_claim_buttons(cog):
+    from aetherbound.views import SpawnView
+
+    guild = FakeGuild()
+    settings = await provision(cog, guild)
+    for uid in (5, 6):
+        await cog.store.change(guild.id, uid, lambda old, c: graduate(level=10), create=True)
+    guild.get_channel(settings["channels"]["adventures"]).send.return_value = NS(
+        id=987, jump_url="https://discord.com/channels/1/2/987"
+    )
+    cog.boss_refresh_times = {}
+    cog.bot.get_channel = guild.get_channel
+    channel = guild.get_channel(settings["channels"]["spawns"])
+    channel.get_partial_message = MagicMock(return_value=NS(edit=AsyncMock()))
+    await cog.spawn_one(guild, "tsukara")
+    spawn = (await cog.store.rows("spawns"))[0]
+    view = channel.send.call_args.kwargs["view"]
+    assert isinstance(view, SpawnView)
+    assert [x.label for x in view.children] == ["Engage", "Claim reward"]
+    for uid in (5, 6):
+        i = interaction(uid=uid, gid=guild.id)
+        i.guild = guild
+        await cog.claim_spawn(i, spawn["id"])
+    assert len(await cog.store.rows("boss_members")) == 2
+    assert not (await cog.store.rows("spawns"))[0]["claimed"]
+    p = await cog.store.player(guild.id, 5)
+    await cog.action(guild.id, 5, p["battle"]["id"], 0, "attack")
+    pool = (await cog.store.rows("boss_pools"))[0]
+    assert pool["hp"] < pool["maxhp"]
