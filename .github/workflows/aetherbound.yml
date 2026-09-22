@@ -29,3 +29,5 @@ jobs:
           diff -u aetherbound/ARMOR_AUDIT.md /tmp/aetherbound-armor.md
           python -m aetherbound.balance --customization > /tmp/aetherbound-customization.md
           diff -u aetherbound/CUSTOMIZATION_BALANCE.md /tmp/aetherbound-customization.md
+          python -m aetherbound.boss_balance > /tmp/aetherbound-boss-balance.md
+          diff -u aetherbound/BOSS_BALANCE.md /tmp/aetherbound-boss-balance.md

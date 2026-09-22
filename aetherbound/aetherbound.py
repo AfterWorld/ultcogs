@@ -13,12 +13,19 @@ from discord.ext import tasks
 from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
-from . import economy
+from . import bosses, economy
 from . import engine as game
-from .art import ART_VERSION, artwork
+from .art import ART_VERSION, artwork, thumbnail
 from .content import ATTRS, CLASSES, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
-from .presentation import customization_detail, quest_embed, sets_embed, shop_embed, tutorial_embed
+from .presentation import (
+    boss_embed,
+    customization_detail,
+    quest_embed,
+    sets_embed,
+    shop_embed,
+    tutorial_embed,
+)
 from .setup_server import provision, refresh_panels
 from .store import Store
 from .views import (
@@ -44,6 +51,7 @@ class Aetherbound(commands.Cog):
         self.rng = random.Random()
         self.views = set()
         self.guild_locks = defaultdict(asyncio.Lock)
+        self.boss_refresh_times = {}
         self.role_locks = defaultdict(asyncio.Lock)
 
     async def cog_load(self):
@@ -54,9 +62,14 @@ class Aetherbound(commands.Cog):
             b = p.get("battle")
             if b and b.get("message"):
                 self.bot.add_view(BattleView(self, row["user"], p), message_id=b["message"])
+        pools = {r["id"] for r in await self.store.rows("boss_pools")}
         for row in await self.store.rows("spawns"):
-            if not row["claimed"] and row["expires"] > time.time() and row["message"]:
-                self.bot.add_view(SpawnView(self, row["id"]), message_id=row["message"])
+            if row["message"] and (
+                (not row["claimed"] and row["expires"] > time.time()) or row["id"] in pools
+            ):
+                self.bot.add_view(
+                    SpawnView(self, row["id"], shared=row["id"] in pools), message_id=row["message"]
+                )
         self.spawn_loop.start()
 
     def cog_unload(self):
@@ -106,11 +119,70 @@ class Aetherbound(commands.Cog):
         )
 
     async def action(self, guild, user, bid, turn, action):
+        pool_id = None
+
+        def resolve(p, c):
+            nonlocal pool_id
+            pool_id = (p.get("battle") or {}).get("shared_pool")
+            if pool_id:
+                return bosses.act(p, c, guild, user, bid, turn, action, self.rng)
+            return game.act(p, bid, turn, action, self.rng)
+
+        result = await self.store.change(guild, user, resolve, reason="combat:" + action)
+        if pool_id:
+            await self.refresh_boss(guild, pool_id)
+        return result
+
+    async def refresh_boss(self, guild, pool_id):
+        if time.monotonic() - self.boss_refresh_times.get(pool_id, 0) < 5:
+            return
+        self.boss_refresh_times[pool_id] = time.monotonic()
+        async with self.guild_locks[guild]:
+
+            def read(c):
+                pool = c.execute(
+                    "SELECT * FROM boss_pools WHERE id=? AND guild=?", (pool_id, guild)
+                ).fetchone()
+                spawn = c.execute(
+                    "SELECT * FROM spawns WHERE id=? AND guild=?", (pool_id, guild)
+                ).fetchone()
+                count = c.execute(
+                    "SELECT COUNT(*) FROM boss_members WHERE pool=?", (pool_id,)
+                ).fetchone()[0]
+                return dict(pool) if pool else None, dict(spawn) if spawn else None, count
+
+            pool, spawn, count = await self.store.transaction(read)
+            if not pool or not spawn or not spawn["message"]:
+                return
+            channel = self.bot.get_channel(spawn["channel"])
+            if not channel:
+                return
+            embed = boss_embed(pool, count)
+            thumbnail(embed, pool["monster"])
+            view = SpawnView(self, pool_id, shared=True)
+            view.children[0].disabled = pool["hp"] <= 0 or pool["expires"] <= time.time()
+            try:
+                await channel.get_partial_message(spawn["message"]).edit(
+                    embed=embed,
+                    view=view,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except discord.HTTPException:
+                view.stop()
+                self.views.discard(view)
+                log.warning("Could not refresh shared boss board %s", pool_id)
+            else:
+                for old in list(self.views):
+                    if old is not view and getattr(old, "spawn_id", None) == pool_id:
+                        old.stop()
+                        self.views.discard(old)
+
+    async def claim_boss(self, guild, user, pool_id):
         return await self.store.change(
             guild,
             user,
-            lambda p, c: game.act(p, bid, turn, action, self.rng),
-            reason="combat:" + action,
+            lambda p, c: bosses.claim(p, c, guild, user, pool_id, self.rng),
+            reason="shared_boss_reward",
         )
 
     async def publish_battle(self, channel, guild, user):
@@ -440,6 +512,63 @@ class Aetherbound(commands.Cog):
         await self.mutate(ctx, fn)
         await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
 
+    @adventure.group(name="boss", invoke_without_command=True)
+    async def boss_board(self, ctx):
+        """List recent shared bosses, join an encounter, or claim earned rewards."""
+        pools = [
+            r
+            for r in await self.store.rows("boss_pools")
+            if r["guild"] == ctx.guild.id and r["expires"] + 7 * 86400 > time.time()
+        ]
+        if not pools:
+            await ctx.send(
+                "No shared bosses yet. Watch the encounter board; Tsukara also ends the Hollow Trail dungeon."
+            )
+            return
+        contributions = {
+            r["pool"]: r
+            for r in await self.store.rows("boss_members")
+            if r["guild"] == ctx.guild.id and r["user"] == ctx.author.id
+        }
+        lines = []
+        for pool in sorted(pools, key=lambda r: r["expires"], reverse=True)[:5]:
+            state = (
+                "Defeated"
+                if pool["hp"] == 0
+                else "Expired"
+                if pool["expires"] <= time.time()
+                else "Open"
+            )
+            contribution = contributions.get(pool["id"], {})
+            progress = (
+                f"Your contribution: {contribution.get('damage', 0):,} damage ({contribution.get('damage', 0) / pool['maxhp']:.1%})"
+                + (" · Claimed" if contribution.get("claimed") else "")
+            )
+            lines.append(
+                f"**{MONSTERS[pool['monster']]['name']}** · {state} · {pool['hp']:,}/{pool['maxhp']:,} HP\n{progress}\n```text\n{ctx.clean_prefix}aether boss join {pool['id']}\n{ctx.clean_prefix}aether boss claim {pool['id']}\n```"
+            )
+        await ctx.send("\n".join(lines))
+
+    @boss_board.command(name="join")
+    async def boss_join(self, ctx, encounter_id: str):
+        """Join a shared boss once; finish the tutorial and leave dungeons first."""
+        await self.store.change(
+            ctx.guild.id,
+            ctx.author.id,
+            lambda p, c: bosses.join(p, c, ctx.guild.id, ctx.author.id, encounter_id),
+            reason="shared_boss_join",
+        )
+        await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
+        await self.refresh_boss(ctx.guild.id, encounter_id)
+
+    @boss_board.command(name="claim")
+    async def boss_claim(self, ctx, encounter_id: str):
+        """Claim once after victory with at least 5% damage contribution."""
+        await ctx.send(
+            await self.claim_boss(ctx.guild.id, ctx.author.id, encounter_id),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
     @adventure.command()
     async def resume(self, ctx):
         """Restore battle controls after a restart or deleted message."""
@@ -581,9 +710,9 @@ class Aetherbound(commands.Cog):
     @aetherset.command(name="feature")
     async def feature_switch(self, ctx, feature: str, enabled: bool):
         """Toggle crafting (sets/sockets), loot_equip or bulk_salvage. Existing gear keeps its stats."""
-        if feature not in ("loot_equip", "bulk_salvage", "sets", "sockets"):
+        if feature not in ("loot_equip", "bulk_salvage", "sets", "sockets", "shared_bosses"):
             raise game.RuleError(
-                "Features: loot_equip, bulk_salvage, sets, sockets. Use true or false."
+                "Features: loot_equip, bulk_salvage, sets, sockets, shared_bosses. Use true or false."
             )
         async with self.guild_locks[ctx.guild.id]:
             settings = await self.store.settings(ctx.guild.id)
@@ -694,13 +823,19 @@ class Aetherbound(commands.Cog):
             key = self.rng.choice(pool or list(MONSTERS))
         m = MONSTERS[key]
         spawn_id = game.uid()
-        expires = time.time() + 15 * 60
-        await self.store.transaction(
-            lambda c: c.execute(
+        shared = m["boss"] and s.get("features", {}).get("shared_bosses", True)
+        expires = time.time() + (30 if shared else 15) * 60
+
+        def create(c):
+            c.execute(
                 "INSERT INTO spawns VALUES(?,?,?,?,?,?,0)",
                 (spawn_id, guild.id, channel.id, 0, key, expires),
             )
-        )
+            if shared:
+                bosses.create(c, spawn_id, guild.id, key, expires)
+                return dict(bosses.get(c, guild.id, spawn_id))
+
+        pool = await self.store.transaction(create)
         role = guild.get_role(s.get("roles", {}).get("boss" if m["boss"] else "adventures", 0))
         content = (
             (f"{role.mention} " if role else "")
@@ -711,20 +846,28 @@ class Aetherbound(commands.Cog):
             description="Press Engage below to begin your solo encounter.",
             color=0xE8C66A if m["boss"] else 0x836FFF,
         )
+        if shared:
+            content = (
+                f"{role.mention} " if role else ""
+            ) + "A shared boss has appeared! Join forces below."
+            embed = boss_embed(pool)
         try:
             message = await channel.send(
                 content,
                 embed=embed,
                 **artwork(embed, key),
-                view=SpawnView(self, spawn_id),
+                view=SpawnView(self, spawn_id, shared=shared),
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False, users=False, roles=[role] if role else []
                 ),
             )
         except Exception:
-            await self.store.transaction(
-                lambda c: c.execute("DELETE FROM spawns WHERE id=?", (spawn_id,))
-            )
+
+            def remove(c):
+                c.execute("DELETE FROM spawns WHERE id=?", (spawn_id,))
+                c.execute("DELETE FROM boss_pools WHERE id=?", (spawn_id,))
+
+            await self.store.transaction(remove)
             raise
         await self.store.transaction(
             lambda c: c.execute("UPDATE spawns SET message=? WHERE id=?", (message.id, spawn_id))
@@ -742,12 +885,15 @@ class Aetherbound(commands.Cog):
             ).fetchone()
             if not row or row["claimed"] or row["expires"] <= time.time():
                 raise game.RuleError("This encounter was claimed or expired.")
+            if c.execute("SELECT 1 FROM boss_pools WHERE id=?", (spawn_id,)).fetchone():
+                bosses.join(p, c, i.guild.id, i.user.id, spawn_id)
+                return True
             if p["run"]:
                 raise game.RuleError("Finish or abandon your dungeon first.")
             game.begin(p, row["monster"])
             c.execute("UPDATE spawns SET claimed=1 WHERE id=?", (spawn_id,))
 
-        await self.store.change(i.guild.id, i.user.id, claim)
+        shared = await self.store.change(i.guild.id, i.user.id, claim, reason="spawn_join")
         try:
             message = await self.publish_battle(channel, i.guild.id, i.user.id)
             await i.followup.send(f"Your battle is ready: {message.jump_url}", ephemeral=True)
@@ -757,9 +903,21 @@ class Aetherbound(commands.Cog):
                 ephemeral=True,
             )
 
+        if shared:
+            await self.refresh_boss(i.guild.id, spawn_id)
+        return shared
+
     @tasks.loop(seconds=60)
     async def spawn_loop(self):
         await self.recover_trades()
+        for pool in await self.store.rows("boss_pools"):
+            guild = self.bot.get_guild(pool["guild"])
+            if (
+                guild
+                and not await self.bot.cog_disabled_in_guild(self, guild)
+                and pool["expires"] + 120 > time.time()
+            ):
+                await self.refresh_boss(pool["guild"], pool["id"])
         for row in await self.store.rows("settings"):
             guild = self.bot.get_guild(row["guild"])
             if not guild or await self.bot.cog_disabled_in_guild(self, guild):
@@ -776,9 +934,23 @@ class Aetherbound(commands.Cog):
                     log.exception("Spawn delivery failed in guild %s", guild.id)
                 s["next_spawn"] = time.time() + s.get("spawn_minutes", 30) * 60
                 await self.store.settings(guild.id, s)
-        await self.store.transaction(
-            lambda c: c.execute("DELETE FROM spawns WHERE expires<?", (time.time() - 86400,))
-        )
+
+        def cleanup(c):
+            cutoff = time.time() - 7 * 86400
+            c.execute(
+                "DELETE FROM boss_members WHERE pool IN (SELECT id FROM boss_pools WHERE expires<?)",
+                (cutoff,),
+            )
+            c.execute("DELETE FROM boss_pools WHERE expires<?", (cutoff,))
+            c.execute(
+                "DELETE FROM spawns WHERE expires<? AND id NOT IN (SELECT id FROM boss_pools)",
+                (time.time() - 86400,),
+            )
+
+        await self.store.transaction(cleanup)
+        self.boss_refresh_times = {
+            k: v for k, v in self.boss_refresh_times.items() if time.monotonic() - v < 120
+        }
 
     async def recover_trades(self):
         for row in await self.store.rows("trades"):
@@ -935,10 +1107,16 @@ class Aetherbound(commands.Cog):
                 dict(r) for r in c.execute("SELECT * FROM economy_events WHERE user=?", (user_id,))
             ]
         )
+        boss_records = [r for r in await self.store.rows("boss_members") if r["user"] == user_id]
         return {
             "aetherbound.json": io.BytesIO(
                 json.dumps(
-                    {"characters": records, "trade_threads": trades, "economy_events": economy_log},
+                    {
+                        "characters": records,
+                        "trade_threads": trades,
+                        "economy_events": economy_log,
+                        "boss_contributions": boss_records,
+                    },
                     indent=2,
                 ).encode()
             )

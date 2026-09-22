@@ -5,8 +5,8 @@ from pathlib import Path
 import discord
 
 # Explicit allowlist prevents retired AI files left by an updater from being used.
-ART_VERSION = "redshrike-v1"
-ART_KEYS = frozenset({"slime", "revenant", "imp", "mask", "wisp"})
+ART_VERSION = "redshrike-v2"
+ART_KEYS = frozenset({"slime", "revenant", "imp", "mask", "wisp", "beetle", "raizen"})
 ART_DIR = Path(__file__).parent / "assets" / "monsters"
 
 
@@ -26,7 +26,8 @@ def thumbnail(embed, key):
     path = art_path(key)
     if path and path.is_file():
         embed.set_thumbnail(url=f"attachment://{key}.jpg")
-        credit = "Art: Stephen (Redshrike) Challener · OpenGameArt.org · CC BY 3.0"
+        license_name = "CC BY-SA 3.0 · commissioned by Bertram" if key == "raizen" else "CC BY 3.0"
+        credit = "Art: Stephen (Redshrike) Challener · OpenGameArt.org · " + license_name
         footer = embed.footer.text or ""
         if credit not in footer:
             embed.set_footer(text=f"{footer} • {credit}" if footer else credit)

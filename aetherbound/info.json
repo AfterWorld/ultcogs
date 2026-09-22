@@ -4,7 +4,7 @@
     "AfterWorld"
   ],
   "short": "An active original anime adventure RPG.",
-  "description": "Phase 1: rewarded tutorial, 13 monsters, two bosses, turn combat, equipment, forging, quests, a dungeon, server provisioning, opt-in notifications and trade discussion threads.",
+  "description": "Active anime RPG with tutorials, 13 monsters, two bosses, shared boss encounters, class mechanics, gear sets, rune sockets, forging, quests, a dungeon and daily shops.",
   "install_msg": "Load with [p]load aetherbound. An admin runs [p]aetherset setup to create channels/roles and enable spawns. See the README for required permissions. Begin with [p]aether create vanguard Your Name. Phase 1 gameplay: use [p]aetherset guides after updating to refresh the welcome and channel examples.",
   "requirements": [],
   "tags": [
@@ -20,5 +20,5 @@
     0
   ],
   "type": "COG",
-  "end_user_data_statement": "Stores per-server Discord user IDs, chosen character names/descriptions, progression, inventory and binding/lock flags, active combat, trade message/thread IDs, and timestamped economy changes (gold, potions, materials, created/destroyed item IDs and action labels). Supports Red user data export/deletion, including economy records. Discord messages and roles are managed separately by Discord."
+  "end_user_data_statement": "Stores per-server Discord user IDs, chosen character names/descriptions, progression, inventory and binding/lock flags, active combat, shared-boss participation/level/damage/reward-claim records (retained up to seven days after encounter expiry), trade message/thread IDs, and timestamped economy changes (gold, potions, materials, created/destroyed item IDs and action labels). Supports Red user data export/deletion, including economy records. Discord messages and roles are managed separately by Discord."
 }

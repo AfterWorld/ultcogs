@@ -482,6 +482,24 @@ def auto_equip(p, ids):
     )
 
 
+def equip_best(p):
+    """Find repeated single-item improvements; bind only the final chosen pieces."""
+    idle(p)
+    candidate = copy.deepcopy(p)
+    for _ in range(len(SLOTS)):
+        before = dict(candidate["equipped"])
+        auto_equip(candidate, list(candidate["inventory"]))
+        if before == candidate["equipped"]:
+            break
+    changed = [key for slot, key in candidate["equipped"].items() if p["equipped"].get(slot) != key]
+    if not changed:
+        return "Your eligible gear already has the best estimated loadout found. Locked items were protected."
+    return (
+        equip_many(p, changed)
+        + "\nCompared your whole bag using class stats, sets and runes. Equipped items are now bound."
+    )
+
+
 def begin(p, monster_key, practice=False, carry=None):
     idle(p)
     if not practice and p["tutorial"] < 5:
@@ -543,7 +561,9 @@ def intent(b):
     return "A measured strike. Recover energy with a basic attack or prepare your skills."
 
 
-def reward(p, b, rng):
+def reward(p, b, rng, share=1):
+    if b.get("shared_pool"):
+        return "Your attempt is complete. Damage credited; claim with aether boss claim after the shared boss falls."
     if b["practice"]:
         p["trained"] = all(a in b["used"] for a in ("attack", "guard", "skill"))
         advance_tutorial(p)
@@ -556,8 +576,8 @@ def reward(p, b, rng):
     scale = max(0.1, min(1, (m["level"] + 2) / p["level"]))
     if p["level"] - m["level"] >= 5:
         scale *= 0.3
-    xp = int((24 + m["level"] * 8) * (2.5 if m["boss"] else 1) * scale)
-    gold = int((12 + m["level"] * 3) * (2 if m["boss"] else 1) * scale)
+    xp = int((24 + m["level"] * 8) * (2.5 if m["boss"] else 1) * scale * share)
+    gold = int((12 + m["level"] * 3) * (2 if m["boss"] else 1) * scale * share)
     grant_xp(p, xp)
     p["gold"] += gold
     p["wins"] += 1

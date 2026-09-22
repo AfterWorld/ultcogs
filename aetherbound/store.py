@@ -32,7 +32,7 @@ class Store:
 
         def work():
             with self._open() as c:
-                if c.execute("PRAGMA user_version").fetchone()[0] > 2:
+                if c.execute("PRAGMA user_version").fetchone()[0] > 3:
                     raise RuntimeError(
                         "This database belongs to a newer Aetherbound version; update the cog."
                     )
@@ -44,7 +44,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS trades(message INTEGER PRIMARY KEY,guild INTEGER,user INTEGER,thread INTEGER,created REAL);
                 CREATE TABLE IF NOT EXISTS economy_events(id INTEGER PRIMARY KEY,guild INTEGER,user INTEGER,created REAL,reason TEXT,data TEXT);
                 CREATE INDEX IF NOT EXISTS economy_events_guild ON economy_events(guild,id);
-                PRAGMA user_version=2;
+                CREATE TABLE IF NOT EXISTS boss_pools(id TEXT PRIMARY KEY,guild INTEGER,monster TEXT,hp INTEGER,maxhp INTEGER,expires REAL,defeated REAL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS boss_members(pool TEXT,guild INTEGER,user INTEGER,level INTEGER,damage INTEGER DEFAULT 0,claimed INTEGER DEFAULT 0,PRIMARY KEY(pool,user));
+                PRAGMA user_version=3;
                 """)
                 # Additive, idempotent migration: retain previously tracked quest progress.
                 for row in c.execute("SELECT guild,user,data FROM players").fetchall():
@@ -135,7 +137,15 @@ class Store:
         return await self.transaction(work)
 
     async def rows(self, table):
-        if table not in ("players", "settings", "spawns", "trades", "economy_events"):
+        if table not in (
+            "players",
+            "settings",
+            "spawns",
+            "trades",
+            "economy_events",
+            "boss_pools",
+            "boss_members",
+        ):
             raise ValueError(table)
         return await self.transaction(
             lambda c: [dict(r) for r in c.execute(f"SELECT * FROM {table}")]
@@ -146,6 +156,7 @@ class Store:
             c.execute("DELETE FROM players WHERE user=?", (user,))
             c.execute("DELETE FROM trades WHERE user=?", (user,))
             c.execute("DELETE FROM economy_events WHERE user=?", (user,))
+            c.execute("DELETE FROM boss_members WHERE user=?", (user,))
 
         await self.transaction(work)
 

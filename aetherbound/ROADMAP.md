@@ -30,15 +30,16 @@ it without a refund. No rerolls. Fixed material/gold sinks use existing audits.
 Admin switches block new set crafting or socket changes; existing bonuses remain.
 CUSTOMIZATION_BALANCE.md compares every set and maximum offensive/defensive sockets.
 
-## Next: shared-pool boss spawns
+## Shared-pool boss spawns — implemented
 
-Keep personal act() encounters, but persist shared boss HP separately. Apply
-validated damage, contribution and participation limits atomically; design rewards
-against overkill, low-level farming and duplicate claims. Define death/expiry and
-restart recovery before release. Add a dedicated boss-pool kill switch and seeded
-multi-player simulations. Live party turn combat remains deferred.
+Two normal boss HP bars shared across up to 20 personal attempts; one attempt per
+player. Group defeat required within 30 minutes, minimum 5% damage for one-time
+claims. Gold/EXP scale with contribution; eligible players get normal boss loot.
+Atomic turn/HP/contribution and reward/claim commits, restart recovery, expiry,
+privacy deletion/export, feature switch and 600 seeded group simulations.
+Live party turn combat remains deferred.
 
-## Endgame
+## Next: endgame
 
 Paragon XP/points first so level-20 XP has a purpose, with explicit progression
 bounds. Then leaderboards and weekly dungeon modifiers. Decide season/reset rules
@@ -57,7 +58,7 @@ preserving safe cancellation/refund of existing escrow.
 ## Artwork
 
 Continue the approved human-created, credited sprite direction. Find suitable
-licensed art for the remaining ten creatures, prioritizing Tsukara and Raizen.
+licensed art for the remaining eight creatures, prioritizing Tsukara. Beetle and a representative armored Raizen now have art.
 Do not reuse unrelated sprites as if they depicted those bosses.
 
 ## Deferred
