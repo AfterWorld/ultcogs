@@ -167,6 +167,38 @@ Staff cannot review their own application. Once claimed, another reviewer cannot
 overwrite it. Acceptance/decline asks for a message that is sent to the applicant;
 that field is **not an internal note**. Roles are not automatically granted.
 
+| Button | What it does |
+| --- | --- |
+| View Answers | Opens a private, paginated reader of the applicant's answers. |
+| Claim | Assigns you as the reviewer without changing the status. Other reviewers cannot take over or decide it. |
+| Under Review | Assigns you if unclaimed and marks the application as being considered. It does not send a decision DM. |
+| Accept | Opens a required message form. Submitting saves the final acceptance and queues a DM to the applicant. |
+| Decline | Opens the same required message form, saves the final decline, and queues a DM to the applicant. |
+
+Choose one reviewer to handle the final decision. Use a thread under the original
+review card for each case so Warlords and other staff can discuss it together before
+that reviewer decides. Threads use Discord's normal permissions; give participating
+staff access to the review channel and its threads. Channel visibility alone does
+not grant button access: reviewers also need the role or permissions listed above.
+Final decisions disable the action buttons; View Answers remains available.
+
+### Accepted application copies (1.5)
+
+New acceptances in server `374126802836258816` also copy the accepted card and full
+answer attachment to channel `1417172494598668369`. The original review card stays
+in place. The copy has no decision controls and can be used for follow-up discussion.
+Declined applications, fictional previews, previously accepted records, and other
+servers are not forwarded.
+
+The destination must be a private text channel in that server, with View Channel
+denied to `@everyone`. Grant the intended staff roles access. The bot needs View
+Channel, Send Messages, Embed Links, Attach Files, and Read Message History there.
+Copies use the existing background worker, normally within about ten seconds.
+Failures are reported and retried with backoff; `staffapp retry APPLICATION_ID`
+can retry sooner after permissions are fixed. History recovery avoids blindly
+duplicating a copy after an uncertain send or restart. Copy failures do not undo
+acceptance or stop the applicant DM. No old acceptances are backfilled.
+
 Decisions save before notification. A failed card update cannot prevent the decision
 DM from being attempted. If applicant DMs are blocked, the decision remains visible
 through **My Application** and the owner is alerted. After the user enables DMs,
@@ -272,9 +304,9 @@ cause a duplicate notification. Run only one bot process against this database.
 ## Privacy and retention
 
 Default retention is 90 days for inactive drafts and closed applications; active
-reviews and undelivered submissions are retained. Outstanding decision notifications
+reviews, undelivered submissions, and pending accepted copies are retained. Outstanding decision notifications
 are not automatically discarded. Deletion removes the tracked staff message and its
-answer attachment before deleting the database record. If Discord deletion fails,
+answer attachment, including the accepted copy, before deleting the database record. If Discord deletion fails,
 the record stays in a non-editable `deleting` state and cleanup retries, retaining the
 message references. Red's `red_delete_data_for_user` hook removes an applicant's
 records and anonymizes their reviewer ID in other applications.
@@ -319,3 +351,4 @@ access while closed; keep these limited to staff.
 
 Automated tests are not a substitute for live Discord permission and interaction checks.
 No live Discord account or bot token is required for the automated suite.
+

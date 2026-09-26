@@ -12,7 +12,7 @@ from staffapplications.staffapplications import (
     review_embed,
     transcript,
 )
-from staffapplications.store import UserError
+from staffapplications.store import ACCEPTED_CHANNEL, ACCEPTED_GUILD, UserError
 from staffapplications.views import AnswerModal, DraftView, ReviewView, panel
 
 
@@ -92,6 +92,145 @@ def channel_with_history(candidates=()):
 
     channel.history = history
     return channel
+
+
+def acceptance(cog, action="accepted", guild=ACCEPTED_GUILD):
+    app = queued(cog)
+    app.update(guild=guild, status="pending", message=100)
+    cog.store.save(app)
+    app = cog.store.decide(app["id"], 20, action, "Decision message")
+    app.update(ui_dirty=False)
+    cog.store.save(app)
+    cog.bot.get_user.return_value = NS(send=AsyncMock())
+    return app
+
+
+async def test_acceptance_copy_and_dm_sent_once(cog):
+    app = acceptance(cog)
+    assert app["accepted_channel"] == ACCEPTED_CHANNEL
+    channel = channel_with_history()
+    cog.accepted_channel = AsyncMock(return_value=channel)
+    await asyncio.gather(cog.side_effects(app["id"]), cog.side_effects(app["id"]))
+    channel.send.assert_awaited_once()
+    payload = channel.send.call_args.kwargs
+    assert payload["embed"].title == "Accepted Staff Application"
+    assert payload["embed"].footer.text == f"staffapp-accepted:{app['id']}"
+    assert b"Answer 0" in payload["file"].fp.read()
+    assert "view" not in payload
+    assert not payload["allowed_mentions"].everyone
+    saved = cog.store.get(app["id"])
+    assert saved["accepted_message"] == 100 and not saved["accepted_pending"]
+    cog.bot.get_user.return_value.send.assert_awaited_once()
+
+
+@pytest.mark.parametrize("action,guild", [("declined", ACCEPTED_GUILD), ("accepted", 1)])
+async def test_declines_and_other_servers_not_forwarded(cog, action, guild):
+    app = acceptance(cog, action, guild)
+    cog.accepted_channel = AsyncMock()
+    await cog.side_effects(app["id"])
+    assert not cog.store.get(app["id"]).get("accepted_pending")
+    cog.accepted_channel.assert_not_awaited()
+
+
+async def test_acceptance_timeout_recovers_after_reload_without_duplicate(cog):
+    from staffapplications.store import Store
+
+    app = acceptance(cog)
+    candidates = []
+    channel = channel_with_history(candidates)
+
+    async def uncertain_send(**kwargs):
+        candidates.append(NS(id=432, author=cog.bot.user, embeds=[kwargs["embed"]]))
+        raise TimeoutError("response lost")
+
+    channel.send.side_effect = uncertain_send
+    cog.accepted_channel = AsyncMock(return_value=channel)
+    with pytest.raises(TimeoutError):
+        await cog.side_effects(app["id"])
+    cog.bot.get_user.return_value.send.assert_awaited_once()
+    cog.store.close()
+    cog.store = Store(module.cog_data_path(cog) / "applications.sqlite3")
+    await cog.side_effects(app["id"])
+    assert cog.store.get(app["id"])["accepted_message"] == 432
+    channel.send.assert_awaited_once()
+
+
+async def test_failed_copy_retried_by_worker_and_retained(cog):
+    app = acceptance(cog)
+    cog.accepted_channel = AsyncMock(side_effect=RuntimeError("missing permissions"))
+    await cog.cycle()
+    saved = cog.store.get(app["id"])
+    assert saved["accepted_pending"] and saved["next_retry"] > 0
+    assert saved["status"] == "accepted" and not saved["notify"]
+    cog.alerts.report.assert_awaited_once()
+    saved.update(next_retry=0, updated=0)
+    cog.store.save(saved)
+    # Pending copies survive retention even when the record is old.
+    import json
+
+    saved["updated"] = 0
+    cog.store.db.execute(
+        "UPDATE applications SET data=? WHERE id=?", (json.dumps(saved), app["id"])
+    )
+    cog.store.db.commit()
+    assert not cog.store.expired()
+    channel = channel_with_history()
+    cog.accepted_channel = AsyncMock(return_value=channel)
+    await cog.cycle()
+    channel.send.assert_awaited_once()
+
+
+async def test_acceptance_history_failure_never_resends(cog):
+    app = acceptance(cog)
+    app["accepted_attempted"] = True
+    cog.store.save(app)
+    channel = channel_with_history()
+    cog.accepted_channel = AsyncMock(return_value=channel)
+    cog.find_delivery = AsyncMock(side_effect=RuntimeError("history unavailable"))
+    with pytest.raises(RuntimeError):
+        await cog.side_effects(app["id"])
+    channel.send.assert_not_awaited()
+    assert cog.store.get(app["id"])["accepted_pending"]
+
+
+async def test_delete_recovers_and_removes_uncertain_accepted_copy(cog):
+    app = acceptance(cog)
+    app["accepted_attempted"] = True
+    cog.store.save(app)
+    copy = NS(
+        id=432,
+        author=cog.bot.user,
+        embeds=[discord.Embed().set_footer(text=f"staffapp-accepted:{app['id']}")],
+    )
+    channel = channel_with_history([copy])
+    message = NS(delete=AsyncMock())
+    channel.get_partial_message.return_value = message
+    cog.accepted_channel = AsyncMock(return_value=channel)
+    cog.bot.get_channel.return_value = channel
+    await cog.erase(app)
+    assert message.delete.await_count == 2
+    channel.send.assert_not_awaited()
+    with pytest.raises(UserError):
+        cog.store.get(app["id"])
+
+
+async def test_accepted_destination_requires_same_guild_and_privacy(cog):
+    app = acceptance(cog)
+    channel = MagicMock(spec=discord.TextChannel)
+    channel.guild = NS(id=1, me=object(), default_role=object())
+    cog.bot.get_channel.return_value = channel
+    with pytest.raises(UserError, match="this server"):
+        await cog.accepted_channel(app)
+    channel.guild.id = ACCEPTED_GUILD
+    channel.permissions_for.return_value = NS(
+        view_channel=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+        read_message_history=True,
+    )
+    with pytest.raises(UserError, match="private channel"):
+        await cog.accepted_channel(app)
 
 
 async def test_real_components_persistent_and_payloads(cog):
