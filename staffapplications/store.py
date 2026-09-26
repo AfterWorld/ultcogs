@@ -8,6 +8,9 @@ from copy import deepcopy
 
 from .presets import LEGACY_TEMPLATE, ONE_PIECE_TEMPLATE
 
+ACCEPTED_GUILD = 374126802836258816
+ACCEPTED_CHANNEL = 1417172494598668369
+
 DEFAULTS = {
     "open": False,
     "template_version": 2,
@@ -231,6 +234,13 @@ class Store:
             app["status"] = action
         if action in {"accepted", "declined"}:
             app.update(reason=reason.strip()[:1000], decided_at=time.time(), notify=True)
+            if action == "accepted" and app["guild"] == ACCEPTED_GUILD:
+                app.update(
+                    accepted_channel=ACCEPTED_CHANNEL,
+                    accepted_pending=True,
+                    accepted_attempted=False,
+                    accepted_message=None,
+                )
         app["ui_dirty"] = True
         return self.save(app)
 
@@ -245,5 +255,6 @@ class Store:
             for a in self.all()
             if a["status"] in FINAL | {"draft"}
             and not a["notify"]
+            and not a.get("accepted_pending")
             and now - a["updated"] > self.settings(a["guild"])["retention_days"] * 86400
         ]
