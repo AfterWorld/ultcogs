@@ -88,7 +88,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.5.0"
+    __version__ = "1.6.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -421,6 +421,60 @@ class StaffApplications(commands.Cog):
         self.validate_channel(channel, private=True, review=True)
         return channel
 
+    @staticmethod
+    def needs_discussion(app):
+        return (
+            app["status"] in {"pending", "under_review", "accepted", "declined"}
+            and bool(app["message"])
+            and not app.get("discussion_thread")
+            and not app.get("discussion_unavailable")
+        )
+
+    async def ensure_discussion(self, app_id):
+        # The worker calls this under the application lock, including for older records.
+        app = self.store.get(app_id)
+        if not self.needs_discussion(app):
+            return
+        try:
+            channel = await self.review_channel(app)
+            message = channel.get_partial_message(app["message"])
+            try:
+                # Fetch also finds archived/manual threads and recovers a lost create response.
+                thread = await message.fetch_thread()
+            except discord.NotFound as exc:
+                if exc.code != 10003:
+                    raise
+                if not channel.permissions_for(channel.guild.me).create_public_threads:
+                    raise UserError(
+                        "I need Create Public Threads in the application review channel."
+                    )
+                app = self.store.get(app_id)
+                app["discussion_attempted"] = True
+                self.store.save(app)
+                try:
+                    thread = await message.create_thread(
+                        name=f"Application {app['user']} - {app['position']}"[:100],
+                        reason="Staff application discussion",
+                    )
+                except discord.HTTPException as error:
+                    if error.code != 160004:  # A staff member may have just created it.
+                        raise
+                    thread = await message.fetch_thread()
+        except discord.NotFound as exc:
+            if exc.code not in {10003, 10008}:
+                raise
+            # Deleted review cards cannot host threads. Do not repost private applications.
+            app = self.store.get(app_id)
+            app["discussion_unavailable"] = True
+            self.store.save(app)
+            await self.alerts.report(
+                app["guild"], "application discussion source deleted", exc, app_id
+            )
+            return
+        app = self.store.get(app_id)
+        app["discussion_thread"] = thread.id
+        self.store.save(app)
+
     async def deliver_accepted(self, app_id):
         # Called under the same application lock as review updates and deletion.
         app = self.store.get(app_id)
@@ -471,10 +525,11 @@ class StaffApplications(commands.Cog):
                 self.track(ReviewView(self, latest), app["message"])
             except Exception as exc:
                 update_error = exc
-        try:
-            await self.deliver_accepted(app_id)
-        except Exception as exc:
-            update_error = exc
+        for update in (self.ensure_discussion, self.deliver_accepted):
+            try:
+                await update(app_id)
+            except Exception as exc:
+                update_error = exc
         app = self.store.get(app_id)
         if app["notify"]:
             user = self.bot.get_user(app["user"]) or await self.bot.fetch_user(app["user"])
@@ -505,7 +560,13 @@ class StaffApplications(commands.Cog):
                     continue
                 if saved["status"] == "queued":
                     await self.deliver(saved["id"])
-                if saved["ui_dirty"] or saved["notify"] or saved.get("accepted_pending"):
+                    saved = self.store.get(saved["id"])
+                if (
+                    saved["ui_dirty"]
+                    or saved["notify"]
+                    or saved.get("accepted_pending")
+                    or self.needs_discussion(saved)
+                ):
                     await self.side_effects(saved["id"])
             except Exception as exc:
                 try:
@@ -583,6 +644,14 @@ class StaffApplications(commands.Cog):
                 if message:
                     app["accepted_message"] = message.id
                     self.store.save(app)
+        if app.get("discussion_thread") or app.get("discussion_attempted"):
+            try:
+                # Message-created threads share the review message ID, even after a timeout.
+                thread = await self.bot.fetch_channel(app["message"])
+                await thread.delete(reason="Staff application deletion")
+            except discord.NotFound as exc:
+                if exc.code != 10003:
+                    raise
         for channel_id, message_id in [
             (app["delivery_channel"], app["message"]),
             (app["dm_channel"], app["dm_message"]),
@@ -687,6 +756,9 @@ class StaffApplications(commands.Cog):
             embed_links=True,
             attach_files=True,
             read_message_history=True,
+            create_public_threads=True,
+            send_messages_in_threads=True,
+            manage_threads=True,
         )
         panel_overwrites = {
             ctx.guild.default_role: discord.PermissionOverwrite(
@@ -701,7 +773,10 @@ class StaffApplications(commands.Cog):
             ctx.guild.default_role: discord.PermissionOverwrite(view_channel=False),
             ctx.guild.me: bot_overwrite,
             reviewer_role: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, read_message_history=True
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                send_messages_in_threads=True,
             ),
         }
         created = []
@@ -803,11 +878,15 @@ class StaffApplications(commands.Cog):
                         embed_links=True,
                         attach_files=True,
                         read_message_history=True,
+                        create_public_threads=key == "review_channel",
+                        send_messages_in_threads=key == "review_channel",
+                        manage_threads=key == "review_channel",
                     ),
                     role: discord.PermissionOverwrite(
                         view_channel=True,
                         send_messages=key != "panel_channel",
                         read_message_history=True,
+                        send_messages_in_threads=key == "review_channel",
                     ),
                 }
                 channel = await ctx.guild.create_text_channel(

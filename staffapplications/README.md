@@ -175,12 +175,38 @@ that field is **not an internal note**. Roles are not automatically granted.
 | Accept | Opens a required message form. Submitting saves the final acceptance and queues a DM to the applicant. |
 | Decline | Opens the same required message form, saves the final decline, and queues a DM to the applicant. |
 
-Choose one reviewer to handle the final decision. Use a thread under the original
-review card for each case so Warlords and other staff can discuss it together before
-that reviewer decides. Threads use Discord's normal permissions; give participating
-staff access to the review channel and its threads. Channel visibility alone does
+Choose one reviewer to handle the final decision. The bot creates a discussion thread
+under every original review card so Warlords and other staff can discuss it together
+before that reviewer decides. Threads use Discord's normal permissions; give participating
+staff access to the review channel and Send Messages in Threads. Channel visibility alone does
 not grant button access: reviewers also need the role or permissions listed above.
 Final decisions disable the action buttons; View Answers remains available.
+
+### Automatic discussion threads and existing applications (1.6)
+
+After updating and reloading the cog, the background worker adds missing discussion
+threads to all stored applications with an existing review card: pending, under review,
+accepted, and declined. New submissions get a thread when their review card is delivered.
+Drafts and fictional previews do not get threads. Each thread is attached to the original
+review card; accepted copies do not create a second discussion thread.
+
+Existing manual threads, including archived ones, are reused without changing their
+messages or archive status. Thread IDs are saved, so retries and restarts do not create
+extra discussions. Deleted source cards/channels are reported once and skipped without
+reposting applications. Missing permissions or temporary failures retry with the normal
+backoff; use `staffapp retry APPLICATION_ID` after fixing permissions to retry sooner.
+Thread failures do not prevent decisions, accepted copies, or applicant notifications.
+
+The review channel stays private. These are standard message threads inside that private
+channel, accessible to staff who can view it. Existing channels need the bot's **Create
+Public Threads** permission; **Manage Threads** is needed to delete discussions during
+application cleanup. Give staff **Send Messages in Threads**. Generated/recreated review
+channels include these permissions. Updating the cog does not change existing channel
+overwrites. Threads follow the channel's normal auto-archive duration and are not
+automatically reopened after staff archives or locks them.
+
+Application deletion and retention also delete its tracked discussion thread, including
+staff messages in that thread. Thread messages are not copied into the local database.
 
 ### Accepted application copies (1.5)
 
@@ -306,7 +332,7 @@ cause a duplicate notification. Run only one bot process against this database.
 Default retention is 90 days for inactive drafts and closed applications; active
 reviews, undelivered submissions, and pending accepted copies are retained. Outstanding decision notifications
 are not automatically discarded. Deletion removes the tracked staff message and its
-answer attachment, including the accepted copy, before deleting the database record. If Discord deletion fails,
+answer attachment, accepted copy, and tracked discussion thread before deleting the database record. If Discord deletion fails,
 the record stays in a non-editable `deleting` state and cleanup retries, retaining the
 message references. Red's `red_delete_data_for_user` hook removes an applicant's
 records and anonymizes their reviewer ID in other applications.
