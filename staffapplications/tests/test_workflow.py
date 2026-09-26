@@ -42,6 +42,8 @@ def cog(tmp_path, monkeypatch):
         questions=["Why do you want to help?", "When are you available?"],
     )
     value.alerts.report = AsyncMock(return_value="incident")
+    # Most tests exercise delivery/decisions independently of discussion creation.
+    value.ensure_discussion = AsyncMock()
     yield value
     for view in value._views.values():
         view.stop()
@@ -647,3 +649,152 @@ async def test_existing_manually_configured_channel_keeps_visibility(cog):
     await StaffApplications.open_command.callback(cog, ctx, False)
     cog.set_panel_visibility.assert_not_awaited()
     assert not cog.store.settings(1)["open"]
+
+
+def discussion_setup(cog):
+    del cog.ensure_discussion  # Exercise the real implementation in discussion tests.
+    thread = NS(id=100, archived=False, delete=AsyncMock())
+    message = NS(
+        fetch_thread=AsyncMock(
+            side_effect=discord.NotFound(
+                NS(status=404, reason="Not found"), {"code": 10003, "message": "Unknown Channel"}
+            )
+        ),
+        create_thread=AsyncMock(return_value=thread),
+        edit=AsyncMock(),
+        delete=AsyncMock(),
+    )
+    channel = channel_with_history()
+    channel.guild = NS(me=object())
+    channel.permissions_for = MagicMock(return_value=NS(create_public_threads=True))
+    channel.get_partial_message.return_value = message
+    cog.review_channel = AsyncMock(return_value=channel)
+    return channel, message, thread
+
+
+@pytest.mark.parametrize("status", ["queued", "pending", "under_review", "accepted", "declined"])
+async def test_worker_adds_discussion_to_new_and_existing_applications_once(cog, status):
+    app = queued(cog)
+    app.update(status=status, message=None if status == "queued" else 100)
+    cog.store.save(app)
+    channel, message, thread = discussion_setup(cog)
+    await cog.cycle()
+    await cog.cycle()
+    message.create_thread.assert_awaited_once()
+    assert cog.store.get(app["id"])["discussion_thread"] == thread.id
+    assert cog.store.get(app["id"])["answers"] == app["answers"]
+    assert channel.send.await_count == (1 if status == "queued" else 0)
+
+
+async def test_draft_does_not_create_discussion(cog):
+    draft(cog)
+    channel, message, _ = discussion_setup(cog)
+    await cog.cycle()
+    message.fetch_thread.assert_not_awaited()
+    message.create_thread.assert_not_awaited()
+    channel.send.assert_not_awaited()
+
+
+async def test_existing_archived_discussion_reused(cog):
+    app = acceptance(cog, guild=1)
+    _, message, thread = discussion_setup(cog)
+    thread.archived = True
+    message.fetch_thread.side_effect = None
+    message.fetch_thread.return_value = thread
+    await asyncio.gather(cog.side_effects(app["id"]), cog.side_effects(app["id"]))
+    message.create_thread.assert_not_awaited()
+    message.fetch_thread.assert_awaited_once()
+    assert cog.store.get(app["id"])["discussion_thread"] == 100
+    assert thread.archived
+
+
+async def test_discussion_timeout_recovers_after_restart(cog):
+    from staffapplications.store import Store
+
+    app = acceptance(cog, guild=1)
+    _, message, thread = discussion_setup(cog)
+
+    async def timeout_after_create(**kwargs):
+        message.fetch_thread.side_effect = None
+        message.fetch_thread.return_value = thread
+        raise TimeoutError("Discord created the thread but the response was lost")
+
+    message.create_thread.side_effect = timeout_after_create
+    with pytest.raises(TimeoutError):
+        await cog.side_effects(app["id"])
+    assert cog.store.get(app["id"])["discussion_attempted"]
+    cog.store.close()
+    cog.store = Store(module.cog_data_path(cog) / "applications.sqlite3")
+    await cog.side_effects(app["id"])
+    message.create_thread.assert_awaited_once()
+    assert cog.store.get(app["id"])["discussion_thread"] == 100
+
+
+async def test_discussion_permissions_retry_without_blocking_acceptance_or_dm(cog):
+    app = acceptance(cog)
+    channel, message, _ = discussion_setup(cog)
+    channel.permissions_for.return_value.create_public_threads = False
+    copies = channel_with_history()
+    cog.accepted_channel = AsyncMock(return_value=copies)
+    await cog.cycle()
+    saved = cog.store.get(app["id"])
+    assert saved["next_retry"] > 0 and cog.needs_discussion(saved)
+    message.create_thread.assert_not_awaited()
+    copies.send.assert_awaited_once()
+    cog.bot.get_user.return_value.send.assert_awaited_once()
+    channel.permissions_for.return_value.create_public_threads = True
+    saved["next_retry"] = 0
+    cog.store.save(saved)
+    await cog.cycle()
+    message.create_thread.assert_awaited_once()
+    copies.send.assert_awaited_once()
+
+
+async def test_discussion_fetch_forbidden_never_creates_blindly(cog):
+    app = acceptance(cog, guild=1)
+    _, message, _ = discussion_setup(cog)
+    message.fetch_thread.side_effect = discord.Forbidden(
+        NS(status=403, reason="Forbidden"), "No access"
+    )
+    with pytest.raises(discord.Forbidden):
+        await cog.side_effects(app["id"])
+    message.create_thread.assert_not_awaited()
+
+
+async def test_deleted_review_card_skipped_without_reposting(cog):
+    app = acceptance(cog, guild=1)
+    channel, message, _ = discussion_setup(cog)
+    message.create_thread.side_effect = discord.NotFound(
+        NS(status=404, reason="Not found"), {"code": 10008, "message": "Unknown Message"}
+    )
+    await cog.cycle()
+    await cog.cycle()
+    assert cog.store.get(app["id"])["discussion_unavailable"]
+    message.create_thread.assert_awaited_once()
+    channel.send.assert_not_awaited()
+    cog.alerts.report.assert_awaited_once()
+
+
+async def test_staff_thread_creation_race_reuses_thread(cog):
+    app = acceptance(cog, guild=1)
+    _, message, thread = discussion_setup(cog)
+    message.fetch_thread.side_effect = [message.fetch_thread.side_effect, thread]
+    message.create_thread.side_effect = discord.HTTPException(
+        NS(status=400, reason="Bad request"), {"code": 160004, "message": "Already has a thread"}
+    )
+    await cog.side_effects(app["id"])
+    assert cog.store.get(app["id"])["discussion_thread"] == 100
+
+
+async def test_deletion_recovers_thread_after_lost_create_response(cog):
+    app = acceptance(cog, guild=1)
+    app["discussion_attempted"] = True
+    cog.store.save(app)
+    channel, message, thread = discussion_setup(cog)
+    cog.bot.fetch_channel.return_value = thread
+    cog.bot.get_channel.return_value = channel
+    await cog.erase(app)
+    thread.delete.assert_awaited_once()
+    message.delete.assert_awaited_once()
+    with pytest.raises(UserError):
+        cog.store.get(app["id"])
