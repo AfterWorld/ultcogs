@@ -88,7 +88,7 @@ def review_embed(app):
 class StaffApplications(commands.Cog):
     """Private staff applications, persistent buttons, and owner error alerts."""
 
-    __version__ = "1.4.0"
+    __version__ = "1.5.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -398,14 +398,51 @@ class StaffApplications(commands.Cog):
         self.store.save(app)
         self.track(ReviewView(self, app), message.id)
 
-    async def find_delivery(self, channel, app):
-        after = datetime.fromtimestamp(app["submitted"] - 5, timezone.utc)
+    async def find_delivery(self, channel, app, *, accepted=False):
+        after = datetime.fromtimestamp(
+            app["decided_at" if accepted else "submitted"] - 5, timezone.utc
+        )
+        marker = f"staffapp-accepted:{app['id']}" if accepted else f"staffapp:{app['id']}"
         async for candidate in channel.history(limit=None, after=after, oldest_first=True):
             if candidate.author.id == self.bot.user.id and any(
-                e.footer.text == f"staffapp:{app['id']}" for e in candidate.embeds
+                e.footer.text == marker for e in candidate.embeds
             ):
                 return candidate
         return None
+
+    async def accepted_channel(self, app):
+        channel = self.bot.get_channel(app["accepted_channel"]) or await self.bot.fetch_channel(
+            app["accepted_channel"]
+        )
+        if not isinstance(channel, discord.TextChannel) or channel.guild.id != app["guild"]:
+            raise UserError(
+                "The accepted-application channel must be a text channel in this server."
+            )
+        self.validate_channel(channel, private=True, review=True)
+        return channel
+
+    async def deliver_accepted(self, app_id):
+        # Called under the same application lock as review updates and deletion.
+        app = self.store.get(app_id)
+        if app["status"] != "accepted" or not app.get("accepted_pending"):
+            return
+        channel = await self.accepted_channel(app)
+        message = None
+        if app["accepted_attempted"]:
+            message = await self.find_delivery(channel, app, accepted=True)
+        if message is None:
+            app["accepted_attempted"] = True
+            self.store.save(app)
+            embed = review_embed(app)
+            embed.title = "Accepted Staff Application"
+            embed.description = (
+                "Accepted application. Complete answers are attached for staff discussion."
+            )
+            embed.set_footer(text=f"staffapp-accepted:{app['id']}")
+            message = await channel.send(embed=embed, file=transcript(app), allowed_mentions=NONE)
+        app = self.store.get(app_id)
+        app.update(accepted_message=message.id, accepted_pending=False)
+        self.store.save(app)
 
     async def side_effects(self, app_id):
         async with self._locks.setdefault(app_id, asyncio.Lock()):
@@ -434,6 +471,10 @@ class StaffApplications(commands.Cog):
                 self.track(ReviewView(self, latest), app["message"])
             except Exception as exc:
                 update_error = exc
+        try:
+            await self.deliver_accepted(app_id)
+        except Exception as exc:
+            update_error = exc
         app = self.store.get(app_id)
         if app["notify"]:
             user = self.bot.get_user(app["user"]) or await self.bot.fetch_user(app["user"])
@@ -464,7 +505,7 @@ class StaffApplications(commands.Cog):
                     continue
                 if saved["status"] == "queued":
                     await self.deliver(saved["id"])
-                if saved["ui_dirty"] or saved["notify"]:
+                if saved["ui_dirty"] or saved["notify"] or saved.get("accepted_pending"):
                     await self.side_effects(saved["id"])
             except Exception as exc:
                 try:
@@ -532,9 +573,20 @@ class StaffApplications(commands.Cog):
                 if message:
                     app["message"] = message.id
                     self.store.save(app)
+        if app.get("accepted_attempted") and not app.get("accepted_message"):
+            try:
+                channel = await self.accepted_channel(app)
+            except discord.NotFound:
+                channel = None
+            if channel is not None:
+                message = await self.find_delivery(channel, app, accepted=True)
+                if message:
+                    app["accepted_message"] = message.id
+                    self.store.save(app)
         for channel_id, message_id in [
             (app["delivery_channel"], app["message"]),
             (app["dm_channel"], app["dm_message"]),
+            (app.get("accepted_channel"), app.get("accepted_message")),
         ]:
             if channel_id and message_id:
                 try:
