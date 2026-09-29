@@ -5,6 +5,7 @@ import discord
 from redbot.core import commands
 
 from .catalog import Catalog, normalize
+from .random_deck import build_random_deck
 
 log = logging.getLogger('red.bakugandb')
 EMOJI = {'Aquos':'🌊','Pyrus':'🔥','Ventus':'🌪️','Subterra':'🪨','Haos':'✨','Darkus':'🌑'}
@@ -159,4 +160,22 @@ class BakuganDB(commands.Cog):
             names = [c['name'] for c in cards if kind in c['type']]
             if names: embed.add_field(name=kind+'s', value=', '.join(names)[:1024], inline=False)
         embed.set_footer(text='Relationships from catalog tags · unlisted details are unknown')
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    @commands.bot_has_permissions(embed_links=True)
+    async def brandom(self, ctx, attribute: str = None):
+        """Roll a sample deck, optionally for one attribute: [p]brandom aquos."""
+        if not await self.ready(ctx):
+            return
+        try:
+            deck = build_random_deck(self.catalog, attribute)
+        except ValueError as exc:
+            await ctx.send(str(exc), allowed_mentions=NONE)
+            return
+        embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
+        embed.add_field(name='Bakugan (1 Guardian, 2 Generic)', value='\n'.join(deck['bakugan']), inline=False)
+        embed.add_field(name='Abilities (6 Normal)', value='\n'.join(c['name'] for c in deck['abilities']), inline=False)
+        embed.add_field(name='Gates (1 Attribute, 2 Command)', value='\n'.join(c['name'] for c in deck['gates']), inline=False)
+        embed.set_footer(text=deck['note'])
         await ctx.send(embed=embed)

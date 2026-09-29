@@ -1,0 +1,11 @@
+{
+  "source": "Bakugan Brawl Online deck builder, inspected 2026-09-29; classification follows Post-New Vestroia Rules G-Power tiers",
+  "bakugan": {
+    "Aquos": {"guardian": ["Preyas", "Sirenoid"], "generic": ["Juggernoid", "Limulus", "Robotallion", "Siege", "Terrorclaw"]},
+    "Pyrus": {"guardian": ["Dragonoid", "Neo Dragonoid"], "generic": ["Falconeer", "Garganoid", "Saurus", "Warius"]},
+    "Ventus": {"guardian": ["Skyress", "Storm Skyress"], "generic": ["Bee Striker", "El Condor", "Monarus", "Ravenoid"]},
+    "Subterra": {"guardian": ["Cycloid", "Gorem"], "generic": ["Centipoid", "Hynoid", "Manion", "Tuskor"]},
+    "Haos": {"guardian": ["Lars Lion", "Tigrerra"], "generic": ["Jelldon", "Serpenoid"]},
+    "Darkus": {"guardian": ["Hydranoid", "Reaper"], "generic": ["Goblinball", "Laserman", "Mantris", "Stinglash", "Wormquake"]}
+  }
+}
