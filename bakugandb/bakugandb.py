@@ -1,4 +1,5 @@
 """Bakugan Anime Style card reference commands for Red."""
+import asyncio
 import io
 import json
 import logging
@@ -95,6 +96,8 @@ class BakuganDB(commands.Cog):
         self.config = Config.get_conf(self, identifier=8402765193, force_registration=True)
         self.config.register_user(profile_id=None)
         self.config.register_guild(deck_posts=[], rules_auto_channel=None)
+        self.config.register_global(deck_posts=[], deck_index_migrated=False)
+        self._deck_lock = asyncio.Lock()
         self.rules_cooldown = {}
         self.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15), trust_env=True)
         try:
@@ -109,11 +112,27 @@ class BakuganDB(commands.Cog):
 
     async def red_delete_data_for_user(self, *, requester, user_id):
         await self.config.user_from_id(user_id).clear()
-        for guild_id, settings in (await self.config.all_guilds()).items():
-            posts = settings.get('deck_posts', [])
-            if any(p.get('author_id') == user_id for p in posts):
-                await self.config.guild_from_id(guild_id).deck_posts.set(
-                    [p for p in posts if p.get('author_id') != user_id])
+        await self._migrate_deck_posts()
+        async with self.config.deck_posts() as posts:
+            posts[:] = [p for p in posts if p.get('author_id') != user_id]
+
+    async def _migrate_deck_posts(self):
+        """Move old per-server listings to the bot-wide index once."""
+        async with self._deck_lock:
+            if await self.config.deck_index_migrated():
+                return
+            posts = await self.config.deck_posts()
+            seen = {p['id'] for p in posts}
+            for guild_id, settings in (await self.config.all_guilds()).items():
+                for post in settings.get('deck_posts', []):
+                    if post.get('id') not in seen:
+                        posts.append({**post, 'guild_id': int(guild_id)})
+                        seen.add(post['id'])
+            await self.config.deck_posts.set(posts)
+            for guild_id, settings in (await self.config.all_guilds()).items():
+                if settings.get('deck_posts'):
+                    await self.config.guild_from_id(guild_id).deck_posts.set([])
+            await self.config.deck_index_migrated.set(True)
 
     async def site_json(self, path, *, payload=None):
         try:
@@ -357,7 +376,12 @@ class BakuganDB(commands.Cog):
                 await ctx.send('The website deck export must be under 1 MB.')
                 return
             try:
-                deck, site_catalog, art = resolve_deck(await attachment.read())
+                raw = await attachment.read()
+                deck, site_catalog, art = resolve_deck(raw)
+                original = json.loads(raw)
+                export = {'version': 1, 'name': title, 'description': '',
+                          'bakugans': original['bakugans'], 'abilities': original['abilities'],
+                          'gates': original['gates']}
                 picture = await render_deck_image(deck, site_catalog, self.http, art)
             except (ValueError, OSError, discord.HTTPException) as exc:
                 await ctx.send(f'Could not render that website deck: {str(exc)[:300]}', allowed_mentions=NONE)
@@ -384,36 +408,75 @@ class BakuganDB(commands.Cog):
                 embed.add_field(name=heading, value=', '.join(entries)[:1024], inline=False)
             embed.set_footer(text=deck['note'])
         sent = await ctx.send(embed=embed, file=file, allowed_mentions=NONE)
-        entry = {'id': str(uuid.uuid4())[:8], 'title': title, 'author_id': ctx.author.id,
-                 'channel_id': ctx.channel.id, 'message_id': sent.id}
-        async with self.config.guild(ctx.guild).deck_posts() as posts:
+        entry = {'id': uuid.uuid4().hex[:12], 'title': title, 'author_id': ctx.author.id,
+                 'author_name': ctx.author.display_name[:80], 'guild_id': ctx.guild.id,
+                 'channel_id': ctx.channel.id, 'message_id': sent.id,
+                 'export': export if website_deck else None}
+        await self._migrate_deck_posts()
+        async with self.config.deck_posts() as posts:
             posts.append(entry)
-            del posts[:-100]
-        await ctx.send(f"Saved to public deck list as `{entry['id']}`. Use `{ctx.clean_prefix}bdecks` to browse.")
+        await ctx.send(f"Saved to the public deck list as `{entry['id']}`. Use `{ctx.clean_prefix}bdecks` from any server to browse.")
 
     @commands.command()
-    @commands.guild_only()
     async def bdecks(self, ctx, page: int = 1):
-        """List shared decks in this server."""
-        posts = list(reversed(await self.config.guild(ctx.guild).deck_posts()))
+        """List public deck shares across all servers using this bot."""
+        await self._migrate_deck_posts()
+        posts = list(reversed(await self.config.deck_posts()))
         max_page = max(1, (len(posts) + 7) // 8)
         if page < 1 or page > max_page:
             await ctx.send(f'Choose a page from 1 to {max_page}.')
             return
-        lines = [f"`{p['id']}` **{discord.utils.escape_markdown(p['title'])}** — https://discord.com/channels/{ctx.guild.id}/{p['channel_id']}/{p['message_id']}"
+        lines = [f"`{p['id']}` **{discord.utils.escape_markdown(p['title'])}** by {discord.utils.escape_markdown(p.get('author_name', 'a brawler'))} — `{ctx.clean_prefix}bdeckview {p['id']}`"
                  for p in posts[(page-1)*8:page*8]]
-        await ctx.send('Public decks (' + str(page) + '/' + str(max_page) + '):\n' + ('\n'.join(lines) if lines else f'None yet. Attach a site deck image with `{ctx.clean_prefix}bdeckshare <title>`.')[:1800], allowed_mentions=NONE)
+        await ctx.send('Public decks (' + str(page) + '/' + str(max_page) + '):\n' + ('\n'.join(lines) if lines else f'None yet. Use `{ctx.clean_prefix}bdeckshare <title>` with a website deck export.')[:1800], allowed_mentions=NONE)
 
     @commands.command()
-    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True, attach_files=True)
+    async def bdeckview(self, ctx, deck_id: str):
+        """View a public deck by ID from any server using this bot."""
+        await self._migrate_deck_posts()
+        post = next((p for p in await self.config.deck_posts() if p['id'] == deck_id.lower()), None)
+        if not post:
+            await ctx.send('Deck not found. Use `bdecks` to browse.')
+            return
+        link = f"https://discord.com/channels/{post['guild_id']}/{post['channel_id']}/{post['message_id']}"
+        if post.get('export'):
+            try:
+                deck, catalog, art = resolve_deck(json.dumps(post['export']).encode())
+                picture = await render_deck_image(deck, catalog, self.http, art)
+                embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
+                embed.set_image(url='attachment://deck.png')
+                await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='deck.png'), allowed_mentions=NONE)
+                return
+            except (OSError, ValueError, discord.HTTPException):
+                log.exception('Could not render shared deck %s', deck_id)
+        else:
+            try:
+                channel = self.bot.get_channel(post['channel_id']) or await self.bot.fetch_channel(post['channel_id'])
+                message = await channel.fetch_message(post['message_id'])
+                if message.attachments and message.attachments[0].size <= 8_000_000:
+                    source = message.attachments[0]
+                    filename = 'shared-deck.' + source.filename.rsplit('.', 1)[-1].lower()
+                    embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
+                    embed.set_image(url='attachment://' + filename)
+                    await ctx.send(embed=embed, file=discord.File(io.BytesIO(await source.read()), filename=filename), allowed_mentions=NONE)
+                    return
+            except (discord.HTTPException, OSError):
+                log.exception('Could not retrieve shared deck image %s', deck_id)
+        await ctx.send(f"**{discord.utils.escape_markdown(post['title'])}** — {link}\nImage-only shares may require access to their original server.", allowed_mentions=NONE)
+
+    @commands.command()
     async def bdeckremove(self, ctx, deck_id: str):
-        """Remove your listing; managers can remove any listing."""
-        async with self.config.guild(ctx.guild).deck_posts() as posts:
+        """Remove your public listing; origin-server managers can moderate it."""
+        await self._migrate_deck_posts()
+        async with self.config.deck_posts() as posts:
             post = next((p for p in posts if p['id'] == deck_id), None)
             if not post:
                 await ctx.send('Deck listing not found.')
                 return
-            if post['author_id'] != ctx.author.id and not ctx.author.guild_permissions.manage_messages:
+            can_moderate = (ctx.guild is not None and ctx.guild.id == post.get('guild_id')
+                            and ctx.author.guild_permissions.manage_messages)
+            if post['author_id'] != ctx.author.id and not can_moderate:
                 await ctx.send('Only its author or a moderator can remove that listing.')
                 return
             posts.remove(post)
