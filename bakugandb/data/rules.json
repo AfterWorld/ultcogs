@@ -18,7 +18,21 @@
     {
       "topic": "Bakugan categories",
       "text": "Generic and Guardian; a Guardian is optional and limited to one per deck.",
-      "page": 5
+      "page": 5,
+      "sections": [
+        {
+          "heading": "Your three Bakugan",
+          "text": "A deck uses exactly three Bakugan. You may include zero or one Guardian. The others are Generic Bakugan."
+        },
+        {
+          "heading": "Duplicate rule",
+          "text": "You cannot include the same Bakugan twice in the same attribute. The rules allow the same named Bakugan in different attributes."
+        },
+        {
+          "heading": "Power tiers",
+          "text": "Generic Bakugan are described as 310–390 Gs; Guardians are described as 400–500 Gs. The individual G-Power chart is image based, so check the model or site for its exact value."
+        }
+      ]
     },
     {
       "topic": "Ability cards",
@@ -26,27 +40,105 @@
       "pages": [
         10,
         14
+      ],
+      "sections": [
+        {
+          "heading": "What goes in your deck",
+          "text": "Choose exactly six Ability Cards. The four subtypes are Signature, Normal, Fusion, and Trap. A card’s attribute requirement must match a Bakugan you have on the field when you play it."
+        },
+        {
+          "heading": "When you can activate one",
+          "text": "Ordinarily you may activate one Ability Card during a turn outside battle and one during each battle. The game gives you three Ability Slots total; in a free-for-all with five or more players, each player beyond the fourth adds one slot."
+        },
+        {
+          "heading": "Signature",
+          "text": "A Signature Ability belongs to a specific Bakugan. You may include at most one Signature per Bakugan in a deck. If you use the same named Bakugan in different attributes, each may have a Signature."
+        },
+        {
+          "heading": "Fusion",
+          "text": "A Fusion Ability requires its listed Signature Ability to have been used earlier. Playing the Fusion does not fill an Ability Slot. If played in the same turn as its required Signature, it also does not use the one-card opportunity inside or outside battle."
+        },
+        {
+          "heading": "Normal and Trap",
+          "text": "Normal Abilities may be attribute-specific or Bakugan-specific. A Trap Ability is limited to one per deck and summons a Bakugan Trap; a Trap on the field has no G-Power, so effects related to Gs do not affect it."
+        }
       ]
     },
     {
       "topic": "Gate cards",
       "text": "Four types: Attribute, Reactor, Command, and Character.",
-      "page": 16
+      "page": 16,
+      "sections": [
+        {
+          "heading": "Deck and timing",
+          "text": "A deck has exactly three Gate Cards, including at least one Attribute or Reactor Gate. The remaining Gates can be Command or Character. Unless a card says otherwise, a Gate opens only while a battle is happening on it."
+        },
+        {
+          "heading": "Attribute and Reactor",
+          "text": "An Attribute Gate applies its printed attribute G-Power boost. A Reactor Gate boosts matching Bakugan on it by 50 Gs for each Bakugan on the field with that attribute. These Gates stay active after a battle while opened and on the field."
+        },
+        {
+          "heading": "Character and Command",
+          "text": "A Character Gate doubles the corresponding Bakugan’s current G-Power and adds 50 Gs when its attribute also matches. Command Gates each have their own printed effect; check the individual card."
+        }
+      ]
     },
     {
       "topic": "Preyas attribute trait",
       "text": "Preyas can change his attribute once per turn while on the field to Aquos, Darkus, or Subterra.",
-      "page": 9
+      "page": 9,
+      "sections": [
+        {
+          "heading": "Once per turn",
+          "text": "While Preyas is on the field, he can change to Aquos, Darkus, or Subterra once each turn. This is a Bakugan trait and does not require an Ability Card."
+        },
+        {
+          "heading": "Using cards",
+          "text": "After changing, check the attribute requirements of the Ability you want to play. Blue Stealth and its Fusion Blue Squall list Aquos, Subterra, and Darkus in the supplied card database."
+        }
+      ]
     },
     {
       "topic": "Multi-Attribute Bakugan",
       "text": "Always considered as both attributes; may activate either attribute’s Abilities.",
-      "page": 8
+      "page": 8,
+      "sections": [
+        {
+          "heading": "Always both",
+          "text": "A multi-attribute Bakugan is considered both of its attributes at all times and can activate Abilities requiring either attribute."
+        },
+        {
+          "heading": "Attribute Gates",
+          "text": "Use the larger available G-Power gain. If both attributes would cause a reduction, apply the smaller reduction."
+        },
+        {
+          "heading": "Preyas II exception",
+          "text": "Dual Headed Preyas II is only Aquos/Pyrus or Aquos/Haos at a time; he is never all three simultaneously."
+        }
+      ]
     },
     {
       "topic": "Deck construction",
       "text": "Three Bakugan, three Gates, six Abilities; no duplicate card names, no duplicate Bakugan in the same attribute, at most one Guardian, and at least one Attribute or Reactor Gate.",
-      "page": 18
+      "page": 18,
+      "sections": [
+        {
+          "heading": "Required counts",
+          "text": "Exactly three Bakugan, three Gate Cards, and six Ability Cards. At least one Gate must be an Attribute or Reactor Gate."
+        },
+        {
+          "heading": "Limits",
+          "text": "No duplicate card names; no duplicate Bakugan in the same attribute; at most one Guardian; at most one Trap Ability; at most one Signature per Bakugan, with the different-attribute exception."
+        },
+        {
+          "heading": "Fusion checks",
+          "text": "A Fusion requires its specified Signature Ability to have been used before it can activate. Including a Fusion in a deck does not by itself meet that play requirement."
+        },
+        {
+          "heading": "Practical check",
+          "text": "Before playing, verify your Bakugan attributes can use the chosen Abilities and that the card names and prerequisites match the current game version."
+        }
+      ]
     }
   ],
   "notes": [
