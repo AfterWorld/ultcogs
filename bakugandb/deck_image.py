@@ -34,8 +34,10 @@ def draw_tile(canvas, draw, x, y, width, height, name, image_bytes, accent, subt
     if not image_bytes:
         draw.rounded_rectangle((x+12, y+12, x+width-12, y+art_height), radius=10, fill='#22334c')
         draw.text((x+width//2, y+art_height//2), 'ART UNAVAILABLE', font=font(16, True), fill='#9db1c7', anchor='mm')
-    label = name if len(name) <= 24 else name[:22] + '…'
-    draw.text((x+width//2, y+height-43), label, font=font(18, True), fill='#ffffff', anchor='mm')
+    label_font = font(18, True)
+    while draw.textbbox((0, 0), name, font=label_font)[2] > width-20 and len(name) > 4:
+        name = name[:-2] + '…'
+    draw.text((x+width//2, y+height-43), name, font=label_font, fill='#ffffff', anchor='mm')
     if subtitle:
         draw.text((x+width//2, y+height-17), subtitle, font=font(14), fill=accent, anchor='mm')
 
@@ -45,29 +47,30 @@ def compose(deck, images):
     canvas = Image.new('RGB', (1600, 1290), '#0b1424')
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle((30, 25, 1570, 1260), radius=28, fill='#101d31', outline=accent, width=4)
-    draw.text((65, 68), f"{deck['attribute'].upper()}  /  RANDOM DECK", font=font(42, True), fill=accent)
+    draw.text((65, 68), f"{deck['attribute'].upper()}  /  {deck.get('heading', 'RANDOM DECK')}", font=font(42, True), fill=accent)
     draw.text((65, 110), 'BAKUGAN ANIME STYLE  •  3 BAKUGAN  /  6 ABILITIES  /  3 GATES', font=font(20), fill='#ced9e8')
     draw.text((65, 164), 'BAKUGAN', font=font(26, True), fill='#ffffff')
     for index, name in enumerate(deck['bakugan']):
         draw_tile(canvas, draw, 65+index*505, 200, 470, 240, name, images.get(name), accent,
-                  'GUARDIAN' if index == 0 else 'GENERIC')
+                  deck.get('bakugan_roles', ['GUARDIAN', 'GENERIC', 'GENERIC'])[index])
     draw.text((65, 495), 'ABILITY CARDS', font=font(26, True), fill='#ffffff')
     for index, card in enumerate(deck['abilities']):
-        draw_tile(canvas, draw, 65+index*250, 530, 225, 320, card['name'], images.get(card['name']), accent, 'NORMAL')
+        draw_tile(canvas, draw, 65+index*250, 530, 225, 320, card['name'], images.get(card['name']), accent, card.get('category', 'NORMAL').upper())
     draw.text((65, 910), 'GATE CARDS', font=font(26, True), fill='#ffffff')
     for index, card in enumerate(deck['gates']):
         draw_tile(canvas, draw, 65+index*505, 945, 470, 240, card['name'], images.get(card['name']), accent,
-                  'ATTRIBUTE' if index == 0 else 'COMMAND')
-    draw.text((65, 1220), 'Sample deck • Check current card text and legality before play', font=font(18), fill='#ced9e8')
+                  card.get('category', 'ATTRIBUTE' if index == 0 else 'COMMAND').upper())
+    draw.text((65, 1220), deck.get('note', 'Check current card text and legality before play')[:100], font=font(18), fill='#ced9e8')
     output = io.BytesIO()
     canvas.save(output, format='PNG', optimize=True)
     return output.getvalue()
 
 
-async def render(deck, catalog, session):
+async def render(deck, catalog, session, bakugan_art=None):
     urls = {card['name']: catalog.images[card['name']]['url'] for card in deck['abilities'] + deck['gates']
             if card['name'] in catalog.images}
-    urls.update({name: ART[name] for name in deck['bakugan'] if name in ART})
+    art = ART if bakugan_art is None else bakugan_art
+    urls.update({name: art[name] for name in deck['bakugan'] if name in art})
     semaphore = asyncio.Semaphore(4)
 
     async def get(name, url):
