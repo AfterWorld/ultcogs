@@ -20,6 +20,10 @@ class Catalog:
         self.bakugan = self._read(directory / 'bakugan.json', list)
         self.rules = self._read(directory / 'rules.json', dict)
         self.patch_history = self._read(directory / 'patch_history.json', dict)
+        self.images = self._read(directory / 'images.json', dict)
+        for name, image in self.images.items():
+            if not isinstance(name, str) or not isinstance(image, dict) or not str(image.get('url', '')).startswith('https://'):
+                raise ValueError('Malformed card image mapping')
         names = set()
         for card in self.cards:
             if not isinstance(card, dict) or not isinstance(card.get('name'), str) or not card['name'].strip():

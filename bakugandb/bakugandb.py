@@ -15,7 +15,7 @@ def label_attributes(items):
     return ', '.join(f'{EMOJI.get(a, "")} {a}'.strip() for a in items) or 'Unknown'
 
 
-def card_embed(card):
+def card_embed(card, image=None):
     embed = discord.Embed(title=card['name'].upper(), colour=discord.Colour.blue())
     embed.add_field(name='Type', value=card['type'], inline=True)
     embed.add_field(name='Bakugan', value=', '.join(card['bakugan']) or 'Unknown', inline=True)
@@ -26,8 +26,10 @@ def card_embed(card):
     embed.add_field(name='Effect', value=effect[:1024], inline=False)
     if card.get('unresolved_requires'):
         embed.add_field(name='Unresolved prerequisite', value=', '.join(card['unresolved_requires'])[:1024], inline=False)
+    if image:
+        embed.set_image(url=image['url'])
     source = card.get('source') or {}
-    embed.set_footer(text=f"{source.get('document', 'Unknown source')} · {card.get('status', 'unknown')}" + (f" · p. {source['page']}" if source.get('page') else ''))
+    embed.set_footer(text=f"{source.get('document', 'Unknown source')} · {card.get('status', 'unknown')}" + (f" · p. {source['page']}" if source.get('page') else '') + (' · Image: Bakugan Brawl Online' if image else ''))
     return embed
 
 
@@ -95,7 +97,7 @@ class BakuganDB(commands.Cog):
         if not cards:
             await ctx.send('No matches. Try a card name, attribute, Bakugan or card type.')
         elif len(cards) == 1:
-            await ctx.send(embed=card_embed(cards[0]))
+            await ctx.send(embed=card_embed(cards[0], self.catalog.images.get(cards[0]['name'])))
         else:
             view = Results(ctx.author.id, cards, title)
             view.message = await ctx.send(embed=view.embed(), view=view, allowed_mentions=NONE)
@@ -107,7 +109,7 @@ class BakuganDB(commands.Cog):
         if not await self.ready(ctx): return
         card = self.catalog.lookup(name)
         if card:
-            await ctx.send(embed=card_embed(card))
+            await ctx.send(embed=card_embed(card, self.catalog.images.get(card['name'])))
             return
         partial = [c for c in self.catalog.cards if normalize(name) in normalize(c['name'])]
         if partial:
