@@ -2,10 +2,10 @@ import copy
 import random
 
 import pytest
-from aetherbound.content import DUNGEONS, MONSTERS
-from aetherbound.views import battle_embed
 
 from aetherbound import engine as g
+from aetherbound.content import DUNGEONS, MONSTERS
+from aetherbound.views import battle_embed
 
 from .test_engine import graduate
 

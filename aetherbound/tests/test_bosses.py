@@ -3,11 +3,11 @@ import copy
 import random
 
 import pytest
-from aetherbound.balance import actor
-from aetherbound.store import Store
 
 from aetherbound import bosses as b
 from aetherbound import engine as g
+from aetherbound.balance import actor
+from aetherbound.store import Store
 
 
 @pytest.fixture

@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
+
+from aetherbound import engine as g
 from aetherbound.aetherbound import Aetherbound
 from aetherbound.setup_server import provision
 from aetherbound.store import Store
 from aetherbound.views import BattleView, RoleView
-
-from aetherbound import engine as g
 
 from .test_engine import graduate
 
@@ -753,10 +753,10 @@ async def test_shared_spawn_multiple_players_and_claim_buttons(cog):
 
 @pytest.mark.parametrize("edit_fails", [False, True])
 async def test_boss_refresh_preserves_real_discord_button_dispatch(cog, edit_fails):
-    from aetherbound.views import SpawnView
     from discord.ui.view import ViewStore
 
     from aetherbound import bosses
+    from aetherbound.views import SpawnView
 
     cog.boss_refresh_times = {}
     dispatch = ViewStore(NS())
