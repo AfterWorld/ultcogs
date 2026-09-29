@@ -11,8 +11,8 @@ import discord
 from redbot.core import Config, commands
 
 from .catalog import Catalog, normalize
-from .random_deck import build_random_deck
 from .deck_image import render as render_deck_image
+from .site_deck import resolve_deck, random_site_deck
 
 log = logging.getLogger('red.bakugandb')
 EMOJI = {'Aquos':'🌊','Pyrus':'🔥','Ventus':'🌪️','Subterra':'🪨','Haos':'✨','Darkus':'🌑'}
@@ -204,13 +204,13 @@ class BakuganDB(commands.Cog):
         if not await self.ready(ctx):
             return
         try:
-            deck = build_random_deck(self.catalog, attribute)
+            deck, site_catalog, art = random_site_deck(attribute)
         except ValueError as exc:
             await ctx.send(str(exc), allowed_mentions=NONE)
             return
         try:
-            picture = await render_deck_image(deck, self.catalog, self.http)
-            embed = discord.Embed(title=f"Random {deck['attribute']} deck", description=deck['note'], colour=discord.Colour.blue())
+            picture = await render_deck_image(deck, site_catalog, self.http, art)
+            embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
             embed.set_image(url='attachment://bakugan-deck.png')
             await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='bakugan-deck.png'))
         except (OSError, ValueError, discord.HTTPException):
@@ -279,11 +279,15 @@ class BakuganDB(commands.Cog):
             await ctx.send('Use your public profile URL: `https://bakuganbrawl.online/u/<profile-id>`.')
             return
         data = await self.site_json('/api/profile/public', payload={'userId': match.group(1)})
-        if not isinstance(data, dict) or not isinstance(data.get('profile'), dict):
-            await ctx.send('Could not verify that public profile right now. Try again later.')
+        if isinstance(data, dict) and data.get('error'):
+            await ctx.send('The site could not find that public profile. Check the URL and try again.')
             return
         await self.config.user(ctx.author).profile_id.set(match.group(1))
-        await ctx.send('Saved public profile reference (ownership is not verified): ' + str(data['profile'].get('display_name') or data['profile'].get('username') or 'Brawler')[:80], allowed_mentions=NONE)
+        profile = data.get('profile') if isinstance(data, dict) else None
+        if isinstance(profile, dict):
+            await ctx.send('Saved public profile reference (ownership is not verified): ' + str(profile.get('display_name') or profile.get('username') or 'Brawler')[:80], allowed_mentions=NONE)
+        else:
+            await ctx.send('Saved your profile URL. The site lookup is unavailable from this bot right now, so the profile and its stats could not be verified. Try `bstats` later.', allowed_mentions=NONE)
 
     @commands.command()
     async def bunlinkprofile(self, ctx):
@@ -333,29 +337,47 @@ class BakuganDB(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True, attach_files=True)
     async def bdeckshare(self, ctx, *, title: str):
-        """Post a share-deck image attached to your command and list it publicly."""
+        """Share a website .deck.json export or its downloaded deck image."""
         if not ctx.message.attachments:
-            await ctx.send(f'Attach the deck image from the site to your `{ctx.clean_prefix}bdeckshare My Deck` message.')
+            await ctx.send(f'Attach the website `.deck.json` export or Share deck image to `{ctx.clean_prefix}bdeckshare My Deck`.')
             return
         attachment = ctx.message.attachments[0]
-        if not (attachment.content_type or '').startswith('image/') or attachment.size > 8_000_000:
-            await ctx.send('Attach an image under 8 MB.')
-            return
         title = title.strip()[:80]
         if not title:
             await ctx.send('Give the deck a name.')
             return
-        suffix = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif'}.get(attachment.content_type)
-        if not suffix:
-            await ctx.send('Use a PNG, JPG, WebP or GIF image.')
-            return
-        try:
-            file = discord.File(io.BytesIO(await attachment.read()), filename=f'deck.{suffix}')
-        except discord.HTTPException:
-            await ctx.send('Could not read that image. Try attaching it again.')
-            return
+        website_deck = attachment.filename.lower().endswith('.deck.json')
+        if website_deck:
+            if attachment.size > 1_000_000:
+                await ctx.send('The website deck export must be under 1 MB.')
+                return
+            try:
+                deck, site_catalog, art = resolve_deck(await attachment.read())
+                picture = await render_deck_image(deck, site_catalog, self.http, art)
+            except (ValueError, OSError, discord.HTTPException) as exc:
+                await ctx.send(f'Could not render that website deck: {str(exc)[:300]}', allowed_mentions=NONE)
+                return
+            file = discord.File(io.BytesIO(picture), filename='deck.png')
+            suffix = 'png'
+        else:
+            if attachment.size > 8_000_000:
+                await ctx.send('Attach an image under 8 MB.')
+                return
+            suffix = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif'}.get(attachment.content_type)
+            if not suffix:
+                await ctx.send('Use a website `.deck.json` export or a PNG, JPG, WebP or GIF image.')
+                return
+            try:
+                file = discord.File(io.BytesIO(await attachment.read()), filename=f'deck.{suffix}')
+            except discord.HTTPException:
+                await ctx.send('Could not read that image. Try attaching it again.')
+                return
         embed = discord.Embed(title=title, description=f'Shared by {ctx.author.display_name}', colour=discord.Colour.blue())
         embed.set_image(url=f'attachment://deck.{suffix}')
+        if website_deck:
+            for heading, entries in (('Bakugan', deck['bakugan']), ('Abilities', [c['name'] for c in deck['abilities']]), ('Gates', [c['name'] for c in deck['gates']])):
+                embed.add_field(name=heading, value=', '.join(entries)[:1024], inline=False)
+            embed.set_footer(text=deck['note'])
         sent = await ctx.send(embed=embed, file=file, allowed_mentions=NONE)
         entry = {'id': str(uuid.uuid4())[:8], 'title': title, 'author_id': ctx.author.id,
                  'channel_id': ctx.channel.id, 'message_id': sent.id}
