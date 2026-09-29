@@ -5,7 +5,7 @@ import re
 import discord
 
 from . import engine as game
-from .content import CLASSES, GEAR_SETS, MECHANICS, RUNES, SLOTS
+from .content import CLASSES, DUNGEONS, GEAR_SETS, MECHANICS, RUNES, SLOTS
 from .loot import rarity_label
 
 COLOR = 0x836FFF
@@ -208,7 +208,8 @@ def profile_embed(p, prefix):
     elif p["tutorial"] < 6:
         next_step = f"Tutorial step {p['tutorial'] + 1}/6 · `{prefix}aether tutorial`"
     elif p["run"]:
-        next_step = f"Hollow Trail · room {p['run']['room'] + 1}/4 · `{prefix}aether dungeon`"
+        dungeon = DUNGEONS[p["run"].get("dungeon", "hollow")]
+        next_step = f"{dungeon['name']} · tier {p['run'].get('tier', 1)} · room {p['run']['room'] + 1}/{len(dungeon['rooms'])} · `{prefix}aether dungeon`"
     else:
         next_step = f"Ready to explore · `{prefix}aether explore`"
     e.add_field(name="Next move", value=next_step, inline=False)
@@ -284,7 +285,7 @@ def channel_embed(key, settings, prefix):
         )
         e.add_field(
             name="Before you engage",
-            value="Finish the tutorial. Be within four levels below the enemy. Normal spawns are solo and expire after 15 minutes. Shared bosses allow up to 20 participants for 30 minutes, one attempt each.",
+            value="Finish the tutorial. Be within four levels below the enemy. Normal spawns are solo and expire after 15 minutes. Shared bosses allow up to 20 participants for 30 minutes; repeat attempts keep your damage and let you finish solo.",
             inline=False,
         )
         e.add_field(
@@ -326,7 +327,7 @@ def channel_embed(key, settings, prefix):
     if key in ("guide", "adventures", "spawns"):
         e.add_field(
             name="Boss hunts",
-            value=f"Tsukara: level 10 (entry 6+). Raizen: level 20 (entry 16+). Press Engage on a boss post to contribute, then Claim reward after victory (5% damage minimum).\n`{c} boss`\nTsukara also ends the four-room Hollow Trail: `{c} dungeon`. Normal explore hunts do not roll bosses.",
+            value=f"Tsukara: level 10 (entry 6+). Raizen: level 20 (entry 16+). Press Engage to fight or rejoin, then Claim reward after victory (5% damage minimum). Solo completion is possible over repeat attempts.\n`{c} boss`\nDungeons: Hollow Trail (6+) and Furnace Descent (16+). View tiers: `{c} dungeons`. Normal explore hunts do not roll bosses.",
             inline=False,
         )
     if key in ("adventures", "tavern"):
@@ -483,8 +484,8 @@ def boss_embed(pool, participants=0):
         description=f"**{status} · {pool['hp']:,}/{pool['maxhp']:,} shared HP**\n{participants}/20 participants · Minimum level {max(1, m['level'] - 4)}\nEnds <t:{int(pool['expires'])}:R>. Finish the tutorial first.",
     )
     e.add_field(
-        name="Fight together",
-        value="Press Engage for your personal battle controls. Each player gets one attempt; your damage reduces the shared pool. At least two full attempts are needed. Defeat or retreat keeps damage credited, but does not allow rejoining.",
+        name="Fight solo or together",
+        value="Press Engage for your battle controls, including resuming an active attempt. After victory, defeat or retreat, Engage again to keep fighting. Damage stays credited across attempts; you can finish without another player.",
         inline=False,
     )
     e.add_field(

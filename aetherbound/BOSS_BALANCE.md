@@ -1,6 +1,6 @@
 # Shared boss balance
 
-600 seeded groups: 2 bosses × 3 party sizes × 2 level bands × 50 seeds. Rare gear, no potions, rotated class mix, interrupt policy, round-robin actions. The shared pool has twice normal boss HP; each player can contribute at most one normal boss HP bar. Damage conservation and absence of personal victory rewards are asserted in every run. This models combat, not real-world participation or response speed.
+600 seeded groups: 2 bosses × 3 party sizes × 2 level bands × 50 seeds. Rare gear, no potions, rotated class mix, interrupt policy, round-robin actions. The shared pool has twice normal boss HP; this baseline simulation uses one attempt per player. The live rules now allow repeat attempts with preserved damage, so solo completion is possible; the regression suite covers a solo finish and one-time claim. Damage conservation and absence of personal victory rewards are asserted in every simulation. This models combat, not real-world participation or response speed.
 
 | Boss | Players | Level band | Group win rate | Mean eligible claimants | Mean total actions |
 |---|---:|---|---:|---:|---:|

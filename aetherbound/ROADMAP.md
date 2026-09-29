@@ -32,12 +32,19 @@ CUSTOMIZATION_BALANCE.md compares every set and maximum offensive/defensive sock
 
 ## Shared-pool boss spawns — implemented
 
-Two normal boss HP bars shared across up to 20 personal attempts; one attempt per
-player. Group defeat required within 30 minutes, minimum 5% damage for one-time
+Two normal boss HP bars shared across up to 20 participants with repeat attempts.
+Solo or group defeat required within 30 minutes, minimum 5% damage for one-time
 claims. Gold/EXP scale with contribution; eligible players get normal boss loot.
 Atomic turn/HP/contribution and reward/claim commits, restart recovery, expiry,
 privacy deletion/export, feature switch and 600 seeded group simulations.
 Live party turn combat remains deferred.
+
+## Dungeon progression — implemented
+
+Hollow Trail unlocks six tiers, adding two enemy levels per tier up to level 20.
+Furnace Descent unlocks at level 16 and ends with Raizen. Existing Embervein enemies,
+materials, boss drops and artwork are reused. Dungeon health, selected tier and room
+survive restarts; previous Hollow clears unlock tiers without changing active runs.
 
 ## Next: endgame
 

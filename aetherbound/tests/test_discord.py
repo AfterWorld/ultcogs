@@ -749,3 +749,61 @@ async def test_shared_spawn_multiple_players_and_claim_buttons(cog):
     await cog.action(guild.id, 5, p["battle"]["id"], 0, "attack")
     pool = (await cog.store.rows("boss_pools"))[0]
     assert pool["hp"] < pool["maxhp"]
+
+
+@pytest.mark.parametrize("edit_fails", [False, True])
+async def test_boss_refresh_preserves_real_discord_button_dispatch(cog, edit_fails):
+    from discord.ui.view import ViewStore
+
+    from aetherbound import bosses
+    from aetherbound.views import SpawnView
+
+    cog.boss_refresh_times = {}
+    dispatch = ViewStore(NS())
+    cog.bot.add_view = lambda view, message_id: dispatch.add_view(view, message_id)
+    await cog.store.transaction(lambda c: bosses.create(c, "pool", 1, "tsukara", time.time() + 300))
+    await cog.store.transaction(
+        lambda c: c.execute(
+            "INSERT INTO spawns VALUES(?,?,?,?,?,?,0)",
+            ("pool", 1, 10, 55, "tsukara", time.time() + 300),
+        )
+    )
+    old = SpawnView(cog, "pool", shared=True)
+    dispatch.add_view(old, 55)
+
+    async def edit(**kwargs):
+        if edit_fails:
+            raise discord.HTTPException(NS(status=500, reason="test"), "test")
+        dispatch.add_view(kwargs["view"], 55)
+
+    cog.bot.get_channel = lambda cid: NS(get_partial_message=lambda mid: NS(edit=edit))
+    await cog.refresh_boss(1, "pool")
+    new = next(v for v in cog.views if getattr(v, "spawn_id", None) == "pool")
+    assert old.is_finished() and not new.is_finished()
+    for button in new.children:
+        assert dispatch._views[55][(button.type.value, button.custom_id)] is button
+    cog.claim_spawn = AsyncMock(return_value=True)
+    i = interaction()
+    await new.children[0].callback(i)
+    i.response.defer.assert_awaited_once_with(ephemeral=True)
+    cog.claim_spawn.assert_awaited_once_with(i, "pool")
+
+
+async def test_claim_shortcut_routes_to_boss_rewards(cog):
+    ctx = NS(guild=NS(id=1), author=NS(id=5), send=AsyncMock())
+    cog.claim_boss = AsyncMock(return_value="Claimed boss rewards")
+    await Aetherbound.claim.callback(cog, ctx, "pool")
+    cog.claim_boss.assert_awaited_once_with(1, 5, "pool")
+
+
+async def test_boss_board_hides_expired_losses_and_shows_actionable_commands(cog):
+    from aetherbound import bosses
+
+    await cog.store.transaction(
+        lambda c: bosses.create(c, "expired", 1, "tsukara", time.time() - 1)
+    )
+    await cog.store.transaction(lambda c: bosses.create(c, "open", 1, "tsukara", time.time() + 300))
+    ctx = NS(guild=NS(id=1), author=NS(id=5), clean_prefix=".ae ", send=AsyncMock())
+    await Aetherbound.boss_board.callback(cog, ctx)
+    text = ctx.send.call_args.args[0]
+    assert "expired" not in text and "boss join open" in text and "boss claim open" not in text

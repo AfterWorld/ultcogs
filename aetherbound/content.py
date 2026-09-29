@@ -147,6 +147,14 @@ MONSTERS = {
     k: dict(name=n, level=level, region=r, behavior=b, material=m, boss=k in ("tsukara", "raizen"))
     for k, n, level, r, b, m in _ROWS
 }
+DUNGEONS = {
+    "hollow": dict(
+        name="Hollow Trail", level=6, rooms=("wolf", "moth", "sentinel", "tsukara"), gold=60
+    ),
+    "furnace": dict(
+        name="Furnace Descent", level=16, rooms=("beetle", "leech", "revenant", "raizen"), gold=120
+    ),
+}
 INTENTS = {
     "burst": "Charging an aether burst: guard or interrupt.",
     "bleed": "Sharpening thorns: the next strike causes bleeding.",

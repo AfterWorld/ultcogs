@@ -52,13 +52,17 @@ async def test_concurrent_damage_and_stale_turn(arena):
     assert await arena.player(1, 1) == p
 
 
-async def test_personal_kill_never_pays_and_cannot_rejoin(arena):
+async def test_personal_kill_never_pays_and_can_rejoin(arena):
     await arena.change(1, 1, lambda p, c: p["battle"].update(enemy_hp=1))
     await turn(arena, 1)
     p = await arena.player(1, 1)
     assert p["wins"] == 0 and p["boss_wins"] == 0 and p["gold"] == 0 and p["battle"] is None
-    with pytest.raises(g.RuleError):
-        await arena.change(1, 1, lambda p, c: b.join(p, c, 1, 1, "pool", now=1002))
+    members = await arena.rows("boss_members")
+    await arena.change(1, 1, lambda p, c: b.join(p, c, 1, 1, "pool", now=1002))
+    assert await arena.rows("boss_members") == members
+    active = await arena.player(1, 1)
+    await arena.change(1, 1, lambda p, c: b.join(p, c, 1, 1, "pool", now=1002))
+    assert await arena.player(1, 1) == active  # Resume cannot refill HP or energy.
     with pytest.raises(g.RuleError):
         await arena.change(
             1, 1, lambda p, c: b.claim(p, c, 1, 1, "pool", random.Random(1), now=1002)
@@ -181,3 +185,26 @@ async def test_shared_turn_rolls_back_pool_and_player_together(arena):
     assert await arena.player(1, 1) == player
     assert await arena.rows("boss_pools") == pool
     assert await arena.rows("boss_members") == members
+
+
+async def test_one_player_can_finish_with_repeat_attempts_and_claim_once(arena):
+    attempts = 0
+    for _ in range(200):
+        pool = (await arena.rows("boss_pools"))[0]
+        if pool["hp"] == 0:
+            break
+        p = await arena.player(1, 1)
+        if not p["battle"]:
+            attempts += 1
+            await arena.change(1, 1, lambda p, c: b.join(p, c, 1, 1, "pool", now=1002))
+        await turn(arena, 1)
+    pool = (await arena.rows("boss_pools"))[0]
+    assert pool["hp"] == 0 and attempts >= 1
+    member = next(x for x in await arena.rows("boss_members") if x["user"] == 1)
+    assert member["damage"] == pool["maxhp"]
+    await arena.change(1, 1, lambda p, c: b.claim(p, c, 1, 1, "pool", random.Random(1), now=1003))
+    assert (await arena.player(1, 1))["boss_wins"] == 1
+    with pytest.raises(g.RuleError):
+        await arena.change(
+            1, 1, lambda p, c: b.claim(p, c, 1, 1, "pool", random.Random(1), now=1004)
+        )
