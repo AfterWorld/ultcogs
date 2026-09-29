@@ -200,8 +200,12 @@ selects the highest unlocked tier; omitting the name starts Hollow or continues 
 current run. Clearing a lower tier again cannot skip progression. Old Hollow clears
 unlock tiers and old in-progress runs continue at their original difficulty.
 
-The level cap is 20. Each level grants two allocatable attribute points. The next
-level costs `80 + 35L + 8L²` EXP. Normal equal-level wins award `24 + 8L` EXP;
+The level cap is 20. Each level grants two allocatable attribute points. Any
+combat victory, dungeon room reward, boss reward claim or quest reward that raises
+your level shows a **Level up!** notice with your old/new level, points earned and
+total unspent points. Multiple levels appear in one notice; reaching level 20 is
+announced once. Spend points with `aether allocate <attribute> <amount>`.
+The next level costs `80 + 35L + 8L²` EXP. Normal equal-level wins award `24 + 8L` EXP;
 boss rewards are larger. Old, trivial enemies give sharply reduced EXP/gold.
 There is no energy timer outside combat, idle EXP, daily streak or paid system.
 

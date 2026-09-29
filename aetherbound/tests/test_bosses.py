@@ -208,3 +208,16 @@ async def test_one_player_can_finish_with_repeat_attempts_and_claim_once(arena):
         await arena.change(
             1, 1, lambda p, c: b.claim(p, c, 1, 1, "pool", random.Random(1), now=1004)
         )
+
+
+async def test_boss_claim_level_notice_only_when_rewards_are_earned(arena):
+    await arena.change(1, 1, lambda p, c: p.update(xp=g.xp_needed(p["level"]) - 1))
+    result = await turn(arena, 1)
+    assert "Level up!" not in result
+    await arena.transaction(lambda c: c.execute("UPDATE boss_pools SET hp=0,defeated=1001"))
+    await arena.transaction(lambda c: c.execute("UPDATE boss_members SET damage=1140 WHERE user=1"))
+    result = await arena.change(
+        1, 1, lambda p, c: b.claim(p, c, 1, 1, "pool", random.Random(1), now=1002)
+    )
+    assert "Level up! 10 → 11" in result and "+2 attribute points" in result
+    assert (await arena.player(1, 1))["last_result"] == result

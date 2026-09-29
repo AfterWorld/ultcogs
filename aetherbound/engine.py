@@ -35,9 +35,11 @@ def xp_needed(level):
 
 
 def grant_xp(p, amount):
+    """Grant EXP and return a notice only when this reward raises the level."""
+    old_level = p["level"]
     if p["level"] >= 20:
         p["xp"] = 0
-        return
+        return ""
     p["xp"] += max(0, int(amount))
     while p["level"] < 20 and p["xp"] >= xp_needed(p["level"]):
         p["xp"] -= xp_needed(p["level"])
@@ -45,6 +47,15 @@ def grant_xp(p, amount):
         p["points"] += 2
     if p["level"] == 20:
         p["xp"] = 0
+    if p["level"] == old_level:
+        return ""
+    gained = 2 * (p["level"] - old_level)
+    cap = " Level cap reached!" if p["level"] == 20 else ""
+    return (
+        f"\n\n🎉 **Level up! {old_level} → {p['level']}**{cap}\n"
+        f"+{gained} attribute points · {p['points']} unspent. "
+        "Spend them with `aether allocate <attribute> <amount>`."
+    )
 
 
 def make_item(slot, level=1, rarity="common", rng=None, name=None, unique=None, twohand=False):
@@ -619,7 +630,7 @@ def reward(p, b, rng, share=1):
         scale *= 0.3
     xp = int((24 + enemy_level * 8) * (2.5 if m["boss"] else 1) * scale * share)
     gold = int((12 + enemy_level * 3) * (2 if m["boss"] else 1) * scale * share)
-    grant_xp(p, xp)
+    level_notice = grant_xp(p, xp)
     p["gold"] += gold
     p["wins"] += 1
     p["boss_wins"] += int(m["boss"])
@@ -659,7 +670,7 @@ def reward(p, b, rng, share=1):
             )
     loot = "Loot: " + "\n".join(messages)
     advance_tutorial(p)
-    return f"Victory! +{xp} EXP, +{gold} gold, materials. {loot}"
+    return f"Victory! +{xp} EXP, +{gold} gold, materials.{level_notice}\n{loot}"
 
 
 def act(p, battle_id, turn, action, rng):
@@ -846,8 +857,8 @@ def claim_quest(p, key):
         raise RuleError("Quest already claimed or objective incomplete.")
     p["quests"].append(key)
     p["gold"] += q["gold"]
-    grant_xp(p, q["xp"])
-    return f"Claimed {q['name']}: {q['gold']} gold, {q['xp']} EXP."
+    level_notice = grant_xp(p, q["xp"])
+    return f"Claimed {q['name']}: {q['gold']} gold, {q['xp']} EXP.{level_notice}"
 
 
 def quest_progress(p, key):
