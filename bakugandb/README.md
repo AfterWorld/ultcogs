@@ -17,4 +17,4 @@ The card spreadsheet PDF has 41 pages, but many effect cells are cut off at the 
 
 Read-only; no user Config. Pagination buttons belong to the searching user and expire after three minutes. RepositoryHelp discovers the commands from the loaded cog automatically.
 
-Card artwork is not imported. The spreadsheet PDF is a text export and the rules PDF has example art, not a verified one-image-per-card asset collection. Embeds show text only.
+Card images live in a separate optional `data/images.json` index sourced from the Bakugan Brawl Online deck-builder public asset manifest. 263 records matched by normalized name and card type; embeds link to the public image host and credit the site. No images are copied into the repository. Unmatched or custom cards remain text only. Image links may change if the source removes or renames assets.

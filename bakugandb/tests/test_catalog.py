@@ -18,11 +18,12 @@ def test_catalog():
     assert any(c['name'] == 'Blue Squall' for c in catalog.fusion('blue stealth'))
     assert any(c['name'] == 'Blue Squall' for c in catalog.filter('normal aquos')) is False
     assert any(c['name'] == 'Blue Squall' for c in catalog.filter('fusion aquos'))
+    assert catalog.images['Blue Squall']['url'].endswith('ability_fusion_blue_squall.webp')
     assert normalize('Blue Squall') == normalize('BlueSquall')
 
 
 def test_bad_data(tmp_path):
-    for name, value in [('cards.json', [{}]), ('bakugan.json', []), ('rules.json', {}), ('patch_history.json', {})]:
+    for name, value in [('cards.json', [{}]), ('bakugan.json', []), ('rules.json', {}), ('patch_history.json', {}), ('images.json', {})]:
         (tmp_path / name).write_text(json.dumps(value))
     try:
         Catalog(tmp_path)
