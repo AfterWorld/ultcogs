@@ -1,5 +1,6 @@
 """Bakugan Anime Style card reference commands for Red."""
 import io
+import json
 import logging
 import re
 import time
@@ -204,7 +205,7 @@ class BakuganDB(commands.Cog):
         if not await self.ready(ctx):
             return
         try:
-            deck, site_catalog, art = random_site_deck(attribute)
+            deck, site_catalog, art, export = random_site_deck(attribute)
         except ValueError as exc:
             await ctx.send(str(exc), allowed_mentions=NONE)
             return
@@ -212,7 +213,9 @@ class BakuganDB(commands.Cog):
             picture = await render_deck_image(deck, site_catalog, self.http, art)
             embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
             embed.set_image(url='attachment://bakugan-deck.png')
-            await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='bakugan-deck.png'))
+            deck_file = discord.File(io.BytesIO((json.dumps(export, indent=2) + '\n').encode('utf-8')),
+                                     filename=f"random-{deck['attribute'].lower()}.deck.json")
+            await ctx.send(embed=embed, files=[discord.File(io.BytesIO(picture), filename='bakugan-deck.png'), deck_file])
         except (OSError, ValueError, discord.HTTPException):
             log.exception('Could not render random deck image; sending text list')
             embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
@@ -220,7 +223,9 @@ class BakuganDB(commands.Cog):
             embed.add_field(name='Abilities', value='\n'.join(c['name'] for c in deck['abilities']), inline=False)
             embed.add_field(name='Gates', value='\n'.join(c['name'] for c in deck['gates']), inline=False)
             embed.set_footer(text=deck['note'])
-            await ctx.send(embed=embed)
+            deck_file = discord.File(io.BytesIO((json.dumps(export, indent=2) + '\n').encode('utf-8')),
+                                     filename=f"random-{deck['attribute'].lower()}.deck.json")
+            await ctx.send(embed=embed, file=deck_file)
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True)

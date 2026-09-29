@@ -75,10 +75,11 @@ def random_site_deck(attribute=None, rng=None):
     if not guardians or len(generic) < 2 or len(normal) < 6 or len(command) < 2 or not attribute_gates:
         raise ValueError('The website catalog has too few cards for that attribute.')
     bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
-    export = {'version': 1, 'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
+    export = {'version': 1, 'name': f'Random {attribute.title()} Deck', 'description': '',
+              'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
               'abilities': [c['id'] for c in rng.sample(normal, 6)],
               'gates': [rng.choice(attribute_gates)['id'], *[g['id'] for g in rng.sample(command, 2)]]}
     deck, catalog, art = resolve_deck(json.dumps(export).encode())
     deck['heading'] = 'RANDOM DECK'
     deck['note'] = 'Cards and artwork: Bakugan Brawl Online · catalog ' + site['snapshot']
-    return deck, catalog, art
+    return deck, catalog, art, export

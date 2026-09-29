@@ -21,6 +21,7 @@ Read-only; no user Config. Pagination buttons belong to the searching user and e
 Card images live in a separate optional `data/images.json` index sourced from the Bakugan Brawl Online deck-builder public asset manifest. 263 records matched by normalized name and card type; embeds link to the public image host and credit the site. No images are copied into the repository. Unmatched or custom cards remain text only. Image links may change if the source removes or renames assets.
 
 `brandom` samples one Guardian, two Generic Bakugan, six unrestricted single-attribute Normal Abilities, and three Gates (one matching Attribute or Reactor Gate, two Commands) using the dated public website catalog snapshot. The Discord embed shows the image directly. Random generation does not run the website's deck validator.
+Each roll also attaches a website-compatible `.deck.json` file with the exact IDs in the image. Download it and use the deck builder's Import control to edit or validate the deck. The text fallback includes the same JSON file if image rendering fails.
 
 `brandom` attaches a generated deck image with public game artwork when available. Missing art gets a labeled placeholder; if image rendering fails, the command sends its text list. Pillow is installed through `info.json`. `data/bakugan_art.json` maps Bakugan names to the site's public artwork URLs; the existing card image index remains separate.
 
