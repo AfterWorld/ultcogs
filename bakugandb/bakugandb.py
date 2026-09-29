@@ -11,9 +11,8 @@ import discord
 from redbot.core import Config, commands
 
 from .catalog import Catalog, normalize
-from .random_deck import build_random_deck
 from .deck_image import render as render_deck_image
-from .site_deck import resolve_deck
+from .site_deck import resolve_deck, random_site_deck
 
 log = logging.getLogger('red.bakugandb')
 EMOJI = {'Aquos':'🌊','Pyrus':'🔥','Ventus':'🌪️','Subterra':'🪨','Haos':'✨','Darkus':'🌑'}
@@ -205,13 +204,13 @@ class BakuganDB(commands.Cog):
         if not await self.ready(ctx):
             return
         try:
-            deck = build_random_deck(self.catalog, attribute)
+            deck, site_catalog, art = random_site_deck(attribute)
         except ValueError as exc:
             await ctx.send(str(exc), allowed_mentions=NONE)
             return
         try:
-            picture = await render_deck_image(deck, self.catalog, self.http)
-            embed = discord.Embed(title=f"Random {deck['attribute']} deck", description=deck['note'], colour=discord.Colour.blue())
+            picture = await render_deck_image(deck, site_catalog, self.http, art)
+            embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
             embed.set_image(url='attachment://bakugan-deck.png')
             await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='bakugan-deck.png'))
         except (OSError, ValueError, discord.HTTPException):

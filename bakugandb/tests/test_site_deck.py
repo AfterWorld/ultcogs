@@ -28,3 +28,14 @@ def test_resolve_site_export():
         assert 'catalog snapshot' in str(exc)
     else:
         raise AssertionError('Unknown website ID accepted')
+
+
+def test_random_site_deck():
+    import random
+    for attribute in module.ATTRIBUTES:
+        deck, images, art = module.random_site_deck(attribute, random.Random(7))
+        assert len(deck['bakugan']) == 3 and len(deck['abilities']) == 6 and len(deck['gates']) == 3
+        assert deck['bakugan_roles'] == ['GUARDIAN', 'GENERIC', 'GENERIC']
+        assert len({c['name'] for c in deck['abilities'] + deck['gates']}) == 9
+        assert all(name in art for name in deck['bakugan'])
+        assert all(c['name'] in images.images for c in deck['abilities'] + deck['gates'][1:])

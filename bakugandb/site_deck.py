@@ -51,3 +51,34 @@ def resolve_deck(raw):
     deck = {'attribute': primary, 'bakugan': names, 'bakugan_roles': roles, 'heading': 'WEBSITE DECK', **cards,
             'note': 'Website deck export · catalog snapshot ' + site['snapshot'] + ' · check current site rules'}
     return deck, SimpleNamespace(images=images), art
+
+
+def random_site_deck(attribute=None, rng=None):
+    """Build a simple mono-attribute image deck from website IDs and artwork."""
+    import random
+    rng = rng or random.Random()
+    if attribute is not None:
+        attribute = attribute.lower().strip()
+        if attribute not in ATTRIBUTES:
+            raise ValueError('Choose Aquos, Pyrus, Ventus, Subterra, Haos or Darkus.')
+    else:
+        attribute = rng.choice(sorted(ATTRIBUTES))
+    with DATA.open(encoding='utf-8') as stream:
+        site = json.load(stream)
+    guardians = [b for b in site['bakugan'] if b['guardian'] and b.get('art', {}).get(attribute)]
+    generic = [b for b in site['bakugan'] if not b['guardian'] and b.get('art', {}).get(attribute)]
+    normal = [c for c in site['abilities'] if c['category'] == 'normal' and not c.get('hidden')
+              and not c.get('bakuganIds') and attribute in c.get('attributes', []) and c.get('image')]
+    command = [g for g in site['gates'] if g['category'] == 'command' and not g.get('hidden') and g.get('image')]
+    attribute_gates = [g for g in site['gates'] if g['category'] in ('attribute', 'reactor')
+                       and g.get('attribute') == attribute and not g.get('hidden')]
+    if not guardians or len(generic) < 2 or len(normal) < 6 or len(command) < 2 or not attribute_gates:
+        raise ValueError('The website catalog has too few cards for that attribute.')
+    bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
+    export = {'version': 1, 'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
+              'abilities': [c['id'] for c in rng.sample(normal, 6)],
+              'gates': [rng.choice(attribute_gates)['id'], *[g['id'] for g in rng.sample(command, 2)]]}
+    deck, catalog, art = resolve_deck(json.dumps(export).encode())
+    deck['heading'] = 'RANDOM DECK'
+    deck['note'] = 'Cards and artwork: Bakugan Brawl Online · catalog ' + site['snapshot']
+    return deck, catalog, art
