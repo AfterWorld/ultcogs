@@ -12,6 +12,7 @@ from redbot.core import Config, commands
 
 from .catalog import Catalog, normalize
 from .random_deck import build_random_deck
+from .deck_image import render as render_deck_image
 
 log = logging.getLogger('red.bakugandb')
 EMOJI = {'Aquos':'🌊','Pyrus':'🔥','Ventus':'🌪️','Subterra':'🪨','Haos':'✨','Darkus':'🌑'}
@@ -94,7 +95,7 @@ class BakuganDB(commands.Cog):
         self.config.register_user(profile_id=None)
         self.config.register_guild(deck_posts=[], rules_auto_channel=None)
         self.rules_cooldown = {}
-        self.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=12))
+        self.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15), trust_env=True)
         try:
             self.catalog = Catalog()
         except (OSError, ValueError) as exc:
@@ -197,7 +198,7 @@ class BakuganDB(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    @commands.bot_has_permissions(embed_links=True)
+    @commands.bot_has_permissions(embed_links=True, attach_files=True)
     async def brandom(self, ctx, attribute: str = None):
         """Roll a sample deck, optionally for one attribute: [p]brandom aquos."""
         if not await self.ready(ctx):
@@ -207,12 +208,19 @@ class BakuganDB(commands.Cog):
         except ValueError as exc:
             await ctx.send(str(exc), allowed_mentions=NONE)
             return
-        embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
-        embed.add_field(name='Bakugan (1 Guardian, 2 Generic)', value='\n'.join(deck['bakugan']), inline=False)
-        embed.add_field(name='Abilities (6 Normal)', value='\n'.join(c['name'] for c in deck['abilities']), inline=False)
-        embed.add_field(name='Gates (1 Attribute, 2 Command)', value='\n'.join(c['name'] for c in deck['gates']), inline=False)
-        embed.set_footer(text=deck['note'])
-        await ctx.send(embed=embed)
+        try:
+            picture = await render_deck_image(deck, self.catalog, self.http)
+            embed = discord.Embed(title=f"Random {deck['attribute']} deck", description=deck['note'], colour=discord.Colour.blue())
+            embed.set_image(url='attachment://bakugan-deck.png')
+            await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='bakugan-deck.png'))
+        except (OSError, ValueError, discord.HTTPException):
+            log.exception('Could not render random deck image; sending text list')
+            embed = discord.Embed(title=f"Random {deck['attribute']} deck", colour=discord.Colour.blue())
+            embed.add_field(name='Bakugan', value='\n'.join(deck['bakugan']), inline=False)
+            embed.add_field(name='Abilities', value='\n'.join(c['name'] for c in deck['abilities']), inline=False)
+            embed.add_field(name='Gates', value='\n'.join(c['name'] for c in deck['gates']), inline=False)
+            embed.set_footer(text=deck['note'])
+            await ctx.send(embed=embed)
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True)
@@ -232,6 +240,8 @@ class BakuganDB(commands.Cog):
             return
         entry = matches[0]
         embed = discord.Embed(title=entry['topic'], description=entry['text'], colour=discord.Colour.blue(), url=RULE_URL)
+        for section in entry.get('sections', []):
+            embed.add_field(name=section['heading'], value=section['text'][:1024], inline=False)
         embed.set_footer(text='Post-New Vestroia Rules · ' + str(entry.get('page', entry.get('pages', '?'))))
         await ctx.send(embed=embed)
 
