@@ -21,6 +21,7 @@ class Catalog:
         self.rules = self._read(directory / 'rules.json', dict)
         self.patch_history = self._read(directory / 'patch_history.json', dict)
         self.images = self._read(directory / 'images.json', dict)
+        self.random_pool = self._read(directory / 'random_pool.json', dict)
         for name, image in self.images.items():
             if not isinstance(name, str) or not isinstance(image, dict) or not str(image.get('url', '')).startswith('https://'):
                 raise ValueError('Malformed card image mapping')
