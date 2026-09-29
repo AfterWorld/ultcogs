@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from .deck_legality import check_random_export
+
 SITE = 'https://bakuganbrawl.online'
 DATA = Path(__file__).parent / 'data' / 'site_catalog.json'
 ATTRIBUTES = {'aquos', 'pyrus', 'ventus', 'subterra', 'haos', 'darkus'}
@@ -65,13 +67,21 @@ def random_site_deck(attribute=None, rng=None):
         attribute = rng.choice(sorted(ATTRIBUTES))
     with DATA.open(encoding='utf-8') as stream:
         site = json.load(stream)
-    guardians = [b for b in site['bakugan'] if b['guardian'] and b.get('art', {}).get(attribute)]
-    generic = [b for b in site['bakugan'] if not b['guardian'] and b.get('art', {}).get(attribute)]
-    normal = [c for c in site['abilities'] if c['category'] == 'normal' and not c.get('hidden')
+    restrictions = json.loads((DATA.parent / 'site_legality.json').read_text(encoding='utf-8'))
+    banned = set(restrictions['banned_bakugan_ids'])
+    banned_abilities = set(restrictions['banned_ability_ids'])
+    banned_gates = set(restrictions['banned_gate_ids'])
+    locks = restrictions['guardian_required_attribute']
+    guardians = [b for b in site['bakugan'] if b['guardian'] and b['id'] not in banned
+                 and (not locks.get(b['id']) or locks[b['id']] == attribute) and b.get('art', {}).get(attribute)]
+    generic = [b for b in site['bakugan'] if not b['guardian'] and b['id'] not in banned
+               and b.get('art', {}).get(attribute)]
+    normal = [c for c in site['abilities'] if c['category'] == 'normal' and c['id'] not in banned_abilities and not c.get('hidden')
               and not c.get('bakuganIds') and attribute in c.get('attributes', []) and c.get('image')]
-    command = [g for g in site['gates'] if g['category'] == 'command' and not g.get('hidden') and g.get('image')]
+    command = [g for g in site['gates'] if g['category'] == 'command' and g['id'] not in banned_gates
+               and not g.get('hidden') and g.get('image')]
     attribute_gates = [g for g in site['gates'] if g['category'] in ('attribute', 'reactor')
-                       and g.get('attribute') == attribute and not g.get('hidden')]
+                       and g.get('attribute') == attribute and g['id'] not in banned_gates and not g.get('hidden')]
     if not guardians or len(generic) < 2 or len(normal) < 6 or len(command) < 2 or not attribute_gates:
         raise ValueError('The website catalog has too few cards for that attribute.')
     bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
@@ -79,6 +89,9 @@ def random_site_deck(attribute=None, rng=None):
               'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
               'abilities': [c['id'] for c in rng.sample(normal, 6)],
               'gates': [rng.choice(attribute_gates)['id'], *[g['id'] for g in rng.sample(command, 2)]]}
+    issues = check_random_export(export, site)
+    if issues:
+        raise ValueError('Could not generate a legal deck: ' + '; '.join(issues))
     deck, catalog, art = resolve_deck(json.dumps(export).encode())
     deck['heading'] = 'RANDOM DECK'
     deck['note'] = 'Cards and artwork: Bakugan Brawl Online · catalog ' + site['snapshot']

@@ -2,8 +2,13 @@
 import importlib.util
 import json
 from pathlib import Path
+import sys
+import types
 
-spec = importlib.util.spec_from_file_location('bakugandb_site_deck', Path(__file__).parents[1] / 'site_deck.py')
+package = types.ModuleType('bakugandb')
+package.__path__ = [str(Path(__file__).parents[1])]
+sys.modules.setdefault('bakugandb', package)
+spec = importlib.util.spec_from_file_location('bakugandb.site_deck', Path(__file__).parents[1] / 'site_deck.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
@@ -44,3 +49,17 @@ def test_random_site_deck():
         assert imported['abilities'] == deck['abilities']
         assert imported['gates'] == deck['gates']
         assert exported['name'] == f'Random {attribute.title()} Deck'
+        assert not module.check_random_export(exported, json.loads((Path(__file__).parents[1] / 'data' / 'site_catalog.json').read_text()))
+
+
+def test_random_deck_restrictions():
+    import random
+    site = json.loads((Path(__file__).parents[1] / 'data' / 'site_catalog.json').read_text())
+    for attribute in module.ATTRIBUTES:
+        _, _, _, exported = module.random_site_deck(attribute, random.Random(9))
+        assert not module.check_random_export(exported, site)
+        exported['bakugans'][0] = {'id': 'alpha_hydranoid', 'attribute': 'aquos'}
+        assert any('Banned Bakugan' in issue for issue in module.check_random_export(exported, site))
+    _, _, _, exported = module.random_site_deck('aquos', random.Random(2))
+    exported['abilities'][1] = exported['abilities'][0]
+    assert any('Duplicate card' in issue for issue in module.check_random_export(exported, site))
