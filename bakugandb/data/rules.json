@@ -1,0 +1,56 @@
+{
+  "source": "Post-New Vestroia Rules PDF",
+  "status": "documented constraints; no deck validator in Phase 1",
+  "deck_constraints": {
+    "bakugan_count": 3,
+    "gate_count": 3,
+    "ability_count": 6,
+    "max_guardian_bakugan": 1,
+    "same_bakugan_same_attribute_allowed": false,
+    "duplicate_card_names_allowed": false,
+    "min_attribute_or_reactor_gates": 1,
+    "max_trap_abilities": 1,
+    "max_signature_abilities_per_bakugan": 1,
+    "signature_exception": "Same Bakugan in different attributes may each have one Signature Ability.",
+    "fusion_prerequisite": "A Fusion Ability requires prior use of its specific Signature Ability."
+  },
+  "rules": [
+    {
+      "topic": "Bakugan categories",
+      "text": "Generic and Guardian; a Guardian is optional and limited to one per deck.",
+      "page": 5
+    },
+    {
+      "topic": "Ability cards",
+      "text": "Four subtypes: Signature, Normal, Fusion, and Trap. Fusion does not use an Ability Slot.",
+      "pages": [
+        10,
+        14
+      ]
+    },
+    {
+      "topic": "Gate cards",
+      "text": "Four types: Attribute, Reactor, Command, and Character.",
+      "page": 16
+    },
+    {
+      "topic": "Preyas attribute trait",
+      "text": "Preyas can change his attribute once per turn while on the field to Aquos, Darkus, or Subterra.",
+      "page": 9
+    },
+    {
+      "topic": "Multi-Attribute Bakugan",
+      "text": "Always considered as both attributes; may activate either attribute’s Abilities.",
+      "page": 8
+    },
+    {
+      "topic": "Deck construction",
+      "text": "Three Bakugan, three Gates, six Abilities; no duplicate card names, no duplicate Bakugan in the same attribute, at most one Guardian, and at least one Attribute or Reactor Gate.",
+      "page": 18
+    }
+  ],
+  "notes": [
+    "Image-only G-Power charts require separate visual transcription; individual base G-Power remains unknown in bakugan.json.",
+    "Deck validator deferred to a later phase."
+  ]
+}

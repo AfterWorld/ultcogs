@@ -1,0 +1,13 @@
+{
+  "name": "BakuganDB",
+  "author": ["AfterWorld"],
+  "short": "Bakugan Anime Style card encyclopedia",
+  "description": "Searchable fan game card, gate, fusion and Bakugan reference with explicit source completeness indicators.",
+  "install_msg": "Load with [p]load bakugandb. Try [p]bcard blue squall, [p]bcards aquos, [p]bfusion blue stealth, and [p]bbakugan preyas.",
+  "requirements": [],
+  "tags": ["bakugan", "reference", "cards"],
+  "min_bot_version": "3.5.24",
+  "min_python_version": [3, 11, 0],
+  "type": "COG",
+  "end_user_data_statement": "No end user data is stored."
+}
