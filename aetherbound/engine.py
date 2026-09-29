@@ -9,6 +9,7 @@ import uuid
 from .content import (
     ATTRS,
     CLASSES,
+    DUNGEONS,
     GEAR_SETS,
     INTENTS,
     MECHANICS,
@@ -500,23 +501,62 @@ def equip_best(p):
     )
 
 
-def begin(p, monster_key, practice=False, carry=None):
+def dungeon_tier(p, key):
+    clears = p.get("dungeon_clears", {}).get(key, p.get("dungeons", 0) if key == "hollow" else 0)
+    max_tier = 1 + (20 - MONSTERS[DUNGEONS[key]["rooms"][-1]]["level"]) // 2
+    return min(max_tier, clears + 1)
+
+
+def enter_dungeon(p, key=None, tier=None):
+    idle(p)
+    run = p["run"]
+    if run:
+        if (key and key != run.get("dungeon", "hollow")) or (
+            tier is not None and tier != run.get("tier", 1)
+        ):
+            raise RuleError(
+                "Finish or abandon your current dungeon before changing dungeons or tiers."
+            )
+    else:
+        key = key or "hollow"
+        if key not in DUNGEONS:
+            raise RuleError("Dungeons: hollow or furnace. Use aether dungeons to see unlocks.")
+        unlocked = dungeon_tier(p, key)
+        tier = unlocked if tier is None else tier
+        if not 1 <= tier <= unlocked:
+            raise RuleError(f"Choose an unlocked tier from 1 to {unlocked}.")
+        required = DUNGEONS[key]["level"] + 2 * (tier - 1)
+        if p["tutorial"] < 6 or p["level"] < required:
+            raise RuleError(
+                f"{DUNGEONS[key]['name']} tier {tier} needs level {required} and a completed tutorial. Choose a lower unlocked tier if needed."
+            )
+        run = dict(dungeon=key, tier=tier, room=0, hp=stats(p)["hp"])
+    key = run.get("dungeon", "hollow")
+    monster = DUNGEONS[key]["rooms"][run["room"]]
+    level = MONSTERS[monster]["level"] + 2 * (run.get("tier", 1) - 1)
+    b = begin(p, monster, carry=min(run["hp"], stats(p)["hp"]), level=level)
+    p["run"] = run
+    return b
+
+
+def begin(p, monster_key, practice=False, carry=None, level=None):
     idle(p)
     if not practice and p["tutorial"] < 5:
         raise RuleError("Finish the training and forging tutorial first: aether tutorial.")
     if len(p.get("unclaimed_loot", [])) >= 20:
         raise RuleError("Claim your loot overflow before starting another battle: aether loot.")
     m = MONSTERS[monster_key]
-    if not practice and p["level"] < m["level"] - 4:
+    level = m["level"] if level is None else level
+    if not practice and p["level"] < level - 4:
         raise RuleError(
-            f"Requires at least level {max(1, m['level'] - 4)}. This enemy is level {m['level']}."
+            f"Requires at least level {max(1, level - 4)}. This enemy is level {level}."
         )
     s = stats(p)
-    level = m["level"]
     mhp = (80 + 30 * level) * (3.0 if m["boss"] else 1)
     p["battle"] = dict(
         id=uid(),
         monster=monster_key,
+        level=level,
         hp=carry if carry is not None else s["hp"],
         maxhp=s["hp"],
         enemy_hp=int(mhp),
@@ -563,7 +603,7 @@ def intent(b):
 
 def reward(p, b, rng, share=1):
     if b.get("shared_pool"):
-        return "Your attempt is complete. Damage credited; claim with aether boss claim after the shared boss falls."
+        return f"Attempt complete; damage saved. Fight again with aether boss join {b['shared_pool']} or Engage. You can finish this boss solo; claim after it falls."
     if b["practice"]:
         p["trained"] = all(a in b["used"] for a in ("attack", "guard", "skill"))
         advance_tutorial(p)
@@ -573,11 +613,12 @@ def reward(p, b, rng, share=1):
             else "Practice again: use Attack, Guard and a Skill before winning."
         )
     m = MONSTERS[b["monster"]]
-    scale = max(0.1, min(1, (m["level"] + 2) / p["level"]))
-    if p["level"] - m["level"] >= 5:
+    enemy_level = b.get("level", m["level"])
+    scale = max(0.1, min(1, (enemy_level + 2) / p["level"]))
+    if p["level"] - enemy_level >= 5:
         scale *= 0.3
-    xp = int((24 + m["level"] * 8) * (2.5 if m["boss"] else 1) * scale * share)
-    gold = int((12 + m["level"] * 3) * (2 if m["boss"] else 1) * scale * share)
+    xp = int((24 + enemy_level * 8) * (2.5 if m["boss"] else 1) * scale * share)
+    gold = int((12 + enemy_level * 3) * (2 if m["boss"] else 1) * scale * share)
     grant_xp(p, xp)
     p["gold"] += gold
     p["wins"] += 1
@@ -586,7 +627,7 @@ def reward(p, b, rng, share=1):
     kills[b["monster"]] = kills.get(b["monster"], 0) + 1
     for mat in ("iron", "essence", m["material"]):
         p["materials"][mat] = p["materials"].get(mat, 0) + 1
-    level = min(p["level"], m["level"])
+    level = min(p["level"], enemy_level)
     rarity = roll_rarity(level, m["boss"], rng)
     if m["boss"]:
         slot, name = rng.choice(BOSS_DROPS[b["monster"]])
@@ -697,16 +738,24 @@ def act(p, battle_id, turn, action, rng):
         if p["run"] and not b["practice"]:
             p["run"]["room"] += 1
             p["run"]["hp"] = b["hp"]
-            if p["run"]["room"] >= 4:
+            key = p["run"].get("dungeon", "hollow")
+            dungeon = DUNGEONS[key]
+            if p["run"]["room"] >= len(dungeon["rooms"]):
+                clears = p.setdefault("dungeon_clears", {})
+                clears.setdefault("hollow", p["dungeons"])
+                clears[key] = max(clears.get(key, 0), p["run"].get("tier", 1))
+                p.setdefault("hollow_dungeons", p["dungeons"])
+                p["hollow_dungeons"] += int(key == "hollow")
                 p["dungeons"] += 1
-                p["gold"] += 60
+                bonus = dungeon["gold"] + 10 * (p["run"].get("tier", 1) - 1)
+                p["gold"] += bonus
                 p["run"] = None
-                result += " Hollow Trail cleared! +60 gold."
+                result += f" {dungeon['name']} cleared! +{bonus} gold. See aether dungeons for your next challenge."
             else:
                 result += " Room cleared. Continue with aether dungeon."
         p["last_result"] = result
         return result
-    incoming = (8 + m["level"] * 2.1) * (1.3 if m["boss"] else 1)
+    incoming = (8 + b.get("level", m["level"]) * 2.1) * (1.3 if m["boss"] else 1)
     if b["effects"].get("chill", 0):
         incoming *= 0.8
         b["effects"]["chill"] -= 1
@@ -770,6 +819,8 @@ def act(p, battle_id, turn, action, rng):
 def objective_total(p, key):
     if key == "guardian":
         return p.get("kills", {}).get("tsukara", 0)
+    if key == "trail":
+        return p.get("hollow_dungeons", p["dungeons"])
     return p[QUESTS[key]["field"]]
 
 

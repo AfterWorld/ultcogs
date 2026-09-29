@@ -16,7 +16,7 @@ from redbot.core.data_manager import cog_data_path
 from . import bosses, economy
 from . import engine as game
 from .art import ART_VERSION, artwork, thumbnail
-from .content import ATTRS, CLASSES, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
+from .content import ATTRS, CLASSES, DUNGEONS, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
 from .loot import BOSS_DROPS, RARITIES, UNIQUES, rarity_label
 from .presentation import (
     boss_embed,
@@ -161,6 +161,11 @@ class Aetherbound(commands.Cog):
             thumbnail(embed, pool["monster"])
             view = SpawnView(self, pool_id, shared=True)
             view.children[0].disabled = pool["hp"] <= 0 or pool["expires"] <= time.time()
+            # Stop old handlers before Discord registers replacements with the same IDs.
+            for old in list(self.views):
+                if old is not view and getattr(old, "spawn_id", None) == pool_id:
+                    old.stop()
+                    self.views.discard(old)
             try:
                 await channel.get_partial_message(spawn["message"]).edit(
                     embed=embed,
@@ -168,14 +173,9 @@ class Aetherbound(commands.Cog):
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             except discord.HTTPException:
-                view.stop()
-                self.views.discard(view)
+                # The saved post still exists; keep its buttons routable if editing failed.
+                self.bot.add_view(view, message_id=spawn["message"])
                 log.warning("Could not refresh shared boss board %s", pool_id)
-            else:
-                for old in list(self.views):
-                    if old is not view and getattr(old, "spawn_id", None) == pool_id:
-                        old.stop()
-                        self.views.discard(old)
 
     async def claim_boss(self, guild, user, pool_id):
         return await self.store.change(
@@ -518,7 +518,9 @@ class Aetherbound(commands.Cog):
         pools = [
             r
             for r in await self.store.rows("boss_pools")
-            if r["guild"] == ctx.guild.id and r["expires"] + 7 * 86400 > time.time()
+            if r["guild"] == ctx.guild.id
+            and r["expires"] + 7 * 86400 > time.time()
+            and (r["expires"] > time.time() or r["hp"] == 0)
         ]
         if not pools:
             await ctx.send(
@@ -544,14 +546,21 @@ class Aetherbound(commands.Cog):
                 f"Your contribution: {contribution.get('damage', 0):,} damage ({contribution.get('damage', 0) / pool['maxhp']:.1%})"
                 + (" · Claimed" if contribution.get("claimed") else "")
             )
-            lines.append(
-                f"**{MONSTERS[pool['monster']]['name']}** · {state} · {pool['hp']:,}/{pool['maxhp']:,} HP\n{progress}\n```text\n{ctx.clean_prefix}aether boss join {pool['id']}\n{ctx.clean_prefix}aether boss claim {pool['id']}\n```"
+            command = (
+                f"{ctx.clean_prefix}aether boss join {pool['id']}"
+                if state == "Open"
+                else f"{ctx.clean_prefix}aether boss claim {pool['id']}"
             )
-        await ctx.send("\n".join(lines))
+            lines.append(
+                f"**{MONSTERS[pool['monster']]['name']}** · {state} · {pool['hp']:,}/{pool['maxhp']:,} HP\n{progress}\n```text\n{command}\n```"
+            )
+        await ctx.send(
+            "Repeat attempts are allowed; you can finish a boss solo.\n" + "\n".join(lines)
+        )
 
     @boss_board.command(name="join")
     async def boss_join(self, ctx, encounter_id: str):
-        """Join a shared boss once; finish the tutorial and leave dungeons first."""
+        """Start another boss attempt, or restore your active one. Damage is preserved."""
         await self.store.change(
             ctx.guild.id,
             ctx.author.id,
@@ -569,28 +578,40 @@ class Aetherbound(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
+    @adventure.command(name="claim")
+    async def claim(self, ctx, encounter_id: str):
+        """Shortcut for aether boss claim ID."""
+        await ctx.send(
+            await self.claim_boss(ctx.guild.id, ctx.author.id, encounter_id),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
     @adventure.command()
     async def resume(self, ctx):
         """Restore battle controls after a restart or deleted message."""
         await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
 
     @adventure.command()
-    async def dungeon(self, ctx):
-        """Enter/continue the four-room Hollow Trail (level 6+)."""
-
-        def fn(p):
-            game.idle(p)
-            if p["level"] < 6 or p["tutorial"] < 6:
-                raise game.RuleError("The Hollow Trail needs level 6 and a completed tutorial.")
-            if not p["run"]:
-                p["run"] = {"room": 0, "hp": game.stats(p)["hp"]}
-            keys = ("wolf", "moth", "sentinel", "tsukara")
-            return game.begin(
-                p, keys[p["run"]["room"]], carry=min(p["run"]["hp"], game.stats(p)["hp"])
-            )
-
-        await self.mutate(ctx, fn)
+    async def dungeon(self, ctx, name: str = "", tier: int = None):
+        """Enter/continue a dungeon: dungeon hollow [tier] or dungeon furnace."""
+        await self.mutate(ctx, lambda p: game.enter_dungeon(p, name.lower() or None, tier))
         await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
+
+    @adventure.command()
+    async def dungeons(self, ctx):
+        """Show dungeon unlocks and available difficulty tiers."""
+        p = await self.require(ctx)
+        lines = [
+            "Clear a tier to unlock the next. Higher tiers add 2 enemy levels; stats and rewards scale up to level 20. Replay any unlocked tier."
+        ]
+        for key, dungeon in DUNGEONS.items():
+            tier = game.dungeon_tier(p, key)
+            required = dungeon["level"] + 2 * (tier - 1)
+            lines.append(
+                f"**{dungeon['name']}** · Entry level {dungeon['level']} · Highest unlocked tier {tier} (level {required}+)\n"
+                f"`{ctx.clean_prefix}aether dungeon {key} 1` · Boss: {MONSTERS[dungeon['rooms'][-1]]['name']}"
+            )
+        await ctx.send("\n\n".join(lines))
 
     @adventure.command()
     async def abandon(self, ctx):

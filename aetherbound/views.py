@@ -27,7 +27,7 @@ def battle_embed(p):
     e = discord.Embed(title=f"{p['name']} vs {m['name']}", color=0x836FFF)
     e.description = (
         f"**Your HP:** {b['hp']}/{b['maxhp']} • Energy {b['energy']}\n"
-        f"**Enemy HP:** {b['enemy_hp']}/{b['enemy_maxhp']} • Level {m['level']}\n"
+        f"**Enemy HP:** {b['enemy_hp']}/{b['enemy_maxhp']} • Level {b.get('level', m['level'])}\n"
         f"**Intent:** {intent(b)}\n\n" + "\n".join(b["log"])
     )
     e.add_field(
@@ -62,7 +62,7 @@ def battle_embed(p):
     if b.get("shared_pool"):
         e.add_field(
             name="Shared boss contribution",
-            value="Your attacks feed the shared HP pool. One attempt per encounter. Personal victory does not award loot; claim after the shared boss falls.",
+            value="Your attacks reduce shared HP. Rejoin after each attempt; damage stays credited and you can finish solo. Claim rewards once the shared boss falls.",
             inline=False,
         )
     return e

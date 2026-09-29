@@ -146,7 +146,9 @@ the tutorial or replaying a click never grants the same reward twice.
 | `buy <dated-offer-code>` | Buy the displayed item at its displayed price |
 | `rarities` | Explain all seven rarity labels and drop unlocks |
 | `loot` | Collect overflow equipment after freeing bag space |
-| `dungeon` | Enter/continue Hollow Trail, level 6+ |
+| `dungeons` | Show dungeon level requirements and unlocked tiers |
+| `dungeon [hollow/furnace] [tier]` | Enter or continue a dungeon; Hollow 6+, Furnace 16+ |
+| `claim ENCOUNTER_ID` | Shortcut for `boss claim ENCOUNTER_ID` |
 | `abandon` | Leave a dungeon between rooms |
 | `notifications` | Toggle trading, boss and adventure role subscriptions |
 
@@ -184,8 +186,19 @@ Choose Attack, Guard, a class skill, Potion or Flee. Charged attacks are announc
 before they resolve. Only the battle owner may act. Every action checks the saved
 battle ID and turn number, rejecting stale/double clicks. Defeat loses no gear or
 EXP; fleeing grants no victory rewards. Personal encounters begin at full health.
-Hollow Trail preserves health between its four rooms and permits saving between
-rooms; defeating its final boss completes the dungeon.
+Both dungeons preserve health between four rooms and permit saving between rooms.
+Hollow Trail (level 6+) ends with Tsukara. Furnace Descent (level 16+) passes through
+Ironback Beetle, Crystal Leech and Forge Revenant before Raizen, using the existing
+Embervein materials, boss loot and available local artwork.
+
+Clear Hollow Trail to unlock its next tier, up to tier 6. Each tier adds two levels
+to every enemy and the entry requirement, scaling HP, damage, EXP, gold and item
+level. The level-20 content cap keeps Furnace Descent at tier 1. Completion awards
+60 gold for Hollow or 120 for Furnace, plus 10 per extra tier. `.ae dungeons` lists
+unlocks; `.ae dungeon hollow 1` replays the original difficulty. Omitting the tier
+selects the highest unlocked tier; omitting the name starts Hollow or continues the
+current run. Clearing a lower tier again cannot skip progression. Old Hollow clears
+unlock tiers and old in-progress runs continue at their original difficulty.
 
 The level cap is 20. Each level grants two allocatable attribute points. The next
 level costs `80 + 35L + 8L²` EXP. Normal equal-level wins award `24 + 8L` EXP;
@@ -589,22 +602,26 @@ remain solo; old posts and dungeon bosses keep their existing solo behavior.
   Minimum entry does not guarantee an easy fight. Normal `.ae explore` excludes
   bosses; `.ae dungeon` (6+) ends with solo Tsukara in room four.
 - Shared HP equals two normal boss bars (Tsukara 2,280; Raizen 4,080). Up to 20
-  participants, one personal attempt each. At least two full contributions are
-  needed. Each player uses the existing personal turn controls and boss mechanics.
+  participants with repeat personal attempts. One player can finish the whole boss
+  by rejoining; other players can help. Each player uses the existing turn controls.
 - Damage, including bleed, is clamped to remaining shared HP and committed with
   the personal turn and contribution in one SQLite transaction. Personal victories
-  grant no rewards. Retreat/death preserves credit but never permits a new attempt.
-- The group must win within 30 minutes. Deal at least 5% of total shared HP to
-  qualify. Press **Claim reward** or `.ae boss claim ENCOUNTER_ID` afterwards.
+  grant no rewards. Victory, retreat or death preserves credit and permits rejoining
+  with Engage or `.ae boss join ENCOUNTER_ID`. Joining an active attempt restores its
+  controls without refilling health or energy.
+- Defeat the boss within 30 minutes. Deal at least 5% of total shared HP to
+  qualify. Press **Claim reward**, `.ae boss claim ENCOUNTER_ID`, or
+  `.ae claim ENCOUNTER_ID` afterwards.
   Gold/EXP scale as min(100%, twice your share of total HP), with existing
   overlevel penalties. Qualified players get normal boss materials and signature
   loot, including the existing unique-drop roll. Quest/boss wins count on claim.
 - Claims are atomic, once per player, and available until seven days after the
   original encounter deadline. Full loot overflow delays claiming without losing
   eligibility. Claims are unavailable during an unrelated battle. Expired fights
-  without a group victory pay nothing; the next battle click safely ends them.
+  without victory pay nothing; the next battle click safely ends them.
 - Pool HP, attempts and claim state survive restart. `.ae resume` restores
-  personal controls; `.ae boss` shows recent encounters and your contribution.
+  personal controls; `.ae boss` shows open/defeated encounters and your contribution,
+  with the appropriate join or claim command. Expired losses are hidden.
   Boards refresh during play (throttled to five seconds) and every minute;
   personal views display the pool snapshot from that player's last action.
 - Admins can use `.aetherset spawn tsukara` or `raizen`. One waiting encounter

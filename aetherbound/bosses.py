@@ -35,15 +35,24 @@ def join(p, c, guild, user, pool_id, now=None):
         raise game.RuleError("This shared boss was defeated or expired.")
     if p["run"] or p["tutorial"] < 6:
         raise game.RuleError("Finish the tutorial and finish or abandon your dungeon first.")
-    if c.execute("SELECT 1 FROM boss_members WHERE pool=? AND user=?", (pool_id, user)).fetchone():
-        raise game.RuleError(
-            "One attempt per shared boss. Use aether resume for an active attempt, or aether boss claim after victory."
-        )
-    if c.execute("SELECT COUNT(*) FROM boss_members WHERE pool=?", (pool_id,)).fetchone()[0] >= 20:
+    active = p.get("battle")
+    if active and active.get("shared_pool") == pool_id:
+        return active
+    member = c.execute(
+        "SELECT 1 FROM boss_members WHERE pool=? AND user=?", (pool_id, user)
+    ).fetchone()
+    if (
+        not member
+        and c.execute("SELECT COUNT(*) FROM boss_members WHERE pool=?", (pool_id,)).fetchone()[0]
+        >= 20
+    ):
         raise game.RuleError("This encounter already has 20 participants.")
     b = game.begin(p, pool["monster"])
     b["shared_pool"] = pool_id
-    c.execute("INSERT INTO boss_members VALUES(?,?,?,?,0,0)", (pool_id, guild, user, p["level"]))
+    b["enemy_hp"] = min(b["enemy_hp"], pool["hp"])
+    c.execute(
+        "INSERT OR IGNORE INTO boss_members VALUES(?,?,?,?,0,0)", (pool_id, guild, user, p["level"])
+    )
     return b
 
 
@@ -87,7 +96,7 @@ def act(p, c, guild, user, battle_id, turn, action, rng, now=None):
             + pool_id
         )
     else:
-        result += f"\nShared HP: {remaining:,}/{pool['maxhp']:,}. Your damage stays credited even if your attempt ends."
+        result += f"\nShared HP: {remaining:,}/{pool['maxhp']:,}. Damage saved. Fight again with Engage or aether boss join {pool_id}; no other player is required."
         if p["battle"]:
             p["battle"]["log"].append(
                 f"Shared HP: {remaining:,}/{pool['maxhp']:,} (at your last action)."
