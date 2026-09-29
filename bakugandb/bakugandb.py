@@ -256,7 +256,10 @@ class BakuganDB(commands.Cog):
         if now - self.rules_cooldown.get(channel, 0) < 300:
             return
         self.rules_cooldown[channel] = now
-        await message.channel.send(f'Rules reference: {RULE_URL} · Use `brules <topic>` for a topic summary.', allowed_mentions=NONE)
+        try:
+            await message.channel.send(f'Rules reference: {RULE_URL} · Use `brules <topic>` for a topic summary.', allowed_mentions=NONE)
+        except discord.HTTPException:
+            log.debug('Could not post rules reference in channel %s', channel)
 
     @commands.command()
     async def blinkprofile(self, ctx, url: str):
