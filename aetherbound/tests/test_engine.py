@@ -88,6 +88,40 @@ def test_upgrade_and_level_caps():
     assert p["level"] == 20 and p["points"] == 38 and p["xp"] == 0
 
 
+def test_level_notices_single_multiple_and_cap():
+    p = g.new_player("Leveler", "vanguard")
+    assert g.grant_xp(p, g.xp_needed(1) - 1) == ""
+    notice = g.grant_xp(p, 1)
+    assert "1 → 2" in notice and "+2 attribute points" in notice
+    assert "2 unspent" in notice and "aether allocate" in notice
+    notice = g.grant_xp(p, g.xp_needed(2) + g.xp_needed(3))
+    assert "2 → 4" in notice and "+4 attribute points" in notice
+    assert "6 unspent" in notice
+    assert "Level cap reached!" in g.grant_xp(p, 10000000)
+    assert g.grant_xp(p, 10000000) == ""
+    assert p["level"] == 20 and p["points"] == 38
+
+
+def test_combat_and_quest_results_include_level_notice():
+    p = graduate()
+    p["xp"] = g.xp_needed(p["level"]) - 1
+    g.begin(p, "slime")
+    p["battle"]["enemy_hp"] = 1
+    bid = p["battle"]["id"]
+    result = g.act(p, bid, 0, "attack", random.Random(1))
+    assert "Level up! 1 → 2" in result and "Loot:" in result
+    assert p["last_result"] == result
+    with pytest.raises(g.RuleError):
+        g.act(p, bid, 0, "attack", random.Random(1))
+    g.accept_quest(p, "first_hunts")
+    p["wins"] += 3
+    p["xp"] = g.xp_needed(p["level"]) - 1
+    result = g.claim_quest(p, "first_hunts")
+    assert "Level up! 2 → 3" in result and "Claimed" in result
+    with pytest.raises(g.RuleError):
+        g.claim_quest(p, "first_hunts")
+
+
 def test_cannot_double_resolve_turn():
     p = graduate()
     g.begin(p, "slime")
