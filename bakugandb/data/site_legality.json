@@ -121,5 +121,15 @@
     "character_silent_naga",
     "character_ultimate_dragonoid",
     "character_wavern"
-  ]
+  ],
+  "release_locked_bakugan_ids": [
+    "viper_helios",
+    "premo_vulcan",
+    "altair",
+    "hades",
+    "mega_brontes",
+    "elico",
+    "vexos_dragonoid"
+  ],
+  "release_locked_until": "2026-10-05T00:00:00-03:00"
 }
