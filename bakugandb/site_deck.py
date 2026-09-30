@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from .deck_legality import check_random_export
+from .deck_legality import available_bakugan, check_random_export
 
 SITE = 'https://bakuganbrawl.online'
 DATA = Path(__file__).parent / 'data' / 'site_catalog.json'
@@ -73,8 +73,10 @@ def random_site_deck(attribute=None, rng=None):
     banned_gates = set(restrictions['banned_gate_ids'])
     locks = restrictions['guardian_required_attribute']
     guardians = [b for b in site['bakugan'] if b['guardian'] and b['id'] not in banned
+                 and available_bakugan(b, attribute, restrictions)
                  and (not locks.get(b['id']) or locks[b['id']] == attribute) and b.get('art', {}).get(attribute)]
     generic = [b for b in site['bakugan'] if not b['guardian'] and b['id'] not in banned
+               and available_bakugan(b, attribute, restrictions)
                and b.get('art', {}).get(attribute)]
     normal = [c for c in site['abilities'] if c['category'] == 'normal' and c['id'] not in banned_abilities and not c.get('hidden')
               and not c.get('bakuganIds') and attribute in c.get('attributes', []) and c.get('image')]

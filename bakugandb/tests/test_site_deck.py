@@ -63,3 +63,12 @@ def test_random_deck_restrictions():
     _, _, _, exported = module.random_site_deck('aquos', random.Random(2))
     exported['abilities'][1] = exported['abilities'][0]
     assert any('Duplicate card' in issue for issue in module.check_random_export(exported, site))
+    _, _, _, exported = module.random_site_deck('aquos', random.Random(3))
+    exported['bakugans'][1] = {'id': 'hammersaur', 'attribute': 'aquos'}
+    assert any('Unavailable Bakugan: Hammersaur' in issue for issue in module.check_random_export(exported, site))
+    exported['bakugans'][1] = {'id': 'delta_dragonoid', 'attribute': 'aquos'}
+    problems = module.check_random_export(exported, site)
+    assert any('Banned Bakugan: Delta Dragonoid' in issue for issue in problems)
+    assert any('requires pyrus' in issue for issue in problems)
+    exported['bakugans'][1] = {'id': 'baliton', 'attribute': 'aquos'}
+    assert any('Unavailable Bakugan' in issue for issue in module.check_random_export(exported, site))
