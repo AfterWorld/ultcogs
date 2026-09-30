@@ -1,8 +1,19 @@
 """Conservative random-deck checks from the supplied rules and site restrictions."""
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 DATA = Path(__file__).parent / 'data'
+
+
+def available_bakugan(entry, attribute, restrictions, now=None):
+    """Art assets can exist for unreleased or otherwise unavailable models."""
+    if entry.get('hidden') or entry.get('trap') or attribute not in entry.get('available_attributes', []):
+        return False
+    release = datetime.fromisoformat(restrictions['release_locked_until'])
+    if entry['id'] in restrictions['release_locked_bakugan_ids'] and (now or datetime.now(timezone.utc)) < release:
+        return False
+    return True
 
 
 def check_random_export(export, site):
@@ -30,6 +41,8 @@ def check_random_export(export, site):
         issues.append('More than one Guardian')
     bans = set(restrictions['banned_bakugan_ids'])
     for member, entry in zip(members, selected):
+        if not available_bakugan(entry, member['attribute'], restrictions):
+            issues.append(f"Unavailable Bakugan: {entry['name']}")
         if member['id'] in bans:
             issues.append(f"Banned Bakugan: {entry['name']}")
         required = restrictions['guardian_required_attribute'].get(member['id'])
