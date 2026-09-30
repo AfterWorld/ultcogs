@@ -1,4 +1,5 @@
-from .beri_cautions import BeriCautions
+from .guesscandy import GuessCandy
+
 
 async def setup(bot):
-    await bot.add_cog(BeriCautions(bot))
+    await bot.add_cog(GuessCandy(bot))
