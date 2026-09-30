@@ -6,6 +6,7 @@ import time
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import quote
 
 import discord
@@ -29,7 +30,7 @@ class GuessCandy(commands.Cog):
         self.config = Config.get_conf(self, identifier=92463020261001, force_registration=True)
         # ponytail: yearly guild tallies suit community events; use per-member storage for very large servers.
         self.config.register_guild(
-            enabled=False, channel=None, october_only=True, utc_offset=-300,
+            enabled=False, channel=None, october_only=True, utc_offset="America/New_York", clock_version=0,
             messages=12, users=3, cooldown=600, timeout=120,
             milestones={}, next_reward=1, values={}, seasons={},
             jitter=30, finale=True, announcements={}, final_standings={}, set_rewards={},
@@ -40,6 +41,12 @@ class GuessCandy(commands.Cog):
         self.tasks = set()
 
     async def cog_load(self):
+        for guild_id, stored in (await self.config.all_guilds()).items():
+            if stored.get("clock_version", 0) < 1:
+                group = self.config.guild_from_id(guild_id)
+                if stored.get("utc_offset", -300) == -300:
+                    await group.utc_offset.set("America/New_York")
+                await group.clock_version.set(1)
         task = asyncio.create_task(self.event_loop())
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -79,7 +86,7 @@ class GuessCandy(commands.Cog):
         for rank, row in enumerate(rows[:10], 1):
             member = guild.get_member(int(row["user"]))
             name = discord.utils.escape_markdown(member.display_name) if member else f"User {row['user']}"
-            lines.append(f"{rank}. {name} — **{row['points']}** points ({row['caught']} candies)")
+            lines.append(f"{['🥇', '🥈', '🥉'][rank-1] if rank <= 3 else str(rank) + '.'} {name} — **{row['points']:,}** points ({row['caught']} candies)")
         return "\n".join(lines) if rows else "No candies collected yet."
 
     async def process_events(self, guild, settings, now):
@@ -141,7 +148,22 @@ class GuessCandy(commands.Cog):
                     activity["speakers"].discard(user_id)
                     activity["last"].pop(user_id, None)
 
+    def card(self, text, title="🎃 Guess the Candy"):
+        embed = discord.Embed(title=title[:256], description=text, color=0xF59E0B)
+        embed.set_footer(text="🍬 October Candy Hunt • Collect • Complete • Climb")
+        return embed
+
+    async def reply(self, ctx, text, *, title="🎃 Guess the Candy", **kwargs):
+        kwargs.pop("allowed_mentions", None)
+        if title == "🎃 Guess the Candy" and getattr(ctx, "command", None):
+            title = "🍬 " + ctx.command.qualified_name.replace("candyset", "Hunt Settings").replace("candy", "Candy").title()
+        for page in pagify(text):
+            await self.send(ctx, embed=self.card(page, title), **kwargs)
+
     async def send(self, channel, text=None, **kwargs):
+        if text is not None:
+            kwargs["embed"] = self.card(text)
+            text = None
         try:
             return await channel.send(text, allowed_mentions=discord.AllowedMentions.none(), **kwargs)
         except discord.HTTPException:
@@ -195,11 +217,15 @@ class GuessCandy(commands.Cog):
         if not photo.is_file():
             log.error("Missing bundled candy photo: %s", photo)
             return False
+        midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        remaining = max(0, min(settings["timeout"], (midnight.astimezone(timezone.utc) - now).total_seconds()))
+        closes = int(now.timestamp() + remaining)
+        cutoff_note = "\n🌙 Ends at midnight when daily goals reset." if remaining < settings["timeout"] else ""
         event_note = "🎉 Halloween double points are included!\n" if finale else ""
         embed = discord.Embed(
             title=f"🎃 A {SIZES[size]['label'].lower()} candy appeared!", color=0xED8936,
             description=f"Type its name in this channel to catch it!\nFirst correct guess wins **{points} points**.\n"
-                        f"{event_note}You have **{settings['timeout']} seconds**. Use the candy hint command for a clue.",
+                        f"{event_note}Ends <t:{closes}:R> • <t:{closes}:t>. Use `candy hint` for a clue.{cutoff_note}",
         )
         embed.set_image(url="attachment://mystery.jpg")
         embed.set_footer(text=f"Photo: {candy['author']} • {candy['license']} • "
@@ -214,8 +240,7 @@ class GuessCandy(commands.Cog):
                       size=size, day=local.date().isoformat(),
                       deadline=time.monotonic() + settings["timeout"], timeout=settings["timeout"])
         # End at local midnight, so a previous day's size/event value cannot cross into the new day.
-        midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        remaining = max(0, min(settings["timeout"], (midnight - local_time(self.now(), settings["utc_offset"])).total_seconds()))
+        remaining = max(0, min(settings["timeout"], (midnight.astimezone(timezone.utc) - self.now()).total_seconds()))
         round_.update(deadline=time.monotonic() + remaining, timeout=remaining)
         self.rounds[channel.guild.id] = round_
         self.activity[channel.guild.id] = self.fresh_activity(settings)
@@ -287,10 +312,18 @@ class GuessCandy(commands.Cog):
     @commands.guild_only()
     async def candy(self, ctx):
         """Candy hunt rules and player commands."""
-        await ctx.send("🎃 Chat in the hunt channel. When a photo appears, type the candy's name! "
+        settings = await self.config.guild(ctx.guild).all()
+        local = local_time(self.now(), settings["utc_offset"])
+        opens = int(datetime(local.year, 10, 1, tzinfo=local.tzinfo).timestamp())
+        closes = int(datetime(local.year, 11, 1, tzinfo=local.tzinfo).timestamp())
+        await self.reply(ctx, "🎃 Chat in the hunt channel. When a photo appears, type the candy's name! "
                        "First correct guess collects it. Bigger/rare candies give more points.\n"
                        "Commands: `candy bag`, `candy top`, `candy daily`, `candy sets`, `candy finals`, "
-                       "`candy rewards`, `candy hint`, `candy catalog`.")
+                       "`candy rewards`, `candy hint`, `candy catalog`.\n\n"
+                       f"🗓️ Season opens <t:{opens}:F> and closes <t:{closes}:F>.\n"
+                       f"Clock: **{local.tzname()}**. Daily goals reset at midnight; season points stay.\n"
+                       + ("October restriction is off for testing." if not settings["october_only"] else ""),
+                       title="🎃 Welcome to the Candy Hunt")
 
     @candy.command()
     async def bag(self, ctx, member: discord.Member = None, year: int = None):
@@ -306,7 +339,7 @@ class GuessCandy(commands.Cog):
         lines.append("Sizes: " + ", ".join(f"{s['label']}: {record.get('sizes', {}).get(key, 0)}" for key, s in SIZES.items()))
         lines.append("Completed sets: " + (", ".join(SETS[key]["label"] for key in record.get("sets", []) if key in SETS) or "None"))
         for page in pagify("\n".join(lines)):
-            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
+            await self.reply(ctx, page, allowed_mentions=discord.AllowedMentions.none())
 
     @candy.command()
     async def top(self, ctx, year: int = None):
@@ -314,7 +347,7 @@ class GuessCandy(commands.Cog):
         settings = await self.config.guild(ctx.guild).all()
         year = str(year) if year else season(self.now(), settings["utc_offset"], False)
         records = settings["seasons"].get(year, {})
-        await ctx.send(self.leaderboard_text(ctx.guild, standings(records), f"Candy leaderboard — {year}"),
+        await self.reply(ctx, self.leaderboard_text(ctx.guild, standings(records), f"Candy leaderboard — {year}"),
                        allowed_mentions=discord.AllowedMentions.none())
 
     @candy.command()
@@ -330,8 +363,10 @@ class GuessCandy(commands.Cog):
         for goal in daily_goals(local.date().isoformat()):
             progress = min(goal["target"], goal_progress(goal, daily))
             status = "✅" if goal["id"] in daily.get("earned", []) else "⬜"
-            lines.append(f"{status} {goal['label']}: {progress}/{goal['target']} (+{goal['bonus']} points)")
-        await ctx.send("\n".join(lines))
+            filled = int(8 * progress / goal["target"])
+            bar = "▰" * filled + "▱" * (8 - filled)
+            lines.append(f"{status} **{goal['label']}**\n{bar} {progress}/{goal['target']} • **+{goal['bonus']} points**")
+        await self.reply(ctx, "\n\n".join(lines) + f"\n\n🌙 Daily reset: midnight {local.tzname()}. Your season tally stays.")
 
     @candy.command(name="sets")
     async def collection_sets(self, ctx):
@@ -348,7 +383,7 @@ class GuessCandy(commands.Cog):
             if reward.get("prize"):
                 lines.append(f"Custom reward: {reward['prize']} (staff-delivered)")
         for page in pagify("\n".join(lines)):
-            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
+            await self.reply(ctx, page, allowed_mentions=discord.AllowedMentions.none())
 
     @candy.command()
     async def finals(self, ctx, year: int = None):
@@ -361,7 +396,7 @@ class GuessCandy(commands.Cog):
         if year is None:
             year = max(saved, key=int) if saved else None
         rows = saved.get(str(year))
-        await ctx.send(self.leaderboard_text(ctx.guild, rows, f"Final candy standings — {year}")
+        await self.reply(ctx, self.leaderboard_text(ctx.guild, rows, f"Final candy standings — {year}")
                        if rows is not None else "No final standings saved yet. October closes on November 1.",
                        allowed_mentions=discord.AllowedMentions.none())
 
@@ -372,8 +407,8 @@ class GuessCandy(commands.Cog):
         async with self.lock(ctx.guild.id):
             round_ = self.rounds.get(ctx.guild.id)
             if not round_ or ctx.channel.id != round_["channel"].id or time.monotonic() >= round_["deadline"]:
-                return await ctx.send("No active candy here.")
-            await ctx.send(f"🔎 {round_['candy']['hint']}")
+                return await self.reply(ctx, "No active candy here.")
+            await self.reply(ctx, f"🔎 {round_['candy']['hint']}")
 
     @candy.command()
     async def catalog(self, ctx):
@@ -388,7 +423,7 @@ class GuessCandy(commands.Cog):
                          + (f" • {c['changes']}" if c['changes'] != "None" else '')
                          for key, c in CANDIES.items())
         for page in pagify(text):
-            await ctx.send(page)
+            await self.reply(ctx, page)
 
     @candy.command()
     async def rewards(self, ctx):
@@ -397,7 +432,7 @@ class GuessCandy(commands.Cog):
         text = "\n".join(f"#{key}: Collect {r['count']} × {r['candy']} → {r['label']} (+{r['bonus']} points)"
                          for key, r in rewards.items()) or "No milestones configured yet. Each catch still earns points!"
         for page in pagify(text):
-            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
+            await self.reply(ctx, page, allowed_mentions=discord.AllowedMentions.none())
 
     @commands.group(invoke_without_command=True)
     @commands.guild_only()
@@ -405,8 +440,8 @@ class GuessCandy(commands.Cog):
     async def candyset(self, ctx):
         """Configure the candy hunt."""
         s = await self.config.guild(ctx.guild).all()
-        await ctx.send(f"Enabled: {s['enabled']} • Channel: {s['channel']} • October only: {s['october_only']}\n"
-                       f"UTC offset: {s['utc_offset']} minutes • Spawn after {s['messages']} messages from {s['users']} users\n"
+        await self.reply(ctx, f"Enabled: {s['enabled']} • Channel: {s['channel']} • October only: {s['october_only']}\n"
+                       f"Clock: {local_time(self.now(), s['utc_offset']).tzname()} ({s['utc_offset']}) • Spawn after {s['messages']} messages from {s['users']} users\n"
                        f"Cooldown: {s['cooldown']}s ±{s['jitter']}% • Guess window: {s['timeout']}s\n"
                        f"Halloween finale: {s['finale']} • Use help candyset for commands.")
 
@@ -418,21 +453,21 @@ class GuessCandy(commands.Cog):
                 self.activity.pop(ctx.guild.id, None)
             if key == "jitter":
                 self.activity.pop(ctx.guild.id, None)
-        await ctx.tick()
+        await self.reply(ctx, "Your hunt settings have been saved.", title="✅ Settings updated")
 
     @candyset.command()
     async def channel(self, ctx, channel: discord.TextChannel):
         """Choose the channel (e.g. #general)."""
         perms = channel.permissions_for(ctx.guild.me)
         if not (perms.view_channel and perms.send_messages and perms.embed_links and perms.attach_files):
-            return await ctx.send("I need View Channel, Send Messages, Embed Links and Attach Files there.")
+            return await self.reply(ctx, "I need View Channel, Send Messages, Embed Links and Attach Files there.")
         await self.setting(ctx, "channel", channel.id)
 
     @candyset.command()
     async def enabled(self, ctx, enabled: bool):
         """Enable or pause spawns and guessing."""
         if enabled and not await self.config.guild(ctx.guild).channel():
-            return await ctx.send("Set a hunt channel first.")
+            return await self.reply(ctx, "Set a hunt channel first.")
         await self.setting(ctx, "enabled", enabled)
 
     @candyset.command(name="october")
@@ -442,27 +477,38 @@ class GuessCandy(commands.Cog):
 
     @candyset.command()
     async def offset(self, ctx, minutes: int):
-        """Local UTC offset in minutes. Chicago in October: -300."""
+        """Fixed UTC offset in minutes. EST: -300; EDT: -240. Prefer timezone Eastern."""
         if not -720 <= minutes <= 840:
-            return await ctx.send("Use an offset from -720 to 840 minutes.")
+            return await self.reply(ctx, "Use an offset from -720 to 840 minutes.")
         await self.setting(ctx, "utc_offset", minutes)
+
+    @candyset.command(name="timezone")
+    async def set_timezone(self, ctx, *, name: str = "Eastern"):
+        """Use Eastern/New York time, fixed EST, UTC, or an IANA zone."""
+        zone = {"eastern": "America/New_York", "est": -300, "edt": -240, "utc": "UTC"}.get(name.casefold(), name)
+        try:
+            if isinstance(zone, str):
+                ZoneInfo(zone)
+        except (ZoneInfoNotFoundError, ValueError):
+            return await self.reply(ctx, "Use Eastern, EST, UTC, or an IANA name such as America/New_York.")
+        await self.setting(ctx, "utc_offset", zone)
 
     @candyset.command()
     async def pace(self, ctx, messages: int, users: int, cooldown: int, timeout: int):
         """Set message threshold, distinct users, cooldown seconds, guess seconds."""
         if not (1 <= users <= messages <= 1000 and 30 <= cooldown <= 86400 and 15 <= timeout <= 600):
-            return await ctx.send("Require 1 ≤ users ≤ messages ≤ 1000, cooldown 30–86400s, timeout 15–600s.")
+            return await self.reply(ctx, "Require 1 ≤ users ≤ messages ≤ 1000, cooldown 30–86400s, timeout 15–600s.")
         async with self.lock(ctx.guild.id):
             async with self.config.guild(ctx.guild).all() as settings:
                 settings.update(messages=messages, users=users, cooldown=cooldown, timeout=timeout)
             self.activity.pop(ctx.guild.id, None)
-        await ctx.tick()
+        await self.reply(ctx, "Your hunt settings have been saved.", title="✅ Settings updated")
 
     @candyset.command()
     async def jitter(self, ctx, percent: int):
         """Randomize cooldown by this percentage (0–80, default 30)."""
         if not 0 <= percent <= 80:
-            return await ctx.send("Use 0–80 percent. Zero makes the cooldown fixed.")
+            return await self.reply(ctx, "Use 0–80 percent. Zero makes the cooldown fixed.")
         await self.setting(ctx, "jitter", percent)
 
     @candyset.command()
@@ -474,37 +520,37 @@ class GuessCandy(commands.Cog):
     async def value(self, ctx, candy_id: str, points: int):
         """Change one candy's points for future spawns. See candy catalog for IDs."""
         if candy_id not in CANDIES or not 1 <= points <= 100000:
-            return await ctx.send("Use a catalog candy ID and 1–100000 points.")
+            return await self.reply(ctx, "Use a catalog candy ID and 1–100000 points.")
         async with self.lock(ctx.guild.id):
             async with self.config.guild(ctx.guild).values() as values:
                 values[candy_id] = points
-        await ctx.tick()
+        await self.reply(ctx, "Your hunt settings have been saved.", title="✅ Settings updated")
 
     @candyset.command()
     async def reward(self, ctx, candy_id: str, count: int, bonus: int, *, label: str):
         """Add milestone: reward corn 10 100 Candy Corn Champion. Use any for total catches."""
         if candy_id not in CANDIES and candy_id != "any":
-            return await ctx.send("Use a catalog ID or any.")
+            return await self.reply(ctx, "Use a catalog ID or any.")
         if not (1 <= count <= 100000 and 0 <= bonus <= 100000 and 1 <= len(label) <= 150):
-            return await ctx.send("Count 1–100000, bonus 0–100000, label 1–150 characters.")
+            return await self.reply(ctx, "Count 1–100000, bonus 0–100000, label 1–150 characters.")
         async with self.lock(ctx.guild.id):
             async with self.config.guild(ctx.guild).all() as settings:
                 if len(settings["milestones"]) >= 50:
-                    return await ctx.send("Maximum 50 milestones. Remove one first.")
+                    return await self.reply(ctx, "Maximum 50 milestones. Remove one first.")
                 key = str(settings["next_reward"])
                 settings["next_reward"] += 1
                 settings["milestones"][key] = dict(candy=candy_id, count=count, bonus=bonus, label=label)
-        await ctx.send(f"Added milestone #{key}. Bonus awarded once per player per year, on their next qualifying catch.")
+        await self.reply(ctx, f"Added milestone #{key}. Bonus awarded once per player per year, on their next qualifying catch.")
 
     @candyset.command()
     async def setreward(self, ctx, set_id: str, bonus: int, *, prize: str):
         """Set bonus/custom prize for a collection set. Sets: chocolate fruity halloween retro bigbars."""
         if set_id not in SETS or not 0 <= bonus <= 100000 or not 1 <= len(prize) <= 150:
-            return await ctx.send("Use a valid set ID, bonus 0–100000, and a prize description of 1–150 characters.")
+            return await self.reply(ctx, "Use a valid set ID, bonus 0–100000, and a prize description of 1–150 characters.")
         async with self.lock(ctx.guild.id):
             async with self.config.guild(ctx.guild).set_rewards() as rewards:
                 rewards[set_id] = dict(bonus=bonus, prize=prize)
-        await ctx.send("Set reward updated for future completions. Use candyset winners set:" + set_id + " for staff delivery.")
+        await self.reply(ctx, "Set reward updated for future completions. Use candyset winners set:" + set_id + " for staff delivery.")
 
     @candyset.command()
     async def unreward(self, ctx, reward_id: str):
@@ -512,7 +558,7 @@ class GuessCandy(commands.Cog):
         async with self.lock(ctx.guild.id):
             async with self.config.guild(ctx.guild).milestones() as rewards:
                 removed = rewards.pop(reward_id, None)
-        await ctx.send("Milestone removed." if removed else "Unknown milestone ID.")
+        await self.reply(ctx, "Milestone removed." if removed else "Unknown milestone ID.")
 
     @candyset.command()
     async def winners(self, ctx, reward_id: str, year: int = None):
@@ -521,7 +567,7 @@ class GuessCandy(commands.Cog):
         year = str(year) if year else season(self.now(), settings["utc_offset"], False)
         set_id = reward_id[4:] if reward_id.startswith("set:") else None
         if set_id is not None and set_id not in SETS:
-            return await ctx.send("Unknown collection set ID.")
+            return await self.reply(ctx, "Unknown collection set ID.")
         title = SETS[set_id]["label"] if set_id else f"Milestone #{reward_id}"
         lines = [f"**{title} winners — {year}**"]
         for uid, record in settings["seasons"].get(year, {}).items():
@@ -533,7 +579,7 @@ class GuessCandy(commands.Cog):
         if len(lines) == 1:
             lines.append("No winners yet.")
         for page in pagify("\n".join(lines)):
-            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
+            await self.reply(ctx, page, allowed_mentions=discord.AllowedMentions.none())
 
     @candyset.command(name="spawn")
     async def manual_spawn(self, ctx):
@@ -541,9 +587,9 @@ class GuessCandy(commands.Cog):
         async with self.lock(ctx.guild.id):
             settings = await self.config.guild(ctx.guild).all()
             if not settings["enabled"] or not self.current_season(settings):
-                return await ctx.send("Enable the hunt during October, or turn off October restriction for testing.")
+                return await self.reply(ctx, "Enable the hunt during October, or turn off October restriction for testing.")
             channel = ctx.guild.get_channel(settings["channel"])
             if not channel or ctx.guild.id in self.rounds:
-                return await ctx.send("Missing hunt channel or a candy is already active.")
+                return await self.reply(ctx, "Missing hunt channel or a candy is already active.")
             success = await self.spawn(channel, settings)
-        await ctx.send("Candy spawned!" if success else "Spawn failed. Check channel permissions and bundled photos.")
+        await self.reply(ctx, "Candy spawned!" if success else "Spawn failed. Check channel permissions and bundled photos.")

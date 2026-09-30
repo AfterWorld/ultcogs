@@ -85,12 +85,20 @@ sys.modules.update({"redbot": red, "redbot.core": core, "redbot.core.utils": uti
                     "redbot.core.utils.chat_formatting": formatting})
 
 from guesscandy.content import CANDIES, SETS, SIZES
-from guesscandy.engine import (catch_points, cooldown_delay, daily_goals, eligible_candies,
+from guesscandy.engine import (local_time, catch_points, cooldown_delay, daily_goals, eligible_candies,
     goal_progress, is_finale, matches, season, standings, tally)
 from guesscandy.guesscandy import EMPTY, GuessCandy
 
 
 class Rules(unittest.TestCase):
+    def test_eastern_clock_boundaries_and_dst(self):
+        zone = "America/New_York"
+        self.assertIsNone(season(datetime(2026, 10, 1, 3, 59, tzinfo=timezone.utc), zone, True))
+        self.assertEqual(season(datetime(2026, 10, 1, 4, tzinfo=timezone.utc), zone, True), "2026")
+        self.assertIsNone(season(datetime(2026, 11, 1, 4, tzinfo=timezone.utc), zone, True))
+        self.assertEqual(local_time(datetime(2026, 10, 1, tzinfo=timezone.utc), zone).utcoffset().total_seconds(), -14400)
+        self.assertEqual(local_time(datetime(2026, 12, 1, tzinfo=timezone.utc), zone).utcoffset().total_seconds(), -18000)
+
     def test_aliases_and_no_substring_win(self):
         self.assertTrue(matches("KIT-KAT!", CANDIES["kitkat"]))
         self.assertTrue(matches("gummi bears", CANDIES["bears"]))
@@ -207,6 +215,34 @@ class Rules(unittest.TestCase):
 
 
 class Listener(unittest.IsolatedAsyncioTestCase):
+    async def test_old_default_clock_migrates_without_losing_scores(self):
+        self.settings.pop("clock_version")
+        self.settings["utc_offset"] = -300
+        self.settings["seasons"] = {"2026": {"10": {"points": 123}}}
+        await self.cog.cog_load()
+        self.cog.cog_unload()
+        self.assertEqual(self.settings["utc_offset"], "America/New_York")
+        self.assertEqual(self.settings["seasons"]["2026"]["10"]["points"], 123)
+
+    async def test_custom_offset_survives_migration(self):
+        self.settings.pop("clock_version")
+        self.settings["utc_offset"] = 330
+        await self.cog.cog_load()
+        self.cog.cog_unload()
+        self.assertEqual(self.settings["utc_offset"], 330)
+
+    async def test_reply_is_paginated_embed_without_mentions(self):
+        ctx = types.SimpleNamespace(send=AsyncMock(), command=None)
+        await self.cog.reply(ctx, "x" * 7000, title="Candy Bag")
+        self.assertGreater(ctx.send.await_count, 1)
+        for call in ctx.send.call_args_list:
+            embed = call.kwargs["embed"]
+            self.assertEqual(embed.title, "Candy Bag")
+            self.assertLessEqual(len(embed.description), 4096)
+            self.assertLessEqual(len(embed), 6000)
+            self.assertFalse(call.kwargs["allowed_mentions"].everyone)
+            self.assertIsNone(call.args[0])
+
     async def asyncSetUp(self):
         self.bot = types.SimpleNamespace(cog_disabled_in_guild=AsyncMock(return_value=False),
             allowed_by_whitelist_blacklist=AsyncMock(return_value=True),
@@ -310,7 +346,7 @@ class Listener(unittest.IsolatedAsyncioTestCase):
         await self.cog.event_tick(now)
         await self.cog.event_tick(now)
         self.assertEqual(self.channel.send.await_count, 1)
-        self.assertIn("123", self.channel.send.call_args.args[0])
+        self.assertIn("123", self.channel.send.call_args.kwargs["embed"].description)
         self.assertTrue(self.settings["announcements"]["2026"]["final"])
         await self.cog.red_delete_data_for_user(requester="user", user_id=10)
         self.assertEqual(self.settings["final_standings"]["2026"], [])
@@ -325,6 +361,7 @@ class Listener(unittest.IsolatedAsyncioTestCase):
         self.channel.send.assert_not_awaited()
 
     async def test_midnight_cannot_award_previous_day_round(self):
+        self.settings["utc_offset"] = -300
         self.cog.now.return_value = datetime(2026, 10, 31, 4, 59, 59, tzinfo=timezone.utc)
         await self.make_round()
         self.assertLessEqual(self.cog.rounds[1]["timeout"], 1)
@@ -348,7 +385,7 @@ class Listener(unittest.IsolatedAsyncioTestCase):
         await self.cog.on_message(self.message(content="twix"))
         self.assertEqual(record["points"], 905)  # existing 500 + catch 35 + set 350 + daily 20
         self.assertIn("chocolate", record["sets"])
-        text = "\n".join(call.args[0] or "" for call in self.channel.send.call_args_list)
+        text = "\n".join(call.kwargs["embed"].description or "" for call in self.channel.send.call_args_list)
         self.assertIn("Chocolate Champion prize", text)
         self.assertEqual(tally(record, "twix", 35, {}, sets=self.cog.collection_rewards(self.settings)), [])
 
