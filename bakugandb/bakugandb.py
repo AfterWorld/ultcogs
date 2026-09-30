@@ -420,16 +420,16 @@ class BakuganDB(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(embed_links=True, attach_files=True)
     async def bdeckshare(self, ctx, *, title: str):
-        """Share a website .deck.json export or its downloaded deck image."""
+        """Share a website JSON export or its downloaded deck image."""
         if not ctx.message.attachments:
-            await ctx.send(f'Attach the website `.deck.json` export or Share deck image to `{ctx.clean_prefix}bdeckshare My Deck`.')
+            await ctx.send(f'Attach the website `.json` export or Share deck image to `{ctx.clean_prefix}bdeckshare My Deck`.')
             return
         attachment = ctx.message.attachments[0]
         title = title.strip()[:80]
         if not title:
             await ctx.send('Give the deck a name.')
             return
-        website_deck = attachment.filename.lower().endswith('.deck.json')
+        website_deck = attachment.filename.lower().endswith('.json')
         if website_deck:
             if attachment.size > 1_000_000:
                 await ctx.send('The website deck export must be under 1 MB.')
@@ -453,7 +453,7 @@ class BakuganDB(commands.Cog):
                 return
             suffix = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif'}.get(attachment.content_type)
             if not suffix:
-                await ctx.send('Use a website `.deck.json` export or a PNG, JPG, WebP or GIF image.')
+                await ctx.send('Use a website `.json` export or a PNG, JPG, WebP or GIF image.')
                 return
             try:
                 picture = await attachment.read()
@@ -489,16 +489,16 @@ class BakuganDB(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, attach_files=True)
     async def bdeckattach(self, ctx, deck_id: str):
-        """Add a website .deck.json export to your existing public deck listing."""
+        """Add a website JSON export to your existing public deck listing."""
         await self._migrate_deck_posts()
         deck_id = deck_id.lower()
         post = next((p for p in await self.config.deck_posts() if p['id'] == deck_id), None)
         if not post or post.get('author_id') != ctx.author.id:
             await ctx.send('Find your deck ID with `bdecks`, then attach its website export as its author.')
             return
-        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.deck.json')), None)
+        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.json')), None)
         if not attachment or attachment.size > 1_000_000:
-            await ctx.send(f'Attach the website `.deck.json` file under 1 MB to `{ctx.clean_prefix}bdeckattach {deck_id}`.')
+            await ctx.send(f'Attach the website `.json` file under 1 MB to `{ctx.clean_prefix}bdeckattach {deck_id}`.')
             return
         try:
             raw = await attachment.read()
@@ -524,10 +524,10 @@ class BakuganDB(commands.Cog):
     @commands.command()
     @commands.bot_has_permissions(embed_links=True)
     async def bdeckcheck(self, ctx):
-        """Check an attached website .deck.json against the captured game rules."""
-        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.deck.json')), None)
+        """Check an attached website JSON export against the captured game rules."""
+        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.json')), None)
         if not attachment or attachment.size > 1_000_000:
-            await ctx.send(f'Attach a website `.deck.json` file under 1 MB to `{ctx.clean_prefix}bdeckcheck`.')
+            await ctx.send(f'Attach a website `.json` file under 1 MB to `{ctx.clean_prefix}bdeckcheck`.')
             return
         try:
             exported = json.loads(await attachment.read())
