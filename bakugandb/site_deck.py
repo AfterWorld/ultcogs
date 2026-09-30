@@ -8,6 +8,11 @@ from .deck_legality import available_bakugan, check_random_export
 SITE = 'https://bakuganbrawl.online'
 DATA = Path(__file__).parent / 'data' / 'site_catalog.json'
 ATTRIBUTES = {'aquos', 'pyrus', 'ventus', 'subterra', 'haos', 'darkus'}
+THEMES = {
+    'offense': ('defeat', 'g-power', 'g power', 'gain', 'boost', 'attack', 'adds', 'subtracts', 'transfers'),
+    'defense': ('nullif', 'prevent', 'protect', 'revive', 'return', 'reduce', 'cannot be affected', 'removes', 'shield'),
+    'control': ('gate', 'move', 'swap', 'redirect', 'change', 'choose', 'select', 'field'),
+}
 
 
 def resolve_deck(raw):
@@ -55,10 +60,13 @@ def resolve_deck(raw):
     return deck, SimpleNamespace(images=images), art
 
 
-def random_site_deck(attribute=None, rng=None):
+def random_site_deck(attribute=None, rng=None, style='balanced'):
     """Build a simple mono-attribute image deck from website IDs and artwork."""
     import random
     rng = rng or random.Random()
+    style = style.lower().strip()
+    if style not in ('balanced', *THEMES):
+        raise ValueError('Choose balanced, offense, defense or control.')
     if attribute is not None:
         attribute = attribute.lower().strip()
         if attribute not in ATTRIBUTES:
@@ -79,7 +87,7 @@ def random_site_deck(attribute=None, rng=None):
                and available_bakugan(b, attribute, restrictions)
                and b.get('art', {}).get(attribute)]
     normal = [c for c in site['abilities'] if c['category'] == 'normal' and c['id'] not in banned_abilities and not c.get('hidden')
-              and not c.get('bakuganIds') and attribute in c.get('attributes', []) and c.get('image')]
+              and not c.get('bakuganIds') and c.get('attributes') == [attribute] and c.get('image')]
     command = [g for g in site['gates'] if g['category'] == 'command' and g['id'] not in banned_gates
                and not g.get('hidden') and g.get('image')]
     attribute_gates = [g for g in site['gates'] if g['category'] in ('attribute', 'reactor')
@@ -87,14 +95,28 @@ def random_site_deck(attribute=None, rng=None):
     if not guardians or len(generic) < 2 or len(normal) < 6 or len(command) < 2 or not attribute_gates:
         raise ValueError('The website catalog has too few cards for that attribute.')
     bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
-    export = {'version': 1, 'name': f'Random {attribute.title()} Deck', 'description': '',
+    if style == 'balanced':
+        selected_abilities = rng.sample(normal, 6)
+    else:
+        words = THEMES[style]
+        scored = [(sum(word in card.get('textEn', '').lower() for word in words), card) for card in normal]
+        themed = [card for score, card in scored if score > 0]
+        if len(themed) < 2:
+            raise ValueError(f'Not enough {attribute.title()} cards have a {style} wording theme. Try balanced or another style.')
+        rng.shuffle(themed)
+        themed.sort(key=lambda card: sum(word in card.get('textEn', '').lower() for word in words), reverse=True)
+        selected_abilities = themed[:4]
+        selected_abilities += rng.sample([card for card in normal if card not in selected_abilities], 6-len(selected_abilities))
+        rng.shuffle(selected_abilities)
+    export = {'version': 1, 'name': f'Random {attribute.title()} {style.title()} Deck',
+              'description': f'{style.title()} theme selected from Ability wording.',
               'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
-              'abilities': [c['id'] for c in rng.sample(normal, 6)],
+              'abilities': [c['id'] for c in selected_abilities],
               'gates': [rng.choice(attribute_gates)['id'], *[g['id'] for g in rng.sample(command, 2)]]}
     issues = check_random_export(export, site)
     if issues:
         raise ValueError('Could not generate a legal deck: ' + '; '.join(issues))
     deck, catalog, art = resolve_deck(json.dumps(export).encode())
-    deck['heading'] = 'RANDOM DECK'
-    deck['note'] = 'Cards and artwork: Bakugan Brawl Online · catalog ' + site['snapshot']
+    deck['heading'] = 'RANDOM ' + style.upper() + ' DECK' if style != 'balanced' else 'RANDOM DECK'
+    deck['note'] = 'Cards and artwork: Bakugan Brawl Online · ' + ('wording theme · ' if style != 'balanced' else '') + 'catalog ' + site['snapshot']
     return deck, catalog, art, export
