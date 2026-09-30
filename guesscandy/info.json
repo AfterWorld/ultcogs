@@ -1,12 +1,24 @@
 {
-    "author": ["Roger"],
+    "author": [
+        "Roger"
+    ],
     "name": "GuessCandy",
     "short": "36 real candy photos, daily goals, collection sets and a Halloween finale.",
     "description": "Activity-triggered candy hunt with randomized cooldowns, four size tiers, daily goals, five collection sets, custom milestones and persistent yearly points. October 31 doubles catch points, adds exclusive candies and ends with saved final standings. Uses its own tally, not bank currency or reward claims.",
     "install_msg": "Load guesscandy, then use [p]candyset channel #general and [p]candyset enabled true. See README.md for setup and rewards.",
     "min_bot_version": "3.5.24",
-    "min_python_version": [3, 11, 0],
-    "requirements": [],
-    "tags": ["game", "halloween", "candy"],
+    "min_python_version": [
+        3,
+        11,
+        0
+    ],
+    "requirements": [
+        "tzdata"
+    ],
+    "tags": [
+        "game",
+        "halloween",
+        "candy"
+    ],
     "end_user_data_statement": "Stores Discord user IDs with yearly per-server candy counts, size counts, points, earned milestones, completed sets, current-day goal progress and saved final standings. Does not store chat contents. Supports Red data deletion requests for all stored user identifiers."
 }

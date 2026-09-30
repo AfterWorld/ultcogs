@@ -24,7 +24,7 @@ Enable the **Message Content Intent** for your bot in Discord's Developer Portal
 
 ## Default behavior
 
-- October-only, using UTC−05:00 (Chicago's October offset). Opens October 1 at midnight and closes November 1 at midnight each year. Set `[p]candyset offset <minutes>` for another fixed UTC offset. There is no automatic daylight-saving adjustment.
+- October-only, using Eastern/New York local time with automatic daylight saving adjustment. Opens October 1 at midnight and closes November 1 at midnight each year. Use `[p]candyset timezone Eastern` or `[p]candyset timezone EST` for fixed UTC−05:00.
 - A spawn requires 12 eligible messages from at least 3 distinct people and a randomly chosen cooldown. The default 10-minute base with 30% variation gives **7–13 minutes**. The first cooldown starts when the first eligible message arrives; its delay is sampled once, not on every message. A later message triggers the spawn once both gates are met. No activity means no spawn.
 - One eligible contribution per person every 20 seconds. Bot/webhook messages, valid commands, Red-disabled cogs, and users denied by Red's allow/block lists do not contribute. Edit events do not count.
 - One active candy per server, in the chosen channel. Guess window: 120 seconds, shortened at local midnight. Exact aliases ignoring case, spaces and punctuation are accepted; whole sentences and guesses posted before the photo do not win. Guess the candy name; its size is shown and does not need to be included in the answer.
@@ -90,7 +90,8 @@ When October ends, a background calendar check (once per minute) saves the full 
 [p]candyset channel #general        Choose spawn/guess channel
 [p]candyset enabled true            Enable (false pauses and ends active round)
 [p]candyset october true            October only (false permits off-season tests)
-[p]candyset offset -300             UTC offset in minutes
+[p]candyset timezone Eastern        Eastern time, including daylight saving
+[p]candyset offset -300             Optional fixed UTC offset in minutes
 [p]candyset pace 12 3 600 120        Messages, distinct users, cooldown seconds, guess seconds
 [p]candyset jitter 30               Cooldown variation percent, 0–80 (0 means fixed)
 [p]candyset finale true             October 31 boost, exclusives and final announcements
@@ -117,3 +118,11 @@ Compatibility source: https://github.com/Cog-Creators/Red-DiscordBot/releases/ta
 Install `guesscandy/requirements-dev.txt`, then run `python guesscandy/test_game.py` from the repository root. The tests use real Discord command registration and a small Red Config stand-in: alias collisions, all 36 photo checksums/licenses, sizes, October/finale boundaries, daily resets, set/milestone bonuses, randomized cooldowns, simultaneous winners, expired guesses, spam filtering, denied users, data deletion, reload persistence, failed uploads, final snapshots, retry behavior, and downtime recovery. A dedicated GitHub Actions workflow runs these checks on cog changes. Loading and playing a round on your live Red bot remains the deployment smoke test.
 
 Uses one server lock to serialize catches and settings changes. Scores are stored per server/year in Red Config, appropriate for a normal community event; a very large server may need per-member storage. Red's user data deletion clears that user's tallies and identifiers in temporary activity tracking. It does not delete already posted Discord messages.
+
+### Embeds and Eastern schedule
+
+Player commands, admin replies, round results and announcements use Halloween-themed embeds. Daily goals include progress bars and leaderboard winners receive medal icons. Existing command names still work.
+
+The default clock is `America/New_York` (Eastern local time), including daylight saving changes. October opens at midnight October 1 and ends at midnight November 1 in that zone. Use `[p]candyset timezone Eastern` to select it explicitly, `[p]candyset timezone EST` for fixed UTC−5, or `[p]candyset offset` for a custom fixed offset. The former default −300 offset migrates to Eastern on load; custom offsets and all tallies are preserved.
+
+At each local midnight, active rounds expire and daily goals reset. Season points, collections and earned milestones remain. A spawn near midnight displays the shortened deadline. Discord timestamps display in each viewer's own local time.

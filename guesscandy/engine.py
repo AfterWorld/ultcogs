@@ -3,12 +3,14 @@ import re
 import unicodedata
 import random
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from .content import CANDIES, SIZES
 
 
 def local_time(now, offset):
-    return now.astimezone(timezone(timedelta(minutes=offset)))
+    zone = ZoneInfo(offset) if isinstance(offset, str) else timezone(timedelta(minutes=offset))
+    return now.astimezone(zone)
 
 
 def normalize(text):

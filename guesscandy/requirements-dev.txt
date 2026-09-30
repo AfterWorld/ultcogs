@@ -1,2 +1,4 @@
 discord.py==2.6.3
 Pillow>=10
+
+tzdata>=2025.2
