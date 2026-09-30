@@ -8,7 +8,8 @@
     "license": "Public domain",
     "license_url": null,
     "changes": "None; original bytes preserved",
-    "sha256": "b93622c087fa587ba8d7f8cf71f99fb31297ac25bb316534d3aed8d9444b9d5e"
+    "sha256": "b93622c087fa587ba8d7f8cf71f99fb31297ac25bb316534d3aed8d9444b9d5e",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/5/56/Candy-Corn.jpg"
   },
   {
     "candy": "bears",
@@ -19,7 +20,8 @@
     "license": "CC BY-SA 2.5",
     "license_url": "https://creativecommons.org/licenses/by-sa/2.5/",
     "changes": "None; original bytes preserved",
-    "sha256": "2361681f22909e45b300fdf92c60b63fe548ba16d79c1713ca29bb7671ac42d8"
+    "sha256": "2361681f22909e45b300fdf92c60b63fe548ba16d79c1713ca29bb7671ac42d8",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/6/66/Gummy_bears.jpg"
   },
   {
     "candy": "beans",
@@ -30,7 +32,8 @@
     "license": "CC BY-SA 3.0",
     "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
     "changes": "None; original bytes preserved",
-    "sha256": "8699901ed0033f972ebdf73dbe090da8cceca4c5ff767623c40aa4b61b982055"
+    "sha256": "8699901ed0033f972ebdf73dbe090da8cceca4c5ff767623c40aa4b61b982055",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/e/e4/JellyBellyPile.JPG"
   },
   {
     "candy": "kitkat",
@@ -41,7 +44,8 @@
     "license": "Public domain",
     "license_url": null,
     "changes": "None; original bytes preserved",
-    "sha256": "44c5aa558187b9d5bc8b7169cfd7f883d64f4081a949ff021e7008c7d4e13dc0"
+    "sha256": "44c5aa558187b9d5bc8b7169cfd7f883d64f4081a949ff021e7008c7d4e13dc0",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Kit-Kat-Split.jpg"
   },
   {
     "candy": "snickers",
@@ -52,7 +56,8 @@
     "license": "Public domain",
     "license_url": null,
     "changes": "None; original bytes preserved",
-    "sha256": "211ed88f64c2a69355ba3e8be2ebd4a69d11348e39ad78ddb1ea5f70acb336ed"
+    "sha256": "211ed88f64c2a69355ba3e8be2ebd4a69d11348e39ad78ddb1ea5f70acb336ed",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/5/57/Snickers-broken.JPG"
   },
   {
     "candy": "chunky",
@@ -63,6 +68,367 @@
     "license": "CC0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
     "changes": "None; original bytes preserved",
-    "sha256": "b8e1947b106a98ba64f2d2e5ee776483563e895c643a875525d16d484e152e51"
+    "sha256": "b8e1947b106a98ba64f2d2e5ee776483563e895c643a875525d16d484e152e51",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/0/00/Big-Kit-Kat-Array.jpg"
+  },
+  {
+    "candy": "reeses",
+    "filename": "07.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/1/12/Reeses-PB-Cups.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Reeses-PB-Cups.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "213df55d78b5602dab0c7b6b516a241ef2748cbdebfd20c338e6bc4633619fc8",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/1/12/Reeses-PB-Cups.jpg"
+  },
+  {
+    "candy": "pieces",
+    "filename": "08.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Reeses-pieces-loose.JPG",
+    "source": "https://commons.wikimedia.org/wiki/File:Reeses-pieces-loose.JPG",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "d230e050babe510354daa10be1f5fbc06448d8ad0f33a51ebacaf07ff74ff253",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Reeses-pieces-loose.JPG"
+  },
+  {
+    "candy": "skittles",
+    "filename": "09.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/8/81/Skittles-Candies-Pile.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Skittles-Candies-Pile.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "ba7011121813f3d978d19ab1bc8b52240aeddcf882a7b42af84426340615c9a2",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/8/81/Skittles-Candies-Pile.jpg"
+  },
+  {
+    "candy": "twix",
+    "filename": "10.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Twix-broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Twix-broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "235dde9405666f1e3f524c1c83cd23ee2c3a6548ad209c471431ce6ad9495570",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Twix-broken.jpg"
+  },
+  {
+    "candy": "hershey",
+    "filename": "11.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/2/20/Hershey-bar-open.JPG",
+    "source": "https://commons.wikimedia.org/wiki/File:Hershey-bar-open.JPG",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "9c895b1568f391f477fd2d1e5b19cf270b4d8be613442e9a9d807bbffd645524",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/2/20/Hershey-bar-open.JPG"
+  },
+  {
+    "candy": "cookies",
+    "filename": "12.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Candy-Hersheys-CookiesCreme-Broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Candy-Hersheys-CookiesCreme-Broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "a0cc947deffa88c9fddfea21c93a29fa96438de145bee4cdccdd56941ce850f2",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Candy-Hersheys-CookiesCreme-Broken.jpg"
+  },
+  {
+    "candy": "almondjoy",
+    "filename": "13.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Almond-joy-broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Almond-joy-broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "06bab65b7f69b849f280453e7c66018f9a008fe4a97b03dfa24220fc2f0cb064",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Almond-joy-broken.jpg"
+  },
+  {
+    "candy": "mounds",
+    "filename": "14.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Candy-Mounds-Broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Candy-Mounds-Broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "c16d227615a05c3bce175fe56dc674252eb1380adf265cb61a8cd74473ded8f9",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Candy-Mounds-Broken.jpg"
+  },
+  {
+    "candy": "butterfinger",
+    "filename": "15.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/d/d7/Butterfinger-broken.JPG",
+    "source": "https://commons.wikimedia.org/wiki/File:Butterfinger-broken.JPG",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "None; original bytes preserved",
+    "sha256": "4f69aa82cae765fa4f3cdd1b765b1c1636986d72980d4d1513dcc2ed54cfd00b",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/d/d7/Butterfinger-broken.JPG"
+  },
+  {
+    "candy": "crunch",
+    "filename": "16.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/e/e4/Nestle-crunch-broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Nestle-crunch-broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "9654593cb672ab66520f88dcb7443f4270965db96d8d0c84bb35641682304257",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Nestle-crunch-broken.jpg/960px-Nestle-crunch-broken.jpg"
+  },
+  {
+    "candy": "musketeers",
+    "filename": "17.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/8/8e/3-Musketeers-Broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:3-Musketeers-Broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "f6c68da6ecbbb0014da439a722780191dc80767d192571001da11ca218bc1fa6",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/3-Musketeers-Broken.jpg/960px-3-Musketeers-Broken.jpg"
+  },
+  {
+    "candy": "milkyway",
+    "filename": "18.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Milky-Way-Bars-USUK-Split.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Milky-Way-Bars-USUK-Split.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "9eaac3ce895ed1db3b40c34c84edc29a34a74b1ec875539d3e016c0b81fe3c15",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8f/Milky-Way-Bars-USUK-Split.jpg/960px-Milky-Way-Bars-USUK-Split.jpg"
+  },
+  {
+    "candy": "payday",
+    "filename": "19.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/7/73/Candy-PayDay-Broken.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Candy-PayDay-Broken.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "be17e02ecd497e926f0bd92e4733a9087eb5f4ff89b52990e50310029a95301e",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Candy-PayDay-Broken.jpg/960px-Candy-PayDay-Broken.jpg"
+  },
+  {
+    "candy": "york",
+    "filename": "20.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/8/8b/York-Peppermint-Pattie-Split.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:York-Peppermint-Pattie-Split.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "4763d755d6cb995808a0f11fd241ae268d69f3db87fa5b23f0e6f26193d7984d",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/York-Peppermint-Pattie-Split.jpg/960px-York-Peppermint-Pattie-Split.jpg"
+  },
+  {
+    "candy": "rolo",
+    "filename": "21.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Rolo-Candies-US.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Rolo-Candies-US.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "e5a24a9af34d7cf5bbfefd3ee62b5ac22d3b7030ccacb51890ef75088b4b94a6",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Rolo-Candies-US.jpg/960px-Rolo-Candies-US.jpg"
+  },
+  {
+    "candy": "nerds",
+    "filename": "22.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/c/cc/Nerds-Candies.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Nerds-Candies.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "28c1afe2bc15103b7cacae5a1934895ccf52923ec6118f205a80c85e28f6d444",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/Nerds-Candies.jpg/960px-Nerds-Candies.jpg"
+  },
+  {
+    "candy": "starburst",
+    "filename": "23.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Starburst-Candies.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Starburst-Candies.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "f1b4d7302ad1658da3f37038c5959dc5cd02560529ff6f7aadc6c5635d00bf46",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ac/Starburst-Candies.jpg/960px-Starburst-Candies.jpg"
+  },
+  {
+    "candy": "sourpatch",
+    "filename": "24.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Sour-Patch-Kids.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sour-Patch-Kids.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "cd9e45b00cb0f6de73d38fb1ff07c27deb7bf86788fabb911ca6a1266950b3b0",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Sour-Patch-Kids.jpg/960px-Sour-Patch-Kids.jpg"
+  },
+  {
+    "candy": "twizzlers",
+    "filename": "25.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Twizzlers-Pile.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Twizzlers-Pile.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "8a87d428109e29a4fb64540e8460d7bab8f5d7ebd5d830460e7f02b826a9f9b3",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bc/Twizzlers-Pile.jpg/960px-Twizzlers-Pile.jpg"
+  },
+  {
+    "candy": "tootsie",
+    "filename": "26.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/0/02/Tootsie-Roll-WU.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tootsie-Roll-WU.jpg",
+    "author": "Evan-Amos",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "723718a945a77c667ff591d9fc1b11a5e98c650f360990f8128ca02ca78d5b77",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Tootsie-Roll-WU.jpg/960px-Tootsie-Roll-WU.jpg"
+  },
+  {
+    "candy": "blowpop",
+    "filename": "27.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Charms-Blow-Pop-Green-Apple.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Charms-Blow-Pop-Green-Apple.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "73dbe1039d1543f3a9b73b5f2523dce61644d6351907d93a3eb2319355a138e1",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/Charms-Blow-Pop-Green-Apple.jpg/960px-Charms-Blow-Pop-Green-Apple.jpg"
+  },
+  {
+    "candy": "dots",
+    "filename": "28.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/d/d7/Tootsie-Roll-Dots-Candy.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tootsie-Roll-Dots-Candy.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "7b46686872ac950f2ca843176f497bd964a9af4ff843297d8ce10f2b52580434",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d7/Tootsie-Roll-Dots-Candy.jpg/960px-Tootsie-Roll-Dots-Candy.jpg"
+  },
+  {
+    "candy": "junior",
+    "filename": "29.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/c/c6/Junior-Mints-Candy.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Junior-Mints-Candy.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "70ede732dab4fd05f6d37df6c095a6fd1e76f40f08c86f3e2311a5814a08898b",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c6/Junior-Mints-Candy.jpg/960px-Junior-Mints-Candy.jpg"
+  },
+  {
+    "candy": "sweetarts",
+    "filename": "30.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Nestle-SweeTarts-Candies.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Nestle-SweeTarts-Candies.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "4ef89634292feb86ecc5467d3b8d563a1528250a84b5ae08881258899ad7a744",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d1/Nestle-SweeTarts-Candies.jpg/960px-Nestle-SweeTarts-Candies.jpg"
+  },
+  {
+    "candy": "mikeike",
+    "filename": "31.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/5/57/Mike-and-Ike-Candies.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Mike-and-Ike-Candies.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "a64ab9706abe31ed4f49e869756490d74088ecc01a6a9ddd11ee4c09d01a3fc7",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/57/Mike-and-Ike-Candies.jpg/960px-Mike-and-Ike-Candies.jpg"
+  },
+  {
+    "candy": "gobstopper",
+    "filename": "32.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/a/aa/Everlasting-Gobstoppers.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Everlasting-Gobstoppers.jpg",
+    "author": "Evan-Amos",
+    "license": "Public domain",
+    "license_url": null,
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "c36e0376fa9d26362365fbece438f61eccb32c74da71548a4726b9b8b1e6665d",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/aa/Everlasting-Gobstoppers.jpg/960px-Everlasting-Gobstoppers.jpg"
+  },
+  {
+    "candy": "butterscotch",
+    "filename": "33.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Butterscotch-Candies.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Butterscotch-Candies.jpg",
+    "author": "Evan-Amos",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "be9b708397949a46e736e7c0c6276554f1197a777c0eb628f667b6ebb4f76bf7",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Butterscotch-Candies.jpg/960px-Butterscotch-Candies.jpg"
+  },
+  {
+    "candy": "lollipop",
+    "filename": "34.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/9/90/Lollipop-Rainbox-Swirl.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Lollipop-Rainbox-Swirl.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "809563bacefbd205fab44d2e40af2b904a78c500dc034b10df266006b7849c07",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Lollipop-Rainbox-Swirl.jpg/960px-Lollipop-Rainbox-Swirl.jpg"
+  },
+  {
+    "candy": "bigcup",
+    "filename": "35.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/3/39/Reeses-PB-Big-Cup.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Reeses-PB-Big-Cup.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "116bd450ac457527033e850ad9c9ab9f98149e74c1df09aebac66ef40ac94954",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/39/Reeses-PB-Big-Cup.jpg/960px-Reeses-PB-Big-Cup.jpg"
+  },
+  {
+    "candy": "goldcoins",
+    "filename": "36.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/0/0f/Chocolate-Gold-Coins.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Chocolate-Gold-Coins.jpg",
+    "author": "Evan-Amos",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "changes": "Wikimedia 960px preview; resized from original, no other edits",
+    "sha256": "eb73781b6509932f51d3d0bfb0ea5adab3a8b9c60d9a1f5025a1a17428661261",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Chocolate-Gold-Coins.jpg/960px-Chocolate-Gold-Coins.jpg"
   }
 ]
