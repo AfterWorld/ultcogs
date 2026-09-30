@@ -4,7 +4,7 @@ import logging
 import random
 import time
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -12,8 +12,9 @@ import discord
 from redbot.core import Config, commands
 from redbot.core.utils.chat_formatting import pagify
 
-from .content import CANDIES
-from .engine import matches, season, tally
+from .content import CANDIES, SETS, SIZES
+from .engine import (catch_points, cooldown_delay, daily_goals, eligible_candies,
+                     goal_progress, is_finale, local_time, matches, season, standings, tally)
 
 log = logging.getLogger("red.guesscandy")
 PHOTOS = Path(__file__).parent / "photos"
@@ -31,11 +32,89 @@ class GuessCandy(commands.Cog):
             enabled=False, channel=None, october_only=True, utc_offset=-300,
             messages=12, users=3, cooldown=600, timeout=120,
             milestones={}, next_reward=1, values={}, seasons={},
+            jitter=30, finale=True, announcements={}, final_standings={}, set_rewards={},
         )
         self.locks = {}
         self.activity = {}
         self.rounds = {}
         self.tasks = set()
+
+    async def cog_load(self):
+        task = asyncio.create_task(self.event_loop())
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+
+    def now(self):
+        return datetime.now(timezone.utc)
+
+    def fresh_activity(self, settings):
+        now = time.monotonic()
+        return dict(count=0, speakers=set(), last={}, started=now,
+                    ready=now + cooldown_delay(settings["cooldown"], settings["jitter"]))
+
+    def collection_rewards(self, settings):
+        return {key: dict(reward, **settings["set_rewards"].get(key, {})) for key, reward in SETS.items()}
+
+    async def event_loop(self):
+        await self.bot.wait_until_red_ready()
+        while True:
+            try:
+                await self.event_tick(self.now())
+            except Exception:
+                log.exception("Candy calendar check failed")
+            await asyncio.sleep(60)
+
+    async def event_tick(self, now):
+        for guild_id in await self.config.all_guilds():
+            guild = self.bot.get_guild(guild_id)
+            if not guild or await self.bot.cog_disabled_in_guild(self, guild):
+                continue
+            async with self.lock(guild_id):
+                settings = await self.config.guild(guild).all()
+                if settings["enabled"]:
+                    await self.process_events(guild, settings, now)
+
+    def leaderboard_text(self, guild, rows, title):
+        lines = [f"🎃 **{title}**"]
+        for rank, row in enumerate(rows[:10], 1):
+            member = guild.get_member(int(row["user"]))
+            name = discord.utils.escape_markdown(member.display_name) if member else f"User {row['user']}"
+            lines.append(f"{rank}. {name} — **{row['points']}** points ({row['caught']} candies)")
+        return "\n".join(lines) if rows else "No candies collected yet."
+
+    async def process_events(self, guild, settings, now):
+        """Caller holds guild lock; announcements retry after failures and survive reloads."""
+        if not settings["finale"]:
+            return
+        channel = guild.get_channel(settings["channel"])
+        if not channel:
+            return
+        local = local_time(now, settings["utc_offset"])
+        year = str(local.year)
+        if is_finale(now, settings["utc_offset"]):
+            if not settings["announcements"].get(year, {}).get("finale"):
+                sent = await self.send(channel, "🎃 **Halloween Finale!** Today all candy catches earn **double points**, "
+                                       "and Reese's Big Cup + Chocolate Gold Coins can appear! "
+                                       "Collection and daily bonuses keep their normal values.")
+                if sent:
+                    async with self.config.guild(guild).announcements() as announcements:
+                        announcements.setdefault(year, {})["finale"] = True
+        # Recover missed final announcements after downtime, including across New Year.
+        for closed_year, records in settings["seasons"].items():
+            if local < datetime(int(closed_year), 11, 1, tzinfo=local.tzinfo) or not records:
+                continue
+            if settings["announcements"].get(closed_year, {}).get("final"):
+                continue
+            rows = settings["final_standings"].get(closed_year)
+            if rows is None:
+                rows = standings(records)
+                async with self.config.guild(guild).final_standings() as saved:
+                    saved[closed_year] = rows
+            await self.finish(guild.id, "The October candy hunt has closed. Thanks for playing!")
+            sent = await self.send(channel, self.leaderboard_text(guild, rows, f"Final candy standings — {closed_year}"))
+            if sent:
+                async with self.config.guild(guild).announcements() as announcements:
+                    announcements.setdefault(closed_year, {})["final"] = True
 
     def lock(self, guild_id):
         return self.locks.setdefault(guild_id, asyncio.Lock())
@@ -46,7 +125,7 @@ class GuessCandy(commands.Cog):
         self.rounds.clear()
 
     def current_season(self, settings):
-        return season(datetime.now(timezone.utc), settings["utc_offset"], settings["october_only"])
+        return season(self.now(), settings["utc_offset"], settings["october_only"])
 
     async def red_delete_data_for_user(self, *, requester, user_id):
         for guild_id in await self.config.all_guilds():
@@ -54,6 +133,9 @@ class GuessCandy(commands.Cog):
                 async with self.config.guild_from_id(guild_id).seasons() as seasons:
                     for records in seasons.values():
                         records.pop(str(user_id), None)
+                async with self.config.guild_from_id(guild_id).final_standings() as saved:
+                    for year, rows in saved.items():
+                        saved[year] = [row for row in rows if row["user"] != str(user_id)]
                 activity = self.activity.get(guild_id)
                 if activity:
                     activity["speakers"].discard(user_id)
@@ -74,10 +156,13 @@ class GuessCandy(commands.Cog):
             text += f"\n[Photo source]({source}) • {candy['author']} • {candy['license']}"
             if candy.get("license_url"):
                 text += f" • [License]({candy['license_url']})"
-            await self.send(round_["channel"], text)
+            if candy["changes"] != "None":
+                text += f" • {candy['changes']}"
+            for page in pagify(text):
+                await self.send(round_["channel"], page)
             try:
                 await round_["message"].edit(embed=discord.Embed(
-                    title="🍬 Candy round finished", description=text, color=0xED8936,
+                    title="🍬 Candy round finished", description=text[:4000], color=0xED8936,
                 ))
             except discord.HTTPException:
                 pass
@@ -98,29 +183,42 @@ class GuessCandy(commands.Cog):
         permissions = channel.permissions_for(channel.guild.me)
         if not (permissions.view_channel and permissions.send_messages and permissions.embed_links and permissions.attach_files):
             return False
-        candy_id = random.choices(list(CANDIES), weights=[c["weight"] for c in CANDIES.values()])[0]
+        now = self.now()
+        local = local_time(now, settings["utc_offset"])
+        finale = is_finale(now, settings["utc_offset"], settings["finale"])
+        pool = eligible_candies(finale)
+        candy_id = random.choices(list(pool), weights=[c["weight"] for c in pool.values()])[0]
         candy = CANDIES[candy_id]
-        points = settings["values"].get(candy_id, candy["points"])
+        size = random.choices(list(SIZES), weights=[s["weight"] for s in SIZES.values()])[0]
+        points = catch_points(settings["values"].get(candy_id, candy["points"]), size, finale)
         photo = PHOTOS / candy["file"]
         if not photo.is_file():
             log.error("Missing bundled candy photo: %s", photo)
             return False
+        event_note = "🎉 Halloween double points are included!\n" if finale else ""
         embed = discord.Embed(
-            title="🎃 A candy appeared!", color=0xED8936,
+            title=f"🎃 A {SIZES[size]['label'].lower()} candy appeared!", color=0xED8936,
             description=f"Type its name in this channel to catch it!\nFirst correct guess wins **{points} points**.\n"
-                        f"You have **{settings['timeout']} seconds**. Use the candy hint command for a clue.",
+                        f"{event_note}You have **{settings['timeout']} seconds**. Use the candy hint command for a clue.",
         )
         embed.set_image(url="attachment://mystery.jpg")
-        embed.set_footer(text=f"Photo: {candy['author']} • {candy['license']} • Source revealed after the round")
+        embed.set_footer(text=f"Photo: {candy['author']} • {candy['license']} • "
+                              + ("Resized preview • " if candy["changes"] != "None" else "")
+                              + "Source revealed after the round")
         with closing(discord.File(photo, filename="mystery.jpg")) as file:
             posted = await self.send(channel, embed=embed, file=file)
         if not posted:
             return False
         round_ = dict(candy=candy, candy_id=candy_id, points=points, channel=channel,
                       message=posted, season=self.current_season(settings),
+                      size=size, day=local.date().isoformat(),
                       deadline=time.monotonic() + settings["timeout"], timeout=settings["timeout"])
+        # End at local midnight, so a previous day's size/event value cannot cross into the new day.
+        midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        remaining = max(0, min(settings["timeout"], (midnight - local_time(self.now(), settings["utc_offset"])).total_seconds()))
+        round_.update(deadline=time.monotonic() + remaining, timeout=remaining)
         self.rounds[channel.guild.id] = round_
-        self.activity[channel.guild.id] = dict(count=0, speakers=set(), last={}, started=time.monotonic())
+        self.activity[channel.guild.id] = self.fresh_activity(settings)
         task = asyncio.create_task(self.expire(channel.guild.id, round_))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -139,6 +237,7 @@ class GuessCandy(commands.Cog):
             settings = await self.config.guild(message.guild).all()
             if not settings["enabled"] or message.channel.id != settings["channel"]:
                 return
+            await self.process_events(message.guild, settings, self.now())
             year = self.current_season(settings)
             if not year:
                 await self.finish(guild_id, "The October candy hunt has closed. Thanks for playing!")
@@ -147,7 +246,8 @@ class GuessCandy(commands.Cog):
             now = time.monotonic()
             round_ = self.rounds.get(guild_id)
             if round_:
-                if now >= round_["deadline"] or year != round_["season"]:
+                day = local_time(self.now(), settings["utc_offset"]).date().isoformat()
+                if now >= round_["deadline"] or year != round_["season"] or day != round_["day"]:
                     await self.finish(guild_id, f"The candy escaped! It was **{round_['candy']['name']}**.")
                     return
                 if message.id <= round_["message"].id or not matches(message.content, round_["candy"]):
@@ -156,18 +256,22 @@ class GuessCandy(commands.Cog):
                 async with self.config.guild(message.guild).seasons() as seasons:
                     records = seasons.setdefault(year, {})
                     record = records.setdefault(str(message.author.id), copy.deepcopy(EMPTY))
-                    earned = tally(record, round_["candy_id"], round_["points"], settings["milestones"])
+                    earned = tally(record, round_["candy_id"], round_["points"], settings["milestones"],
+                                   day=day, size=round_["size"], sets=self.collection_rewards(settings))
                     total = record["points"]
                 reward_text = "".join(f"\n🏆 {r['label']} (+{r['bonus']} bonus points)" for r in earned)
                 candy = round_["candy"]
                 await self.finish(guild_id,
-                    f"{message.author.mention} caught **{candy['name']}**! +{round_['points']} points • Total: **{total}**"
+                    f"{message.author.mention} caught **{SIZES[round_['size']]['label']} {candy['name']}**! "
+                    f"+{round_['points']} points • Total: **{total}**"
                     f"{reward_text}")
                 return
             # Commands and repeated messages from one person do not accelerate spawns.
             if (await self.bot.get_context(message)).valid:
                 return
-            activity = self.activity.setdefault(guild_id, dict(count=0, speakers=set(), last={}, started=now))
+            activity = self.activity.get(guild_id)
+            if activity is None:
+                activity = self.activity[guild_id] = self.fresh_activity(settings)
             if now - activity["last"].get(message.author.id, float("-inf")) < 20:
                 return
             activity["last"] = {uid: stamp for uid, stamp in activity["last"].items() if now - stamp < 20}
@@ -175,9 +279,9 @@ class GuessCandy(commands.Cog):
             activity["count"] += 1
             activity["speakers"].add(message.author.id)
             if (activity["count"] >= settings["messages"] and len(activity["speakers"]) >= settings["users"]
-                    and now - activity["started"] >= settings["cooldown"]):
+                    and now >= activity["ready"]):
                 if not await self.spawn(message.channel, settings):
-                    activity["started"] = now  # Back off when uploads/permissions fail.
+                    activity["ready"] = now + cooldown_delay(settings["cooldown"], settings["jitter"])
 
     @commands.group(invoke_without_command=True)
     @commands.guild_only()
@@ -185,34 +289,81 @@ class GuessCandy(commands.Cog):
         """Candy hunt rules and player commands."""
         await ctx.send("🎃 Chat in the hunt channel. When a photo appears, type the candy's name! "
                        "First correct guess collects it. Bigger/rare candies give more points.\n"
-                       "Commands: `candy bag`, `candy top`, `candy rewards`, `candy hint`, `candy catalog`.")
+                       "Commands: `candy bag`, `candy top`, `candy daily`, `candy sets`, `candy finals`, "
+                       "`candy rewards`, `candy hint`, `candy catalog`.")
 
     @candy.command()
     async def bag(self, ctx, member: discord.Member = None, year: int = None):
         """Show a collection for this year or a specified year."""
         member = member or ctx.author
         settings = await self.config.guild(ctx.guild).all()
-        year = str(year) if year else season(datetime.now(timezone.utc), settings["utc_offset"], False)
+        year = str(year) if year else season(self.now(), settings["utc_offset"], False)
         record = settings["seasons"].get(year, {}).get(str(member.id), EMPTY)
         lines = [f"**{discord.utils.escape_markdown(member.display_name)} — {year}**",
                  f"{record['points']} points • {record['caught']} candies"]
         lines.extend(f"{c['name']}: {record['bag'].get(key, 0)}" for key, c in CANDIES.items())
         lines.append("Earned milestone IDs: " + (", ".join(record["earned"]) or "None"))
-        await ctx.send("\n".join(lines), allowed_mentions=discord.AllowedMentions.none())
+        lines.append("Sizes: " + ", ".join(f"{s['label']}: {record.get('sizes', {}).get(key, 0)}" for key, s in SIZES.items()))
+        lines.append("Completed sets: " + (", ".join(SETS[key]["label"] for key in record.get("sets", []) if key in SETS) or "None"))
+        for page in pagify("\n".join(lines)):
+            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
 
     @candy.command()
     async def top(self, ctx, year: int = None):
         """Top 10 collectors by points (then candy count)."""
         settings = await self.config.guild(ctx.guild).all()
-        year = str(year) if year else season(datetime.now(timezone.utc), settings["utc_offset"], False)
+        year = str(year) if year else season(self.now(), settings["utc_offset"], False)
         records = settings["seasons"].get(year, {})
-        leaders = sorted(records.items(), key=lambda item: (-item[1]["points"], -item[1]["caught"], int(item[0])))[:10]
-        lines = [f"🎃 **Candy leaderboard — {year}**"]
-        for rank, (uid, record) in enumerate(leaders, 1):
-            member = ctx.guild.get_member(int(uid))
-            name = discord.utils.escape_markdown(member.display_name) if member else f"User {uid}"
-            lines.append(f"{rank}. {name} — **{record['points']}** points ({record['caught']} candies)")
-        await ctx.send("\n".join(lines) if leaders else "No candies collected yet.", allowed_mentions=discord.AllowedMentions.none())
+        await ctx.send(self.leaderboard_text(ctx.guild, standings(records), f"Candy leaderboard — {year}"),
+                       allowed_mentions=discord.AllowedMentions.none())
+
+    @candy.command()
+    async def daily(self, ctx):
+        """Today's rotating goals and your progress. Bonuses are automatic."""
+        settings = await self.config.guild(ctx.guild).all()
+        local = local_time(self.now(), settings["utc_offset"])
+        record = settings["seasons"].get(str(local.year), {}).get(str(ctx.author.id), {})
+        daily = record.get("daily", {})
+        if daily.get("date") != local.date().isoformat():
+            daily = {}
+        lines = [f"🎯 **Daily goals — {local.date()}**"]
+        for goal in daily_goals(local.date().isoformat()):
+            progress = min(goal["target"], goal_progress(goal, daily))
+            status = "✅" if goal["id"] in daily.get("earned", []) else "⬜"
+            lines.append(f"{status} {goal['label']}: {progress}/{goal['target']} (+{goal['bonus']} points)")
+        await ctx.send("\n".join(lines))
+
+    @candy.command(name="sets")
+    async def collection_sets(self, ctx):
+        """Collection sets, missing candies, and automatic bonus points."""
+        settings = await self.config.guild(ctx.guild).all()
+        year = season(self.now(), settings["utc_offset"], False)
+        record = settings["seasons"].get(year, {}).get(str(ctx.author.id), {})
+        lines = ["🏆 **Collection sets**"]
+        for key, reward in self.collection_rewards(settings).items():
+            missing = [CANDIES[c]["name"] for c in reward["candies"] if not record.get("bag", {}).get(c)]
+            status = "✅" if key in record.get("sets", []) else "⬜"
+            lines.append(f"{status} **{reward['label']}** (+{reward['bonus']} points)\n"
+                         + ("Missing: " + ", ".join(missing) if missing else "Collection complete"))
+            if reward.get("prize"):
+                lines.append(f"Custom reward: {reward['prize']} (staff-delivered)")
+        for page in pagify("\n".join(lines)):
+            await ctx.send(page, allowed_mentions=discord.AllowedMentions.none())
+
+    @candy.command()
+    async def finals(self, ctx, year: int = None):
+        """Saved standings from the end of October."""
+        async with self.lock(ctx.guild.id):
+            settings = await self.config.guild(ctx.guild).all()
+            if settings["enabled"]:
+                await self.process_events(ctx.guild, settings, self.now())
+            saved = await self.config.guild(ctx.guild).final_standings()
+        if year is None:
+            year = max(saved, key=int) if saved else None
+        rows = saved.get(str(year))
+        await ctx.send(self.leaderboard_text(ctx.guild, rows, f"Final candy standings — {year}")
+                       if rows is not None else "No final standings saved yet. October closes on November 1.",
+                       allowed_mentions=discord.AllowedMentions.none())
 
     @candy.command()
     @commands.cooldown(1, 10, commands.BucketType.channel)
@@ -228,10 +379,13 @@ class GuessCandy(commands.Cog):
     async def catalog(self, ctx):
         """Candy IDs, values, rarity, aliases, and photo credits."""
         values = await self.config.guild(ctx.guild).values()
-        text = "\n".join(f"**{key}** — {c['name']}: {values.get(key, c['points'])} points, {c['weight']}% chance\n"
+        total_weight = sum(c["weight"] for c in eligible_candies(False).values())
+        text = "\n".join(f"**{key}** — {c['name']}: {values.get(key, c['points'])} base points, "
+                         + ("Halloween finale only" if c["finale_only"] else f"{100*c['weight']/total_weight:.1f}% normal spawn chance") + "\n"
                          f"Aliases: {', '.join(c['aliases'])}\nPhoto: {c['author']}, {c['license']} — "
                          f"https://commons.wikimedia.org/wiki/File:{quote(c['source'])}"
                          + (f" • {c['license_url']}" if c.get('license_url') else '')
+                         + (f" • {c['changes']}" if c['changes'] != "None" else '')
                          for key, c in CANDIES.items())
         for page in pagify(text):
             await ctx.send(page)
@@ -253,13 +407,16 @@ class GuessCandy(commands.Cog):
         s = await self.config.guild(ctx.guild).all()
         await ctx.send(f"Enabled: {s['enabled']} • Channel: {s['channel']} • October only: {s['october_only']}\n"
                        f"UTC offset: {s['utc_offset']} minutes • Spawn after {s['messages']} messages from {s['users']} users\n"
-                       f"Cooldown: {s['cooldown']}s • Guess window: {s['timeout']}s\nUse help candyset for commands.")
+                       f"Cooldown: {s['cooldown']}s ±{s['jitter']}% • Guess window: {s['timeout']}s\n"
+                       f"Halloween finale: {s['finale']} • Use help candyset for commands.")
 
     async def setting(self, ctx, key, value):
         async with self.lock(ctx.guild.id):
             await self.config.guild(ctx.guild).get_attr(key).set(value)
-            if key in ("enabled", "channel", "october_only", "utc_offset"):
+            if key in ("enabled", "channel", "october_only", "utc_offset", "finale"):
                 await self.finish(ctx.guild.id, "Round closed because the hunt settings changed.")
+                self.activity.pop(ctx.guild.id, None)
+            if key == "jitter":
                 self.activity.pop(ctx.guild.id, None)
         await ctx.tick()
 
@@ -302,6 +459,18 @@ class GuessCandy(commands.Cog):
         await ctx.tick()
 
     @candyset.command()
+    async def jitter(self, ctx, percent: int):
+        """Randomize cooldown by this percentage (0–80, default 30)."""
+        if not 0 <= percent <= 80:
+            return await ctx.send("Use 0–80 percent. Zero makes the cooldown fixed.")
+        await self.setting(ctx, "jitter", percent)
+
+    @candyset.command()
+    async def finale(self, ctx, enabled: bool):
+        """Enable October 31 double catch points, special candies, and final announcements."""
+        await self.setting(ctx, "finale", enabled)
+
+    @candyset.command()
     async def value(self, ctx, candy_id: str, points: int):
         """Change one candy's points for future spawns. See candy catalog for IDs."""
         if candy_id not in CANDIES or not 1 <= points <= 100000:
@@ -328,6 +497,16 @@ class GuessCandy(commands.Cog):
         await ctx.send(f"Added milestone #{key}. Bonus awarded once per player per year, on their next qualifying catch.")
 
     @candyset.command()
+    async def setreward(self, ctx, set_id: str, bonus: int, *, prize: str):
+        """Set bonus/custom prize for a collection set. Sets: chocolate fruity halloween retro bigbars."""
+        if set_id not in SETS or not 0 <= bonus <= 100000 or not 1 <= len(prize) <= 150:
+            return await ctx.send("Use a valid set ID, bonus 0–100000, and a prize description of 1–150 characters.")
+        async with self.lock(ctx.guild.id):
+            async with self.config.guild(ctx.guild).set_rewards() as rewards:
+                rewards[set_id] = dict(bonus=bonus, prize=prize)
+        await ctx.send("Set reward updated for future completions. Use candyset winners set:" + set_id + " for staff delivery.")
+
+    @candyset.command()
     async def unreward(self, ctx, reward_id: str):
         """Remove a milestone. Previously earned points remain."""
         async with self.lock(ctx.guild.id):
@@ -337,12 +516,17 @@ class GuessCandy(commands.Cog):
 
     @candyset.command()
     async def winners(self, ctx, reward_id: str, year: int = None):
-        """List players who earned a milestone, for staff to deliver custom prizes."""
+        """List milestone winners, or use set:chocolate etc. for collection-set prizes."""
         settings = await self.config.guild(ctx.guild).all()
-        year = str(year) if year else season(datetime.now(timezone.utc), settings["utc_offset"], False)
-        lines = [f"**Milestone #{reward_id} winners — {year}**"]
+        year = str(year) if year else season(self.now(), settings["utc_offset"], False)
+        set_id = reward_id[4:] if reward_id.startswith("set:") else None
+        if set_id is not None and set_id not in SETS:
+            return await ctx.send("Unknown collection set ID.")
+        title = SETS[set_id]["label"] if set_id else f"Milestone #{reward_id}"
+        lines = [f"**{title} winners — {year}**"]
         for uid, record in settings["seasons"].get(year, {}).items():
-            if reward_id in record["earned"]:
+            earned = set_id in record.get("sets", []) if set_id else reward_id in record["earned"]
+            if earned:
                 member = ctx.guild.get_member(int(uid))
                 name = discord.utils.escape_markdown(member.display_name) if member else "Former member"
                 lines.append(f"{name} — ID {uid}")
