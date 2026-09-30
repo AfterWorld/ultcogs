@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from .deck_legality import available_bakugan, check_random_export
+from .deck_legality import available_bakugan, validate_export
 
 SITE = 'https://bakuganbrawl.online'
 DATA = Path(__file__).parent / 'data' / 'site_catalog.json'
@@ -61,7 +61,7 @@ def resolve_deck(raw):
 
 
 def random_site_deck(attribute=None, rng=None, style='balanced'):
-    """Build a simple mono-attribute image deck from website IDs and artwork."""
+    """Build a mono-attribute deck with one Signature Ability per Bakugan."""
     import random
     rng = rng or random.Random()
     style = style.lower().strip()
@@ -86,17 +86,33 @@ def random_site_deck(attribute=None, rng=None, style='balanced'):
     generic = [b for b in site['bakugan'] if not b['guardian'] and b['id'] not in banned
                and available_bakugan(b, attribute, restrictions)
                and b.get('art', {}).get(attribute)]
+    signatures = {b['id']: [c for c in site['abilities'] if c['category'] == 'signature'
+                  and b['id'] in c.get('bakuganIds', []) and c['id'] not in banned_abilities
+                  and not c.get('hidden') and set(c.get('attributes', [])).issubset({attribute})
+                  and c.get('image')] for b in guardians + generic}
+    guardians = [b for b in guardians if signatures[b['id']]]
+    generic = [b for b in generic if signatures[b['id']]]
     normal = [c for c in site['abilities'] if c['category'] == 'normal' and c['id'] not in banned_abilities and not c.get('hidden')
               and not c.get('bakuganIds') and c.get('attributes') == [attribute] and c.get('image')]
     command = [g for g in site['gates'] if g['category'] == 'command' and g['id'] not in banned_gates
                and not g.get('hidden') and g.get('image')]
     attribute_gates = [g for g in site['gates'] if g['category'] in ('attribute', 'reactor')
                        and g.get('attribute') == attribute and g['id'] not in banned_gates and not g.get('hidden')]
-    if not guardians or len(generic) < 2 or len(normal) < 6 or len(command) < 2 or not attribute_gates:
+    if not guardians or len(generic) < 2 or len(normal) < 3 or len(command) < 2 or not attribute_gates:
         raise ValueError('The website catalog has too few cards for that attribute.')
-    bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
+    # Try different teams if two Bakugan share a Signature card name.
+    for _ in range(100):
+        bakugan = [rng.choice(guardians), *rng.sample(generic, 2)]
+        selected_signatures = [rng.choice(signatures[b['id']]) for b in bakugan]
+        if len({c['id'] for c in selected_signatures}) == 3 and len({c['name'].casefold() for c in selected_signatures}) == 3:
+            break
+    else:
+        raise ValueError('Could not find three distinct Signature Abilities for this attribute.')
+    normal = [c for c in normal if c['name'].casefold() not in {s['name'].casefold() for s in selected_signatures}]
+    if len(normal) < 3:
+        raise ValueError('The website catalog has too few compatible Normal Abilities.')
     if style == 'balanced':
-        selected_abilities = rng.sample(normal, 6)
+        selected_abilities = rng.sample(normal, 3)
     else:
         words = THEMES[style]
         scored = [(sum(word in card.get('textEn', '').lower() for word in words), card) for card in normal]
@@ -105,15 +121,16 @@ def random_site_deck(attribute=None, rng=None, style='balanced'):
             raise ValueError(f'Not enough {attribute.title()} cards have a {style} wording theme. Try balanced or another style.')
         rng.shuffle(themed)
         themed.sort(key=lambda card: sum(word in card.get('textEn', '').lower() for word in words), reverse=True)
-        selected_abilities = themed[:4]
-        selected_abilities += rng.sample([card for card in normal if card not in selected_abilities], 6-len(selected_abilities))
+        selected_abilities = themed[:3]
+        selected_abilities += rng.sample([card for card in normal if card not in selected_abilities], 3-len(selected_abilities))
         rng.shuffle(selected_abilities)
+    selected_abilities = selected_signatures + selected_abilities
     export = {'version': 1, 'name': f'Random {attribute.title()} {style.title()} Deck',
               'description': f'{style.title()} theme selected from Ability wording.',
               'bakugans': [{'id': b['id'], 'attribute': attribute} for b in bakugan],
               'abilities': [c['id'] for c in selected_abilities],
               'gates': [rng.choice(attribute_gates)['id'], *[g['id'] for g in rng.sample(command, 2)]]}
-    issues = check_random_export(export, site)
+    issues = validate_export(export, site)
     if issues:
         raise ValueError('Could not generate a legal deck: ' + '; '.join(issues))
     deck, catalog, art = resolve_deck(json.dumps(export).encode())
