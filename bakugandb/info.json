@@ -19,5 +19,5 @@
     0
   ],
   "type": "COG",
-  "end_user_data_statement": "Stores optional Discord user ID to public Bakugan Brawl profile ID links and per-server public deck post IDs, titles, channel/message IDs and author IDs. Users can unlink profiles and remove deck listings; Red user deletion clears both. Shared images and messages remain in Discord."
+  "end_user_data_statement": "Stores optional Discord user ID to public Bakugan Brawl profile ID links and bot-wide public deck post IDs, titles, channel/message IDs, author IDs, website deck exports when provided, and copies of shared deck images in the cog data directory. Users can unlink profiles and remove deck listings; Red user deletion clears listings and cached images. Original shared Discord messages remain until separately deleted."
 }

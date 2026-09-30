@@ -11,6 +11,7 @@ import aiohttp
 
 import discord
 from redbot.core import Config, commands
+from redbot.core.data_manager import cog_data_path
 
 from .catalog import Catalog, normalize
 from .catalog_check import check_website
@@ -117,7 +118,34 @@ class BakuganDB(commands.Cog):
         await self.config.user_from_id(user_id).clear()
         await self._migrate_deck_posts()
         async with self.config.deck_posts() as posts:
+            for post in posts:
+                if post.get('author_id') == user_id:
+                    await self._remove_deck_image(post['id'])
             posts[:] = [p for p in posts if p.get('author_id') != user_id]
+
+    def _deck_image_path(self, deck_id, suffix='png'):
+        return cog_data_path(self) / 'shared_images' / f'{deck_id}.{suffix}'
+
+    async def _save_deck_image(self, deck_id, suffix, data):
+        path = self._deck_image_path(deck_id, suffix)
+        def write():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        await asyncio.to_thread(write)
+
+    async def _remove_deck_image(self, deck_id):
+        for suffix in ('png', 'jpg', 'webp', 'gif'):
+            await asyncio.to_thread(self._deck_image_path(deck_id, suffix).unlink, missing_ok=True)
+
+    async def _send_deck_image(self, ctx, post, picture, suffix, export=None):
+        filename = f'deck.{suffix}'
+        embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
+        embed.set_image(url='attachment://' + filename)
+        files = [discord.File(io.BytesIO(picture), filename=filename)]
+        if export:
+            files.append(discord.File(io.BytesIO((json.dumps(export, indent=2) + '\n').encode('utf-8')),
+                                      filename=f"shared-{post['id']}.deck.json"))
+        await ctx.send(embed=embed, files=files, allowed_mentions=NONE)
 
     async def _migrate_deck_posts(self):
         """Move old per-server listings to the bot-wide index once."""
@@ -428,7 +456,8 @@ class BakuganDB(commands.Cog):
                 await ctx.send('Use a website `.deck.json` export or a PNG, JPG, WebP or GIF image.')
                 return
             try:
-                file = discord.File(io.BytesIO(await attachment.read()), filename=f'deck.{suffix}')
+                picture = await attachment.read()
+                file = discord.File(io.BytesIO(picture), filename=f'deck.{suffix}')
             except discord.HTTPException:
                 await ctx.send('Could not read that image. Try attaching it again.')
                 return
@@ -445,10 +474,52 @@ class BakuganDB(commands.Cog):
                  'export': export if website_deck else None,
                  'attribute': deck['attribute'].lower() if website_deck else None,
                  'search_text': ' '.join(deck['bakugan'] + [c['name'] for c in deck['abilities'] + deck['gates']])[:1000] if website_deck else ''}
+        try:
+            await self._save_deck_image(entry['id'], suffix, picture)
+            entry['image_suffix'] = suffix
+        except OSError:
+            log.exception('Could not persist shared deck image %s', entry['id'])
         await self._migrate_deck_posts()
         async with self.config.deck_posts() as posts:
             posts.append(entry)
-        await ctx.send(f"Saved to the public deck list as `{entry['id']}`. Use `{ctx.clean_prefix}bdecks` from any server to browse.")
+        hint = (f' Attach your website export to `{ctx.clean_prefix}bdeckattach {entry["id"]}` to add a downloadable JSON.'
+                if not website_deck else '')
+        await ctx.send(f"Saved to the public deck list as `{entry['id']}`. Use `{ctx.clean_prefix}bdecks` from any server to browse.{hint}")
+
+    @commands.command()
+    @commands.bot_has_permissions(embed_links=True, attach_files=True)
+    async def bdeckattach(self, ctx, deck_id: str):
+        """Add a website .deck.json export to your existing public deck listing."""
+        await self._migrate_deck_posts()
+        deck_id = deck_id.lower()
+        post = next((p for p in await self.config.deck_posts() if p['id'] == deck_id), None)
+        if not post or post.get('author_id') != ctx.author.id:
+            await ctx.send('Find your deck ID with `bdecks`, then attach its website export as its author.')
+            return
+        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.deck.json')), None)
+        if not attachment or attachment.size > 1_000_000:
+            await ctx.send(f'Attach the website `.deck.json` file under 1 MB to `{ctx.clean_prefix}bdeckattach {deck_id}`.')
+            return
+        try:
+            raw = await attachment.read()
+            deck, catalog, art = resolve_deck(raw)
+            original = json.loads(raw)
+            export = {'version': 1, 'name': post['title'], 'description': original.get('description', ''),
+                      'bakugans': original['bakugans'], 'abilities': original['abilities'], 'gates': original['gates']}
+            picture = await render_deck_image(deck, catalog, self.http, art)
+            await self._save_deck_image(deck_id, 'png', picture)
+        except (OSError, ValueError, discord.HTTPException) as exc:
+            await ctx.send(f'Could not add that website export: {str(exc)[:300]}', allowed_mentions=NONE)
+            return
+        async with self.config.deck_posts() as posts:
+            current = next((p for p in posts if p['id'] == deck_id and p.get('author_id') == ctx.author.id), None)
+            if current is None:
+                await self._remove_deck_image(deck_id)
+                await ctx.send('That deck was removed. Share it again to create a new listing.')
+                return
+            current.update(export=export, image_suffix='png', attribute=deck['attribute'].lower(),
+                           search_text=' '.join(deck['bakugan'] + [c['name'] for c in deck['abilities'] + deck['gates']])[:1000])
+        await ctx.send(f'Deck `{deck_id}` now shows its image and downloadable JSON from any server. Use `{ctx.clean_prefix}bdeckview {deck_id}`.')
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True)
@@ -499,32 +570,60 @@ class BakuganDB(commands.Cog):
             await ctx.send('Deck not found. Use `bdecks` to browse.')
             return
         link = f"https://discord.com/channels/{post['guild_id']}/{post['channel_id']}/{post['message_id']}"
+        suffix = post.get('image_suffix')
+        if suffix in ('png', 'jpg', 'webp', 'gif'):
+            try:
+                picture = await asyncio.to_thread(self._deck_image_path(post['id'], suffix).read_bytes)
+                await self._send_deck_image(ctx, post, picture, suffix, post.get('export'))
+                return
+            except OSError:
+                log.warning('Shared deck image cache missing for %s', deck_id)
+            except discord.HTTPException:
+                log.exception('Could not send shared deck image %s', deck_id)
         if post.get('export'):
             try:
                 deck, catalog, art = resolve_deck(json.dumps(post['export']).encode())
                 picture = await render_deck_image(deck, catalog, self.http, art)
-                embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
-                embed.set_image(url='attachment://deck.png')
-                export_file = discord.File(io.BytesIO((json.dumps(post['export'], indent=2) + '\n').encode('utf-8')),
-                                           filename=f"shared-{post['id']}.deck.json")
-                await ctx.send(embed=embed, files=[discord.File(io.BytesIO(picture), filename='deck.png'), export_file], allowed_mentions=NONE)
+                await self._send_deck_image(ctx, post, picture, 'png', post['export'])
+                try:
+                    await self._save_deck_image(post['id'], 'png', picture)
+                    async with self.config.deck_posts() as posts:
+                        for entry in posts:
+                            if entry['id'] == post['id']:
+                                entry['image_suffix'] = 'png'
+                                break
+                except OSError:
+                    log.exception('Could not cache shared deck image %s', deck_id)
                 return
             except (OSError, ValueError, discord.HTTPException):
                 log.exception('Could not render shared deck %s', deck_id)
+                deck_file = discord.File(io.BytesIO((json.dumps(post['export'], indent=2) + '\n').encode('utf-8')),
+                                         filename=f"shared-{post['id']}.deck.json")
+                await ctx.send('The deck image could not be rendered right now. Its website JSON is attached.', file=deck_file)
+                return
         else:
             try:
                 channel = self.bot.get_channel(post['channel_id']) or await self.bot.fetch_channel(post['channel_id'])
                 message = await channel.fetch_message(post['message_id'])
                 if message.attachments and message.attachments[0].size <= 8_000_000:
                     source = message.attachments[0]
-                    filename = 'shared-deck.' + source.filename.rsplit('.', 1)[-1].lower()
-                    embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
-                    embed.set_image(url='attachment://' + filename)
-                    await ctx.send(embed=embed, file=discord.File(io.BytesIO(await source.read()), filename=filename), allowed_mentions=NONE)
-                    return
+                    suffix = source.filename.rsplit('.', 1)[-1].lower()
+                    if suffix in ('png', 'jpg', 'webp', 'gif'):
+                        picture = await source.read()
+                        await self._send_deck_image(ctx, post, picture, suffix)
+                        try:
+                            await self._save_deck_image(post['id'], suffix, picture)
+                            async with self.config.deck_posts() as posts:
+                                for entry in posts:
+                                    if entry['id'] == post['id']:
+                                        entry['image_suffix'] = suffix
+                                        break
+                        except OSError:
+                            log.exception('Could not cache shared deck image %s', deck_id)
+                        return
             except (discord.HTTPException, OSError):
                 log.exception('Could not retrieve shared deck image %s', deck_id)
-        await ctx.send(f"**{discord.utils.escape_markdown(post['title'])}** — {link}\nImage-only shares may require access to their original server.", allowed_mentions=NONE)
+        await ctx.send(f"**{discord.utils.escape_markdown(post['title'])}** — {link}\nThis older image-only share has no saved image or deck JSON. The author can attach the website export to `{ctx.clean_prefix}bdeckattach {post['id']}` to restore both.", allowed_mentions=NONE)
 
     @commands.command()
     async def bdeckremove(self, ctx, deck_id: str):
@@ -541,4 +640,5 @@ class BakuganDB(commands.Cog):
                 await ctx.send('Only its author or a moderator can remove that listing.')
                 return
             posts.remove(post)
+        await self._remove_deck_image(deck_id)
         await ctx.send('Deck listing removed. The original shared message remains in its channel.')
