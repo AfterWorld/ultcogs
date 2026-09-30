@@ -13,8 +13,11 @@ import discord
 from redbot.core import Config, commands
 
 from .catalog import Catalog, normalize
+from .catalog_check import check_website
+from .deck_legality import validate_export
 from .deck_image import render as render_deck_image
-from .site_deck import resolve_deck, random_site_deck
+from .site_deck import DATA as SITE_CATALOG_DATA, resolve_deck, random_site_deck
+from .public_decks import search_decks
 
 log = logging.getLogger('red.bakugandb')
 EMOJI = {'Aquos':'🌊','Pyrus':'🔥','Ventus':'🌪️','Subterra':'🪨','Haos':'✨','Darkus':'🌑'}
@@ -149,6 +152,27 @@ class BakuganDB(commands.Cog):
         await ctx.send('BakuganDB data is unavailable. Ask the bot owner to check the cog logs.')
         return False
 
+    @commands.command()
+    @commands.is_owner()
+    @commands.bot_has_permissions(attach_files=True)
+    async def bcatalogcheck(self, ctx):
+        """Compare our snapshot with the website without changing any data."""
+        try:
+            report = await check_website(self.http)
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError, KeyError) as exc:
+            log.warning('Catalog drift check failed: %s', exc)
+            await ctx.send('Could not read the website catalog. Check the bot logs and retry later.')
+            return
+        changes = report['changes']
+        counts = report['counts']
+        summary = f"Snapshot {report['snapshot']} · Website: {counts['bakugan']} Bakugan, {counts['abilities']} Abilities, {counts['gates']} Gates."
+        if not changes:
+            await ctx.send(summary + ' No catalog or restriction changes detected.')
+        else:
+            details = json.dumps(report, indent=2).encode('utf-8')
+            await ctx.send(summary + f' {len(changes)} changes need review.',
+                           file=discord.File(io.BytesIO(details), filename='bakugan-catalog-drift.json'))
+
     async def list_results(self, ctx, cards, title):
         if not cards:
             await ctx.send('No matches. Try a card name, attribute, Bakugan or card type.')
@@ -219,12 +243,19 @@ class BakuganDB(commands.Cog):
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, attach_files=True)
-    async def brandom(self, ctx, attribute: str = None):
-        """Roll a sample deck, optionally for one attribute: [p]brandom aquos."""
+    async def brandom(self, ctx, *, options: str = ''):
+        """Roll a deck: [p]brandom [attribute] [balanced|offense|defense|control]."""
         if not await self.ready(ctx):
             return
         try:
-            deck, site_catalog, art, export = random_site_deck(attribute)
+            terms = options.lower().split()
+            if len(terms) > 2:
+                raise ValueError('Use an attribute and an optional style: balanced, offense, defense or control.')
+            attribute = next((term for term in terms if term in ('aquos', 'pyrus', 'ventus', 'subterra', 'haos', 'darkus')), None)
+            style = next((term for term in terms if term in ('balanced', 'offense', 'defense', 'control')), 'balanced')
+            if len(terms) != int(attribute is not None) + int(style in terms):
+                raise ValueError('Use an attribute and an optional style: balanced, offense, defense or control.')
+            deck, site_catalog, art, export = random_site_deck(attribute, style=style)
         except ValueError as exc:
             await ctx.send(str(exc), allowed_mentions=NONE)
             return
@@ -411,24 +442,52 @@ class BakuganDB(commands.Cog):
         entry = {'id': uuid.uuid4().hex[:12], 'title': title, 'author_id': ctx.author.id,
                  'author_name': ctx.author.display_name[:80], 'guild_id': ctx.guild.id,
                  'channel_id': ctx.channel.id, 'message_id': sent.id,
-                 'export': export if website_deck else None}
+                 'export': export if website_deck else None,
+                 'attribute': deck['attribute'].lower() if website_deck else None,
+                 'search_text': ' '.join(deck['bakugan'] + [c['name'] for c in deck['abilities'] + deck['gates']])[:1000] if website_deck else ''}
         await self._migrate_deck_posts()
         async with self.config.deck_posts() as posts:
             posts.append(entry)
         await ctx.send(f"Saved to the public deck list as `{entry['id']}`. Use `{ctx.clean_prefix}bdecks` from any server to browse.")
 
     @commands.command()
-    async def bdecks(self, ctx, page: int = 1):
-        """List public deck shares across all servers using this bot."""
+    @commands.bot_has_permissions(embed_links=True)
+    async def bdeckcheck(self, ctx):
+        """Check an attached website .deck.json against the captured game rules."""
+        attachment = next((a for a in ctx.message.attachments if a.filename.lower().endswith('.deck.json')), None)
+        if not attachment or attachment.size > 1_000_000:
+            await ctx.send(f'Attach a website `.deck.json` file under 1 MB to `{ctx.clean_prefix}bdeckcheck`.')
+            return
+        try:
+            exported = json.loads(await attachment.read())
+            with SITE_CATALOG_DATA.open(encoding='utf-8') as stream:
+                site = json.load(stream)
+            issues = validate_export(exported, site)
+        except (UnicodeDecodeError, ValueError, OSError):
+            await ctx.send('That file is not a readable website deck JSON export.')
+            return
+        embed = discord.Embed(title='Deck check', colour=discord.Colour.red() if issues else discord.Colour.green())
+        embed.description = ('\n'.join(f'• {discord.utils.escape_markdown(issue)}' for issue in issues[:20])[:3900]
+                             + (f'\n…and {len(issues)-20} more.' if len(issues) > 20 else '')) if issues else 'No violations found in the captured rules and website restrictions.'
+        embed.set_footer(text='Snapshot 2026-09-29 · import on the website for its current validation')
+        await ctx.send(embed=embed, allowed_mentions=NONE)
+
+    @commands.command()
+    async def bdecks(self, ctx, *, filters: str = ''):
+        """Search public decks: [p]bdecks [terms] [author:name] [page:2]."""
         await self._migrate_deck_posts()
-        posts = list(reversed(await self.config.deck_posts()))
+        try:
+            posts, page = search_decks(await self.config.deck_posts(), filters)
+        except ValueError as exc:
+            await ctx.send(str(exc))
+            return
         max_page = max(1, (len(posts) + 7) // 8)
         if page < 1 or page > max_page:
             await ctx.send(f'Choose a page from 1 to {max_page}.')
             return
         lines = [f"`{p['id']}` **{discord.utils.escape_markdown(p['title'])}** by {discord.utils.escape_markdown(p.get('author_name', 'a brawler'))} — `{ctx.clean_prefix}bdeckview {p['id']}`"
                  for p in posts[(page-1)*8:page*8]]
-        await ctx.send('Public decks (' + str(page) + '/' + str(max_page) + '):\n' + ('\n'.join(lines) if lines else f'None yet. Use `{ctx.clean_prefix}bdeckshare <title>` with a website deck export.')[:1800], allowed_mentions=NONE)
+        await ctx.send('Public decks (' + str(page) + '/' + str(max_page) + ', ' + str(len(posts)) + ' matches):\n' + ('\n'.join(lines) if lines else f'None yet. Use `{ctx.clean_prefix}bdeckshare <title>` with a website deck export.')[:1800], allowed_mentions=NONE)
 
     @commands.command()
     @commands.bot_has_permissions(embed_links=True, attach_files=True)
@@ -446,7 +505,9 @@ class BakuganDB(commands.Cog):
                 picture = await render_deck_image(deck, catalog, self.http, art)
                 embed = discord.Embed(title=post['title'], description=f"Shared by {post.get('author_name', 'a brawler')}", colour=discord.Colour.blue())
                 embed.set_image(url='attachment://deck.png')
-                await ctx.send(embed=embed, file=discord.File(io.BytesIO(picture), filename='deck.png'), allowed_mentions=NONE)
+                export_file = discord.File(io.BytesIO((json.dumps(post['export'], indent=2) + '\n').encode('utf-8')),
+                                           filename=f"shared-{post['id']}.deck.json")
+                await ctx.send(embed=embed, files=[discord.File(io.BytesIO(picture), filename='deck.png'), export_file], allowed_mentions=NONE)
                 return
             except (OSError, ValueError, discord.HTTPException):
                 log.exception('Could not render shared deck %s', deck_id)
