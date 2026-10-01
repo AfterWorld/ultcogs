@@ -80,3 +80,23 @@ def test_scaled_damage_rewards_and_tier_limits():
     clear_room(p)
     with pytest.raises(g.RuleError):
         g.enter_dungeon(p, "furnace")
+
+
+def test_active_dungeon_restores_exact_battle_and_retreat_invalidates_old_turn():
+    p = graduate(level=16)
+    b = g.enter_dungeon(p, "furnace")
+    g.act(p, b["id"], 0, "guard", random.Random(2))
+    before = copy.deepcopy(p)
+    assert g.enter_dungeon(p) == before["battle"]
+    assert p == before
+    with pytest.raises(g.RuleError):
+        g.enter_dungeon(p, "hollow")
+    assert p == before
+    result = g.retreat(p)
+    assert "Retreated safely" in result
+    assert p["battle"] is None and p["run"] is None
+    for key in ("inventory", "gold", "xp", "dungeons", "potions"):
+        assert p[key] == before[key]
+    with pytest.raises(g.RuleError):
+        g.act(p, b["id"], b["turn"], "attack", random.Random(1))
+    assert g.retreat(p) == "No active battle or dungeon."

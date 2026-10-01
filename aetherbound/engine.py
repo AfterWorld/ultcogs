@@ -206,7 +206,20 @@ def stats(p):
 
 def idle(p):
     if p["battle"]:
-        raise RuleError("Finish or flee your current battle first.")
+        raise RuleError(
+            "Battle in progress. Use aether resume to restore controls, aether act attack to fight, or aether flee to leave safely."
+        )
+
+
+def retreat(p):
+    """Always permit leaving combat, including dungeons and paused shared bosses."""
+    if not p["battle"] and not p["run"]:
+        return "No active battle or dungeon."
+    p["battle"] = p["run"] = None
+    p["last_result"] = (
+        "Retreated safely. No encounter rewards. Gear, EXP and shared boss damage are preserved."
+    )
+    return p["last_result"]
 
 
 def item(p, item_id):
@@ -519,7 +532,6 @@ def dungeon_tier(p, key):
 
 
 def enter_dungeon(p, key=None, tier=None):
-    idle(p)
     run = p["run"]
     if run:
         if (key and key != run.get("dungeon", "hollow")) or (
@@ -528,7 +540,10 @@ def enter_dungeon(p, key=None, tier=None):
             raise RuleError(
                 "Finish or abandon your current dungeon before changing dungeons or tiers."
             )
+        if p["battle"]:
+            return p["battle"]
     else:
+        idle(p)
         key = key or "hollow"
         if key not in DUNGEONS:
             raise RuleError("Dungeons: hollow or furnace. Use aether dungeons to see unlocks.")
@@ -682,9 +697,7 @@ def act(p, battle_id, turn, action, rng):
     if action not in ("attack", "guard", "skill1", "skill2", "skill3", "potion", "flee"):
         raise RuleError("Unknown action.")
     if action == "flee":
-        p["battle"] = p["run"] = None
-        p["last_result"] = "Retreated safely. No encounter rewards."
-        return p["last_result"]
+        return retreat(p)
     s = stats(p)
     m = MONSTERS[b["monster"]]
     heavy = b["turn"] % 3 == 2

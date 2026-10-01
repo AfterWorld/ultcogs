@@ -55,7 +55,7 @@ def battle_embed(p):
             inline=False,
         )
     e.set_footer(
-        text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +{MECHANICS[p['cls']]['guard_energy']} • Progress saves after each action"
+        text=f"Turn {b['turn'] + 1} • Attack +7 energy • Guard +{MECHANICS[p['cls']]['guard_energy']} • Progress saves after each action • Controls stuck? aether resume / aether act attack / aether flee"
     )
     if b.get("art") == ART_VERSION:
         thumbnail(e, b["monster"])
@@ -281,14 +281,20 @@ class BattleView(SafeView):
                     )
                     return
                 await i.response.defer()
+                replacement = None
                 try:
                     before = await self.cog.store.player(i.guild.id, i.user.id)
                     result = await self.cog.action(i.guild.id, i.user.id, bid, turn, action)
                     player = await self.cog.store.player(i.guild.id, i.user.id)
+                    # Retire before registering the next view. Stopping afterwards also
+                    # removes the replacement's message tracking in Discord's ViewStore.
+                    self.stop()
+                    self.cog.views.discard(self)
                     if player["battle"]:
+                        replacement = BattleView(self.cog, self.owner, player)
                         await i.edit_original_response(
                             embed=battle_embed(player),
-                            view=BattleView(self.cog, self.owner, player),
+                            view=replacement,
                         )
                     else:
                         loot_ids = (
@@ -300,6 +306,7 @@ class BattleView(SafeView):
                             if loot_ids
                             else None
                         )
+                        replacement = loot_view
                         message = await i.edit_original_response(
                             content=result,
                             embed=None,
@@ -312,10 +319,19 @@ class BattleView(SafeView):
                     if not player["battle"] and before["tutorial"] < 6:
                         prefix = await guild_prefix(self.cog.bot, i.guild)
                         await i.followup.send(embed=tutorial_embed(player, prefix), ephemeral=True)
-                    self.stop()
-                    self.cog.views.discard(self)
                 except RuleError as e:
                     await i.followup.send(str(e), ephemeral=True)
+                except discord.HTTPException:
+                    if replacement:
+                        replacement.stop()
+                        self.cog.views.discard(replacement)
+                    log.exception("Could not refresh battle controls for user %s", self.owner)
+                    await i.followup.send(
+                        "Your turn was saved, but Discord could not refresh the controls. "
+                        "Use aether resume to restore them, aether act attack to fight, "
+                        "or aether flee to leave safely.",
+                        ephemeral=True,
+                    )
 
             btn.callback = callback
             self.add_item(btn)

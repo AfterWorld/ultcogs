@@ -221,3 +221,14 @@ async def test_boss_claim_level_notice_only_when_rewards_are_earned(arena):
     )
     assert "Level up! 10 → 11" in result and "+2 attribute points" in result
     assert (await arena.player(1, 1))["last_result"] == result
+
+
+async def test_emergency_retreat_preserves_shared_credit_even_when_paused(arena):
+    await turn(arena, 1)
+    members = await arena.rows("boss_members")
+    pools = await arena.rows("boss_pools")
+    await arena.settings(1, {"features": {"shared_bosses": False}})
+    await arena.change(1, 1, lambda p, c: g.retreat(p))
+    assert (await arena.player(1, 1))["battle"] is None
+    assert await arena.rows("boss_members") == members
+    assert await arena.rows("boss_pools") == pools
