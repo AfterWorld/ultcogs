@@ -285,6 +285,89 @@ async def test_restore_view_uses_saved_turn(cog):
     i.edit_original_response.assert_awaited_once()
 
 
+async def test_combat_replacement_keeps_dispatch_and_message_tracking(cog):
+    from discord.ui.view import ViewStore
+
+    p = graduate(level=10)
+    g.enter_dungeon(p)
+    await cog.store.change(1, 5, lambda old, c: p, create=True)
+    dispatch = ViewStore(NS())
+    view = BattleView(cog, 5, p)
+    dispatch.add_view(view, 55)
+
+    async def edit(**kwargs):
+        dispatch.add_view(kwargs["view"], 55)
+        return NS(id=55)
+
+    i = interaction()
+    i.edit_original_response.side_effect = edit
+    for turn in range(3):
+        old = view
+        await old.children[1].callback(i)  # Guard, without ending the encounter.
+        view = i.edit_original_response.call_args.kwargs["view"]
+        assert old.is_finished() and not view.is_finished()
+        assert dispatch._synced_message_views[55] is view
+        for button in view.children:
+            assert dispatch._views[55][(button.type.value, button.custom_id)] is button
+        assert (await cog.store.player(1, 5))["battle"]["turn"] == turn + 1
+    await cog.store.change(1, 5, lambda p, c: p["battle"].update(enemy_hp=1))
+    await view.children[0].callback(i)
+    loot_view = i.edit_original_response.call_args.kwargs["view"]
+    assert dispatch._synced_message_views[55] is loot_view
+    assert (await cog.store.player(1, 5))["run"]["room"] == 1
+
+
+async def test_failed_battle_edit_explains_recovery_and_resume_keeps_progress(cog):
+    p = graduate(level=10)
+    g.enter_dungeon(p)
+    await cog.store.change(1, 5, lambda old, c: p, create=True)
+    view = BattleView(cog, 5, p)
+    i = interaction()
+    i.edit_original_response.side_effect = discord.HTTPException(
+        NS(status=500, reason="test"), "test"
+    )
+    await view.children[1].callback(i)
+    saved = await cog.store.player(1, 5)
+    assert saved["battle"]["turn"] == 1
+    assert not cog.views
+    assert "aether resume" in i.followup.send.call_args.args[0]
+    channel = NS(id=11, send=AsyncMock(return_value=NS(id=99)))
+    ctx = NS(guild=NS(id=1), author=NS(id=5), channel=channel)
+    await Aetherbound.resume.callback(cog, ctx)
+    restored = await cog.store.player(1, 5)
+    assert restored["battle"]["turn"] == 1
+    assert restored["battle"]["hp"] == saved["battle"]["hp"]
+    assert restored["battle"]["message"] == 99
+
+
+async def test_dungeon_command_resumes_and_text_action_works_without_buttons(cog):
+    p = graduate(level=10)
+    g.enter_dungeon(p)
+    await cog.store.change(1, 5, lambda old, c: p, create=True)
+    cog.publish_battle = AsyncMock()
+    ctx = NS(
+        guild=NS(id=1),
+        author=NS(id=5),
+        channel=NS(id=11),
+        command=NS(qualified_name="aether dungeon"),
+        send=AsyncMock(),
+    )
+    await Aetherbound.dungeon.callback(cog, ctx)
+    assert await cog.store.player(1, 5) == p
+    cog.publish_battle.assert_awaited_once()
+    await Aetherbound.combat_action.callback(cog, ctx, "guard")
+    assert (await cog.store.player(1, 5))["battle"]["turn"] == 1
+    before = await cog.store.player(1, 5)
+    with pytest.raises(g.RuleError):
+        await Aetherbound.combat_action.callback(cog, ctx, "unknown")
+    assert await cog.store.player(1, 5) == before
+    await Aetherbound.abandon.callback(cog, ctx)
+    after = await cog.store.player(1, 5)
+    assert after["battle"] is None and after["run"] is None
+    assert after["inventory"] == before["inventory"] and after["xp"] == before["xp"]
+    assert "flee" in Aetherbound.abandon.aliases
+
+
 async def test_pending_trade_reuses_existing_discord_thread(cog):
     m = await trade_message(cog, "trading iron sword for item")
     await cog.store.transaction(

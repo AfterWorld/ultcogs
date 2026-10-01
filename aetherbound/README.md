@@ -132,6 +132,7 @@ the tutorial or replaying a click never grants the same reward twice.
 | `practice` | Tutorial training encounter |
 | `explore [glimmerwood\|embervein]` | Personal, immediately available encounter |
 | `resume` | Restore your saved battle controls |
+| `act attack/guard/skill1/skill2/skill3/potion/flee` | Resolve a combat turn without buttons |
 | `recipes` | Crafting and upgrade costs |
 | `forge <slot> [normal\|tsukara\|raizen] [twohand]` | Forge equipment; `twohand` is a boolean |
 | `upgrade <id>` | Guaranteed upgrade, capped at +5 |
@@ -149,7 +150,7 @@ the tutorial or replaying a click never grants the same reward twice.
 | `dungeons` | Show dungeon level requirements and unlocked tiers |
 | `dungeon [hollow/furnace] [tier]` | Enter or continue a dungeon; Hollow 6+, Furnace 16+ |
 | `claim ENCOUNTER_ID` | Shortcut for `boss claim ENCOUNTER_ID` |
-| `abandon` | Leave a dungeon between rooms |
+| `abandon` / `flee` | Leave any battle or dungeon safely, including during combat |
 | `notifications` | Toggle trading, boss and adventure role subscriptions |
 
 ### Private character sheets
@@ -187,6 +188,13 @@ before they resolve. Only the battle owner may act. Every action checks the save
 battle ID and turn number, rejecting stale/double clicks. Defeat loses no gear or
 EXP; fleeing grants no victory rewards. Personal encounters begin at full health.
 Both dungeons preserve health between four rooms and permit saving between rooms.
+If buttons stop responding, use `.ae resume` to post fresh controls, or `.ae act attack`
+(also `guard`, `skill1`, `skill2`, `skill3`, `potion`) to fight using commands.
+Repeating `.ae dungeon` during a dungeon battle restores its controls without
+resetting health, energy, turn or room. `.ae flee` / `.ae abandon` leaves the fight
+and dungeon immediately without granting encounter rewards or losing gear/EXP;
+shared boss damage already credited is preserved. These commands also recover
+existing stuck battles after the cog is updated and reloaded.
 Hollow Trail (level 6+) ends with Tsukara. Furnace Descent (level 16+) passes through
 Ironback Beetle, Crystal Leech and Forge Revenant before Raizen, using the existing
 Embervein materials, boss loot and available local artwork.

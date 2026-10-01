@@ -591,6 +591,19 @@ class Aetherbound(commands.Cog):
         """Restore battle controls after a restart or deleted message."""
         await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
 
+    @adventure.command(name="act")
+    async def combat_action(self, ctx, action: str):
+        """Fight without buttons: act attack/guard/skill1/skill2/skill3/potion/flee."""
+        p = await self.require(ctx)
+        b = p["battle"]
+        if not b:
+            raise game.RuleError("No active battle.")
+        result = await self.action(ctx.guild.id, ctx.author.id, b["id"], b["turn"], action.lower())
+        await ctx.send(result, allowed_mentions=discord.AllowedMentions.none())
+        p = await self.require(ctx)
+        if p["battle"]:
+            await self.publish_battle(ctx.channel, ctx.guild.id, ctx.author.id)
+
     @adventure.command()
     async def dungeon(self, ctx, name: str = "", tier: int = None):
         """Enter/continue a dungeon: dungeon hollow [tier] or dungeon furnace."""
@@ -613,16 +626,12 @@ class Aetherbound(commands.Cog):
             )
         await ctx.send("\n\n".join(lines))
 
-    @adventure.command()
+    @adventure.command(aliases=["flee"])
     async def abandon(self, ctx):
-        """Leave a dungeon between rooms without losing gear."""
-
-        def fn(p):
-            game.idle(p)
-            p["run"] = None
-
-        await self.mutate(ctx, fn)
-        await ctx.tick()
+        """Leave any battle or dungeon safely, even when combat buttons are unavailable."""
+        await ctx.send(
+            await self.mutate(ctx, game.retreat), allowed_mentions=discord.AllowedMentions.none()
+        )
 
     @adventure.command()
     async def quests(self, ctx, action: str = "", key: str = ""):
