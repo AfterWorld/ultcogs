@@ -21,7 +21,7 @@ def player(level=1):
 
 def test_active_gathering_awards_materials_and_skill_xp():
     p = player()
-    result = gathering.resolve(p, "mining", "glimmerwood", FixedRng(0.1), now=100)
+    result = gathering.resolve(p, "mining", "glimmerwood", FixedRng(0.15), now=100)
 
     assert result["attempts"] == 3
     assert result["successes"] == 3
@@ -41,18 +41,18 @@ def test_failed_attempts_still_grant_skill_practice():
 
 def test_embervein_requires_hero_level_eight():
     with pytest.raises(engine.RuleError, match="level 8"):
-        gathering.resolve(player(7), "mining", "embervein", FixedRng(0.1), now=100)
+        gathering.resolve(player(7), "mining", "embervein", FixedRng(0.15), now=100)
 
 
 def test_gathering_is_blocked_during_battle():
     p = player()
     p["battle"] = {"id": "active"}
     with pytest.raises(engine.RuleError, match="Battle in progress"):
-        gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.1), now=100)
+        gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.15), now=100)
 
 
 def test_repeat_gathering_obeys_short_cooldown():
     p = player()
-    gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.1), now=100)
+    gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.15), now=100)
     with pytest.raises(engine.RuleError, match="gather again"):
-        gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.1), now=102)
+        gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.15), now=102)
