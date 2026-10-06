@@ -1,5 +1,3 @@
-import random
-
 import pytest
 
 from aetherbound import engine
