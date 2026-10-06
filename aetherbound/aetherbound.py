@@ -284,7 +284,9 @@ class Aetherbound(commands.Cog):
         )
         reward_lines = []
         for key, amount in result["reward"].items():
-            reward_lines.append(f"{'🪙' if key == 'gold' else '📦'} **+{amount} {key}**")
+            if amount:
+                icon = "🪙" if key == "gold" else "📦"
+                reward_lines.append(f"{icon} **+{amount} {key}**")
         embed.add_field(
             name="Gathered",
             value="\n".join(reward_lines) or "No items this time.",
