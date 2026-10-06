@@ -2,7 +2,8 @@
 
 import time
 
-from .economy import utc_day\nfrom .engine import RuleError, idle
+from .economy import utc_day
+from .engine import RuleError, idle
 
 SKILLS = {
     "foraging": {"label": "Foraging", "loot": "essence", "base": 0.65},
