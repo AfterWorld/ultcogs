@@ -269,7 +269,11 @@ class Aetherbound(commands.Cog):
         )
         state = result["skill"]
         label = gathering.SKILLS[state]["label"]
-        bar = "▰" * min(12, int(12 * result["skill_xp"] / max(1, result["next_xp"]))) if result["next_xp"] else "MAX"
+        bar = (
+            "▰" * min(12, int(12 * result["skill_xp"] / max(1, result["next_xp"])))
+            if result["next_xp"]
+            else "MAX"
+        )
         embed = discord.Embed(
             title=f"{label} · Level {result['level']}",
             description=(
@@ -281,8 +285,16 @@ class Aetherbound(commands.Cog):
         reward_lines = []
         for key, amount in result["reward"].items():
             reward_lines.append(f"{'🪙' if key == 'gold' else '📦'} **+{amount} {key}**")
-        embed.add_field(name="Gathered", value="\n".join(reward_lines) or "No items this time.", inline=False)
-        embed.add_field(name="Skill progress", value=f"{bar}\n+{result['xp']} skill XP · {result['skill_xp']}/{result['next_xp'] or 'MAX'} to next level", inline=False)
+        embed.add_field(
+            name="Gathered",
+            value="\n".join(reward_lines) or "No items this time.",
+            inline=False,
+        )
+        progress = (
+            f"{bar}\n+{result['xp']} skill XP · "
+            f"{result['skill_xp']}/{result['next_xp'] or 'MAX'} to next level"
+        )
+        embed.add_field(name="Skill progress", value=progress, inline=False)
         if result["level"] > result["old_level"]:
             embed.add_field(name="Level up!", value=f"{label} is now level {result['level']}.", inline=False)
         await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
