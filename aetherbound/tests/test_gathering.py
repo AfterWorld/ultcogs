@@ -26,7 +26,7 @@ def test_active_gathering_awards_materials_and_skill_xp():
     assert result["attempts"] == 3
     assert result["successes"] == 3
     assert result["reward"] == {"iron": 2}
-    assert p["materials"]["iron"] == 3
+    assert p["materials"]["iron"] == 2
     assert p["gathering"]["mining"]["xp"] == result["xp"]
 
 
