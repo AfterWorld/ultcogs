@@ -46,6 +46,13 @@ Furnace Descent unlocks at level 16 and ends with Raizen. Existing Embervein ene
 materials, boss drops and artwork are reused. Dungeon health, selected tier and room
 survive restarts; previous Hollow clears unlock tiers without changing active runs.
 
+## Active gathering — first slice implemented
+
+Foraging, Mining and Thieving resolve short, immediate sessions with multiple
+attempts, skill XP, level progression, region gates and audited resource/gold
+rewards. This keeps gathering active rather than time-based. Add richer node
+choices and review reward balance after playtesting.
+
 ## Next: endgame
 
 Paragon XP/points first so level-20 XP has a purpose, with explicit progression

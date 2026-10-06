@@ -4,6 +4,14 @@ An active, original anime-themed adventure for Red. Characters explore Hoshifall
 Glimmerwood and Embervein regions, fight with buttons, acquire equipment and forge
 better builds. Progress comes from completed encounters, not time spent online.
 
+## Active gathering
+
+After finishing the tutorial, gather with
+`[p]aether gather <foraging|mining|thieving> <glimmerwood|embervein>`.
+Each command resolves several attempts immediately and awards skill XP, materials,
+or gold. Embervein gathering unlocks at hero level 8. There is no wait-to-collect
+timer. Use `[p]aether gather` to view profession levels and the quick-start menu.
+
 ## Install and first setup
 
 Requires Red 3.5.24+, Python 3.11, and the discord.py version supported by Red.
