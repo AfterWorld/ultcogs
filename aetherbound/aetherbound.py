@@ -13,7 +13,7 @@ from discord.ext import tasks
 from redbot.core import commands
 from redbot.core.data_manager import cog_data_path
 
-from . import bosses, economy
+from . import bosses, economy, gathering
 from . import engine as game
 from .art import ART_VERSION, artwork, thumbnail
 from .content import ATTRS, CLASSES, DUNGEONS, MECHANICS, MONSTERS, QUESTS, SKILLS, SLOTS
@@ -239,6 +239,53 @@ class Aetherbound(commands.Cog):
             embed=tutorial_embed(await self.require(ctx), ctx.clean_prefix),
             allowed_mentions=discord.AllowedMentions.none(),
         )
+
+    @adventure.command()
+    async def gather(self, ctx, profession: str = "", region: str = "glimmerwood"):
+        """Gather actively: choose foraging, mining, or thieving and a region."""
+        p = await self.require(ctx)
+        if not profession:
+            embed = discord.Embed(
+                title="Gathering in Hoshifall",
+                description=(
+                    "Choose a skill and region for a short, active gathering session. "
+                    "Each session resolves several attempts immediately; there are no idle timers."
+                ),
+                color=0x836FFF,
+            )
+            levels = p.get("gathering", {})
+            for key, data in gathering.SKILLS.items():
+                state = levels.get(key, {"level": 1, "xp": 0})
+                embed.add_field(
+                    name=f"{data['label']} · Level {state['level']}",
+                    value=f"\u0060{ctx.clean_prefix}aether gather {key} glimmerwood\u0060",
+                    inline=True,
+                )
+            embed.set_footer(text="Embervein unlocks at hero level 8.")
+            await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            return
+        result = await self.mutate(
+            ctx, lambda player: gathering.resolve(player, profession, region, self.rng)
+        )
+        state = result["skill"]
+        label = gathering.SKILLS[state]["label"]
+        bar = "▰" * min(12, int(12 * result["skill_xp"] / max(1, result["next_xp"]))) if result["next_xp"] else "MAX"
+        embed = discord.Embed(
+            title=f"{label} · Level {result['level']}",
+            description=(
+                f"**{gathering.REGIONS[result['region']]['label']}**\n"
+                f"{result['successes']} successful attempts out of {result['attempts']}."
+            ),
+            color=0x2ECC71,
+        )
+        reward_lines = []
+        for key, amount in result["reward"].items():
+            reward_lines.append(f"{'🪙' if key == 'gold' else '📦'} **+{amount} {key}**")
+        embed.add_field(name="Gathered", value="\n".join(reward_lines) or "No items this time.", inline=False)
+        embed.add_field(name="Skill progress", value=f"{bar}\n+{result['xp']} skill XP · {result['skill_xp']}/{result['next_xp'] or 'MAX'} to next level", inline=False)
+        if result["level"] > result["old_level"]:
+            embed.add_field(name="Level up!", value=f"{label} is now level {result['level']}.", inline=False)
+        await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     @adventure.command()
     async def skills(self, ctx):
