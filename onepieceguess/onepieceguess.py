@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import logging
+import inspect
 import random
 import time
 from typing import Optional
@@ -14,7 +15,7 @@ from PIL import Image, ImageFilter, ImageOps
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.utils.chat_formatting import humanize_number
-from .engine import matches_guess, normalize
+from .engine import matches_guess, normalize, safe_wiki_hint
 
 log = logging.getLogger("red.onepieceguess")
 WIKI_API = "https://onepiece.fandom.com/api.php"
@@ -32,7 +33,8 @@ DEFAULTS = {
     "aliases": {}, "hints": {}, "fruits": [], "fruit_aliases": {}, "fruit_hints": {},
     "ships": [], "ship_aliases": {}, "ship_hints": {},
     "hint_enabled": True, "blur_mode": "gaussian", "blur_strength": 10,
-    "require_image": {"character": False, "fruit": True, "ship": True},
+    "require_image": {"character": True, "fruit": True, "ship": True},
+    "team_api": {"enabled": False, "mode": "teamscog", "win_points": 1, "timeout_points": 0},
     "noimage_max_retries": 6,
     "active": {"title": None, "message_id": None, "channel_id": None,
                "started_at": 0, "expired": False},
@@ -40,40 +42,8 @@ DEFAULTS = {
 }
 
 
-class GuessModal(discord.ui.Modal, title="Make a Guess"):
-    answer = discord.ui.TextInput(label="Character, Devil Fruit, or ship", max_length=100)
-
-    def __init__(self, cog: "OnePieceGuess"):
-        super().__init__(timeout=120)
-        self.cog = cog
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if not interaction.guild or not interaction.channel:
-            return await interaction.response.send_message("Play in the server game channel.", ephemeral=True)
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        result = await self.cog.process_guess(
-            interaction.guild, interaction.channel, interaction.user, str(self.answer.value)
-        )
-        await interaction.followup.send(result, ephemeral=True)
-
-
-class GuessView(discord.ui.View):
-    """Persistent round controls; command guessing remains available as a fallback."""
-
-    def __init__(self, cog: "OnePieceGuess"):
-        super().__init__(timeout=None)
-        self.cog = cog
-
-    @discord.ui.button(label="Make a Guess", style=discord.ButtonStyle.primary,
-                       emoji="🏴‍☠️", custom_id="onepieceguess:guess")
-    async def make_guess(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        if not interaction.guild:
-            return await interaction.response.send_message("This game is server-only.", ephemeral=True)
-        await interaction.response.send_modal(GuessModal(self.cog))
-
-
 class OnePieceGuess(commands.Cog):
-    """Timed One Piece image guessing game with persistent rounds and interactive answers."""
+    """Timed One Piece image guessing game with command answers and team scoring."""
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -83,7 +53,6 @@ class OnePieceGuess(commands.Cog):
         self.config.register_member(wins=0)
         self._locks: dict[int, asyncio.Lock] = {}
         self._task: Optional[asyncio.Task] = None
-        self._views_restored = False
         self._session: Optional[aiohttp.ClientSession] = None
 
     def lock(self, guild_id: int) -> asyncio.Lock:
@@ -110,7 +79,6 @@ class OnePieceGuess(commands.Cog):
         await self.migrate_legacy_data()
         while True:
             try:
-                await self.restore_views()
                 for guild in list(self.bot.guilds):
                     try:
                         await self.tick_guild(guild)
@@ -145,19 +113,6 @@ class OnePieceGuess(commands.Cog):
                 await conf.active.set(active)
             await conf.migration_v1.set(True)
 
-    async def restore_views(self) -> None:
-        if self._views_restored:
-            return
-        for guild in self.bot.guilds:
-            active = await self.config.guild(guild).active()
-            message_id = active.get("message_id") or active.get("posted_message_id")
-            if active.get("title") and not active.get("expired") and message_id:
-                try:
-                    self.bot.add_view(GuessView(self), message_id=int(message_id))
-                except (AttributeError, discord.HTTPException, ValueError):
-                    log.exception("Could not restore round buttons for guild %s", guild.id)
-        self._views_restored = True
-
     async def tick_guild(self, guild: discord.Guild) -> None:
         async with self.lock(guild.id):
             settings = await self.config.guild(guild).all()
@@ -173,16 +128,22 @@ class OnePieceGuess(commands.Cog):
             if (not active.get("title") or active.get("expired")) and now >= int(settings.get("next_post_at") or 0):
                 await self.post_round(guild, settings)
 
-    async def wiki_page(self, title: str) -> tuple[str, Optional[str]]:
+    async def wiki_page(self, title: str) -> tuple[str, Optional[str], str]:
         session = await self.session()
-        params = {"action": "query", "prop": "pageimages", "piprop": "original",
-                  "redirects": "1", "format": "json", "titles": title}
+        # Match the original cog's Fandom query: intro text plus the original
+        # image, with a large thumbnail as fallback for pages lacking originals.
+        params = {"action": "query", "prop": "extracts|pageimages",
+                  "exintro": "1", "explaintext": "1", "piprop": "original|thumbnail",
+                  "pithumbsize": "1600", "redirects": "1", "format": "json", "titles": title}
         async with session.get(WIKI_API, params=params) as response:
             response.raise_for_status()
             data = await response.json()
         pages = data.get("query", {}).get("pages", {})
         page = next(iter(pages.values()), {})
-        return page.get("title", title), page.get("original", {}).get("source")
+        image_url = (page.get("original") or {}).get("source") or (page.get("thumbnail") or {}).get("source")
+        if image_url and image_url.startswith("//"):
+            image_url = "https:" + image_url
+        return page.get("title", title), image_url, page.get("extract", "")
 
     async def blurred_image(self, url: str, settings: dict) -> Optional[discord.File]:
         try:
@@ -191,7 +152,9 @@ class OnePieceGuess(commands.Cog):
                 if response.status != 200:
                     return None
                 raw = await response.read()
-            image = Image.open(io.BytesIO(raw)).convert("RGB")
+            image = Image.open(io.BytesIO(raw))
+            image = ImageOps.exif_transpose(image).convert("RGB")
+            image.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
             strength = max(1, min(250, int(settings.get("blur_strength", 10))))
             if settings.get("blur_mode") == "pixelate":
                 width, height = image.size
@@ -200,10 +163,10 @@ class OnePieceGuess(commands.Cog):
             else:
                 image = image.filter(ImageFilter.GaussianBlur(radius=strength))
             output = io.BytesIO()
-            image.save(output, format="PNG")
+            image.save(output, format="JPEG", quality=86, optimize=True)
             output.seek(0)
-            return discord.File(output, filename="onepieceguess.png")
-        except (aiohttp.ClientError, OSError, ValueError):
+            return discord.File(output, filename="onepieceguess.jpg")
+        except (aiohttp.ClientError, OSError, ValueError, Image.DecompressionBombError):
             log.info("Could not fetch or blur wiki image %s", url, exc_info=True)
             return None
 
@@ -222,57 +185,57 @@ class OnePieceGuess(commands.Cog):
         else:
             random.shuffle(pool)
             candidates = pool[:max(1, min(20, int(settings.get("noimage_max_retries") or 6)))]
-        require_image = bool((settings.get("require_image") or {}).get(mode, mode != "character"))
         selected = None
         canonical = None
         image_url = None
+        extract = ""
+        selected_file = None
         for candidate in candidates:
             if candidate not in pool:
                 continue
             try:
-                canonical, image_url = await self.wiki_page(candidate)
+                canonical, image_url, extract = await self.wiki_page(candidate)
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                 log.info("Wiki lookup failed for %s", candidate, exc_info=True)
                 continue
-            if image_url or not require_image:
-                selected = candidate
-                break
+            if not image_url:
+                continue
+            image_file = await self.blurred_image(image_url, settings)
+            if image_file is None:
+                continue
+            selected, selected_file = candidate, image_file
+            break
         if not selected:
             if not title:
                 await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
                 await self.safe_send(channel, "⚠️ I couldn't find a usable image for this round. I'll try again after the configured interval.")
             return False
 
-        file = await self.blurred_image(image_url, settings) if image_url else None
-        if require_image and file is None:
-            await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
-            await self.safe_send(channel, "⚠️ The selected image couldn't be processed; this round was skipped.")
-            return False
-
+        file = selected_file
         hint = (settings.get(hints_key) or {}).get(selected) if settings.get("hint_enabled") else None
+        if not hint and settings.get("hint_enabled"):
+            hint = safe_wiki_hint(extract, canonical or selected,
+                (settings.get(MODES[mode][1]) or {}).get(selected, []))
         embed = discord.Embed(title=f"🗺️ Guess the One Piece {label}!",
-            description="Use **Make a Guess** or run `/guess` to answer.\n"
+            description="Answer with `/guess <name>` or your bot prefix followed by `guess <name>`.\n"
                         f"You have **{int(settings['roundtime'])} seconds**.",
             color=discord.Color.from_rgb(38, 91, 153))
         if hint:
-            embed.add_field(name="Clue", value=str(hint)[:1024], inline=False)
+            embed.add_field(name="Hint", value=str(hint)[:500], inline=False)
         embed.set_footer(text="OnePieceGuess • first correct answer wins")
         if file:
-            embed.set_image(url="attachment://onepieceguess.png")
+            embed.set_image(url="attachment://onepieceguess.jpg")
         permissions = channel.permissions_for(guild.me)
         if not permissions.view_channel or not permissions.send_messages or not permissions.embed_links:
             await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
             log.warning("Bot lacks permission to post a game round in guild %s", guild.id)
             return False
-        if file and not permissions.attach_files:
-            if require_image:
-                await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
-                log.warning("Bot lacks attach-files permission in guild %s", guild.id)
-                return False
-            file = None
-            embed.remove_image()
+        if not permissions.attach_files:
+            await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
+            log.warning("Bot lacks attach-files permission in guild %s", guild.id)
+            return False
         try:
-            message = await channel.send(embed=embed, file=file, view=GuessView(self),
+            message = await channel.send(embed=embed, file=file,
                 allowed_mentions=discord.AllowedMentions.none())
         except discord.HTTPException:
             await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
@@ -318,8 +281,11 @@ class OnePieceGuess(commands.Cog):
                         text += f"\n💰 +{humanize_number(actual_reward)} Beri"
                     except Exception:
                         log.exception("BeriCore reward failed")
+                team_note = await self.award_team_points(guild, winner, settings)
+                if team_note:
+                    text += f"\n{team_note}"
         try:
-            canonical, image_url = await self.wiki_page(title)
+            canonical, image_url, _ = await self.wiki_page(title)
             if image_url:
                 session = await self.session()
                 async with session.get(image_url) as response:
@@ -330,6 +296,47 @@ class OnePieceGuess(commands.Cog):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             log.info("Could not fetch answer image for %s", title, exc_info=True)
         await self.safe_send(channel, text)
+
+    async def award_team_points(self, guild: discord.Guild, winner: discord.Member,
+                                settings: dict) -> Optional[str]:
+        """Award the winner's team through the original Teams cog integration."""
+        team_settings = settings.get("team_api") or {}
+        if not team_settings.get("enabled") or team_settings.get("mode") != "teamscog":
+            return None
+        points = max(0, int(team_settings.get("win_points") or 0))
+        if points <= 0:
+            return None
+        teams_cog = self.bot.get_cog("Teams")
+        if teams_cog is None:
+            return "⚠️ Team scoring is enabled, but the `Teams` cog is not loaded."
+        guild_teams = getattr(teams_cog, "teams", {}).get(guild.id, {})
+        team = next((candidate for candidate in guild_teams.values()
+                     if winner in getattr(candidate, "members", ())), None)
+        if team is None:
+            return "🏴‍☠️ No team points awarded (winner is not on a team)."
+        team_name = discord.utils.escape_markdown(str(
+            getattr(team, "display_name", getattr(team, "name", "your team"))
+        ))
+        amplifier = self.bot.get_cog("BeriAmplifier")
+        if amplifier and hasattr(amplifier, "add_amplified_points"):
+            try:
+                total = amplifier.add_amplified_points(
+                    winner, points, "guessing_game_win", notification_channel=None
+                )
+                if inspect.isawaitable(total):
+                    total = await total
+                total = int(total) if total is not None else points
+                return f"🏴‍☠️ **{team_name}** earned **{humanize_number(total)}** team point(s)!"
+            except Exception:
+                log.exception("BeriAmplifier failed; falling back to base team points")
+        try:
+            result = team.add_points(points, winner, guild.me)
+            if inspect.isawaitable(result):
+                await result
+            return f"🏴‍☠️ **{team_name}** earned **{humanize_number(points)}** team point(s)!"
+        except Exception:
+            log.exception("Team points award failed for guild %s", guild.id)
+            return "⚠️ Team points could not be awarded; check the Teams cog configuration."
 
     async def process_guess(self, guild: discord.Guild, channel: discord.abc.Messageable,
                             member: discord.abc.User, guess: str) -> str:
@@ -438,14 +445,11 @@ class OnePieceGuess(commands.Cog):
 
     @opguess.command(name="requireimage")
     @commands.admin()
-    async def require_image(self, ctx: commands.Context, enabled: Optional[bool] = None) -> None:
+    async def require_image(self, ctx: commands.Context) -> None:
+        """Images are required for every round so empty embeds are never posted."""
         conf = self.config.guild(ctx.guild)
-        mode = await conf.mode()
-        current = await conf.require_image()
-        value = not bool(current.get(mode, mode != "character")) if enabled is None else enabled
-        current[mode] = value
-        await conf.require_image.set(current)
-        await ctx.reply(f"Image required for **{mode}**: **{'yes' if value else 'no'}**.")
+        await conf.require_image.set({"character": True, "fruit": True, "ship": True})
+        await ctx.reply("Images are required for all modes to prevent image-less rounds.")
 
     @opguess.command(name="hints")
     @commands.admin()
@@ -454,6 +458,38 @@ class OnePieceGuess(commands.Cog):
         value = not await conf.hint_enabled() if enabled is None else enabled
         await conf.hint_enabled.set(value)
         await ctx.reply(f"Custom clues are **{'enabled' if value else 'disabled'}**.")
+
+    @opguess.group(name="teamapi", invoke_without_command=True)
+    @commands.admin()
+    async def team_api(self, ctx: commands.Context) -> None:
+        """Configure points awarded through the Teams cog."""
+        settings = await self.config.guild(ctx.guild).team_api()
+        await ctx.reply(
+            f"Team scoring: **{'on' if settings.get('enabled') else 'off'}**\n"
+            f"Integration: **Teams cog** • points per win: **{settings.get('win_points', 1)}**"
+        )
+
+    @team_api.command(name="toggle")
+    @commands.admin()
+    async def team_api_toggle(self, ctx: commands.Context, enabled: Optional[bool] = None) -> None:
+        conf = self.config.guild(ctx.guild).team_api
+        settings = await conf()
+        settings["enabled"] = not settings.get("enabled", False) if enabled is None else enabled
+        settings["mode"] = "teamscog"
+        await conf.set(settings)
+        await ctx.reply(f"Team scoring **{'enabled' if settings['enabled'] else 'disabled'}**.")
+
+    @team_api.command(name="setpoints")
+    @commands.admin()
+    async def team_api_setpoints(self, ctx: commands.Context, points: int,
+                                 timeout_points: int = 0) -> None:
+        conf = self.config.guild(ctx.guild).team_api
+        settings = await conf()
+        settings["win_points"] = max(0, points)
+        settings["timeout_points"] = max(0, timeout_points)
+        settings["mode"] = "teamscog"
+        await conf.set(settings)
+        await ctx.reply(f"Points set — win: **{settings['win_points']}**, timeout: **{settings['timeout_points']}**.")
 
     @opguess.group(name="char", invoke_without_command=True)
     @commands.admin()

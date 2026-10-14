@@ -1,8 +1,8 @@
 {
   "author": ["AfterWorld"],
   "name": "OnePieceGuess",
-  "short": "Interactive One Piece image guessing game.",
-  "description": "Timed character, Devil Fruit, and ship guessing rounds with blurred images, modal guesses, configurable pools, aliases, hints, and leaderboards.",
+  "short": "Command-based One Piece image guessing game with team scoring.",
+  "description": "Timed character, Devil Fruit, and ship guessing rounds with required blurred images, command answers, hints, configurable pools, team scoring, and leaderboards.",
   "install_msg": "Load onepieceguess, then use [p]opguess setchannel #channel and [p]opguess toggle true. Run [p]opguess help for setup and commands.",
   "requirements": ["aiohttp", "Pillow>=10.0"],
   "tags": ["onepiece", "game", "trivia", "image"],

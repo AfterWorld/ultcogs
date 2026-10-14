@@ -1,6 +1,6 @@
 import unittest
 
-from onepieceguess.engine import matches_guess, normalize
+from onepieceguess.engine import matches_guess, normalize, safe_wiki_hint
 
 
 class GuessMatchingTests(unittest.TestCase):
@@ -21,6 +21,16 @@ class GuessMatchingTests(unittest.TestCase):
     def test_accepts_small_typo_but_rejects_unrelated_answer(self):
         self.assertTrue(matches_guess("Monkey D Lufy", "Monkey D. Luffy"))
         self.assertFalse(matches_guess("Zoro", "Monkey D. Luffy"))
+
+    def test_wiki_hint_redacts_answer_and_alias(self):
+        hint = safe_wiki_hint("Monkey D. Luffy, also known as Straw Hat, is a pirate.",
+                              "Monkey D. Luffy", ["Straw Hat"])
+        self.assertNotIn("Luffy", hint)
+        self.assertNotIn("Straw Hat", hint)
+
+    def test_wiki_hint_has_safe_fallback_when_answer_is_the_intro(self):
+        hint = safe_wiki_hint("Nami is a navigator.", "Nami")
+        self.assertIn("blurred image", hint)
 
 
 if __name__ == "__main__":

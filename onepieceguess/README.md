@@ -1,6 +1,6 @@
 # OnePieceGuess
 
-A Red-DiscordBot cog for timed One Piece image guessing rounds. The bot posts a blurred or pixelated image from the One Piece Wiki. Players answer with a slash/prefix command or the **Make a Guess** button, which opens a Discord modal.
+A Red-DiscordBot cog for timed One Piece image guessing rounds. The bot loads a blurred or pixelated image and page intro from the One Piece Wiki. Every round requires a successfully loaded image. Players answer with a slash or prefix command; the round embed includes a hint and no buttons.
 
 ## Install
 
@@ -17,8 +17,8 @@ Requires Red 3.5.24+, Python 3.11+, `aiohttp`, and Pillow 10+.
 ## Play
 
 - `[p]guess Monkey D. Luffy` or `/guess Monkey D. Luffy`
-- Or press **Make a Guess** on the round embed and submit your answer in the modal.
 - `[p]opguess stats [member]` shows wins; `[p]opguess top` shows the server leaderboard.
+- When enabled, correct guesses award points to the winner's team through the installed `Teams` cog.
 
 The cog supports character, Devil Fruit, and ship pools. Each server keeps its own settings, pools, active round, and leaderboard. Its timer state survives a bot restart; an active round resumes with the remaining time.
 
@@ -37,8 +37,11 @@ The cog supports character, Devil Fruit, and ship pools. Each server keeps its o
 | `opguess setreward <amount>` | Set BeriCore reward; zero chooses a random configured amount |
 | `opguess setberirange <min> <max>` | Configure random Beri reward range |
 | `opguess blur <gaussian/pixelate> [strength]` | Set image effect |
-| `opguess requireimage [true/false]` | Require an image in the current mode |
-| `opguess hints [true/false]` | Enable or disable custom clues |
+| `opguess requireimage` | Confirm image-only posting is enforced in every mode |
+| `opguess hints [true/false]` | Enable or disable custom clues (wiki intro is used when no custom clue is set) |
+| `opguess teamapi` | Show team scoring settings |
+| `opguess teamapi toggle [true/false]` | Enable or disable team points through the `Teams` cog |
+| `opguess teamapi setpoints <points> [timeout_points]` | Set points for correct guesses and timeouts |
 | `opguess char [add/remove/aliases] ...` | View or manage the current mode's pool |
 | `opguess clue <entry> <text>` | Set a spoiler-safe custom clue |
 | `opguess import` | Replace the current pool from an attached JSON file |
@@ -58,6 +61,6 @@ JSON import accepts a list of names, or an object such as:
 
 ## Notes
 
-- Fandom/Wiki API availability and the quality of its page images vary. The cog retries missing images and can be configured to skip image-less entries.
-- The game does not show the wiki introduction as a clue because it often gives away the answer. Only configured custom clues are shown.
-- Beri rewards are optional and require the `BeriCore` cog to be loaded. Without it, wins still count and the game continues normally.
+- Fandom/Wiki API availability and page image quality vary. The cog checks several pool entries and skips the round if it cannot fetch and process an image; it never posts an image-less question.
+- If no custom clue is configured, the game uses a short wiki intro hint and removes the answer and configured aliases when possible. Custom clues give admins control over spoiler safety.
+- Beri rewards are optional and require the `BeriCore` cog. Team scoring is separately configured and uses the `Teams` cog (and `BeriAmplifier` when available).

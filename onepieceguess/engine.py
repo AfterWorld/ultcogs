@@ -27,3 +27,15 @@ def matches_guess(guess: str, title: str, aliases: tuple[str, ...] | list[str] =
             if len(option) >= 4 and difflib.SequenceMatcher(None, guess_norm, option).ratio() >= 0.88:
                 return True
     return False
+
+
+def safe_wiki_hint(extract: str, title: str, aliases: list[str] | tuple[str, ...] = ()) -> str:
+    """Build a short intro hint while removing the answer and known aliases."""
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", extract or "")).strip()
+    for secret in sorted([title, *(aliases or [])], key=len, reverse=True):
+        if secret:
+            text = re.sub(re.escape(secret), "[redacted]", text, flags=re.IGNORECASE)
+    text = text.split(". ", 1)[0].strip()
+    if not text or "[redacted]" in text.lower():
+        return "Look closely at the blurred image and guess with `/guess <name>`."
+    return text[:400]
