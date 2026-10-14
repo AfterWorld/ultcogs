@@ -1,0 +1,15 @@
+{
+  "author": ["AfterWorld"],
+  "name": "OnePieceGuess",
+  "short": "Interactive One Piece image guessing game.",
+  "description": "Timed character, Devil Fruit, and ship guessing rounds with blurred images, modal guesses, configurable pools, aliases, hints, and leaderboards.",
+  "install_msg": "Load onepieceguess, then use [p]opguess setchannel #channel and [p]opguess toggle true. Run [p]opguess help for setup and commands.",
+  "requirements": ["aiohttp", "Pillow>=10.0"],
+  "tags": ["onepiece", "game", "trivia", "image"],
+  "min_bot_version": "3.5.24",
+  "min_python_version": [3, 11, 0],
+  "hidden": false,
+  "disabled": false,
+  "type": "COG",
+  "end_user_data_statement": "Stores per-server round settings and entry pools, plus Discord user IDs and win counts. Supports Red data deletion requests for user win data."
+}
