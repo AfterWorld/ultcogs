@@ -1,6 +1,6 @@
 # OnePieceGuess
 
-A Red-DiscordBot cog for timed One Piece image guessing rounds. The bot loads a blurred or pixelated image and page intro from the One Piece Wiki. Every round requires a successfully loaded image. Players answer with a slash or prefix command; the round embed includes a hint and no buttons.
+A Red-DiscordBot cog for timed One Piece image guessing rounds. The bot loads a blurred or pixelated image and page intro from the One Piece Wiki. Every round requires a successfully loaded image. Players answer with the bot’s prefix command; the round embed includes a hint and no buttons.
 
 ## Install
 
@@ -16,7 +16,7 @@ Requires Red 3.5.24+, Python 3.11+, `aiohttp`, and Pillow 10+.
 
 ## Play
 
-- `[p]guess Monkey D. Luffy` or `/guess Monkey D. Luffy`
+- `[p]guess Monkey D. Luffy`
 - `[p]opguess stats [member]` shows wins; `[p]opguess top` shows the server leaderboard.
 - When enabled, correct guesses award points to the winner's team through the installed `Teams` cog.
 

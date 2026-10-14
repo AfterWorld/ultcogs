@@ -37,5 +37,5 @@ def safe_wiki_hint(extract: str, title: str, aliases: list[str] | tuple[str, ...
             text = re.sub(re.escape(secret), "[redacted]", text, flags=re.IGNORECASE)
     text = text.split(". ", 1)[0].strip()
     if not text or "[redacted]" in text.lower():
-        return "Look closely at the blurred image and guess with `/guess <name>`."
+        return "Look closely at the blurred image and answer with `[p]guess <name>`."
     return text[:400]

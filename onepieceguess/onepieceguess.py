@@ -255,7 +255,7 @@ class OnePieceGuess(commands.Cog):
             hint = safe_wiki_hint(extract, canonical or selected,
                 (settings.get(MODES[mode][1]) or {}).get(selected, []))
         embed = discord.Embed(title=f"🗺️ Guess the One Piece {label}!",
-            description="Answer with `/guess <name>` or your bot prefix followed by `guess <name>`.\n"
+            description="Answer with `[p]guess <name>`.\n"
                         f"You have **{int(settings['roundtime'])} seconds**.",
             color=discord.Color.from_rgb(38, 91, 153))
         if hint:
@@ -726,17 +726,11 @@ class OnePieceGuess(commands.Cog):
         await ctx.reply(embed=discord.Embed(title="🏆 OnePieceGuess leaderboard",
             description="\n".join(lines) if lines else "No wins yet.", color=discord.Color.gold()))
 
-    @commands.hybrid_command(name="guess")
+    @commands.command(name="guess")
     @commands.guild_only()
     async def guess(self, ctx: commands.Context, *, answer: str) -> None:
-        if getattr(ctx, "interaction", None):
-            if not ctx.interaction.response.is_done():
-                await ctx.interaction.response.defer(ephemeral=True, thinking=True)
-            result = await self.process_guess(ctx.guild, ctx.channel, ctx.author, answer)
-            await ctx.interaction.followup.send(result, ephemeral=True)
-        else:
-            result = await self.process_guess(ctx.guild, ctx.channel, ctx.author, answer)
-            await ctx.reply(result, delete_after=8 if result.startswith("❌") else None)
+        result = await self.process_guess(ctx.guild, ctx.channel, ctx.author, answer)
+        await ctx.reply(result, delete_after=8 if result.startswith("❌") else None)
 
     async def red_delete_data_for_user(self, *, requester, user_id: int) -> None:
         for guild_id in await self.config.all_guilds():
