@@ -71,7 +71,8 @@ class OnePieceGuess(commands.Cog):
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=15)
             self._session = aiohttp.ClientSession(timeout=timeout,
-                headers={"User-Agent": "OnePieceGuess Redbot cog (wiki image trivia)"})
+                headers={"User-Agent":
+                         f"OnePieceGuess/1.1 (https://github.com/AfterWorld/ultcogs) aiohttp/{aiohttp.__version__}"})
         return self._session
 
     async def event_loop(self) -> None:
@@ -130,17 +131,43 @@ class OnePieceGuess(commands.Cog):
 
     async def wiki_page(self, title: str) -> tuple[str, Optional[str], str]:
         session = await self.session()
-        # Match the original cog's Fandom query: intro text plus the original
-        # image, with a large thumbnail as fallback for pages lacking originals.
+        # First mirror the original cog's exact pageimages request. If Fandom
+        # has no original image, ask for its thumbnail as a separate fallback.
         params = {"action": "query", "prop": "extracts|pageimages",
-                  "exintro": "1", "explaintext": "1", "piprop": "original|thumbnail",
-                  "pithumbsize": "1600", "redirects": "1", "format": "json", "titles": title}
-        async with session.get(WIKI_API, params=params) as response:
-            response.raise_for_status()
-            data = await response.json()
-        pages = data.get("query", {}).get("pages", {})
-        page = next(iter(pages.values()), {})
-        image_url = (page.get("original") or {}).get("source") or (page.get("thumbnail") or {}).get("source")
+                  "exintro": "1", "explaintext": "1", "piprop": "original",
+                  "redirects": "1", "format": "json", "titles": title}
+        page = {}
+        first_error = None
+        try:
+            async with session.get(WIKI_API, params=params) as response:
+                response.raise_for_status()
+                data = await response.json(content_type=None)
+            if data.get("error"):
+                raise ValueError(data["error"].get("info", "Fandom API returned an error"))
+            pages = data.get("query", {}).get("pages", {})
+            page = next(iter(pages.values()), {})
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+            first_error = exc
+            log.warning("Fandom original-image query failed for %r: %s", title, exc)
+
+        image_url = (page.get("original") or {}).get("source")
+        if not image_url:
+            fallback_params = {**params, "piprop": "thumbnail", "pithumbsize": "1600"}
+            try:
+                async with session.get(WIKI_API, params=fallback_params) as response:
+                    response.raise_for_status()
+                    data = await response.json(content_type=None)
+                if data.get("error"):
+                    raise ValueError(data["error"].get("info", "Fandom thumbnail query failed"))
+                pages = data.get("query", {}).get("pages", {})
+                fallback_page = next(iter(pages.values()), {})
+                image_url = (fallback_page.get("thumbnail") or {}).get("source")
+                if not page.get("extract"):
+                    page = fallback_page or page
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+                log.warning("Fandom thumbnail fallback failed for %r: %s", title, exc)
+                if first_error and not page:
+                    raise exc from first_error
         if image_url and image_url.startswith("//"):
             image_url = "https:" + image_url
         return page.get("title", title), image_url, page.get("extract", "")
@@ -150,6 +177,7 @@ class OnePieceGuess(commands.Cog):
             session = await self.session()
             async with session.get(url) as response:
                 if response.status != 200:
+                    log.warning("Image host returned HTTP %s for %s", response.status, url)
                     return None
                 raw = await response.read()
             image = Image.open(io.BytesIO(raw))
@@ -166,8 +194,9 @@ class OnePieceGuess(commands.Cog):
             image.save(output, format="JPEG", quality=86, optimize=True)
             output.seek(0)
             return discord.File(output, filename="onepieceguess.jpg")
-        except (aiohttp.ClientError, OSError, ValueError, Image.DecompressionBombError):
-            log.info("Could not fetch or blur wiki image %s", url, exc_info=True)
+        except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError,
+                Image.DecompressionBombError):
+            log.warning("Could not fetch or process wiki image %s", url, exc_info=True)
             return None
 
     async def post_round(self, guild: discord.Guild, settings: dict, title: Optional[str] = None) -> bool:
@@ -206,6 +235,8 @@ class OnePieceGuess(commands.Cog):
             selected, selected_file = candidate, image_file
             break
         if not selected:
+            log.warning("No usable image found for mode %s after checking %d candidate(s) in guild %s",
+                        mode, len(candidates), guild.id)
             if not title:
                 await self.config.guild(guild).next_post_at.set(int(time.time()) + int(settings["interval"]))
                 await self.safe_send(channel, "⚠️ I couldn't find a usable image for this round. I'll try again after the configured interval.")
@@ -620,6 +651,31 @@ class OnePieceGuess(commands.Cog):
             else:
                 posted = await self.post_round(ctx.guild, settings)
             await ctx.reply("Round posted." if posted else "I couldn't post a round. Check the channel, pool, and wiki image.")
+
+    @opguess.command(name="testimage")
+    @commands.admin()
+    async def test_image(self, ctx: commands.Context, *, title: Optional[str] = None) -> None:
+        """Test Fandom API image lookup and image processing from this bot host."""
+        settings = await self.config.guild(ctx.guild).all()
+        mode = settings.get("mode", "character")
+        pool_key = MODES.get(mode, MODES["character"])[0]
+        pool = settings.get(pool_key) or []
+        title = title or (random.choice(pool) if pool else None)
+        if not title:
+            return await ctx.reply("The current pool is empty. Add an entry, then run `opguess testimage <entry>`.")
+        try:
+            canonical, image_url, _ = await self.wiki_page(title)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+            log.exception("Image test API request failed for %r", title)
+            return await ctx.reply(f"Fandom API request failed: `{type(exc).__name__}`. Check the bot logs for details.")
+        if not image_url:
+            return await ctx.reply(f"Fandom returned no original or thumbnail image for **{discord.utils.escape_markdown(canonical)}**.")
+        image_file = await self.blurred_image(image_url, settings)
+        if image_file is None:
+            return await ctx.reply("Fandom returned an image URL, but the bot couldn't download or process it. Check the bot logs for the URL and error.")
+        embed = discord.Embed(title=f"Image test: {canonical}", description="Fandom lookup and image processing succeeded.", color=discord.Color.green())
+        embed.set_image(url="attachment://onepieceguess.jpg")
+        await ctx.reply(embed=embed, file=image_file, allowed_mentions=discord.AllowedMentions.none())
 
     @opguess.command(name="end")
     @commands.admin()

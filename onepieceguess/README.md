@@ -47,6 +47,7 @@ The cog supports character, Devil Fruit, and ship pools. Each server keeps its o
 | `opguess import` | Replace the current pool from an attached JSON file |
 | `opguess export` | Download the current pool as JSON |
 | `opguess forcepost [entry]` | Start a round immediately |
+| `opguess testimage [entry]` | Test Fandom lookup and image processing from the bot host |
 | `opguess end` | End the current round and reveal the answer |
 
 JSON import accepts a list of names, or an object such as:
@@ -61,6 +62,6 @@ JSON import accepts a list of names, or an object such as:
 
 ## Notes
 
-- Fandom/Wiki API availability and page image quality vary. The cog checks several pool entries and skips the round if it cannot fetch and process an image; it never posts an image-less question.
+- Fandom/Wiki API availability and page image quality vary. The cog checks several pool entries and skips the round if it cannot fetch and process an image; it never posts an image-less question. Admins can run `[p]opguess testimage <entry>` to diagnose API or image-host access from the bot host.
 - If no custom clue is configured, the game uses a short wiki intro hint and removes the answer and configured aliases when possible. Custom clues give admins control over spoiler safety.
 - Beri rewards are optional and require the `BeriCore` cog. Team scoring is separately configured and uses the `Teams` cog (and `BeriAmplifier` when available).
