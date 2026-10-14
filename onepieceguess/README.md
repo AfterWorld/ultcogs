@@ -20,7 +20,7 @@ Requires Red 3.5.24+, Python 3.11+, `aiohttp`, and Pillow 10+.
 - `[p]opguess stats [member]` shows wins; `[p]opguess top` shows the server leaderboard.
 - When enabled, correct guesses award points to the winner's team through the installed `Teams` cog.
 
-The cog supports character, Devil Fruit, and ship pools. Each server keeps its own settings, pools, active round, and leaderboard. Its timer state survives a bot restart; an active round resumes with the remaining time.
+The cog supports character, Devil Fruit, and ship pools. Each server keeps its own settings, pools, active round, and leaderboard. Its timer state survives a bot restart; an active round resumes with the remaining time. Existing server pools from the original `GuessEngine` config are reused, and entries from the first recreation are merged into them on upgrade.
 
 ## Admin commands
 

@@ -24,6 +24,7 @@ MODES = {"character": ("characters", "aliases", "hints", "Character"),
          "ship": ("ships", "ship_aliases", "ship_hints", "Ship")}
 DEFAULTS = {
     "migration_v1": False,
+    "restored_recreated_config_v1": False,
     "enabled": False, "channel_id": None, "mode": "character",
     "interval": 1800, "roundtime": 120, "reward": 0,
     "beri_min": 100, "beri_max": 1000,
@@ -47,10 +48,18 @@ class OnePieceGuess(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        # Keep the original identifier so existing pool/settings data can be reused.
-        self.config = Config.get_conf(self, identifier=2025111801, force_registration=True)
+        # The original cog stored this ID under GuessEngine, not OnePieceGuess.
+        # Keep that namespace so existing per-server pools remain available.
+        self.config = Config.get_conf(self, identifier=2025111801,
+                                      force_registration=True, cog_name="GuessEngine")
         self.config.register_guild(**DEFAULTS)
         self.config.register_member(wins=0)
+        # The first recreation used a new namespace. Merge any settings/entries
+        # created during that period into the original store once, preserving both pools.
+        self.recreated_config = Config.get_conf(self, identifier=2025111801,
+                                                force_registration=True, cog_name="OnePieceGuess")
+        self.recreated_config.register_guild(**DEFAULTS)
+        self.recreated_config.register_member(wins=0)
         self._locks: dict[int, asyncio.Lock] = {}
         self._task: Optional[asyncio.Task] = None
         self._session: Optional[aiohttp.ClientSession] = None
@@ -94,10 +103,42 @@ class OnePieceGuess(commands.Cog):
             await asyncio.sleep(5)
 
     async def migrate_legacy_data(self) -> None:
-        """Keep settings and an in-progress round from the earlier cog version."""
+        """Restore original pools and carry forward settings from the recreation."""
         for guild in self.bot.guilds:
             conf = self.config.guild(guild)
             values = await conf.all()
+            if not values.get("restored_recreated_config_v1"):
+                recreated = await self.recreated_config.guild(guild).all()
+                for pool_key in ("characters", "fruits", "ships"):
+                    combined = []
+                    seen = set()
+                    for entry in [*(values.get(pool_key) or []), *(recreated.get(pool_key) or [])]:
+                        key = normalize(str(entry))
+                        if key and key not in seen:
+                            seen.add(key)
+                            combined.append(str(entry).strip())
+                    values[pool_key] = combined
+                    await getattr(conf, pool_key).set(combined)
+                for map_key in ("aliases", "hints", "fruit_aliases", "fruit_hints", "ship_aliases", "ship_hints"):
+                    merged = dict(values.get(map_key) or {})
+                    merged.update(recreated.get(map_key) or {})
+                    values[map_key] = merged
+                    await getattr(conf, map_key).set(merged)
+                for setting in ("enabled", "channel_id", "mode", "interval", "roundtime", "reward",
+                                "beri_min", "beri_max", "hint_enabled", "blur_mode", "blur_strength",
+                                "require_image", "team_api", "noimage_max_retries"):
+                    if recreated.get(setting) != DEFAULTS[setting]:
+                        values[setting] = recreated[setting]
+                        await getattr(conf, setting).set(recreated[setting])
+                recreated_active = recreated.get("active") or {}
+                if recreated_active.get("title") and not recreated_active.get("expired"):
+                    values["active"] = recreated_active
+                    await conf.active.set(recreated_active)
+                if recreated.get("next_post_at"):
+                    values["next_post_at"] = max(int(values.get("next_post_at") or 0),
+                                                  int(recreated["next_post_at"]))
+                    await conf.next_post_at.set(values["next_post_at"])
+                await conf.restored_recreated_config_v1.set(True)
             if values.get("migration_v1"):
                 continue
             old_blur = values.get("blur") or {}
