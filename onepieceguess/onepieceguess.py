@@ -131,8 +131,8 @@ class OnePieceGuess(commands.Cog):
 
     async def wiki_page(self, title: str) -> tuple[str, list[str], str]:
         session = await self.session()
-        # First mirror the original cog's exact pageimages request. If Fandom
-        # has no original image, ask for its thumbnail as a separate fallback.
+        # First mirror the original cog's exact pageimages request, then also
+        # request a thumbnail so unsupported originals can fall back cleanly.
         params = {"action": "query", "prop": "extracts|pageimages",
                   "exintro": "1", "explaintext": "1", "piprop": "original",
                   "redirects": "1", "format": "json", "titles": title}
@@ -173,12 +173,15 @@ class OnePieceGuess(commands.Cog):
         image_urls = ["https:" + url if url.startswith("//") else url for url in image_urls]
         return page.get("title", title), image_urls, page.get("extract", "")
 
-    async def blurred_image(self, url: str, settings: dict) -> Optional[discord.File]:
+    async def blurred_image(self, url: str, settings: dict, *, diagnostic: bool = False) -> Optional[discord.File]:
         try:
             session = await self.session()
             async with session.get(url, headers={"Referer": "https://onepiece.fandom.com/"}) as response:
                 if response.status != 200:
-                    log.warning("Image host returned HTTP %s for %s", response.status, url)
+                    detail = f"Image host returned HTTP {response.status} ({response.content_type})."
+                    log.warning("%s URL: %s", detail, url)
+                    if diagnostic:
+                        raise RuntimeError(detail)
                     return None
                 raw = await response.read()
             image = Image.open(io.BytesIO(raw))
@@ -196,8 +199,10 @@ class OnePieceGuess(commands.Cog):
             output.seek(0)
             return discord.File(output, filename="onepieceguess.jpg")
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError,
-                Image.DecompressionBombError):
+                Image.DecompressionBombError) as exc:
             log.warning("Could not fetch or process wiki image %s", url, exc_info=True)
+            if diagnostic:
+                raise RuntimeError(f"{type(exc).__name__}: {exc}") from exc
             return None
 
     async def post_round(self, guild: discord.Guild, settings: dict, title: Optional[str] = None) -> bool:
@@ -673,12 +678,17 @@ class OnePieceGuess(commands.Cog):
         if not image_urls:
             return await ctx.reply(f"Fandom returned no original or thumbnail image for **{discord.utils.escape_markdown(canonical)}**.")
         image_file = None
+        image_errors = []
         for image_url in image_urls:
-            image_file = await self.blurred_image(image_url, settings)
+            try:
+                image_file = await self.blurred_image(image_url, settings, diagnostic=True)
+            except RuntimeError as exc:
+                image_errors.append(str(exc))
             if image_file is not None:
                 break
         if image_file is None:
-            return await ctx.reply("Fandom returned an image URL, but the bot couldn't download or process it. Check the bot logs for the URL and error.")
+            detail = image_errors[-1] if image_errors else "No image URL was available."
+            return await ctx.reply(f"The bot couldn't use the Fandom image: `{detail[:180]}`. Check bot logs for the URL and traceback.")
         embed = discord.Embed(title=f"Image test: {canonical}", description="Fandom lookup and image processing succeeded.", color=discord.Color.green())
         embed.set_image(url="attachment://onepieceguess.jpg")
         await ctx.reply(embed=embed, file=image_file, allowed_mentions=discord.AllowedMentions.none())
