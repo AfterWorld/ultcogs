@@ -129,7 +129,7 @@ class OnePieceGuess(commands.Cog):
             if (not active.get("title") or active.get("expired")) and now >= int(settings.get("next_post_at") or 0):
                 await self.post_round(guild, settings)
 
-    async def wiki_page(self, title: str) -> tuple[str, Optional[str], str]:
+    async def wiki_page(self, title: str) -> tuple[str, list[str], str]:
         session = await self.session()
         # First mirror the original cog's exact pageimages request. If Fandom
         # has no original image, ask for its thumbnail as a separate fallback.
@@ -150,32 +150,33 @@ class OnePieceGuess(commands.Cog):
             first_error = exc
             log.warning("Fandom original-image query failed for %r: %s", title, exc)
 
-        image_url = (page.get("original") or {}).get("source")
-        if not image_url:
-            fallback_params = {**params, "piprop": "thumbnail", "pithumbsize": "1600"}
-            try:
-                async with session.get(WIKI_API, params=fallback_params) as response:
-                    response.raise_for_status()
-                    data = await response.json(content_type=None)
-                if data.get("error"):
-                    raise ValueError(data["error"].get("info", "Fandom thumbnail query failed"))
-                pages = data.get("query", {}).get("pages", {})
-                fallback_page = next(iter(pages.values()), {})
-                image_url = (fallback_page.get("thumbnail") or {}).get("source")
-                if not page.get("extract"):
-                    page = fallback_page or page
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
-                log.warning("Fandom thumbnail fallback failed for %r: %s", title, exc)
-                if first_error and not page:
-                    raise exc from first_error
-        if image_url and image_url.startswith("//"):
-            image_url = "https:" + image_url
-        return page.get("title", title), image_url, page.get("extract", "")
+        image_urls = [(page.get("original") or {}).get("source")]
+        # Always ask for a thumbnail too: the original may be a format Pillow
+        # cannot decode (such as SVG) or an unusually large source image.
+        fallback_params = {**params, "piprop": "thumbnail", "pithumbsize": "1600"}
+        try:
+            async with session.get(WIKI_API, params=fallback_params) as response:
+                response.raise_for_status()
+                data = await response.json(content_type=None)
+            if data.get("error"):
+                raise ValueError(data["error"].get("info", "Fandom thumbnail query failed"))
+            pages = data.get("query", {}).get("pages", {})
+            fallback_page = next(iter(pages.values()), {})
+            image_urls.append((fallback_page.get("thumbnail") or {}).get("source"))
+            if not page.get("extract"):
+                page = fallback_page or page
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+            log.warning("Fandom thumbnail fallback failed for %r: %s", title, exc)
+            if first_error and not page:
+                raise exc from first_error
+        image_urls = list(dict.fromkeys(url for url in image_urls if url))
+        image_urls = ["https:" + url if url.startswith("//") else url for url in image_urls]
+        return page.get("title", title), image_urls, page.get("extract", "")
 
     async def blurred_image(self, url: str, settings: dict) -> Optional[discord.File]:
         try:
             session = await self.session()
-            async with session.get(url) as response:
+            async with session.get(url, headers={"Referer": "https://onepiece.fandom.com/"}) as response:
                 if response.status != 200:
                     log.warning("Image host returned HTTP %s for %s", response.status, url)
                     return None
@@ -216,20 +217,21 @@ class OnePieceGuess(commands.Cog):
             candidates = pool[:max(1, min(20, int(settings.get("noimage_max_retries") or 6)))]
         selected = None
         canonical = None
-        image_url = None
         extract = ""
         selected_file = None
         for candidate in candidates:
             if candidate not in pool:
                 continue
             try:
-                canonical, image_url, extract = await self.wiki_page(candidate)
+                canonical, image_urls, extract = await self.wiki_page(candidate)
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                 log.info("Wiki lookup failed for %s", candidate, exc_info=True)
                 continue
-            if not image_url:
-                continue
-            image_file = await self.blurred_image(image_url, settings)
+            image_file = None
+            for image_url in image_urls:
+                image_file = await self.blurred_image(image_url, settings)
+                if image_file is not None:
+                    break
             if image_file is None:
                 continue
             selected, selected_file = candidate, image_file
@@ -316,10 +318,10 @@ class OnePieceGuess(commands.Cog):
                 if team_note:
                     text += f"\n{team_note}"
         try:
-            canonical, image_url, _ = await self.wiki_page(title)
-            if image_url:
-                session = await self.session()
-                async with session.get(image_url) as response:
+            canonical, image_urls, _ = await self.wiki_page(title)
+            session = await self.session()
+            for image_url in image_urls:
+                async with session.get(image_url, headers={"Referer": "https://onepiece.fandom.com/"}) as response:
                     if response.status == 200:
                         image = discord.File(io.BytesIO(await response.read()), filename="onepieceguess-answer.png")
                         await channel.send(text, file=image, allowed_mentions=discord.AllowedMentions.none())
@@ -664,13 +666,17 @@ class OnePieceGuess(commands.Cog):
         if not title:
             return await ctx.reply("The current pool is empty. Add an entry, then run `opguess testimage <entry>`.")
         try:
-            canonical, image_url, _ = await self.wiki_page(title)
+            canonical, image_urls, _ = await self.wiki_page(title)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
             log.exception("Image test API request failed for %r", title)
             return await ctx.reply(f"Fandom API request failed: `{type(exc).__name__}`. Check the bot logs for details.")
-        if not image_url:
+        if not image_urls:
             return await ctx.reply(f"Fandom returned no original or thumbnail image for **{discord.utils.escape_markdown(canonical)}**.")
-        image_file = await self.blurred_image(image_url, settings)
+        image_file = None
+        for image_url in image_urls:
+            image_file = await self.blurred_image(image_url, settings)
+            if image_file is not None:
+                break
         if image_file is None:
             return await ctx.reply("Fandom returned an image URL, but the bot couldn't download or process it. Check the bot logs for the URL and error.")
         embed = discord.Embed(title=f"Image test: {canonical}", description="Fandom lookup and image processing succeeded.", color=discord.Color.green())
