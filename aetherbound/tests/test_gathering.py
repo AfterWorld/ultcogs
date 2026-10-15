@@ -25,8 +25,8 @@ def test_active_gathering_awards_materials_and_skill_xp():
 
     assert result["attempts"] == 3
     assert result["successes"] == 3
-    assert result["reward"] == {"iron": 3}
-    assert p["materials"]["iron"] == 3
+    assert result["reward"] == {"iron": 2}
+    assert p["materials"]["iron"] == 2
     assert p["gathering"]["mining"]["xp"] == result["xp"]
 
 
@@ -56,3 +56,25 @@ def test_repeat_gathering_obeys_short_cooldown():
     gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.15), now=100)
     with pytest.raises(engine.RuleError, match="gather again"):
         gathering.resolve(p, "thieving", "glimmerwood", FixedRng(0.15), now=102)
+
+def test_session_rewards_are_capped_by_region():
+    p = player(level=8)
+    result = gathering.resolve(p, "mining", "embervein", FixedRng(0.15), now=100)
+
+    assert result["reward"]["iron"] == 3
+
+
+def test_daily_session_limit_and_utc_reset():
+    p = player()
+    for session in range(gathering.DAILY_SESSIONS):
+        result = gathering.resolve(
+            p, "mining", "glimmerwood", FixedRng(0.15), now=100 + session * 16
+        )
+    assert result["sessions_left"] == 0
+    with pytest.raises(engine.RuleError, match="all 8 gathering sessions"):
+        gathering.resolve(p, "mining", "glimmerwood", FixedRng(0.15), now=300)
+
+    next_day = gathering.resolve(
+        p, "mining", "glimmerwood", FixedRng(0.15), now=86400 + 100
+    )
+    assert next_day["sessions_left"] == gathering.DAILY_SESSIONS - 1
