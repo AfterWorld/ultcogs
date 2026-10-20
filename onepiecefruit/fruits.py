@@ -1,6 +1,6 @@
 """
 One Piece Devil Fruit data.
-Each fruit has: name, type, rarity, ability, awakening_1 (lvl 15), awakening_2 (lvl 30).
+Each fruit has: name, type, rarity, ability, awakening_1 (level 50), awakening_2 (level 100).
 """
 
 from typing import Dict, List, Optional
@@ -581,3 +581,4 @@ def search_fruits(query: str) -> List[tuple[str, dict]]:
             if normalized in fruit["name"].lower():
                 results.append((fruit["fruit_type"], fruit))
     return results
+
