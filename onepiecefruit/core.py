@@ -18,9 +18,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import random
+import tempfile
 import typing as t
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +50,20 @@ from .chargen.mixin import CharGenMixin
 
 log = logging.getLogger("red.onepiecefruit")
 
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    """Write a UTF-8 snapshot and replace the previous file atomically."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+        os.replace(temporary, path)
+    except Exception:
+        with suppress(FileNotFoundError):
+            os.unlink(temporary)
+        raise
+
 # ---------------------------------------------------------------------------
 # Rarity colour palette for embeds
 # ---------------------------------------------------------------------------
@@ -68,6 +84,8 @@ RARITY_EMOJIS: dict[str, str] = {
     "Mythical Zoan": "🟣",
     "Legendary":     "⭐",
 }
+
+MAX_AUDIT_ENTRIES_PER_GUILD = 1_000
 
 AWAKENING_LABELS = {0: "Base Form", 1: "Awakening — Stage 1", 2: "Full Awakening"}
 
@@ -194,6 +212,8 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         self.bot = bot
         self.db = DB()
         self._io_lock = asyncio.Lock()
+        self._user_locks: dict[tuple[int, int], asyncio.Lock] = {}
+        self._character_locks: dict[tuple[int, int], asyncio.Lock] = {}
         self._settings_file: t.Optional[Path] = None
         self.rep_tracker: t.Optional[RepTracker] = None
 
@@ -221,7 +241,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
     async def cog_unload(self) -> None:
         await self._save()
         if self.rep_tracker:
-            await self.rep_tracker.save()
+            await self.rep_tracker.close()
 
     # -----------------------------------------------------------------------
     # Persistence
@@ -231,9 +251,25 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             return
         async with self._io_lock:
             try:
-                await asyncio.to_thread(self.db.to_file, self._settings_file)
+                payload = self.db.model_dump_json(indent=2)
+                await asyncio.to_thread(_write_text_atomic, self._settings_file, payload)
             except Exception as exc:
                 log.error("OnePieceFruit: failed to save config.", exc_info=exc)
+
+    def _user_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
+        return self._user_locks.setdefault((guild_id, user_id), asyncio.Lock())
+
+    @asynccontextmanager
+    async def _lock_users(self, guild_id: int, *user_ids: int):
+        """Lock users in a stable order for multi-user economy operations."""
+        locks = [self._user_lock(guild_id, uid) for uid in sorted(set(user_ids))]
+        for lock in locks:
+            await lock.acquire()
+        try:
+            yield
+        finally:
+            for lock in reversed(locks):
+                lock.release()
 
     # -----------------------------------------------------------------------
     # Currency adapter factory
@@ -291,31 +327,33 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
     async def _maybe_grant_daily_stipend(self, message: discord.Message) -> None:
         if message.guild is None or self.db is None:
             return
-        guild_data = self.db.get_guild(message.guild.id)
-        user_data = guild_data.get_user(message.author.id)
-        if user_data is None or not user_data.fruit_name:
-            return
+        async with self._user_lock(message.guild.id, message.author.id):
+            guild_data = self.db.get_guild(message.guild.id)
+            user_data = guild_data.get_user(message.author.id)
+            if user_data is None or not user_data.fruit_name:
+                return
 
-        amount = self._daily_stipend_amount(user_data.fruit_type)
-        if amount <= 0:
-            return
+            amount = self._daily_stipend_amount(user_data.fruit_type)
+            if amount <= 0:
+                return
 
-        today = _utc_today().isoformat()
-        if user_data.last_daily_stipend == today:
-            return
+            today = _utc_today().isoformat()
+            if user_data.last_daily_stipend == today:
+                return
 
-        try:
-            await self._currency(message.guild).deposit(
-                message.author, amount,
-                reason="devilfruit:daily_stipend",
-                actor=message.author,
-            )
-        except Exception:
-            return
+            try:
+                await self._currency(message.guild).deposit(
+                    message.author, amount,
+                    reason="devilfruit:daily_stipend",
+                    actor=message.author,
+                )
+            except Exception:
+                log.exception("Failed to grant daily stipend to %s", message.author.id)
+                return
 
-        user_data.last_daily_stipend = today
-        guild_data.set_user(message.author.id, user_data)
-        await self._save()
+            user_data.last_daily_stipend = today
+            guild_data.set_user(message.author.id, user_data)
+            await self._save()
 
         with suppress(discord.HTTPException):
             await message.channel.send(
@@ -395,7 +433,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         ts = entry.timestamp.replace("T", " ").replace("Z", " UTC")[:19]
         return f"`{ts}` **{entry.action}** by {actor}{target}{details}"
 
-    def _log_audit(
+    async def _log_audit(
         self,
         guild_id: int,
         actor_id: int,
@@ -412,6 +450,14 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                 details=details,
             )
         )
+        guild_entries = [entry for entry in self.db.audit_log if entry.guild_id == guild_id]
+        if len(guild_entries) > MAX_AUDIT_ENTRIES_PER_GUILD:
+            keep = {id(entry) for entry in guild_entries[-MAX_AUDIT_ENTRIES_PER_GUILD:]}
+            self.db.audit_log = [
+                entry for entry in self.db.audit_log
+                if entry.guild_id != guild_id or id(entry) in keep
+            ]
+        await self._save()
 
     async def _send_audit_entries(
         self,
@@ -530,6 +576,8 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.guild is None:
             return
+        if await self.bot.cog_disabled_in_guild(self, message.guild):
+            return
         if self.rep_tracker is None:
             return
         asyncio.create_task(self._process_rep_message(message))
@@ -537,6 +585,8 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
     @commands.Cog.listener("on_command_completion")
     async def on_command_completion(self, ctx: commands.Context) -> None:
         if ctx.command is None or ctx.guild is None:
+            return
+        if await self.bot.cog_disabled_in_guild(self, ctx.guild):
             return
 
         cmd_name = ctx.command.qualified_name.lower()
@@ -576,74 +626,77 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         level: int,
         channel: t.Optional[discord.TextChannel],
     ) -> None:
+        if await self.bot.cog_disabled_in_guild(self, guild):
+            return
         if level < FRUIT_ASSIGN_LEVEL:
             return
 
-        guild_data = self.db.get_guild(guild.id)
-        user_data = guild_data.get_user(member.id)
+        async with self._user_lock(guild.id, member.id):
+            guild_data = self.db.get_guild(guild.id)
+            user_data = guild_data.get_user(member.id)
 
-        # Threshold checks use >= rather than == : LevelUp can dispatch a level-up
-        # that jumps a member past a milestone in one go (voice XP ticks, boost
-        # roles, catch-up after being AFK, etc). An exact-match check would skip
-        # that member's fruit/awakening forever since the event never fires again
-        # at that specific level. Each branch is still gated so it only fires once
-        # per member, and they cascade (no early return) so a member who jumps
-        # past multiple milestones in a single dispatch catches up immediately
-        # instead of needing one more level-up per missed milestone.
-        if level >= FRUIT_ASSIGN_LEVEL and user_data is None:
-            active_event = await self._get_active_event(guild)
-            rarity, fruit = _draw_fruit(active_event)
-            user_data = UserFruitData(
-                fruit_name=fruit["name"],
-                fruit_type=rarity,
-                assigned_at_level=level,
-                awakening_stage=0,
-            )
-            guild_data.set_user(member.id, user_data)
-            await self._save()
+            # Threshold checks use >= rather than == : LevelUp can dispatch a level-up
+            # that jumps a member past a milestone in one go (voice XP ticks, boost
+            # roles, catch-up after being AFK, etc). An exact-match check would skip
+            # that member's fruit/awakening forever since the event never fires again
+            # at that specific level. Each branch is still gated so it only fires once
+            # per member, and they cascade (no early return) so a member who jumps
+            # past multiple milestones in a single dispatch catches up immediately
+            # instead of needing one more level-up per missed milestone.
+            if level >= FRUIT_ASSIGN_LEVEL and user_data is None:
+                active_event = await self._get_active_event(guild)
+                rarity, fruit = _draw_fruit(active_event)
+                user_data = UserFruitData(
+                    fruit_name=fruit["name"],
+                    fruit_type=rarity,
+                    assigned_at_level=level,
+                    awakening_stage=0,
+                )
+                guild_data.set_user(member.id, user_data)
+                await self._save()
 
-            embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Devil Fruit Obtained! ")
-            embed.description = (
-                f"Congratulations {member.mention}! You've eaten a **Devil Fruit** and gained a mysterious power!\n"
-                f"You can never swim again — but the power is worth it. 💀"
-            )
-            if active_event:
-                event_def = SEASONAL_EVENTS.get(active_event.lower())
-                if event_def:
-                    embed.description += (
-                        f"\n\n*Seasonal event active: {event_def['emoji']} {event_def['name']}.*"
-                    )
-            if channel:
-                await channel.send(embed=embed)
-            else:
-                with suppress(discord.HTTPException):
-                    await member.send(embed=embed)
+                embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Devil Fruit Obtained! ")
+                embed.description = (
+                    f"Congratulations {member.mention}! You've eaten a **Devil Fruit** and gained a mysterious power!\n"
+                    f"You can never swim again — but the power is worth it. 💀"
+                )
+                if active_event:
+                    event_def = SEASONAL_EVENTS.get(active_event.lower())
+                    if event_def:
+                        embed.description += (
+                            f"\n\n*Seasonal event active: {event_def['emoji']} {event_def['name']}.*"
+                        )
+                if channel:
+                    await channel.send(embed=embed)
+                else:
+                    with suppress(discord.HTTPException):
+                        await member.send(embed=embed)
 
-        if level >= AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
-            user_data.awakening_stage = 1
-            guild_data.set_user(member.id, user_data)
-            await self._save()
+            if level >= AWAKENING_STAGE1_LEVEL and user_data is not None and user_data.awakening_stage == 0:
+                user_data.awakening_stage = 1
+                guild_data.set_user(member.id, user_data)
+                await self._save()
 
-            embed = _build_fruit_embed(member, user_data, title_prefix="⚡ Awakening — Stage 1! ")
-            embed.description = (
-                f"{member.mention}, your Devil Fruit stirs with new power!\n"
-                f"**Stage 1 Awakening** has been unlocked. Your abilities grow beyond their base form."
-            )
-            if channel:
-                await channel.send(embed=embed)
+                embed = _build_fruit_embed(member, user_data, title_prefix="⚡ Awakening — Stage 1! ")
+                embed.description = (
+                    f"{member.mention}, your Devil Fruit stirs with new power!\n"
+                    f"**Stage 1 Awakening** has been unlocked. Your abilities grow beyond their base form."
+                )
+                if channel:
+                    await channel.send(embed=embed)
 
-        if level >= AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
-            user_data.awakening_stage = 2
-            guild_data.set_user(member.id, user_data)
-            await self._save()
+            if level >= AWAKENING_STAGE2_LEVEL and user_data is not None and user_data.awakening_stage == 1:
+                user_data.awakening_stage = 2
+                guild_data.set_user(member.id, user_data)
+                await self._save()
 
-            embed = _build_fruit_embed(member, user_data, title_prefix="🌟 Full Awakening! ")
-            embed.description = (
-                f"**{member.mention} — FULL AWAKENING ACHIEVED!**\n\n"
-                f"Your Devil Fruit has reached its ultimate form. You stand among the greatest powers in the world."
-            )
-            if channel:
-                await channel.send(embed=embed)
+                embed = _build_fruit_embed(member, user_data, title_prefix="🌟 Full Awakening! ")
+                embed.description = (
+                    f"**{member.mention} — FULL AWAKENING ACHIEVED!**\n\n"
+                    f"Your Devil Fruit has reached its ultimate form. You stand among the greatest powers in the world."
+                )
+                if channel:
+                    await channel.send(embed=embed)
 
     # -----------------------------------------------------------------------
     # Commands — Devil Fruit
@@ -838,58 +891,90 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                     f"💸 {target.display_name} no longer has enough {currency_name} to cover the wager."
                 )
 
-        strength_values = {
-            "Paramecia": 70, "Zoan": 85, "Logia": 100,
-            "Ancient Zoan": 110, "Mythical Zoan": 120, "Legendary": 140,
-        }
-        stage_bonus = {0: 0, 1: 10, 2: 25}
+        async with self._lock_users(ctx.guild.id, ctx.author.id, target.id):
+            challenger_data = guild_data.get_user(ctx.author.id)
+            target_data = guild_data.get_user(target.id)
+            if challenger_data is None or not challenger_data.fruit_name:
+                return await ctx.send("🌊 You need a Devil Fruit to duel.")
+            if target_data is None or not target_data.fruit_name:
+                return await ctx.send(f"🌊 {target.display_name} no longer has a Devil Fruit to duel.")
 
-        def combat_strength(data: UserFruitData) -> int:
-            base = strength_values.get(data.fruit_type, 80)
-            return base + stage_bonus.get(data.awakening_stage, 0)
+            strength_values = {
+                "Paramecia": 70, "Zoan": 85, "Logia": 100,
+                "Ancient Zoan": 110, "Mythical Zoan": 120, "Legendary": 140,
+            }
+            stage_bonus = {0: 0, 1: 10, 2: 25}
 
-        challenger_strength = combat_strength(challenger_data)
-        target_strength = combat_strength(target_data)
-        differential = challenger_strength - target_strength
-        win_chance = max(0.10, min(0.90, 0.5 + (differential / 200)))
+            def combat_strength(data: UserFruitData) -> int:
+                base = strength_values.get(data.fruit_type, 80)
+                return base + stage_bonus.get(data.awakening_stage, 0)
 
-        if wager > 0:
-            await adapter.withdraw(ctx.author, wager, reason="devilfruit:duel", actor=ctx.author)
-            try:
-                await adapter.withdraw(target, wager, reason="devilfruit:duel", actor=ctx.author)
-            except InsufficientFunds:
-                await adapter.deposit(ctx.author, wager, reason="devilfruit:duel_refund", actor=self.bot)
-                return await ctx.send(f"💸 {target.display_name} can't cover the wager right now.")
+            challenger_strength = combat_strength(challenger_data)
+            target_strength = combat_strength(target_data)
+            differential = challenger_strength - target_strength
+            win_chance = max(0.10, min(0.90, 0.5 + (differential / 200)))
 
-        winner = ctx.author if random.random() < win_chance else target
-        upset = (
-            winner == target and challenger_strength > target_strength
-            or winner == ctx.author and challenger_strength < target_strength
-        )
+            wagered: list[discord.Member] = []
+            if wager > 0:
+                try:
+                    challenger_balance = await adapter.get_balance(ctx.author)
+                    target_balance = await adapter.get_balance(target)
+                    if challenger_balance < wager or target_balance < wager:
+                        return await ctx.send("💸 One of you no longer has enough Beri to cover the wager.")
+                    await adapter.withdraw(ctx.author, wager, reason="devilfruit:duel", actor=ctx.author)
+                    wagered.append(ctx.author)
+                    await adapter.withdraw(target, wager, reason="devilfruit:duel", actor=ctx.author)
+                    wagered.append(target)
+                except Exception:
+                    log.exception("Failed to collect duel wager in guild %s", ctx.guild.id)
+                    for member in wagered:
+                        try:
+                            await adapter.deposit(member, wager, reason="devilfruit:duel_refund", actor=self.bot)
+                        except Exception:
+                            log.exception("Failed to refund duel wager to %s", member.id)
+                    return await ctx.send("💸 The wager could not be collected. Any collected stake was refunded.")
 
-        result_text = (
-            f"⚔️ **{ctx.author.display_name}** ({challenger_data.fruit_type}) vs "
-            f"**{target.display_name}** ({target_data.fruit_type})\n"
-            f"Chance to win: **{int(win_chance * 100)}%** for {ctx.author.display_name}."
-        )
+            winner = ctx.author if random.random() < win_chance else target
+            upset = (
+                winner == target and challenger_strength > target_strength
+                or winner == ctx.author and challenger_strength < target_strength
+            )
 
-        if wager > 0:
-            total_pot = wager * 2
-            await adapter.deposit(winner, total_pot, reason="devilfruit:duel_win", actor=self.bot)
-            result_text += f"\n🏆 {winner.display_name} wins **{total_pot:,} {currency_name}**!"
-        else:
-            result_text += f"\n🏆 {winner.display_name} wins the duel!"
+            result_text = (
+                f"⚔️ **{ctx.author.display_name}** ({challenger_data.fruit_type}) vs "
+                f"**{target.display_name}** ({target_data.fruit_type})\n"
+                f"Chance to win: **{int(win_chance * 100)}%** for {ctx.author.display_name}."
+            )
 
-        if upset:
-            result_text += "\n✨ What an upset!"
+            if wager > 0:
+                total_pot = wager * 2
+                try:
+                    await adapter.deposit(winner, total_pot, reason="devilfruit:duel_win", actor=self.bot)
+                except Exception:
+                    log.exception("Failed to pay duel winner %s in guild %s", winner.id, ctx.guild.id)
+                    refunded = True
+                    for member in wagered:
+                        try:
+                            await adapter.deposit(member, wager, reason="devilfruit:duel_refund", actor=self.bot)
+                        except Exception:
+                            refunded = False
+                            log.exception("Failed to refund duel wager to %s", member.id)
+                    message = "⚠️ Payout failed; both stakes were refunded." if refunded else "⚠️ Payout and refund failed. Please contact a bot admin."
+                    return await ctx.send(message)
+                result_text += f"\n🏆 {winner.display_name} wins **{total_pot:,} {currency_name}**!"
+            else:
+                result_text += f"\n🏆 {winner.display_name} wins the duel!"
 
-        embed = discord.Embed(title="⚔️ Devil Fruit Duel", description=result_text, colour=discord.Colour.dark_red())
-        embed.add_field(name="Your strength", value=str(challenger_strength), inline=True)
-        embed.add_field(name=f"{target.display_name}'s strength", value=str(target_strength), inline=True)
-        if wager > 0:
-            embed.set_footer(text=f"{currency_name} wager: {wager:,}")
+            if upset:
+                result_text += "\n✨ What an upset!"
 
-        await ctx.send(embed=embed)
+            embed = discord.Embed(title="⚔️ Devil Fruit Duel", description=result_text, colour=discord.Colour.dark_red())
+            embed.add_field(name="Your strength", value=str(challenger_strength), inline=True)
+            embed.add_field(name=f"{target.display_name}'s strength", value=str(target_strength), inline=True)
+            if wager > 0:
+                embed.set_footer(text=f"{currency_name} wager: {wager:,}")
+
+            await ctx.send(embed=embed)
 
     @devilfruit.command(name="weekly")
     async def df_weekly(self, ctx: commands.Context) -> None:
@@ -1019,73 +1104,74 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         if str(reaction.emoji) == "❌":
             return await ctx.send("❌ Reroll cancelled.")
 
-        # Re-fetch: an admin (reset/awaken/resetrerolls) or another reroll
-        # could have changed this user's data while we waited for the reaction.
-        user_data = guild_data.get_user(ctx.author.id)
-        if (
-            user_data is None
-            or user_data.fruit_name != pending_fruit_name
-            or user_data.reroll_count != pending_reroll_count
-        ):
-            return await ctx.send(
-                "⚠️ Your Devil Fruit data changed while this reroll was pending "
-                "(likely an admin action). Reroll cancelled — please try again."
-            )
-
-        adapter = self._currency(ctx.guild)
-        try:
-            await adapter.withdraw(ctx.author, cost, reason="devilfruit:reroll", actor=ctx.author)
-        except InsufficientFunds:
-            balance = await adapter.get_balance(ctx.author)
-            return await ctx.send(
-                f"💸 You don't have enough {currency_name}! "
-                f"You need **{cost:,}** but only have **{balance:,}**."
-            )
-
-        old_fruit_name = user_data.fruit_name
-        old_type = user_data.fruit_type
-
-        active_event = await self._get_active_event(ctx.guild)
-        rarity, fruit = _draw_fruit(active_event)
-
-        # Record the old fruit in history before overwriting
-        user_data.push_reroll_history(old_fruit_name)
-
-        user_data.fruit_name = fruit["name"]
-        user_data.fruit_type = rarity
-        user_data.awakening_stage = 0
-        user_data.reroll_count += 1
-        user_data.last_reroll_cost = cost
-        guild_data.set_user(ctx.author.id, user_data)
-        await self._save()
-        self._log_audit(
-            ctx.guild.id,
-            ctx.author.id,
-            "reroll",
-            target_id=ctx.author.id,
-            details=f"from={old_type} ({old_fruit_name}), to={user_data.fruit_name}, cost={cost}",
-        )
-
-        embed = _build_fruit_embed(ctx.author, user_data, title_prefix="🍎 New Fruit! ")
-        description = (
-            f"You spent **{cost:,} {currency_name}** and ate a new Devil Fruit!\n"
-            f"*Your previous {old_type} fruit ({old_fruit_name}) is gone forever...*"
-        )
-        if active_event:
-            event_def = SEASONAL_EVENTS.get(active_event.lower())
-            if event_def:
-                description += (
-                    f"\n*Seasonal event active: {event_def['emoji']} {event_def['name']} — "
-                    f"new fruits are drawn from the limited-time pool.*"
+        async with self._user_lock(ctx.guild.id, ctx.author.id):
+            # Re-fetch: an admin (reset/awaken/resetrerolls) or another reroll
+            # could have changed this user's data while we waited for the reaction.
+            user_data = guild_data.get_user(ctx.author.id)
+            if (
+                user_data is None
+                or user_data.fruit_name != pending_fruit_name
+                or user_data.reroll_count != pending_reroll_count
+            ):
+                return await ctx.send(
+                    "⚠️ Your Devil Fruit data changed while this reroll was pending "
+                    "(likely an admin action). Reroll cancelled — please try again."
                 )
-        if multiplier < 1.0:
-            discount_pct = int((1.0 - multiplier) * 100)
-            description += f"\n*{user_data.fruit_type} fruits get a {discount_pct}% reroll discount.*"
-        embed.description = description
 
-        next_cost = _next_reroll_cost(user_data.reroll_count)
-        embed.set_footer(text=f"Reroll #{user_data.reroll_count} complete. Next reroll: {next_cost:,} {currency_name}.")
-        await ctx.send(embed=embed)
+            adapter = self._currency(ctx.guild)
+            try:
+                await adapter.withdraw(ctx.author, cost, reason="devilfruit:reroll", actor=ctx.author)
+            except InsufficientFunds:
+                balance = await adapter.get_balance(ctx.author)
+                return await ctx.send(
+                    f"💸 You don't have enough {currency_name}! "
+                    f"You need **{cost:,}** but only have **{balance:,}**."
+                )
+
+            old_fruit_name = user_data.fruit_name
+            old_type = user_data.fruit_type
+
+            active_event = await self._get_active_event(ctx.guild)
+            rarity, fruit = _draw_fruit(active_event)
+
+            # Record the old fruit in history before overwriting
+            user_data.push_reroll_history(old_fruit_name)
+
+            user_data.fruit_name = fruit["name"]
+            user_data.fruit_type = rarity
+            user_data.awakening_stage = 0
+            user_data.reroll_count += 1
+            user_data.last_reroll_cost = cost
+            guild_data.set_user(ctx.author.id, user_data)
+            await self._save()
+            await self._log_audit(
+                ctx.guild.id,
+                ctx.author.id,
+                "reroll",
+                target_id=ctx.author.id,
+                details=f"from={old_type} ({old_fruit_name}), to={user_data.fruit_name}, cost={cost}",
+            )
+
+            embed = _build_fruit_embed(ctx.author, user_data, title_prefix="🍎 New Fruit! ")
+            description = (
+                f"You spent **{cost:,} {currency_name}** and ate a new Devil Fruit!\n"
+                f"*Your previous {old_type} fruit ({old_fruit_name}) is gone forever...*"
+            )
+            if active_event:
+                event_def = SEASONAL_EVENTS.get(active_event.lower())
+                if event_def:
+                    description += (
+                        f"\n*Seasonal event active: {event_def['emoji']} {event_def['name']} — "
+                        f"new fruits are drawn from the limited-time pool.*"
+                    )
+            if multiplier < 1.0:
+                discount_pct = int((1.0 - multiplier) * 100)
+                description += f"\n*{user_data.fruit_type} fruits get a {discount_pct}% reroll discount.*"
+            embed.description = description
+
+            next_cost = _next_reroll_cost(user_data.reroll_count)
+            embed.set_footer(text=f"Reroll #{user_data.reroll_count} complete. Next reroll: {next_cost:,} {currency_name}.")
+            await ctx.send(embed=embed)
 
     @devilfruit.command(name="list", aliases=["leaderboard", "lb"])
     async def df_list(self, ctx: commands.Context) -> None:
@@ -1268,40 +1354,42 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         fruit_name: t.Optional[str] = None,
     ) -> None:
         """Assign (or randomly assign) a Devil Fruit to a member."""
-        guild_data = self.db.get_guild(ctx.guild.id)
+        async with self._user_lock(ctx.guild.id, member.id):
+            guild_data = self.db.get_guild(ctx.guild.id)
 
-        if fruit_name:
-            matches = search_fruits(fruit_name)
-            if not matches:
-                return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
-            rarity, fruit = matches[0]
-        else:
-            rarity, fruit = _draw_fruit()
+            if fruit_name:
+                matches = search_fruits(fruit_name)
+                if not matches:
+                    return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
+                rarity, fruit = matches[0]
+            else:
+                rarity, fruit = _draw_fruit()
 
-        user_data = UserFruitData(
-            fruit_name=fruit["name"],
-            fruit_type=rarity,
-            assigned_at_level=0,
-            awakening_stage=0,
-        )
-        guild_data.set_user(member.id, user_data)
-        await self._save()
-        self._log_audit(
-            ctx.guild.id, ctx.author.id, "assign",
-            target_id=member.id, details=f"{fruit['name']} ({rarity})",
-        )
+            user_data = UserFruitData(
+                fruit_name=fruit["name"],
+                fruit_type=rarity,
+                assigned_at_level=0,
+                awakening_stage=0,
+            )
+            guild_data.set_user(member.id, user_data)
+            await self._save()
+            await self._log_audit(
+                ctx.guild.id, ctx.author.id, "assign",
+                target_id=member.id, details=f"{fruit['name']} ({rarity})",
+            )
 
-        embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
-        await ctx.send(embed=embed)
+            embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
+            await ctx.send(embed=embed)
 
     @df_admin.command(name="reset")
     async def df_admin_reset(self, ctx: commands.Context, member: discord.Member) -> None:
         """Remove a member's Devil Fruit data entirely."""
-        guild_data = self.db.get_guild(ctx.guild.id)
-        guild_data.remove_user(member.id)
-        await self._save()
-        self._log_audit(ctx.guild.id, ctx.author.id, "reset", target_id=member.id)
-        await ctx.send(f"🗑️ Devil Fruit data cleared for **{member.display_name}**.")
+        async with self._user_lock(ctx.guild.id, member.id):
+            guild_data = self.db.get_guild(ctx.guild.id)
+            guild_data.remove_user(member.id)
+            await self._save()
+            await self._log_audit(ctx.guild.id, ctx.author.id, "reset", target_id=member.id)
+            await ctx.send(f"🗑️ Devil Fruit data cleared for **{member.display_name}**.")
 
     @df_admin.command(name="awaken")
     async def df_admin_awaken(self, ctx: commands.Context, member: discord.Member, stage: int) -> None:
@@ -1309,38 +1397,40 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         if stage not in (0, 1, 2):
             return await ctx.send("❌ Stage must be 0 (base), 1 (stage 1), or 2 (full).")
 
-        guild_data = self.db.get_guild(ctx.guild.id)
-        user_data = guild_data.get_user(member.id)
-        if user_data is None:
-            return await ctx.send(f"❌ {member.display_name} has no Devil Fruit assigned.")
+        async with self._user_lock(ctx.guild.id, member.id):
+            guild_data = self.db.get_guild(ctx.guild.id)
+            user_data = guild_data.get_user(member.id)
+            if user_data is None:
+                return await ctx.send(f"❌ {member.display_name} has no Devil Fruit assigned.")
 
-        old_stage = user_data.awakening_stage
-        user_data.awakening_stage = stage
-        guild_data.set_user(member.id, user_data)
-        await self._save()
-        self._log_audit(
-            ctx.guild.id, ctx.author.id, "awaken",
-            target_id=member.id, details=f"stage: {old_stage} → {stage}",
-        )
-        await ctx.send(f"✅ Set **{member.display_name}**'s awakening to **{AWAKENING_LABELS[stage]}**.")
+            old_stage = user_data.awakening_stage
+            user_data.awakening_stage = stage
+            guild_data.set_user(member.id, user_data)
+            await self._save()
+            await self._log_audit(
+                ctx.guild.id, ctx.author.id, "awaken",
+                target_id=member.id, details=f"stage: {old_stage} → {stage}",
+            )
+            await ctx.send(f"✅ Set **{member.display_name}**'s awakening to **{AWAKENING_LABELS[stage]}**.")
 
     @df_admin.command(name="resetrerolls")
     async def df_admin_reset_rerolls(self, ctx: commands.Context, member: discord.Member) -> None:
         """Reset a member's reroll counter to 0 (resets cost back to 10,000)."""
-        guild_data = self.db.get_guild(ctx.guild.id)
-        user_data = guild_data.get_user(member.id)
-        if user_data is None:
-            return await ctx.send(f"❌ {member.display_name} has no Devil Fruit data.")
-        old_count = user_data.reroll_count
-        user_data.reroll_count = 0
-        user_data.last_reroll_cost = 0
-        guild_data.set_user(member.id, user_data)
-        await self._save()
-        self._log_audit(
-            ctx.guild.id, ctx.author.id, "resetrerolls",
-            target_id=member.id, details=f"count was {old_count}",
-        )
-        await ctx.send(f"✅ Reset reroll counter for **{member.display_name}** (was {old_count}).")
+        async with self._user_lock(ctx.guild.id, member.id):
+            guild_data = self.db.get_guild(ctx.guild.id)
+            user_data = guild_data.get_user(member.id)
+            if user_data is None:
+                return await ctx.send(f"❌ {member.display_name} has no Devil Fruit data.")
+            old_count = user_data.reroll_count
+            user_data.reroll_count = 0
+            user_data.last_reroll_cost = 0
+            guild_data.set_user(member.id, user_data)
+            await self._save()
+            await self._log_audit(
+                ctx.guild.id, ctx.author.id, "resetrerolls",
+                target_id=member.id, details=f"count was {old_count}",
+            )
+            await ctx.send(f"✅ Reset reroll counter for **{member.display_name}** (was {old_count}).")
 
     @df_admin.command(name="setrep")
     async def df_admin_set_rep(self, ctx: commands.Context, member: discord.Member, rep: int) -> None:
@@ -1354,7 +1444,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         old_rep = user_data.rep
         user_data.rep = rep
         await self.rep_tracker.save()
-        self._log_audit(ctx.guild.id, ctx.author.id, "setrep", target_id=member.id, details=f"{old_rep} → {rep}")
+        await self._log_audit(ctx.guild.id, ctx.author.id, "setrep", target_id=member.id, details=f"{old_rep} → {rep}")
         await ctx.send(f"✅ Set **{member.display_name}**'s Pirate Rep to **{rep:,}**.")
 
     @df_admin.command(name="setrank")
@@ -1382,7 +1472,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         old_rep = user_data.rep
         user_data.rep = min_rep
         await self.rep_tracker.save()
-        self._log_audit(
+        await self._log_audit(
             ctx.guild.id, ctx.author.id, "setrank",
             target_id=member.id, details=f"rep {old_rep} → {min_rep} ({title})",
         )
@@ -1407,7 +1497,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             old_rep = g.users[uid_str].rep
             del g.users[uid_str]
             await self.rep_tracker.save()
-            self._log_audit(ctx.guild.id, ctx.author.id, "resetrep", target_id=member.id, details=f"rep was {old_rep}")
+            await self._log_audit(ctx.guild.id, ctx.author.id, "resetrep", target_id=member.id, details=f"rep was {old_rep}")
             await ctx.send(f"🗑️ Pirate Rep data cleared for **{member.display_name}** (had {old_rep:,} rep).")
         else:
             await ctx.send(f"ℹ️ {member.display_name} has no Pirate Rep data to clear.")
@@ -1431,7 +1521,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             return await ctx.send(f"🏴‍☠️ Pirate rank announcements are currently enabled in {existing.mention}.")
 
         await self.config.guild(ctx.guild).rank_announcement_channel.set(channel.id)
-        self._log_audit(ctx.guild.id, ctx.author.id, "rankchannel", details=f"channel={channel.id}")
+        await self._log_audit(ctx.guild.id, ctx.author.id, "rankchannel", details=f"channel={channel.id}")
         await ctx.send(f"✅ Pirate rank announcements will now post in {channel.mention}.")
 
     @df_admin.command(name="event")
@@ -1455,7 +1545,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         lookup = "".join(event_name.strip().lower().split())
         if lookup in {"off", "none", "clear", "disable"}:
             await self.config.guild(ctx.guild).active_event.set(None)
-            self._log_audit(ctx.guild.id, ctx.author.id, "event", details="cleared")
+            await self._log_audit(ctx.guild.id, ctx.author.id, "event", details="cleared")
             return await ctx.send("✅ Seasonal event cleared.")
 
         matched = next(
@@ -1468,7 +1558,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             return await ctx.send(f"❌ Unknown event `{event_name}`. Available: {available}.")
 
         await self.config.guild(ctx.guild).active_event.set(matched)
-        self._log_audit(ctx.guild.id, ctx.author.id, "event", details=f"enabled={matched}")
+        await self._log_audit(ctx.guild.id, ctx.author.id, "event", details=f"enabled={matched}")
         event_def = SEASONAL_EVENTS[matched]
         await ctx.send(f"✅ Seasonal event enabled: {event_def['emoji']} **{event_def['name']}**.")
 
@@ -1530,7 +1620,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             except Exception:
                 winners_lines.append(f"• {member.mention} — failed to credit {currency_name}")
 
-        self._log_audit(
+        await self._log_audit(
             ctx.guild.id, ctx.author.id, "giveaway",
             details=f"amount={amount}, winners={len(chosen)}, filter={rarity or 'all'}",
         )
@@ -1673,7 +1763,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                 errors += 1
 
         await self._save()
-        self._log_audit(
+        await self._log_audit(
             ctx.guild.id, ctx.author.id, "bulkassign",
             details=f"assigned={assigned}, awakened={awakening_updated}, skipped={skipped}, errors={errors}",
         )
@@ -1772,6 +1862,29 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         base = super().format_help_for_context(ctx)
         return f"{base}\nVersion: {self.__version__}\nAuthor: {self.__author__}"
 
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int) -> None:
+        """Remove all per-user data maintained by this cog."""
+        if requester not in {"discord_deleted_user", "owner", "user", "user_strict"}:
+            log.warning("Unknown user-data deletion requester: %s", requester)
+
+        for guild_data in self.db.guilds.values():
+            guild_data.remove_user(user_id)
+        self.db.audit_log = [
+            entry for entry in self.db.audit_log
+            if entry.actor_id != user_id and entry.target_id != user_id
+        ]
+        await self._save()
+
+        if self.rep_tracker:
+            self.rep_tracker.delete_user(user_id)
+            await self.rep_tracker.save()
+
+        all_members = await self.config.all_members()
+        user_key = str(user_id)
+        for guild_id, members in all_members.items():
+            if user_key in members or user_id in members:
+                await self.config.member_from_ids(int(guild_id), user_id).clear()
+
 
 # ---------------------------------------------------------------------------
 # Red cog setup
@@ -1783,3 +1896,4 @@ async def setup(bot: Red) -> None:
 def _utc_today():
     from datetime import date
     return datetime.now(timezone.utc).date()
+
