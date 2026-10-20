@@ -106,78 +106,81 @@ class CharGenMixin:
         Roll your One Piece character sheet.
         This is a permanent, one-time roll per server. There are no re-rolls.
         """
-        # Guard: already has a character in this guild
-        existing = await self._get_character(ctx.author)
-        if existing is not None:
-            await ctx.send(
-                f"⚓ **{ctx.author.display_name}**, your fate has already been decided.\n"
-                f"Use `{ctx.prefix}mychar` to view your character sheet.",
-                delete_after=12,
-            )
-            return
+        lock = self._character_locks.setdefault((ctx.guild.id, ctx.author.id), asyncio.Lock())
+        async with lock:
+            # Guard: already has a character in this guild
+            existing = await self._get_character(ctx.author)
+            if existing is not None:
+                await ctx.send(
+                    f"⚓ **{ctx.author.display_name}**, your fate has already been decided.\n"
+                    f"Use `{ctx.prefix}mychar` to view your character sheet.",
+                    delete_after=12,
+                )
+                return
 
-        # Confirmation gate — permanent action warning
-        confirm_msg = await ctx.send(
-            f"🏴‍☠️ **{ctx.author.display_name}**, you are about to receive your "
-            f"**permanent** One Piece character sheet.\n\n"
-            f"> ⚠️ **This cannot be undone.** The Grand Line grants no second chances.\n\n"
-            f"React with ✅ to roll your fate, or ❌ to cancel.",
-        )
-        await confirm_msg.add_reaction("✅")
-        await confirm_msg.add_reaction("❌")
-
-        def check(reaction: discord.Reaction, user: discord.User) -> bool:
-            return (
-                user.id == ctx.author.id
-                and reaction.message.id == confirm_msg.id
-                and str(reaction.emoji) in ("✅", "❌")
+            # Confirmation gate — permanent action warning
+            confirm_msg = await ctx.send(
+                f"🏴‍☠️ **{ctx.author.display_name}**, you are about to receive your "
+                f"**permanent** One Piece character sheet.\n\n"
+                f"This is a standalone character roll; it does not change your `[p]df` fruit.\n\n"
+                f"> ⚠️ **This cannot be undone.** The Grand Line grants no second chances.\n\n"
+                f"React with ✅ to roll your fate, or ❌ to cancel.",
             )
+            await confirm_msg.add_reaction("✅")
+            await confirm_msg.add_reaction("❌")
 
-        try:
-            reaction, _ = await ctx.bot.wait_for(
-                "reaction_add", timeout=30.0, check=check
-            )
-        except asyncio.TimeoutError:
+            def check(reaction: discord.Reaction, user: discord.User) -> bool:
+                return (
+                    user.id == ctx.author.id
+                    and reaction.message.id == confirm_msg.id
+                    and str(reaction.emoji) in ("✅", "❌")
+                )
+
+            try:
+                reaction, _ = await ctx.bot.wait_for(
+                    "reaction_add", timeout=30.0, check=check
+                )
+            except asyncio.TimeoutError:
+                with suppress(discord.HTTPException):
+                    await confirm_msg.delete()
+                await ctx.send(
+                    f"⌛ Roll timed out, {ctx.author.mention}. "
+                    f"Run `{ctx.prefix}rollchar` again when you're ready.",
+                    delete_after=10,
+                )
+                return
+
             with suppress(discord.HTTPException):
                 await confirm_msg.delete()
-            await ctx.send(
-                f"⌛ Roll timed out, {ctx.author.mention}. "
-                f"Run `{ctx.prefix}rollchar` again when you're ready.",
-                delete_after=10,
+
+            if str(reaction.emoji) == "❌":
+                await ctx.send(
+                    f"🌊 The sea waits for you, {ctx.author.mention}. "
+                    f"Come back when you're ready.",
+                    delete_after=10,
+                )
+                return
+
+            # Generate instantly in memory — no I/O, no Discord calls yet
+            character = WheelEngine.generate_character(
+                user_id=ctx.author.id,
+                guild_id=ctx.guild.id,
+                display_name=ctx.author.display_name,
             )
-            return
 
-        with suppress(discord.HTTPException):
-            await confirm_msg.delete()
+            # Animate the reveal (~6.5s wall time, rate-limit safe)
+            await CharacterAnimator.animate_roll(ctx, character)
 
-        if str(reaction.emoji) == "❌":
-            await ctx.send(
-                f"🌊 The sea waits for you, {ctx.author.mention}. "
-                f"Come back when you're ready.",
-                delete_after=10,
+            # Persist AFTER animation completes.
+            # If the animation crashes mid-way, the user sees nothing and can re-roll.
+            # If we saved first, a failed animation would lock them out permanently.
+            await self._save_character(ctx.author, character)
+
+            log.info(
+                "Character generated — user=%s (%s) guild=%s (%s)",
+                ctx.author.display_name, ctx.author.id,
+                ctx.guild.name, ctx.guild.id,
             )
-            return
-
-        # Generate instantly in memory — no I/O, no Discord calls yet
-        character = WheelEngine.generate_character(
-            user_id=ctx.author.id,
-            guild_id=ctx.guild.id,
-            display_name=ctx.author.display_name,
-        )
-
-        # Animate the reveal (~6.5s wall time, rate-limit safe)
-        await CharacterAnimator.animate_roll(ctx, character)
-
-        # Persist AFTER animation completes.
-        # If the animation crashes mid-way, the user sees nothing and can re-roll.
-        # If we saved first, a failed animation would lock them out permanently.
-        await self._save_character(ctx.author, character)
-
-        log.info(
-            "Character generated — user=%s (%s) guild=%s (%s)",
-            ctx.author.display_name, ctx.author.id,
-            ctx.guild.name, ctx.guild.id,
-        )
 
     @commands.command(name="mychar")
     @commands.guild_only()
