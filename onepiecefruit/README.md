@@ -1,114 +1,85 @@
 # OnePieceFruit 🍎
 
-A Red-DiscordBot companion cog for [vertyco's LevelUp](https://github.com/vertyco/vrt-cogs).
-
-Assigns Devil Fruits to users as they level up, tracks awakenings, and lets users reroll using your server's Beri economy.
-
----
+A Red-DiscordBot companion cog for [vertyco's LevelUp](https://github.com/vertyco/vrt-cogs). It assigns Devil Fruits as members level up, tracks awakenings, supports Beri rerolls and duels, and includes a Pirate Rep leaderboard.
 
 ## Requirements
 
-- Red-DiscordBot v3.5+
-- vertyco's `LevelUp` cog installed and loaded
-- Red's built-in `bank` system, or optional `BeriCog` / `BeriCore` support for custom Beri economies
-
----
+- Red-DiscordBot 3.5 or newer
+- vertyco's LevelUp cog (needed for automatic fruit assignment)
+- Red's built-in bank, or an installed Beri economy cog
+- Python package `pydantic>=2.0`
 
 ## Installation
 
-```
+```text
 [p]repo add ults https://github.com/AfterWorld/ultcogs
 [p]cog install ults onepiecefruit
 [p]load onepiecefruit
 ```
 
----
+## Fruit progression
 
-## How It Works
+The cog listens for LevelUp's `on_levelup` event (`bot.dispatch("levelup", guild, member, level, channel)`). Level jumps are handled, so members who pass a milestone between events still receive the relevant rewards.
 
-The cog listens for LevelUp's `on_levelup` event, which is dispatched as:
+| Level | Reward |
+|---|---|
+| 5 | Random Devil Fruit |
+| 50 | Stage 1 Awakening |
+| 100 | Full Awakening |
 
-```python
-bot.dispatch("levelup", guild, member, level, channel)
-```
-
-### Devil Fruit Milestones
-
-| Level | Event |
-|-------|-------|
-| 5     | 🍎 Random Devil Fruit assigned |
-| 50    | ⚡ Stage 1 Awakening unlocked |
-| 100   | 🌟 Full Awakening achieved |
-
-### Rarity Tiers
-
-| Tier | Drop Chance | Count |
-|------|-------------|-------|
-| 🔵 Paramecia | 50% | 34 fruits |
-| 🟢 Zoan | 25% | 7 fruits |
-| 🟠 Logia | 15% | 11 fruits |
-| 🟤 Ancient Zoan | 7% | 6 fruits |
-| 🟣 Mythical Zoan | 2.5% | 6 fruits |
-| ⭐ Legendary | 0.5% | 5 fruits |
-
-### Reroll Costs (Beri)
-
-| Reroll # | Cost |
-|----------|------|
-| 1st | 10,000 |
-| 2nd | 25,000 |
-| 3rd | 50,000 |
-| 4th | 100,000 |
-| 5th | 200,000 |
-| 6th | 350,000 |
-| 7th | 500,000 |
-| 8th | 750,000 |
-| 9th | 1,000,000 |
-| 10th | 1,500,000 |
-
-Costs continue rising by about ×1.5 after the 10th reroll.
-
-Rerolling **resets awakening stage to 0** — you start fresh with the new fruit.
-
----
+Rarity weights are Paramecia 50%, Zoan 25%, Logia 15%, Ancient Zoan 7%, Mythical Zoan 2.5%, and Legendary 0.5%. Rerolls use an escalating Beri cost; some current fruit types grant discounts or daily stipends. Fruit abilities are profile flavor text and do not modify combat stats.
 
 ## Commands
 
-### User Commands
+Replace `[p]` with your configured Red prefix. The `df` alias is available for `devilfruit`.
+
+### Member commands
 
 | Command | Description |
-|---------|-------------|
-| `[p]df info [member]` | Show your (or another's) Devil Fruit |
-| `[p]df toggle [on/off]` | Enable or disable your fruit embed on `[p]profile` / `[p]pf` |
-| `[p]df search <term>` | Search Devil Fruits by partial name |
-| `[p]df top` | Show the server's top Pirate Rep leaders |
-| `[p]df duel <member> [wager]` | Challenge another member to a Devil Fruit duel |
-| `[p]df rep` | Show your full Pirate Rep card (or another member's). Inactivity can cause rep decay after one week away. |
-| `[p]df reroll` | Reroll your fruit for Beri |
-| `[p]df list` | Show all fruit users in the server |
-| `[p]df types` | Show rarity tiers and drop chances |
-| `[p]df browse [rarity]` | Browse fruits by rarity type |
+|---|---|
+| `[p]df info [member]` | View a Devil Fruit and Pirate Rep profile |
+| `[p]df toggle [on\|off]` | Show or hide your fruit card after LevelUp profile commands |
+| `[p]df search <term>` | Search the fruit catalog |
+| `[p]df browse [rarity\|event]` | Browse a rarity or active event pool |
+| `[p]df types` | Show rarity weights and fruit counts |
+| `[p]df reroll` | Confirm and pay to replace your fruit |
+| `[p]df rerollcost [member]` | Preview upcoming base reroll costs |
+| `[p]df list` | List the server's Devil Fruit users |
+| `[p]df duel <member> [wager]` | Challenge a fruit owner; the target must accept a wager |
+| `[p]df rep [member]` | View a Pirate Rep card |
+| `[p]df top` | Show the Pirate Rep leaderboard |
+| `[p]df weekly` | Show this week's message leaderboard |
+| `[p]df streak` | Show active Pirate Rep streaks |
+| `[p]rollchar` | Roll a permanent, standalone One Piece character sheet |
+| `[p]mychar` | View your character sheet |
+| `[p]charinfo <member>` | View another member's character sheet |
 
-Aliases: `[p]devilfruit` = `[p]df`
+Pirate Rep counts at most one message per member every 30 seconds. The bot does not store message text.
 
-### Admin Commands (requires Administrator)
+The character generator is a standalone roleplay roll. Its Devil Fruit result does not change or follow the member's `[p]df` assignment or rerolls.
+
+### Administrator commands
+
+The `[p]df admin` group requires Administrator permission or the matching Red permissions.
 
 | Command | Description |
-|---------|-------------|
-| `[p]df admin assign <member> [fruit_name]` | Assign a specific or random fruit |
-| `[p]df admin reset <member>` | Remove a member's fruit data |
-| `[p]df admin awaken <member> <0\|1\|2>` | Manually set awakening stage |
-| `[p]df admin resetrerolls <member>` | Reset reroll counter to 0 |
-| `[p]df admin rankchannel [#channel]` | Set or view Pirate rank announcement channel |
-| `[p]df admin event [name|off]` | Enable or disable a seasonal Devil Fruit event |
+|---|---|
+| `[p]df admin assign <member> [fruit]` | Assign a selected or random fruit |
+| `[p]df admin reset <member>` | Remove a member's fruit record |
+| `[p]df admin awaken <member> <0\|1\|2>` | Set awakening stage |
+| `[p]df admin resetrerolls <member>` | Reset the reroll count and price tier |
+| `[p]df admin setrep <member> <rep>` | Set Pirate Rep |
+| `[p]df admin setrank <member> <rank>` | Set Rep to a rank's minimum |
+| `[p]df admin resetrep <member>` | Remove a member's Rep history |
+| `[p]df admin rankchannel [#channel]` | Set or view rank-up announcements |
+| `[p]df admin event [name\|off]` | Set or clear the event fruit pool |
+| `[p]df admin giveaway <amount> [winners] [rarity]` | Give Beri to random eligible fruit owners |
+| `[p]df admin audit [member] [limit]` | View recent administrative audit entries |
+| `[p]df admin clearaudit` | Confirm and clear this server's audit entries |
+| `[p]df admin bulkassign` | Backfill fruit and awakening data from LevelUp |
+| `[p]df admin info <member>` | View detailed fruit, Rep, and audit data |
+| `[p]chardelete <member>` | Delete a character sheet and allow a new roll |
 
----
+## Data
 
-## Notes
-
-- Users cannot have two Devil Fruits — rerolling replaces the old one permanently.
-- Awakening stage is tied to the **current fruit** — rerolling resets it.
-- Seasonal events can be enabled with `[p]df admin event <name>` to draw from a limited-time event fruit pool.
-- The cog stores data in `cog_data_path/onepiecefruit.json`.
-- Fruit descriptions are flavor text only — no actual game mechanics are modified.
-- Certain rarity fruits now grant small Beri perks, like reroll discounts and daily Beri stipends.
+Fruit progression and audit data are stored in the cog data directory; Pirate Rep uses a separate file, and character sheets use Red Config. Red's user-data deletion request removes a user's records from these stores. The cog stores user IDs, progression choices, reroll history, message counts and dates, and audit actions; it does not store message content.

@@ -25,6 +25,8 @@ import asyncio
 import json
 import logging
 import math
+import os
+import tempfile
 from dataclasses import dataclass, field, asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -34,6 +36,21 @@ import discord
 from redbot.core import commands
 
 log = logging.getLogger("red.onepiecefruit.piraterep")
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
 
 # ---------------------------------------------------------------------------
 # Rank ladder  (min_rep → title, emoji)
@@ -81,6 +98,7 @@ STREAK_MILESTONES: dict[int, int] = {
 INACTIVITY_DECAY_DAYS = 7
 INACTIVITY_DECAY_RATE = 0.05
 INACTIVITY_DECAY_MIN = 10
+MESSAGE_COOLDOWN_SECONDS = 30
 
 # Weekly activity badges (weekly msg count → badge label)
 WEEKLY_BADGES: list[tuple[int, str]] = [
@@ -171,6 +189,7 @@ def _weekly_rep_bonus(weekly_msgs: int) -> int:
 class UserRepData:
     total_messages: int = 0
     weekly_messages: int = 0
+    last_rep_message_at: float = 0.0
     current_week: str = ""          # ISO week key when weekly_messages was last updated
     streak: int = 0
     longest_streak: int = 0
@@ -188,6 +207,7 @@ class UserRepData:
         return cls(
             total_messages=d.get("total_messages", 0),
             weekly_messages=d.get("weekly_messages", 0),
+            last_rep_message_at=d.get("last_rep_message_at", 0.0),
             current_week=d.get("current_week", ""),
             streak=d.get("streak", 0),
             longest_streak=d.get("longest_streak", 0),
@@ -270,6 +290,8 @@ class RepTracker:
         self._io_lock = asyncio.Lock()
         self._dirty = False
         self._save_task: Optional[asyncio.Task] = None
+        self._version = 0
+        self._closing = False
 
     async def load(self) -> None:
         if self._path.exists():
@@ -282,16 +304,45 @@ class RepTracker:
     async def save(self) -> None:
         async with self._io_lock:
             try:
-                await asyncio.to_thread(self._db.to_file, self._path)
+                version = self._version
+                payload = json.dumps(self._db.to_dict(), indent=2)
+                await asyncio.to_thread(_write_text_atomic, self._path, payload)
+                if self._version == version:
+                    self._dirty = False
             except Exception as exc:
                 log.error("PirateRep: failed to save.", exc_info=exc)
 
     async def _debounced_save(self) -> None:
-        await asyncio.sleep(30)
-        if self._dirty:
-            await self.save()
-            self._dirty = False
-        self._save_task = None
+        try:
+            await asyncio.sleep(30)
+            if self._dirty:
+                await self.save()
+        finally:
+            self._save_task = None
+            if self._dirty and not self._closing:
+                self._schedule_save()
+
+    async def close(self) -> None:
+        """Cancel the debounce timer and flush pending reputation changes."""
+        self._closing = True
+        task = self._save_task
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        await self.save()
+
+    def delete_user(self, user_id: int) -> None:
+        key = str(user_id)
+        changed = False
+        for guild in self._db.guilds.values():
+            changed = guild.users.pop(key, None) is not None or changed
+        if changed:
+            self._version += 1
+            self._dirty = True
+            self._schedule_save()
 
     def _schedule_save(self) -> None:
         if self._save_task is None or self._save_task.done():
@@ -319,6 +370,11 @@ class RepTracker:
         week = _week_key(today)
         g = self._db.get_guild(guild_id)
         u = g.get_user(user_id)
+
+        now = datetime.now(timezone.utc).timestamp()
+        if now - u.last_rep_message_at < MESSAGE_COOLDOWN_SECONDS:
+            return None
+        u.last_rep_message_at = now
 
         old_title, old_emoji = _rank_for_rep(u.rep)
         decay_amount = 0
@@ -378,6 +434,7 @@ class RepTracker:
             promotion = (old_title, old_emoji, new_title, new_emoji, u.rep)
 
         # save is deferred and debounced to avoid excessive disk writes
+        self._version += 1
         self._dirty = True
         self._schedule_save()
 
@@ -532,5 +589,6 @@ class RepTracker:
             embed.set_footer(text=f"Last active: {u.last_seen}")
 
         return embed
+
 
 
