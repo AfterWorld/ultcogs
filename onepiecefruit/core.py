@@ -86,6 +86,9 @@ RARITY_EMOJIS: dict[str, str] = {
 }
 
 MAX_AUDIT_ENTRIES_PER_GUILD = 1_000
+ADMIN_ASSIGN_MIN_ROLLS = 2
+ADMIN_ASSIGN_MAX_ROLLS = 10
+ADMIN_ASSIGN_DEFAULT_ROLLS = 6
 
 AWAKENING_LABELS = {0: "Base Form", 1: "Awakening — Stage 1", 2: "Full Awakening"}
 
@@ -1353,17 +1356,35 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
         *,
         fruit_name: t.Optional[str] = None,
     ) -> None:
-        """Assign (or randomly assign) a Devil Fruit to a member."""
+        """Assign a fruit, or roll randomly with an optional reveal count.
+
+        A numeric argument controls the number of reveal steps (2–10).
+        A fruit name assigns that fruit directly; omitting the argument rolls
+        randomly with the default reveal count.
+        """
         async with self._user_lock(ctx.guild.id, member.id):
             guild_data = self.db.get_guild(ctx.guild.id)
+            roll_count = 0
 
             if fruit_name:
-                matches = search_fruits(fruit_name)
-                if not matches:
-                    return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
-                rarity, fruit = matches[0]
+                try:
+                    requested_rolls = int(fruit_name.strip())
+                except ValueError:
+                    matches = search_fruits(fruit_name)
+                    if not matches:
+                        return await ctx.send(f"❌ No fruit found matching `{fruit_name}`. Check `.df browse`.")
+                    rarity, fruit = matches[0]
+                else:
+                    if not ADMIN_ASSIGN_MIN_ROLLS <= requested_rolls <= ADMIN_ASSIGN_MAX_ROLLS:
+                        return await ctx.send(
+                            f"❌ Roll count must be between {ADMIN_ASSIGN_MIN_ROLLS} "
+                            f"and {ADMIN_ASSIGN_MAX_ROLLS}."
+                        )
+                    rarity, fruit = _draw_fruit()
+                    roll_count = requested_rolls
             else:
                 rarity, fruit = _draw_fruit()
+                roll_count = ADMIN_ASSIGN_DEFAULT_ROLLS
 
             user_data = UserFruitData(
                 fruit_name=fruit["name"],
@@ -1379,7 +1400,39 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
             )
 
             embed = _build_fruit_embed(member, user_data, title_prefix="🍎 Admin Assigned: ")
-            await ctx.send(embed=embed)
+            announcement = (
+                f"🎉 {member.mention} has been assigned **{fruit['name']}** ({rarity})!"
+            )
+
+            if not roll_count:
+                await ctx.send(content=announcement, embed=embed)
+                return
+
+            rolling_message = await ctx.send(f"🎰 Rolling a Devil Fruit for {member.mention}...")
+            fruit_pool = [
+                (fruit_type, candidate)
+                for fruit_type, candidates in DEVIL_FRUITS.items()
+                for candidate in candidates
+            ]
+            try:
+                for step in range(roll_count):
+                    if step == roll_count - 1:
+                        reveal_rarity, reveal_fruit = rarity, fruit
+                    else:
+                        reveal_rarity, reveal_fruit = random.choice(fruit_pool)
+                    emoji = RARITY_EMOJIS.get(reveal_rarity, "🍎")
+                    await rolling_message.edit(
+                        content=(
+                            f"🎰 Rolling a Devil Fruit for {member.mention}...\n"
+                            f"{emoji} **{reveal_fruit['name']}**"
+                        )
+                    )
+                    if step < roll_count - 1:
+                        await asyncio.sleep(0.55)
+                await rolling_message.edit(content=announcement, embed=embed)
+            except discord.HTTPException:
+                log.warning("OnePieceFruit: assignment reveal failed; sending final result instead.", exc_info=True)
+                await ctx.send(content=announcement, embed=embed)
 
     @df_admin.command(name="reset")
     async def df_admin_reset(self, ctx: commands.Context, member: discord.Member) -> None:

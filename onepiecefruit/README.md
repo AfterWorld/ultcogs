@@ -64,7 +64,7 @@ The `[p]df admin` group requires Administrator permission or the matching Red pe
 
 | Command | Description |
 |---|---|
-| `[p]df admin assign <member> [fruit]` | Assign a selected or random fruit |
+| `[p]df admin assign <member> [fruit|rolls]` | Assign a named fruit, or randomly roll and reveal the result (default 6 steps; set 2–10 steps with a number) |
 | `[p]df admin reset <member>` | Remove a member's fruit record |
 | `[p]df admin awaken <member> <0\|1\|2>` | Set awakening stage |
 | `[p]df admin resetrerolls <member>` | Reset the reroll count and price tier |
