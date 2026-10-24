@@ -1423,7 +1423,7 @@ class OnePieceFruit(CharGenMixin, commands.Cog):
                     emoji = RARITY_EMOJIS.get(reveal_rarity, "🍎")
                     await rolling_message.edit(
                         content=(
-                            f"🎰 Rolling a Devil Fruit for {member.mention}...\\n"
+                            f"🎰 Rolling a Devil Fruit for {member.mention}...\n"
                             f"{emoji} **{reveal_fruit['name']}**"
                         )
                     )
