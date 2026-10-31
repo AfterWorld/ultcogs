@@ -8,7 +8,7 @@
     "required_cogs": {},
     "requirements": [],
     "tags": ["economy", "beri", "bericore", "one piece", "balance", "core"],
-    "min_bot_version": "3.5.0",
+    "min_bot_version": "3.5.24",
     "min_python_version": [3, 11, 0],
     "hidden": false
 }

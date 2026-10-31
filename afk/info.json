@@ -14,5 +14,7 @@
         "pirate",
         "anime",
         "rpg"
-    ]
+    ],
+    "end_user_data_statement": "Stores each member's AFK status, reason, image URL and start time, per server. It does not implement Red's data deletion requests.",
+    "min_bot_version": "3.5.24"
 }

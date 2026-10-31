@@ -5,5 +5,6 @@
     "short": "One Piece CrewBattle game.",
     "tags": ["game", "fun", "One Piece"],
     "type": "COG",
-    "end_user_data_statement": "This cog does not store any end-user data."
+    "end_user_data_statement": "This cog does not store any end-user data.",
+    "min_bot_version": "3.5.24"
 }

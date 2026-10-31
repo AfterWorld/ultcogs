@@ -15,7 +15,7 @@
     "beri",
     "punish"
   ],
-  "min_bot_version": "3.5.0",
+  "min_bot_version": "3.5.24",
   "hidden": false,
   "disabled": false,
   "type": "COG"

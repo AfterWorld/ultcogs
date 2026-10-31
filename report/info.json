@@ -5,7 +5,7 @@
     "author": ["RedBot Community"],
     "requirements": [],
     "tags": ["moderation", "reports", "staff", "utility", "context-menu"],
-    "min_bot_version": "3.5.0",
+    "min_bot_version": "3.5.24",
     "min_python_version": [3, 8, 0],
     "type": "COG",
     "end_user_data_statement": "This cog stores user report counts, warning history, and blacklist status. No data is shared with third parties.",

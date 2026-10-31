@@ -1,0 +1,21 @@
+{
+    "author": [
+        "AfterWorld"
+    ],
+    "name": "DeathBattle",
+    "short": "A battle system with Devil Fruits and Berris currency.",
+    "description": "Battle other members with Devil Fruits and earn Berris.",
+    "install_msg": "Thanks for installing DeathBattle! Load it with `[p]load BB`.",
+    "tags": [
+        "game",
+        "battle",
+        "onepiece"
+    ],
+    "requirements": [
+        "requests",
+        "Pillow"
+    ],
+    "min_bot_version": "3.5.24",
+    "type": "COG",
+    "end_user_data_statement": "Stores each member's battle stats, bank balance, Devil Fruit, start status and cooldown times, plus user IDs of rare fruit owners, per server. It does not implement Red's data deletion requests."
+}

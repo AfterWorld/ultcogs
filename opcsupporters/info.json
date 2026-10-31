@@ -6,7 +6,7 @@
   "install_msg": "Thanks for installing OPC Server Supporters! This cog is based on AAA3A's original ServerSupporters design. Use `[p]setopcsupporters` to configure the announcement channel and enable the system. Don't forget to run `[p]setopcsupporters scan` once after setup to initialize tracking!",
   "tags": ["utility", "announcements", "community", "supporters", "onepiece"],
   "requirements": [],
-  "min_bot_version": "3.5.0",
+  "min_bot_version": "3.5.24",
   "end_user_data_statement": "This cog stores guild configuration data (enabled status, announcement channel ID) and temporarily caches member supporter status to prevent spam. No personal user data is permanently stored. All data is automatically cleared when the cog is unloaded.",
   "hidden": false,
   "disabled": false,

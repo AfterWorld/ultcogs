@@ -6,7 +6,7 @@
         "UltPanda"
     ],
     "requirements": [],
-    "min_bot_version": "3.5.0",
+    "min_bot_version": "3.5.24",
     "min_python_version": [3, 8, 0],
     "type": "COG",
     "install_msg": "🏴‍☠️ **One Piece Question Imposters installed successfully!** ⚓\n\nSet sail on an adventure of deduction and One Piece knowledge!\n\n**Quick Start:**\n• Use `[p]onepiece start` to begin a game\n• Use `[p]onepiece categories` to see question topics\n• Use `[p]onepiece help` for full instructions\n\n**How to Play:**\n1. Players join with ⚓ reactions\n2. Answer One Piece questions in DMs\n3. Some players get different questions (imposters!)\n4. Vote to identify the imposters\n5. Earn points and have fun!\n\n🌟 **Special Features:**\n• 50+ One Piece questions across 10+ categories\n• Rare chaos rounds where everyone gets different questions\n• Score tracking and leaderboards\n• Configurable game settings\n\nMay your journey on the Grand Line be legendary! 🗺️",

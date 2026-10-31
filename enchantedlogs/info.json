@@ -5,8 +5,9 @@
     "short": "Enhanced moderation logs with interactive components",
     "tags": ["moderation", "logs", "buttons", "modlog", "bans", "mutes"],
     "requirements": [],
-    "min_bot_version": "3.5.0",
+    "min_bot_version": "3.5.24",
     "hidden": false,
     "disabled": false,
-    "type": "COG"
+    "type": "COG",
+    "end_user_data_statement": "Stores only per-server settings. It stores no end-user data."
 }

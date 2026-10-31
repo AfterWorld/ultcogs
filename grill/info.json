@@ -4,7 +4,7 @@
     "description": "Add some flair to your moderation with a dramatic 10-second countdown before banning users. Simple and effective with safety checks.",
     "author": ["AfterWorld"],
     "requirements": [],
-    "min_bot_version": "3.5.0",
+    "min_bot_version": "3.5.24",
     "min_python_version": [3, 8, 0],
     "type": "COG",
     "install_msg": "Thanks for installing Grilled from UltCogs! Use `[p]grill @user [reason]` to ban with a dramatic 10-second countdown. Use `[p]help grill` for more info.",

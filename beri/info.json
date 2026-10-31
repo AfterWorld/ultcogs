@@ -1,0 +1,18 @@
+{
+    "author": [
+        "AfterWorld"
+    ],
+    "name": "BeriCog",
+    "short": "Economy games and income built on BeriCore.",
+    "description": "Casino games, work, fishing, treasure maps and income. Balances are held by the BeriCore cog, which must be loaded.",
+    "install_msg": "Thanks for installing BeriCog! Install and load the BeriCore cog first, as it holds all balances.",
+    "tags": [
+        "economy",
+        "games",
+        "onepiece"
+    ],
+    "requirements": [],
+    "min_bot_version": "3.5.24",
+    "type": "COG",
+    "end_user_data_statement": "Stores each member's income and collection times, treasure maps, vault and fishing data per server, lottery tickets, and a global audit log containing user IDs. It does not implement Red's data deletion requests."
+}
