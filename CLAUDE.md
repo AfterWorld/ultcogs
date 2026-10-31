@@ -87,8 +87,9 @@ These are Red-DiscordBot 3.5 cogs. Convert prefix commands to `commands.hybrid_c
 - Discord allows only 100 top-level slash commands per bot, so each cog exposes at most one top-level hybrid group, with its commands as subcommands.
 - Every slash parameter gets a short description using `@app_commands.describe`.
 - Owner-only and admin setup commands may stay prefix-only.
-- Do not change command behavior, Config keys, or data formats.
-- When a cog is converted, set `min_bot_version` in its `info.json` to at least 3.5.0.
+- Do not change command behavior, Config keys, or data formats. Fixing a crash, a deprecated API or wrong displayed times is an allowed exception to the command behavior rule.
+- When a cog is converted, set `min_bot_version` in its `info.json` to 3.5.24.
+- When a cog is converted, also fix its deprecated APIs (e.g. `datetime.utcnow()`).
 - Flag any command that doesn't translate cleanly (variable arguments, free-text parsing, attachments) instead of guessing.
 - Work on one cog at a time and stop for review after each.
 
