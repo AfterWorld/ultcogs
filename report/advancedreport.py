@@ -43,7 +43,7 @@ class ReportView(discord.ui.View):
             
             # Use Discord's built-in timeout
             await reported_user.timeout(
-                discord.utils.utcnow() + discord.timedelta(minutes=duration_minutes), 
+                discord.utils.utcnow() + timedelta(minutes=duration_minutes), 
                 reason=f"Report action by {interaction.user}"
             )
             
@@ -363,8 +363,6 @@ class AdvancedReport(red_commands.Cog):
         """Called when the cog is loaded"""
         # Initialize any async setup here
         try:
-            # Add persistent view for button interactions
-            self.bot.add_view(ReportView(self, {}))
             log.info("AdvancedReport cog loaded successfully")
             
             # Register context menu command
