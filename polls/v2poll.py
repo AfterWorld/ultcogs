@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union, Tuple
 from datetime import datetime, timedelta
 import json
 
+from discord import app_commands
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
@@ -20,6 +21,21 @@ GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO_OWNER}/{GITHU
 
 # Component V2 flag
 IS_COMPONENTS_V2 = 1 << 15
+
+
+def _option_descriptions(count: int) -> Dict[str, str]:
+    """Build @app_commands.describe entries for option1..optionN."""
+    return {f"option{i}": f"Voting option {i}" for i in range(1, count + 1)}
+
+
+class MessageIDConverter(commands.Converter):
+    """Parse a message ID; slash integer options cannot hold snowflakes, so this is a string option."""
+
+    async def convert(self, ctx: commands.Context, argument: str) -> int:
+        try:
+            return int(argument)
+        except ValueError:
+            raise commands.BadArgument('Converting to "int" failed for parameter "message_id".')
 
 
 class V2Poll(commands.Cog):
@@ -159,16 +175,47 @@ class V2Poll(commands.Cog):
             "options": select_options
         }
 
-    @commands.group()
+    @commands.hybrid_group()
     @commands.guild_only()
     async def poll(self, ctx: commands.Context):
         """Commands for creating and managing interactive polls with sprites."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help()
 
-    @poll.command(name="create")
+    @staticmethod
+    def _gather_options(ctx: commands.Context, *slots: Optional[str]) -> List[str]:
+        """Collect set option slots; prefix words past the last slot still count, as with *options."""
+        options = [option for option in slots if option is not None]
+        if ctx.interaction is None:
+            ctx.view.skip_ws()
+            while not ctx.view.eof:
+                options.append(ctx.view.get_quoted_word())
+                ctx.view.skip_ws()
+        return options
+
+    @poll.command(name="create", usage="<title> [duration] [options...]")
     @commands.guild_only()
-    async def poll_create(self, ctx: commands.Context, title: str, duration: Optional[int] = None, *options):
+    @app_commands.describe(
+        title="The title or question for the poll",
+        duration="Duration in minutes (defaults to the server setting)",
+        **_option_descriptions(10),
+    )
+    async def poll_create(
+        self,
+        ctx: commands.Context,
+        title: str,
+        duration: Optional[int] = None,
+        option1: Optional[str] = None,
+        option2: Optional[str] = None,
+        option3: Optional[str] = None,
+        option4: Optional[str] = None,
+        option5: Optional[str] = None,
+        option6: Optional[str] = None,
+        option7: Optional[str] = None,
+        option8: Optional[str] = None,
+        option9: Optional[str] = None,
+        option10: Optional[str] = None,
+    ):
         """Create a new poll with interactive voting components.
         
         Examples:
@@ -180,6 +227,15 @@ class V2Poll(commands.Cog):
         - duration: Optional duration in minutes (default: 60)
         - options: The voting options (at least 2, maximum 10)
         """
+        await ctx.defer()
+        options = self._gather_options(
+            ctx, option1, option2, option3, option4, option5,
+            option6, option7, option8, option9, option10,
+        )
+        await self._create_poll(ctx, title, duration, options)
+
+    async def _create_poll(self, ctx: commands.Context, title: str, duration: Optional[int], options: List[str]):
+        """Create a button poll from already collected options."""
         if not options or len(options) < 2:
             return await ctx.send("You need to provide at least 2 options for the poll.")
         
@@ -482,6 +538,10 @@ class V2Poll(commands.Cog):
 
     @poll.command(name="sprite")
     @commands.guild_only()
+    @app_commands.describe(
+        title="The title or question for the poll",
+        duration="Duration in minutes (defaults to the server setting)",
+    )
     async def poll_sprite(self, ctx: commands.Context, title: str, duration: Optional[int] = None):
         """Create a poll using random character sprites as options.
         
@@ -493,6 +553,8 @@ class V2Poll(commands.Cog):
         - title: The title/question for the poll
         - duration: Optional duration in minutes (default: 60)
         """
+        await ctx.defer()
+
         # Get random sprites
         sprites = await self.get_random_sprites(count=4)
         
@@ -503,7 +565,7 @@ class V2Poll(commands.Cog):
         options = [sprite["display_name"] for sprite in sprites]
         
         # Call the regular poll create command
-        await self.poll_create(ctx, title, duration, *options)
+        await self._create_poll(ctx, title, duration, options)
 
     async def _end_poll_timer(self, guild_id: int, message_id: int, duration: int):
         """Timer to end the poll after the specified duration."""
@@ -722,12 +784,15 @@ class V2Poll(commands.Cog):
     @poll.command(name="end")
     @commands.guild_only()
     @commands.mod_or_permissions(manage_messages=True)
-    async def poll_end(self, ctx: commands.Context, message_id: int):
+    @app_commands.describe(message_id="The ID of the poll message")
+    async def poll_end(self, ctx: commands.Context, message_id: MessageIDConverter):
         """End a poll early.
-        
+
         Arguments:
         - message_id: The ID of the poll message
         """
+        await ctx.defer()
+
         polls = await self.config.guild(ctx.guild).polls()
         
         if str(message_id) not in polls:
@@ -743,7 +808,7 @@ class V2Poll(commands.Cog):
         
         await ctx.send("Poll ended successfully.")
 
-    @poll.group(name="settings")
+    @poll.group(name="settings", with_app_command=False)
     @commands.guild_only()
     @commands.admin_or_permissions(manage_guild=True)
     async def poll_settings(self, ctx: commands.Context):
@@ -768,7 +833,7 @@ class V2Poll(commands.Cog):
             
             await ctx.send(embed=embed)
 
-    @poll_settings.command(name="duration")
+    @poll_settings.command(name="duration", with_app_command=False)
     @commands.guild_only()
     @commands.admin_or_permissions(manage_guild=True)
     async def poll_settings_duration(self, ctx: commands.Context, minutes: int):
@@ -783,7 +848,7 @@ class V2Poll(commands.Cog):
         await self.config.guild(ctx.guild).settings.default_duration.set(minutes)
         await ctx.send(f"Default poll duration set to {minutes} minutes.")
 
-    @poll_settings.command(name="sprites")
+    @poll_settings.command(name="sprites", with_app_command=False)
     @commands.guild_only()
     @commands.admin_or_permissions(manage_guild=True)
     async def poll_settings_sprites(self, ctx: commands.Context, enabled: bool = None):
@@ -803,12 +868,15 @@ class V2Poll(commands.Cog):
 
     @poll.command(name="sprites")
     @commands.guild_only()
+    @app_commands.describe(force_refresh="Refresh the sprite cache from GitHub first")
     async def poll_sprites(self, ctx: commands.Context, force_refresh: bool = False):
         """List all available character sprites for polls.
-        
+
         Arguments:
         - force_refresh: Set to True to force refresh the sprite cache
         """
+        await ctx.defer()
+
         # Fetch available sprites
         sprites = await self.fetch_available_sprites(force_refresh=force_refresh)
         
@@ -857,14 +925,47 @@ class V2Poll(commands.Cog):
         
         if options:
             # Pass to the main poll creation command
-            await self.poll_create(ctx, title, duration, *options)
+            await self._create_poll(ctx, title, duration, list(options))
         else:
             # Use random sprites
             await self.poll_sprite(ctx, title, duration)
 
-    @poll.command(name="dropdown")
+    @poll.command(name="dropdown", usage="<title> [duration] [options...]")
     @commands.guild_only()
-    async def poll_dropdown(self, ctx: commands.Context, title: str, duration: Optional[int] = None, *options):
+    @app_commands.describe(
+        title="The title or question for the poll",
+        duration="Duration in minutes (defaults to the server setting)",
+        **_option_descriptions(23),
+    )
+    async def poll_dropdown(
+        self,
+        ctx: commands.Context,
+        title: str,
+        duration: Optional[int] = None,
+        option1: Optional[str] = None,
+        option2: Optional[str] = None,
+        option3: Optional[str] = None,
+        option4: Optional[str] = None,
+        option5: Optional[str] = None,
+        option6: Optional[str] = None,
+        option7: Optional[str] = None,
+        option8: Optional[str] = None,
+        option9: Optional[str] = None,
+        option10: Optional[str] = None,
+        option11: Optional[str] = None,
+        option12: Optional[str] = None,
+        option13: Optional[str] = None,
+        option14: Optional[str] = None,
+        option15: Optional[str] = None,
+        option16: Optional[str] = None,
+        option17: Optional[str] = None,
+        option18: Optional[str] = None,
+        option19: Optional[str] = None,
+        option20: Optional[str] = None,
+        option21: Optional[str] = None,
+        option22: Optional[str] = None,
+        option23: Optional[str] = None,
+    ):
         """Create a poll with a dropdown menu for voting.
         
         Examples:
@@ -874,8 +975,15 @@ class V2Poll(commands.Cog):
         Arguments:
         - title: The title/question for the poll
         - duration: Optional duration in minutes (default: 60)
-        - options: The voting options (at least 2, maximum 25)
+        - options: The voting options (at least 2, maximum 25; slash commands fit 23)
         """
+        await ctx.defer()
+        options = self._gather_options(
+            ctx, option1, option2, option3, option4, option5, option6, option7, option8,
+            option9, option10, option11, option12, option13, option14, option15, option16,
+            option17, option18, option19, option20, option21, option22, option23,
+        )
+
         if not options or len(options) < 2:
             return await ctx.send("You need to provide at least 2 options for the poll.")
         

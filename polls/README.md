@@ -46,6 +46,12 @@ A Red-DiscordBot cog that creates interactive polls using Discord's Components V
 - `[p]poll settings` - Show current poll settings
 - `[p]poll settings duration <minutes>` - Set the default poll duration
 
+### Slash commands
+
+`/poll create`, `/poll dropdown`, `/poll sprite`, `/poll list`, `/poll sprites` and `/poll end` are also available as slash commands. A bot owner enables them with `[p]slash enablecog V2Poll`, then `[p]slash sync`. All other commands are prefix-only.
+
+`/poll create` takes up to 10 options. `/poll dropdown` takes up to 23, because Discord limits a slash command to 25 parameters; the prefix version still takes 25. On Discord every option appears optional, and the "at least 2 options" check runs when the command is submitted.
+
 ## Examples
 
 Create a simple 30-minute poll:
