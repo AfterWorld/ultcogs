@@ -432,7 +432,7 @@ class ConsecutiveFilter(commands.Cog):
         # Skip if this is a command
         try:
             context = await self.bot.get_context(message)
-            if context.valid or await self.bot.is_command(message):
+            if context.valid:
                 return
         except Exception:
             # If there's any error checking for commands, err on the side of caution
