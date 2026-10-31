@@ -8,7 +8,7 @@ import asyncio
 from typing import Dict, List, Optional, Tuple
 import logging
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger("red.ultcogs.buckshot")
 
@@ -59,8 +59,8 @@ class BuckshotGame:
         # Round tracking
         self.round_number = 1
         self.shots_this_round = 0
-        self.start_time = datetime.utcnow()
-        self.last_action_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
+        self.last_action_time = datetime.now(timezone.utc)
         self.turn_count = 0
         
         # Initialize game
@@ -131,7 +131,7 @@ class BuckshotGame:
             self.current_player_index = 1 - self.current_player_index
         
         self.turn_count += 1
-        self.last_action_time = datetime.utcnow()
+        self.last_action_time = datetime.now(timezone.utc)
         self.phase = GamePhase.ITEM_PHASE
         
         # Check for new round
@@ -182,7 +182,7 @@ class BuckshotGame:
         embed = discord.Embed(
             title="🎯 Buckshot Game",
             color=discord.Color.red(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         # Player status
@@ -307,7 +307,7 @@ class Buckshot(commands.Cog):
                 
                 timeout_minutes = await self.config.game_timeout_minutes()
                 timeout_delta = timedelta(minutes=timeout_minutes)
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 
                 # Clean up expired games
                 expired_games = []
@@ -393,7 +393,7 @@ class Buckshot(commands.Cog):
             return await ctx.send(f"❌ Maximum number of games ({max_games}) reached in this channel.")
         
         # Create challenge
-        self.pending_challenges[ctx.channel.id] = (ctx.author, datetime.utcnow())
+        self.pending_challenges[ctx.channel.id] = (ctx.author, datetime.now(timezone.utc))
         
         embed = discord.Embed(
             title="🎯 Buckshot Challenge",
@@ -793,7 +793,7 @@ class Buckshot(commands.Cog):
         )
         
         # Add game statistics
-        game_duration = datetime.utcnow() - game.start_time
+        game_duration = datetime.now(timezone.utc) - game.start_time
         embed.add_field(
             name="📊 Game Stats",
             value=f"**Duration:** {game_duration.seconds // 60}m {game_duration.seconds % 60}s\n"

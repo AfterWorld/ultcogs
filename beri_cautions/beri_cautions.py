@@ -91,7 +91,7 @@ class BeriCautions(commands.Cog):
 
     def _calculate_warning_expiry(self, warning: Dict, expiry_days: int, current_time: Optional[float] = None) -> float:
         """Calculate dynamic warning expiry, accounting for paused caution time."""
-        now = current_time if current_time is not None else datetime.utcnow().timestamp()
+        now = current_time if current_time is not None else datetime.now(timezone.utc).timestamp()
         issue_time = warning.get("timestamp", 0)
         paused_seconds = warning.get("paused_seconds", 0)
         pause_anchor = warning.get("pause_anchor")
@@ -107,7 +107,7 @@ class BeriCautions(commands.Cog):
         if not until_timestamp:
             return
 
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
         if until_timestamp <= current_time:
             return
 
@@ -124,7 +124,7 @@ class BeriCautions(commands.Cog):
 
     async def _release_caution_hold(self, member: discord.Member) -> None:
         """Resume warning expiry countdown when punishment is no longer active."""
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
 
         member_config = self.config.member(member)
         async with member_config.all() as data:
@@ -234,7 +234,7 @@ class BeriCautions(commands.Cog):
                         continue
                         
                     expiry_days = guild_data["warning_expiry_days"]
-                    current_time = datetime.utcnow().timestamp()
+                    current_time = datetime.now(timezone.utc).timestamp()
                     
                     # Get all members with warnings in this guild
                     all_members = await self.config.all_members(guild)
@@ -307,7 +307,7 @@ class BeriCautions(commands.Cog):
                                                 color=0x00ff00
                                             )
                                             embed.add_field(name="Current Points", value=str(total_points))
-                                            embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+                                            embed.set_footer(text=datetime.now(timezone.utc).strftime("%m/%d/%Y %I:%M %p"))
                                             await self.safe_send_message(log_channel, embed=embed)
             
             except Exception as e:
@@ -342,7 +342,7 @@ class BeriCautions(commands.Cog):
                     
                     # Get all members and check their mute status
                     all_members = await self.config.all_members(guild)
-                    current_time = datetime.utcnow().timestamp()
+                    current_time = datetime.now(timezone.utc).timestamp()
                     
                     member_count = 0
                     for member_id, member_data in all_members.items():
@@ -673,7 +673,7 @@ class BeriCautions(commands.Cog):
         hold_until = await member_config.caution_hold_until()
         warnings = await member_config.warnings()
 
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
         hold_active = bool(hold_until and current_time < hold_until)
 
         paused_warnings = 0
@@ -707,7 +707,7 @@ class BeriCautions(commands.Cog):
     async def hold_list(self, ctx):
         """List all members in this server whose warning expiry is currently paused."""
         all_members = await self.config.all_members(ctx.guild)
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
 
         active_holds = []
         for member_id, member_data in all_members.items():
@@ -937,14 +937,14 @@ class BeriCautions(commands.Cog):
         
         # Get warning expiry days first
         expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
         hold_until = await self.config.member(member).caution_hold_until()
         warning = {
             "points": points,
             "reason": reason or "No reason provided",
             "moderator_id": ctx.author.id,
             "timestamp": current_time,
-            "expiry": (datetime.utcnow() + timedelta(days=expiry_days)).timestamp(),
+            "expiry": (datetime.now(timezone.utc) + timedelta(days=expiry_days)).timestamp(),
             "fine_amount": fine_amount,
             "fine_applied": fine_applied,
             "paused_seconds": 0,
@@ -981,7 +981,7 @@ class BeriCautions(commands.Cog):
             exempt_status = "Exempt from fines" if await self._is_fine_exempt(member) else "No fine (0 Beri balance)"
             embed.add_field(name="Fine Status", value=exempt_status, inline=True)
         
-        embed.set_footer(text=datetime.utcnow().strftime("%m/%d/%Y %I:%M %p"))
+        embed.set_footer(text=datetime.now(timezone.utc).strftime("%m/%d/%Y %I:%M %p"))
         
         # Send warning in channel and log
         await self.safe_send_message(ctx.channel, f"{member.mention} has been cautioned.", embed=embed)
@@ -1097,7 +1097,7 @@ class BeriCautions(commands.Cog):
                 
                 # Set muted_until time if duration provided
                 if duration:
-                    muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                    muted_until = datetime.now(timezone.utc) + timedelta(minutes=duration)
                     await self.config.member(member).muted_until.set(muted_until.timestamp())
                     await self._activate_caution_hold(member, muted_until.timestamp())
                 
@@ -1129,7 +1129,7 @@ class BeriCautions(commands.Cog):
                     await self.safe_send_message(ctx.channel, embed=self._quick_embed(f"Cannot auto-timeout {member.mention} as they have moderator/admin permissions.", discord.Color.red()))
                     return
                 
-                until = datetime.utcnow() + timedelta(minutes=duration)
+                until = datetime.now(timezone.utc) + timedelta(minutes=duration)
                 await member.timeout(until=until, reason=reason)
                 
                 embed = discord.Embed(description=f"{member.mention} has been timed out for {duration} minutes.", color=discord.Color.orange())
@@ -1217,7 +1217,7 @@ class BeriCautions(commands.Cog):
             # Check if already muted
             if mute_role in member.roles:
                 # Update duration if already muted
-                muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                muted_until = datetime.now(timezone.utc) + timedelta(minutes=duration)
                 await self.config.member(member).muted_until.set(muted_until.timestamp())
                 await self._activate_caution_hold(member, muted_until.timestamp())
                 desc = f"{member.mention} was already muted. Updated mute duration to end {duration} minutes from now."
@@ -1239,7 +1239,7 @@ class BeriCautions(commands.Cog):
                     log.error(f"Could not apply timeout to {member.id}: {timeout_error}")
                     
                 # Set muted_until time
-                muted_until = datetime.utcnow() + timedelta(minutes=duration)
+                muted_until = datetime.now(timezone.utc) + timedelta(minutes=duration)
                 await self.config.member(member).muted_until.set(muted_until.timestamp())
                 await self._activate_caution_hold(member, muted_until.timestamp())
                 
@@ -1530,7 +1530,7 @@ class BeriCautions(commands.Cog):
             return
 
         member_data = await self.config.member(after).all()
-        current_time = datetime.utcnow().timestamp()
+        current_time = datetime.now(timezone.utc).timestamp()
 
         muted_until = member_data.get("muted_until")
         if not muted_until or current_time >= muted_until:
@@ -1580,7 +1580,7 @@ async def list_warnings(self, ctx, member: Optional[discord.Member] = None):
     total_fines = await self.config.member(member).total_fines_paid()
     expiry_days = await self.config.guild(ctx.guild).warning_expiry_days()
     hold_until = await self.config.member(member).caution_hold_until()
-    current_time = datetime.utcnow().timestamp()
+    current_time = datetime.now(timezone.utc).timestamp()
     hold_active = bool(hold_until and current_time < hold_until)
     
     if not warnings:
@@ -1875,7 +1875,7 @@ async def list_warnings(self, ctx, member: Optional[discord.Member] = None):
                 total_fines = await self.config.member(member).total_fines_paid()
                 expiry_days = await self.config.guild(interaction.guild).warning_expiry_days()
                 hold_until = await self.config.member(member).caution_hold_until()
-                current_time = datetime.utcnow().timestamp()
+                current_time = datetime.now(timezone.utc).timestamp()
                 hold_active = bool(hold_until and current_time < hold_until)
                 
                 if not warnings:
