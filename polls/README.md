@@ -11,8 +11,8 @@ A Red-DiscordBot cog that creates interactive polls with dropdown voting.
 
 ## Requirements
 
-- Red-DiscordBot 3.5.0+
-- Python 3.8+
+- Red-DiscordBot 3.5.24+
+- Python 3.8.1 to 3.11, as required by Red 3.5.24
 
 ## Installation
 
@@ -36,7 +36,6 @@ A Red-DiscordBot cog that creates interactive polls with dropdown voting.
 - `[p]poll create "Question" [duration] option1 option2 ...` - Create a new poll
 - `[p]poll list` - List all active polls on the server
 - `[p]poll end <message_id>` - End a poll early and display results
-- `[p]quickpoll "Question" option1 option2 ...` - Create a poll with default duration
 
 ### Settings
 
@@ -56,11 +55,6 @@ Create a simple 30-minute poll:
 [p]poll create "What's your favorite color?" 30 Red Blue Green Yellow
 ```
 
-Create a quick poll with the server's default duration:
-```
-[p]quickpoll "Best movie?" "The Matrix" "Star Wars" "Inception"
-```
-
 Set the default poll duration to 2 hours:
 ```
 [p]poll settings duration 120
@@ -68,7 +62,7 @@ Set the default poll duration to 2 hours:
 
 ## Notes
 
-- Users can vote by clicking the "Vote" button next to their preferred option
+- Users can vote by choosing their preferred option from the poll's dropdown menu
 - Users can change their vote at any time before the poll ends
 
 ## License

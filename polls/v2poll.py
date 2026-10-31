@@ -36,7 +36,7 @@ class MessageIDConverter(commands.Converter):
 
 
 class V2Poll(commands.Cog):
-    """Create interactive polls using Discord Components V2 with character sprites."""
+    """Create interactive polls with dropdown voting and character sprites."""
 
     def __init__(self, bot: Red):
         self.bot = bot
