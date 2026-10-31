@@ -770,7 +770,7 @@ class BattleCommands(commands.Cog):
             embed = discord.Embed(
                 title="⏰ Confirmation Timeout",
                 description="Removal cancelled due to no response.",
-                color=discord.Color.gray()
+                color=discord.Color.light_grey()
             )
             await message.edit(embed=embed)
 
@@ -893,7 +893,7 @@ class BattleCommands(commands.Cog):
             embed = discord.Embed(
                 title="⏰ Purchase Timeout",
                 description="Purchase cancelled due to no response.",
-                color=discord.Color.gray()
+                color=discord.Color.light_grey()
             )
             await message.edit(embed=embed)
 
