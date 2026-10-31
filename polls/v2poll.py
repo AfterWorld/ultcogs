@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import random
 from typing import Dict, List, Optional, Union, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from discord import app_commands
@@ -248,7 +248,7 @@ class V2Poll(commands.Cog):
             duration = guild_settings["default_duration"]
         
         # Calculate end time
-        end_time = datetime.utcnow() + timedelta(minutes=duration)
+        end_time = datetime.now(timezone.utc) + timedelta(minutes=duration)
         end_timestamp = int(end_time.timestamp())
         
         try:
@@ -597,7 +597,7 @@ class V2Poll(commands.Cog):
             embed = discord.Embed(
                 title=f"📊 Poll Results: {poll_data['title']}",
                 color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             
             # Count votes
@@ -996,7 +996,7 @@ class V2Poll(commands.Cog):
             duration = guild_settings["default_duration"]
         
         # Calculate end time
-        end_time = datetime.utcnow() + timedelta(minutes=duration)
+        end_time = datetime.now(timezone.utc) + timedelta(minutes=duration)
         end_timestamp = int(end_time.timestamp())
         
         try:
