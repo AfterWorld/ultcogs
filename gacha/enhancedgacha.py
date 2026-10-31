@@ -223,7 +223,7 @@ class EnhancedGacha(commands.Cog):
         data = await self.config.member(member).all()
 
         embed = discord.Embed(title=f"{member.display_name}'s Gacha Profile", color=member.color)
-        embed.set_thumbnail(url=member.avatar.url)
+        embed.set_thumbnail(url=member.display_avatar.url)
 
         harem_name = data['haremname'] or "Not set"
         embed.add_field(name="Harem Name", value=harem_name, inline=False)
