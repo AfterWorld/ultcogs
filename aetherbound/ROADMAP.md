@@ -50,8 +50,9 @@ survive restarts; previous Hollow clears unlock tiers without changing active ru
 
 Foraging, Mining and Thieving resolve short, immediate sessions with multiple
 attempts, skill XP, level progression, region gates and audited resource/gold
-rewards. This keeps gathering active rather than time-based. Add richer node
-choices and review reward balance after playtesting.
+rewards. Rewards are capped per session, with eight sessions per UTC day and a
+15-second cooldown. This keeps gathering active rather than time-based. Add richer
+node choices and review reward balance after playtesting.
 
 ## Next: endgame
 

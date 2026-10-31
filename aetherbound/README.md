@@ -9,8 +9,11 @@ better builds. Progress comes from completed encounters, not time spent online.
 After finishing the tutorial, gather with
 `[p]aether gather <foraging|mining|thieving> <glimmerwood|embervein>`.
 Each command resolves several attempts immediately and awards skill XP, materials,
-or gold. Embervein gathering unlocks at hero level 8. There is no wait-to-collect
-timer. Use `[p]aether gather` to view profession levels and the quick-start menu.
+or gold. Gathering has a 15-second cooldown and eight sessions per UTC day. Rewards
+are capped per session: up to two materials or five gold in Glimmerwood, and up to
+three materials or eight gold in Embervein. Embervein unlocks at hero level 8.
+There is no wait-to-collect timer. Use `[p]aether gather` to view skill levels and
+remaining daily sessions.
 
 ## Install and first setup
 

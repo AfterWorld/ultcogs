@@ -261,7 +261,13 @@ class Aetherbound(commands.Cog):
                     value=f"\u0060{ctx.clean_prefix}aether gather {key} glimmerwood\u0060",
                     inline=True,
                 )
-            embed.set_footer(text="Embervein unlocks at hero level 8.")
+            used = p.get("gathering_used", 0) if p.get("gathering_day") == gathering.utc_day() else 0
+            embed.add_field(
+                name="Daily sessions",
+                value=f"{gathering.DAILY_SESSIONS - used}/{gathering.DAILY_SESSIONS} remaining · resets at 00:00 UTC",
+                inline=False,
+            )
+            embed.set_footer(text="Embervein unlocks at hero level 8 · 15-second cooldown.")
             await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             return
         result = await self.mutate(
@@ -298,7 +304,14 @@ class Aetherbound(commands.Cog):
         )
         embed.add_field(name="Skill progress", value=progress, inline=False)
         if result["level"] > result["old_level"]:
-            embed.add_field(name="Level up!", value=f"{label} is now level {result['level']}.", inline=False)
+            embed.add_field(
+                name="Level up!",
+                value=f"{label} is now level {result['level']}.",
+                inline=False,
+            )
+        embed.set_footer(
+            text=f"{result['sessions_left']}/{gathering.DAILY_SESSIONS} gathering sessions left today · resets at 00:00 UTC"
+        )
         await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     @adventure.command()
