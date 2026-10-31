@@ -654,7 +654,7 @@ class V2Poll(commands.Cog):
                 ended_embed = discord.Embed(
                     title=f"📊 {poll_data['title']} (ENDED)",
                     description="This poll has ended. See results above.",
-                    color=discord.Color.grey()
+                    color=discord.Color.light_grey()
                 )
                 
                 await message.edit(embed=ended_embed, view=disabled_view)
