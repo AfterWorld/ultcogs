@@ -57,7 +57,7 @@ CI compares them with `diff -u` on Linux, so line endings or encoding changed by
 ### Cog conventions
 
 - `__init__.py` normally defines `setup(bot)`, which adds the cog.
-- `info.json` holds Downloader metadata: `requirements`, `min_bot_version`, `end_user_data_statement` and so on. Update it when runtime dependencies or stored user data change.
+- `info.json` holds Downloader metadata: `requirements`, `min_bot_version`, `end_user_data_statement` and so on. Update it when runtime dependencies or stored user data change. Never list discord.py or Red in `requirements`, because Red provides them.
 - Use relative imports within a cog. Cogs are installed independently, so never import from another cog's directory.
 - Integrations between cogs are runtime lookups with `bot.get_cog("Name")`, and the other cog may not be loaded. `BeriCore` (`bericore/`) is the shared currency provider used by `beri`, `beri_cautions`, `onepiecefruit`, `onepieceguess`, `voyage` and `Suggestion`.
 

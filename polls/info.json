@@ -13,9 +13,7 @@
         "utility",
         "components-v2"
     ],
-    "requirements": [
-        "discord.py>=2.0.0"
-    ],
-    "min_bot_version": "3.5.0",
+    "requirements": [],
+    "min_bot_version": "3.5.24",
     "end_user_data_statement": "This cog stores user IDs for tracking poll votes. This data is deleted when polls expire or are manually deleted."
 }

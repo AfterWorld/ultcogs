@@ -24,9 +24,7 @@
     "automatic",
     "logging"
   ],
-  "requirements": [
-    "discord.py>=2.3.0"
-  ],
+  "requirements": [],
   "min_bot_version": "3.5.0",
   "min_python_version": [3, 8, 0],
   "hidden": false,

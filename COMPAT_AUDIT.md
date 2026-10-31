@@ -120,7 +120,7 @@ Red's Downloader doesn't reject bad or missing `info.json` files. It logs any JS
 | `afk` | Statement only in `__init__.py`, not `info.json` |
 | `afk`, `crewbattles` | No `min_bot_version` |
 | `mrwhite` | `min_python_version` is `3.11.15`, which blocks installs on earlier 3.11 releases |
-| `polls`, `onepiecemods` | Declare a `discord.py` requirement that Red already controls; harmless today, since Red's pinned version satisfies both |
+| `polls`, `onepiecemods` | Listed `discord.py` in `requirements`. Cogs must not list discord.py or Red, because Red provides them. **Fixed after this audit:** both are now `[]`; the table below still shows the audited values |
 
 There's also no repository-level `info.json`. Downloader tolerates this too, so it only loses the repo's own description and install message.
 
