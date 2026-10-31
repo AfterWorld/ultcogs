@@ -1,6 +1,7 @@
 import discord
 import datetime
 import asyncio
+import logging
 from typing import Dict, List, Optional, Union, Literal
 
 from redbot.core import commands, Config, modlog
@@ -9,6 +10,7 @@ from redbot.core.bot import Red
 from redbot.core.i18n import Translator, cog_i18n
 
 _ = Translator("EnhancedModlog", __file__)
+log = logging.getLogger("red.enhancedmodlog")
 
 class EnhancedModlog(commands.Cog):
     """
@@ -55,7 +57,7 @@ class EnhancedModlog(commands.Cog):
         await self.bot.wait_until_ready()
         # Ensure modlog is loaded
         if not self.bot.get_cog("ModLog"):
-            self.bot.logger.error("ModLog cog is required for EnhancedModlog to work.")
+            log.error("ModLog cog is required for EnhancedModlog to work.")
 
     async def red_delete_data_for_user(
         self,
@@ -174,7 +176,7 @@ class EnhancedModlog(commands.Cog):
         try:
             await log_channel.send(embed=embed, view=view)
         except discord.HTTPException as e:
-            self.bot.logger.error(f"Failed to send enhanced modlog message: {e}")
+            log.error(f"Failed to send enhanced modlog message: {e}")
 
     async def _generate_case_embed(self, case, guild_settings):
         """Generate an enhanced embed for a modlog case"""
