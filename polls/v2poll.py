@@ -19,9 +19,6 @@ GITHUB_REPO_NAME = "ultcogs"
 GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/contents/Character%20Sprite"
 GITHUB_RAW_BASE = f"https://raw.githubusercontent.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/main/Character%20Sprite/"
 
-# Component V2 flag
-IS_COMPONENTS_V2 = 1 << 15
-
 
 def _option_descriptions(count: int) -> Dict[str, str]:
     """Build @app_commands.describe entries for option1..optionN."""
@@ -128,29 +125,6 @@ class V2Poll(commands.Cog):
             return sprites
             
         return random.sample(sprites, count)
-
-    def create_poll_components(self, options: List[str]) -> List[Dict]:
-        """Create Components V2 for a poll."""
-        components = []
-        
-        # Group vote buttons into action rows (max 5 buttons per row)
-        for i in range(0, len(options), 5):
-            buttons = []
-            for j, option in enumerate(options[i:i+5], i):
-                buttons.append({
-                    "type": 2,  # Button type
-                    "style": 1,  # Primary style
-                    "label": f"Vote for {option}",
-                    "custom_id": f"vote_{j}"
-                })
-            
-            # Add action row with buttons
-            components.append({
-                "type": 1,  # Action row
-                "components": buttons
-            })
-        
-        return components
 
     def create_sprite_select_menu(self, options: List[str], sprites: List[Dict[str, str]]) -> Dict:
         """Create a select menu for sprite options."""
@@ -320,45 +294,24 @@ class V2Poll(commands.Cog):
             if sprite_urls:
                 embed.set_thumbnail(url=random.choice(sprite_urls))
             
-            # Create Components V2 formatted components
-            components = self.create_poll_components(options)
-            
-            # Try to send with Components V2 first via HTTP
-            try:
-                # Use webhook execution to send the message with Components V2
-                webhook = await ctx.channel.create_webhook(name="PollBot")
-                poll_message = await webhook.send(
-                    embed=embed,
-                    wait=True,
-                    username=ctx.me.display_name,
-                    avatar_url=ctx.me.display_avatar.url,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                    flags=IS_COMPONENTS_V2,
-                    components=components
+            # Create a standard Discord select menu
+            view = discord.ui.View()
+            select = discord.ui.Select(
+                placeholder="Choose your favorite option",
+                custom_id="sprite_vote"
+            )
+
+            # Add options to the select menu
+            for i, option in enumerate(options):
+                select.add_option(
+                    label=option,
+                    value=f"vote_{i}",
+                    description=f"Vote for {option}"
                 )
-                await webhook.delete()
-            except Exception as e:
-                # Fallback to standard view if Components V2 fails
-                print(f"Components V2 failed: {e}, using standard view instead")
-                
-                # Create a standard Discord select menu
-                view = discord.ui.View()
-                select = discord.ui.Select(
-                    placeholder="Choose your favorite option",
-                    custom_id="sprite_vote"
-                )
-                
-                # Add options to the select menu
-                for i, option in enumerate(options):
-                    select.add_option(
-                        label=option,
-                        value=f"vote_{i}",
-                        description=f"Vote for {option}"
-                    )
-                
-                view.add_item(select)
-                poll_message = await ctx.send(embed=embed, view=view)
-            
+
+            view.add_item(select)
+            poll_message = await ctx.send(embed=embed, view=view)
+
             # Register the poll in the config
             async with self.config.guild(ctx.guild).polls() as polls:
                 poll_data = {
@@ -704,36 +657,8 @@ class V2Poll(commands.Cog):
                     color=discord.Color.grey()
                 )
                 
-                try:
-                    # Try to update with V2 components first
-                    webhook = await channel.create_webhook(name="PollBot")
-                    disabled_components = []
-                    for i in range(0, len(poll_data["options"]), 5):
-                        buttons = []
-                        for j, option in enumerate(poll_data["options"][i:i+5], i):
-                            buttons.append({
-                                "type": 2,  # Button type
-                                "style": 1,  # Primary style
-                                "label": f"Vote for {option}",
-                                "custom_id": f"vote_{j}",
-                                "disabled": True
-                            })
-                        
-                        disabled_components.append({
-                            "type": 1,  # Action row
-                            "components": buttons
-                        })
-                    
-                    await message.edit(
-                        embed=ended_embed,
-                        flags=IS_COMPONENTS_V2,
-                        components=disabled_components
-                    )
-                    await webhook.delete()
-                except Exception:
-                    # Fallback to standard view
-                    await message.edit(embed=ended_embed, view=disabled_view)
-                
+                await message.edit(embed=ended_embed, view=disabled_view)
+
             except discord.HTTPException:
                 # If we can't edit the message, just ignore
                 pass
@@ -1055,65 +980,24 @@ class V2Poll(commands.Cog):
             if sprite_urls:
                 embed.set_thumbnail(url=random.choice(sprite_urls))
             
-            # Create select menu options
-            select_options = []
+            # Create a standard Discord select menu
+            view = discord.ui.View()
+            select = discord.ui.Select(
+                placeholder="Choose your favorite option",
+                custom_id="sprite_vote"
+            )
+
+            # Add options to the select menu
             for i, option in enumerate(options):
-                option_data = {
-                    "label": option,
-                    "value": f"vote_{i}",
-                    "description": f"Vote for {option}"
-                }
-                select_options.append(option_data)
-            
-            # Create select menu component
-            select_menu = {
-                "type": 3,  # Select Menu
-                "custom_id": "sprite_vote",
-                "placeholder": "Choose your favorite option",
-                "options": select_options
-            }
-            
-            # Create Components V2 formatted components with select menu
-            components = [{
-                "type": 1,  # Action row
-                "components": [select_menu]
-            }]
-            
-            try:
-                # Use webhook execution to send the message with Components V2
-                webhook = await ctx.channel.create_webhook(name="PollBot")
-                poll_message = await webhook.send(
-                    embed=embed,
-                    wait=True,
-                    username=ctx.me.display_name,
-                    avatar_url=ctx.me.display_avatar.url,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                    flags=IS_COMPONENTS_V2,
-                    components=components
+                select.add_option(
+                    label=option,
+                    value=f"vote_{i}",
+                    description=f"Vote for {option}"
                 )
-                await webhook.delete()
-            except Exception as e:
-                # Fallback to standard view if Components V2 fails
-                print(f"Components V2 failed: {e}, using standard view instead")
-                
-                # Create a standard Discord select menu
-                view = discord.ui.View()
-                select = discord.ui.Select(
-                    placeholder="Choose your favorite option",
-                    custom_id="sprite_vote"
-                )
-                
-                # Add options to the select menu
-                for i, option in enumerate(options):
-                    select.add_option(
-                        label=option,
-                        value=f"vote_{i}",
-                        description=f"Vote for {option}"
-                    )
-                
-                view.add_item(select)
-                poll_message = await ctx.send(embed=embed, view=view)
-            
+
+            view.add_item(select)
+            poll_message = await ctx.send(embed=embed, view=view)
+
             # Register the poll in the config
             async with self.config.guild(ctx.guild).polls() as polls:
                 poll_data = {
