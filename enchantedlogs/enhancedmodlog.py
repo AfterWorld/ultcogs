@@ -209,11 +209,11 @@ class EnhancedModlog(commands.Cog):
             
         # Add duration info for temporary actions
         if hasattr(case, "until") and case.until:
-            time_remaining = case.until - datetime.datetime.utcnow()
+            time_remaining = datetime.datetime.fromtimestamp(case.until, datetime.timezone.utc) - datetime.datetime.now(datetime.timezone.utc)
             if time_remaining.total_seconds() > 0:
                 duration_text = self._format_timedelta(time_remaining)
                 embed.add_field(name="Duration", value=duration_text, inline=True)
-                embed.add_field(name="Expires", value=f"<t:{int(case.until.timestamp())}:R>", inline=True)
+                embed.add_field(name="Expires", value=f"<t:{int(case.until)}:R>", inline=True)
                 
         # Add footer with case ID for reference
         embed.set_footer(text=f"Case #{case.case_number}")
