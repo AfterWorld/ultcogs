@@ -1,6 +1,6 @@
 # V2Poll
 
-A Red-DiscordBot cog that creates interactive polls using Discord's Components V2 feature.
+A Red-DiscordBot cog that creates interactive polls with dropdown voting.
 
 ## Features
 
@@ -8,26 +8,23 @@ A Red-DiscordBot cog that creates interactive polls using Discord's Components V
 - Real-time vote tracking
 - Customizable poll duration
 - Automatic results when polls end
-- Modern UI using Discord's Components V2
 
 ## Requirements
 
 - Red-DiscordBot 3.5.0+
-- Discord.py 2.0+ (with Components V2 support)
 - Python 3.8+
 
 ## Installation
 
-1. Make sure your bot has Components V2 support (Discord.py 2.0+ with the Components V2 PR merged)
-2. Add the repository to your bot:
+1. Add the repository to your bot:
    ```
    [p]repo add v2poll-cog [[repository URL]](https://github.com/AfterWorld/ultcogs)
    ```
-3. Install the cog:
+2. Install the cog:
    ```
    [p]cog install v2poll-cog v2poll
    ```
-4. Load the cog:
+3. Load the cog:
    ```
    [p]load v2poll
    ```
@@ -71,8 +68,6 @@ Set the default poll duration to 2 hours:
 
 ## Notes
 
-- Components V2 is a new Discord feature, so older versions of Discord.py may not support it
-- The cog will automatically provide a fallback message if Components V2 is not available
 - Users can vote by clicking the "Vote" button next to their preferred option
 - Users can change their vote at any time before the poll ends
 
@@ -83,5 +78,4 @@ This cog is released under the MIT License. See LICENSE file for details.
 ## Credits
 
 - Developed by UltPanda
-- Based on Discord Components V2 API
 - Made for Red-DiscordBot community
